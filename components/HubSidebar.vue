@@ -1,203 +1,108 @@
 <template>
-  <div class="hub-sidebar-wrapper">
-    <!-- Main Navigation -->
-    <NuxtLink to="/" :class="['nav-item', { active: isActive('/') }]">
-      <Icon name="home" size="18" />
-      <span class="nav-label">Home</span>
-    </NuxtLink>
+  <aside class="hub-sidebar" :class="{ collapsed }">
+    <nav class="sidebar-nav">
+      <NuxtLink to="/" class="nav-link home-link" active-class="active">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+        </svg>
+        <span>Home</span>
+      </NuxtLink>
 
-    <!-- Messages Section -->
-    <div v-if="enabledModules.includes('chat')" class="sidebar-section">
-      <h3 class="sidebar-title">MESSAGES</h3>
-      <div class="sidebar-section-header">
-        <span class="section-count">{{ messageCount }} NEW</span>
-        <button class="section-add">+</button>
+      <div v-for="section in sections" :key="section.title" class="nav-section">
+        <h3 class="section-title">{{ section.title }}</h3>
+        <NuxtLink v-for="item in section.items" :key="item.path" :to="item.path" class="nav-link" active-class="active">
+          <svg width="18" height="18" :viewBox="item.icon.viewBox" fill="none" stroke="currentColor" stroke-width="2" v-html="item.icon.path"></svg>
+          <span>{{ item.label }}</span>
+          <span v-if="item.badge" class="badge">{{ item.badge }}</span>
+        </NuxtLink>
       </div>
-      <nav class="sidebar-nav">
-        <NuxtLink
-          v-for="person in recentMessages"
-          :key="person.id"
-          :class="['nav-item', 'chat-item', { active: isActive(`/chat/${person.id}`) }]"
-        >
-          <div class="avatar-small" :style="{ background: person.color }">{{ person.initials }}</div>
-          <span class="nav-label">{{ person.name }}</span>
-          <span v-if="person.unread" class="unread-indicator">{{ person.unread }}</span>
-        </NuxtLink>
-      </nav>
-    </div>
+    </nav>
 
-    <!-- Main Modules (Added Widgets) -->
-    <div v-if="visibleModules.length > 0" class="sidebar-section">
-      <h3 class="sidebar-title">MODULES</h3>
-      <nav class="sidebar-nav">
-        <NuxtLink
-          v-for="module in visibleModules"
-          :key="module.id"
-          :to="module.path"
-          :class="['nav-item', { active: isActive(module.path) }]"
-        >
-          <Icon :name="module.icon" size="18" />
-          <span class="nav-label">{{ module.name }}</span>
-          <span v-if="module.badge" class="nav-badge">{{ module.badge }}</span>
-        </NuxtLink>
-      </nav>
+    <div class="sidebar-footer">
+      <button class="collapse-btn" @click="collapsed = !collapsed" :title="collapsed ? 'Expand' : 'Collapse'">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+      </button>
     </div>
-
-    <!-- Organization Section -->
-    <div v-if="enabledModules.some(m => m.startsWith('org-'))" class="sidebar-section">
-      <h3 class="sidebar-title">ORGANIZATION</h3>
-      <nav class="sidebar-nav">
-        <NuxtLink
-          v-for="org in organizationItems"
-          :key="org.id"
-          :to="org.path"
-          :class="['nav-item', { active: isActive(org.path) }]"
-        >
-          <Icon :name="org.icon" size="18" />
-          <span class="nav-label">{{ org.name }}</span>
-        </NuxtLink>
-      </nav>
-    </div>
-
-    <!-- Admin Section -->
-    <div v-if="enabledModules.some(m => m.startsWith('admin-'))" class="sidebar-section">
-      <h3 class="sidebar-title">ADMIN</h3>
-      <nav class="sidebar-nav">
-        <NuxtLink
-          v-for="admin in adminItems.filter(a => enabledModules.includes(`admin-${a.id}`))"
-          :key="admin.id"
-          :to="admin.path"
-          :class="['nav-item', { active: isActive(admin.path) }]"
-        >
-          <Icon :name="admin.icon" size="18" />
-          <span class="nav-label">{{ admin.name }}</span>
-          <span v-if="admin.badge" class="nav-badge">{{ admin.badge }}</span>
-        </NuxtLink>
-      </nav>
-    </div>
-  </div>
+  </aside>
 </template>
 
 <script setup lang="ts">
-import { useRoute } from 'vue-router'
-import { ref, computed } from 'vue'
-import Icon from '~/components/Icon.vue'
+import { ref } from 'vue'
 
-const route = useRoute()
+const collapsed = ref(false)
 
-// Modules that can be added as widgets
-const allModules = [
-  { id: 'community-wall', name: 'Community wall', icon: 'message-square', path: '/wall' },
-  { id: 'meetings', name: 'Meetings & standups', icon: 'users', path: '/sessions' },
-  { id: 'calendar', name: 'Calendar', icon: 'calendar', path: '/admin/calendar' },
-  { id: 'communications', name: 'Communications', icon: 'send', path: '/communications' },
-  { id: 'tickets', name: 'Tickets', icon: 'edit', path: '/tickets' },
-  { id: 'projects', name: 'Projects', icon: 'box', path: '/projects' },
-  { id: 'people', name: 'People', icon: 'users', path: '/people' },
-  { id: 'approvals', name: 'Approvals', icon: 'check', path: '/approvals' },
+const sections = [
+  {
+    title: 'MODULES',
+    items: [
+      { path: '/wall', label: 'Community wall', icon: { viewBox: '0 0 24 24', path: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>' } },
+      { path: '/sessions', label: 'Meetings & standups', icon: { viewBox: '0 0 24 24', path: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>' } },
+      { path: '/admin/calendar', label: 'Calendar', icon: { viewBox: '0 0 24 24', path: '<rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line>' } },
+      { path: '/communications', label: 'Communications', icon: { viewBox: '0 0 24 24', path: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>' }, badge: '3' },
+      { path: '/tickets', label: 'Tickets', icon: { viewBox: '0 0 24 24', path: '<path d="M9 11l3 3L22 4"></path><path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>' } },
+      { path: '/projects', label: 'Projects', icon: { viewBox: '0 0 24 24', path: '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="9" x2="15" y2="9"></line><line x1="9" y1="15" x2="15" y2="15"></line>' } },
+      { path: '/people', label: 'People', icon: { viewBox: '0 0 24 24', path: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>' } },
+      { path: '/approvals', label: 'Approvals', icon: { viewBox: '0 0 24 24', path: '<polyline points="20 6 9 17 4 12"></polyline>' }, badge: '3' },
+    ],
+  },
+  {
+    title: 'ADMIN',
+    items: [
+      { path: '/admin/security', label: 'Security & logs', icon: { viewBox: '0 0 24 24', path: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>' }, badge: '6' },
+      { path: '/admin/roles', label: 'Roles & rights', icon: { viewBox: '0 0 24 24', path: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle>' } },
+    ],
+  },
 ]
-
-const organizationItems = [
-  { id: 'departments', name: 'Departments', icon: 'folder', path: '/departments' },
-  { id: 'sectors', name: 'Sectors', icon: 'git-branch', path: '/sectors' },
-  { id: 'branches', name: 'Branches', icon: 'git-branch', path: '/branches' },
-  { id: 'units', name: 'Units', icon: 'box', path: '/units' },
-]
-
-const adminItems = [
-  { id: 'security', name: 'Security & logs', icon: 'shield', path: '/admin/security', badge: '6' },
-  { id: 'roles', name: 'Roles & rights', icon: 'lock', path: '/admin/roles' },
-]
-
-// Simulated: which modules are currently enabled (added to home)
-const enabledModules = ref([
-  'community-wall',
-  'meetings',
-  'calendar',
-  'communications',
-  'tickets',
-  'projects',
-  'people',
-  'approvals',
-  'chat',
-  'admin-security',
-  'admin-roles',
-  'org-departments',
-])
-
-const visibleModules = computed(() => {
-  return allModules.filter(m => enabledModules.value.includes(m.id))
-})
-
-const messageCount = ref(3)
-const recentMessages = [
-  { id: 1, name: 'Brian Kiprop', initials: 'BK', color: '#7CC4FF', unread: 2 },
-  { id: 2, name: 'Amina Wanjiru', initials: 'AW', color: '#6EE7C8', unread: 1 },
-  { id: 3, name: 'Grace Njeri', initials: 'GN', color: '#FFB86B', unread: 0 },
-  { id: 4, name: 'David Otieno', initials: 'DO', color: '#F49AC1', unread: 0 },
-]
-
-const isActive = (path: string) => {
-  return route.path === path
-}
 </script>
 
 <style scoped>
-.hub-sidebar-wrapper {
-  padding: 12px 0;
+.hub-sidebar {
+  width: 220px;
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  overflow-y: auto;
+  transition: width 0.3s ease;
 }
 
-.sidebar-section {
+.hub-sidebar.collapsed {
+  width: 60px;
+}
+
+.sidebar-nav {
+  flex: 1;
+  padding: 12px 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.sidebar-title {
+.nav-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.section-title {
+  margin: 0;
+  padding: 0 16px;
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
+  color: var(--color-text-secondary);
   letter-spacing: 0.5px;
-  color: var(--color-text-secondary);
-  margin: 0;
+}
+
+.home-link {
   padding: 0 16px;
 }
 
-.sidebar-section-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 16px;
-  font-size: 11px;
-  color: var(--color-text-secondary);
-}
-
-.section-count {
-  font-weight: 600;
-}
-
-.section-add {
-  background: transparent;
-  border: none;
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  font-size: 16px;
-  padding: 0;
-}
-
-.sidebar-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.nav-item {
+.nav-link {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -208,19 +113,21 @@ const isActive = (path: string) => {
   font-weight: 500;
   transition: all 0.2s ease;
   position: relative;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
-.nav-item:hover {
+.nav-link:hover {
   color: var(--color-text);
-  background: transparent;
+  background: var(--color-bg);
 }
 
-.nav-item.active {
-  color: var(--color-lime);
+.nav-link.active {
+  color: #B8F36B;
   font-weight: 600;
 }
 
-.nav-item.active::before {
+.nav-link.active::before {
   content: '';
   position: absolute;
   left: 0;
@@ -228,75 +135,75 @@ const isActive = (path: string) => {
   transform: translateY(-50%);
   width: 3px;
   height: 20px;
-  background: var(--color-lime);
+  background: #B8F36B;
   border-radius: 0 2px 2px 0;
 }
 
-.nav-item.chat-item {
-  padding: 8px 16px;
-}
-
-.avatar-small {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 10px;
-  font-weight: 700;
-  color: white;
+.nav-link svg {
   flex-shrink: 0;
 }
 
-.nav-label {
-  flex: 1;
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.unread-indicator {
-  background: var(--color-coral);
-  color: white;
-  font-size: 10px;
-  font-weight: 700;
-  padding: 2px 5px;
-  border-radius: 3px;
+.badge {
   margin-left: auto;
-  flex-shrink: 0;
-}
-
-.nav-badge {
-  background: var(--color-coral);
-  color: white;
+  background: #FF9B8A;
+  color: #0F1714;
   font-size: 10px;
   font-weight: 700;
   padding: 2px 6px;
   border-radius: 3px;
-  margin-left: auto;
   flex-shrink: 0;
 }
 
+.hub-sidebar.collapsed .nav-link span {
+  display: none;
+}
+
+.hub-sidebar.collapsed .badge {
+  position: absolute;
+  right: 4px;
+  top: 4px;
+  margin-left: 0;
+}
+
+.sidebar-footer {
+  padding: 12px;
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  justify-content: center;
+}
+
+.collapse-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.collapse-btn:hover {
+  border-color: #B8F36B;
+  color: #B8F36B;
+}
+
 @media (max-width: 768px) {
-  .hub-sidebar-wrapper {
-    padding: 12px 8px;
+  .hub-sidebar {
+    position: fixed;
+    left: 0;
+    top: 60px;
+    height: calc(100vh - 60px);
+    z-index: 100;
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.3);
   }
 
-  .nav-item {
-    padding: 8px 12px;
-  }
-
-  .nav-label {
-    display: none;
-  }
-
-  .nav-badge,
-  .unread-indicator {
-    position: absolute;
-    right: 8px;
-    top: 8px;
+  .hub-sidebar.collapsed {
+    width: 0;
+    overflow: hidden;
   }
 }
 </style>
