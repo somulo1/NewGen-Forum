@@ -2,190 +2,154 @@
   <div class="sessions-container">
     <div class="page-header">
       <div>
-        <h1>Meetings & Sessions</h1>
-        <p class="subtitle">Video calls and team meetings</p>
+        <h1>Meetings & standups</h1>
+        <p class="subtitle">Schedule meetings and standups, pick who joins, and start them from here.</p>
       </div>
-      <button class="btn btn-primary">
-        <Icon name="calendar" size="18" />
-        Schedule Meeting
-      </button>
+      <div class="header-buttons">
+        <button class="btn-schedule">Schedule a meeting</button>
+        <button class="btn-standup">Schedule a standup</button>
+        <button class="btn-start">Start now</button>
+      </div>
     </div>
 
-    <div class="tabs">
-      <button :class="['tab-btn', { active: activeTab === 'active' }]" @click="activeTab = 'active'">
-        <Icon name="video" size="16" />
-        Active Meetings
-      </button>
-      <button :class="['tab-btn', { active: activeTab === 'upcoming' }]" @click="activeTab = 'upcoming'">
-        <Icon name="calendar" size="16" />
-        Upcoming ({{ upcomingMeetings.length }})
-      </button>
-      <button :class="['tab-btn', { active: activeTab === 'past' }]" @click="activeTab = 'past'">
-        <Icon name="clock" size="16" />
-        Past Meetings
-      </button>
-    </div>
+    <div class="meetings-table">
+      <div class="table-header">
+        <div class="col-meeting">MEETING</div>
+        <div class="col-type">TYPE</div>
+        <div class="col-date">DATE</div>
+        <div class="col-time">TIME</div>
+        <div class="col-repeats">REPEATS</div>
+        <div class="col-participants">PARTICIPANTS</div>
+      </div>
 
-    <div v-if="activeTab === 'active'" class="meetings-grid">
-      <div v-for="meeting in activeMeetings" :key="meeting.id" class="meeting-card active-meeting">
-        <div class="video-preview">
-          <div class="video-placeholder">
-            <Icon name="video" size="48" />
-            <span>Live Meeting</span>
+      <div class="table-filters">
+        <input type="text" class="filter-input" placeholder="Filter...">
+        <select class="filter-select">
+          <option>All</option>
+        </select>
+        <input type="date" class="filter-input">
+        <input type="date" class="filter-input">
+        <select class="filter-select">
+          <option>All</option>
+        </select>
+      </div>
+
+      <div v-for="meeting in meetings" :key="meeting.id" class="table-row">
+        <div class="col-meeting">
+          <div class="meeting-info">
+            <div class="meeting-title">{{ meeting.title }}</div>
+            <div class="meeting-dept">{{ meeting.department }}</div>
+            <div class="meeting-forum">{{ meeting.forum }}</div>
           </div>
-          <div class="participants">
-            <div v-for="participant in meeting.participants" :key="participant.id" class="participant-avatar">
-              {{ participant.initials }}
+        </div>
+        <div class="col-type">
+          <span class="type-badge" :class="'type-' + meeting.type.toLowerCase()">{{ meeting.type }}</span>
+        </div>
+        <div class="col-date">{{ meeting.date }}</div>
+        <div class="col-time">{{ meeting.time }}</div>
+        <div class="col-repeats">{{ meeting.repeats }}</div>
+        <div class="col-participants">
+          <div class="participants-avatars">
+            <div v-for="(person, idx) in meeting.participants" :key="idx" class="participant-avatar" :style="{ background: person.color }">
+              {{ person.initials }}
             </div>
+            <span class="participant-count">{{ meeting.participants.length }} people</span>
           </div>
         </div>
-        <div class="meeting-info">
-          <h3>{{ meeting.title }}</h3>
-          <p>{{ meeting.participants.length }} participants • Started {{ meeting.startTime }}</p>
-        </div>
-        <div class="meeting-actions">
-          <button class="action-btn">Join</button>
-          <button class="action-btn secondary">Details</button>
-        </div>
-      </div>
-
-      <div v-if="activeMeetings.length === 0" class="no-content">
-        <Icon name="video" size="48" />
-        <p>No active meetings right now</p>
       </div>
     </div>
 
-    <div v-if="activeTab === 'upcoming'" class="meetings-list">
-      <div v-for="meeting in upcomingMeetings" :key="meeting.id" class="meeting-item">
-        <div class="meeting-time">
-          <div class="time-box">
-            <span class="time-hour">{{ meeting.time }}</span>
-            <span class="time-date">{{ meeting.date }}</span>
-          </div>
-        </div>
-        <div class="meeting-content">
-          <h3>{{ meeting.title }}</h3>
-          <p>{{ meeting.organizer }} • {{ meeting.participants }} participants</p>
-          <div class="meeting-description">{{ meeting.description }}</div>
-        </div>
-        <div class="meeting-badges">
-          <span v-if="meeting.recurring" class="badge">Recurring</span>
-          <span v-if="meeting.recorded" class="badge">Recording enabled</span>
-        </div>
-        <button class="btn-join">Join Meeting</button>
-      </div>
-    </div>
-
-    <div v-if="activeTab === 'past'" class="meetings-list">
-      <div v-for="meeting in pastMeetings" :key="meeting.id" class="meeting-item past">
-        <div class="meeting-time">
-          <div class="time-box">
-            <span class="time-hour">{{ meeting.time }}</span>
-            <span class="time-date">{{ meeting.date }}</span>
-          </div>
-        </div>
-        <div class="meeting-content">
-          <h3>{{ meeting.title }}</h3>
-          <p>{{ meeting.organizer }} • {{ meeting.duration }} minutes</p>
-        </div>
-        <div class="meeting-actions">
-          <button v-if="meeting.recording" class="btn-recording">
-            <Icon name="play" size="14" />
-            View Recording
-          </button>
-          <button class="btn-details">Details</button>
-        </div>
-      </div>
+    <div class="pagination">
+      <button class="page-btn">Previous</button>
+      <span class="page-info">Showing 1–5 of 5</span>
+      <button class="page-btn">Next</button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import Icon from '~/components/Icon.vue'
-
 definePageMeta({
   layout: 'default',
 })
 
-const activeTab = ref('active')
-
-const activeMeetings = [
+const meetings = [
   {
     id: 1,
-    title: 'Team Standup',
-    startTime: '10:05 AM',
+    title: 'IT daily standup',
+    department: 'IT Operations',
+    forum: 'forum',
+    type: 'Standup',
+    date: 'Tue, 13 Oct',
+    time: '09:15–09:30',
+    repeats: 'Weekdays',
     participants: [
-      { id: 1, initials: 'JD' },
-      { id: 2, initials: 'SM' },
-      { id: 3, initials: 'MD' },
-      { id: 4, initials: 'EW' },
+      { initials: 'BK', color: '#7CC4FF' },
+      { initials: 'DO', color: '#F49AC1' },
+      { initials: 'JK', color: '#FFB86B' },
     ],
   },
-]
-
-const upcomingMeetings = [
-  {
-    id: 1,
-    title: 'Project Review Meeting',
-    time: '2:00 PM',
-    date: 'Today',
-    organizer: 'Sarah Martin',
-    participants: 8,
-    description: 'Q4 project progress review and planning',
-    recurring: true,
-    recorded: true,
-  },
   {
     id: 2,
-    title: 'Client Call',
-    time: '3:30 PM',
-    date: 'Today',
-    organizer: 'John Doe',
-    participants: 4,
-    description: 'Quarterly business review',
-    recurring: false,
-    recorded: true,
+    title: 'Risk & Compliance weekly sync',
+    department: 'Risk & Compliance',
+    forum: 'forum',
+    type: 'Standup',
+    date: 'Wed, 14 Oct',
+    time: '08:30–08:45',
+    repeats: 'Weekly',
+    participants: [
+      { initials: 'AW', color: '#6EE7C8' },
+      { initials: 'KM', color: '#9B8FFF' },
+    ],
   },
   {
     id: 3,
-    title: 'Team Building Session',
-    time: '4:00 PM',
-    date: 'Tomorrow',
-    organizer: 'HR Team',
-    participants: 25,
-    description: 'Virtual team building activities',
-    recurring: false,
-    recorded: false,
-  },
-]
-
-const pastMeetings = [
-  {
-    id: 1,
-    title: 'Daily Standup',
-    time: '10:00 AM',
-    date: 'Dec 14',
-    organizer: 'Marcus Davis',
-    duration: 15,
-    recording: true,
+    title: 'Sprint review',
+    department: 'Product Builders',
+    forum: 'forum',
+    type: 'Meeting',
+    date: 'Thu, 15 Oct',
+    time: '15:00–16:00',
+    repeats: 'Once',
+    participants: [
+      { initials: 'DO', color: '#F49AC1' },
+      { initials: 'AW', color: '#6EE7C8' },
+      { initials: 'BK', color: '#7CC4FF' },
+      { initials: 'KM', color: '#9B8FFF' },
+    ],
   },
   {
-    id: 2,
-    title: 'Design Review',
-    time: '2:00 PM',
-    date: 'Dec 13',
-    organizer: 'Sarah Martin',
-    duration: 45,
-    recording: true,
+    id: 4,
+    title: 'Access review with department heads',
+    department: 'Risk & Compliance',
+    forum: 'forum',
+    type: 'Meeting',
+    date: 'Sat, 17 Oct',
+    time: '11:00–12:00',
+    repeats: 'Once',
+    participants: [
+      { initials: 'GN', color: '#FFB86B' },
+      { initials: 'AW', color: '#6EE7C8' },
+      { initials: 'KM', color: '#9B8FFF' },
+    ],
   },
   {
-    id: 3,
-    title: 'All Hands Meeting',
-    time: '1:00 PM',
-    date: 'Dec 12',
-    organizer: 'Executive Team',
-    duration: 60,
-    recording: false,
+    id: 5,
+    title: 'Quarterly town hall',
+    department: 'Finance',
+    forum: 'forum',
+    type: 'Meeting',
+    date: 'Thu, 22 Oct',
+    time: '10:00–11:30',
+    repeats: 'Once',
+    participants: [
+      { initials: 'BK', color: '#7CC4FF' },
+      { initials: 'GN', color: '#FFB86B' },
+      { initials: 'AW', color: '#6EE7C8' },
+      { initials: 'FA', color: '#B8F36B' },
+      { initials: 'KM', color: '#9B8FFF' },
+      { initials: 'JK', color: '#FFB86B' },
+    ],
   },
 ]
 </script>
@@ -194,309 +158,218 @@ const pastMeetings = [
 .sessions-container {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-xl);
+  gap: 24px;
 }
 
 .page-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
 }
 
 .page-header h1 {
   margin: 0;
+  font-size: 32px;
+  font-weight: 600;
 }
 
 .subtitle {
   color: var(--color-text-secondary);
   font-size: 14px;
-  margin: var(--spacing-sm) 0 0 0;
+  margin: 8px 0 0 0;
 }
 
-.tabs {
+.header-buttons {
   display: flex;
-  gap: var(--spacing-md);
-  border-bottom: 1px solid var(--color-border);
+  gap: 12px;
 }
 
-.tab-btn {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm);
-  padding: var(--spacing-md) var(--spacing-lg);
-  background: none;
-  border: none;
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  font-weight: 500;
-  font-size: 13px;
-  border-bottom: 3px solid transparent;
-  transition: all 0.2s ease;
-  margin-bottom: -1px;
-}
-
-.tab-btn:hover {
+.btn-schedule,
+.btn-standup {
+  background: transparent;
+  border: 1px solid var(--color-border);
   color: var(--color-text);
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
 }
 
-.tab-btn.active {
-  color: var(--color-lime);
-  border-bottom-color: var(--color-lime);
+.btn-schedule:hover,
+.btn-standup:hover {
+  border-color: #B8F36B;
+  color: #B8F36B;
 }
 
-.meetings-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: var(--spacing-lg);
+.btn-start {
+  background: #B8F36B;
+  border: none;
+  color: #000;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
 }
 
-.meeting-card {
+.meetings-table {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
+  border-radius: 12px;
   overflow: hidden;
-  transition: all 0.2s ease;
 }
 
-.meeting-card:hover {
-  border-color: var(--color-lime);
-  box-shadow: 0 4px 12px rgba(184, 243, 107, 0.1);
-}
-
-.video-preview {
-  position: relative;
-  background: var(--color-bg);
-  height: 200px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.video-placeholder {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--spacing-md);
-  color: var(--color-text-secondary);
-}
-
-.video-placeholder :deep(svg) {
-  opacity: 0.5;
-}
-
-.participants {
-  position: absolute;
-  bottom: var(--spacing-md);
-  right: var(--spacing-md);
-  display: flex;
-  gap: -8px;
-  flex-direction: row-reverse;
-}
-
-.participant-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--color-sky) 0%, var(--color-teal) 100%);
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.table-header {
+  display: grid;
+  grid-template-columns: 200px 100px 120px 120px 100px 200px;
+  gap: 0;
+  background: var(--color-border);
+  padding: 12px 16px;
   font-weight: 600;
   font-size: 11px;
-  border: 2px solid var(--color-bg);
-  margin-left: -8px;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+}
+
+.table-filters {
+  display: grid;
+  grid-template-columns: 200px 100px 120px 120px 100px 200px;
+  gap: 0;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-border);
+  align-items: center;
+}
+
+.filter-input,
+.filter-select {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 12px;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.table-row {
+  display: grid;
+  grid-template-columns: 200px 100px 120px 120px 100px 200px;
+  gap: 0;
+  padding: 16px;
+  border-bottom: 1px solid var(--color-border);
+  align-items: center;
+}
+
+.table-row:hover {
+  background: var(--color-bg);
 }
 
 .meeting-info {
-  padding: var(--spacing-lg);
-}
-
-.meeting-info h3 {
-  margin: 0 0 var(--spacing-sm) 0;
-  font-size: 15px;
-  font-weight: 600;
-}
-
-.meeting-info p {
-  margin: 0;
-  font-size: 12px;
-  color: var(--color-text-secondary);
-}
-
-.meeting-actions {
-  padding: 0 var(--spacing-lg) var(--spacing-lg);
-  display: flex;
-  gap: var(--spacing-md);
-}
-
-.action-btn {
-  flex: 1;
-  background: var(--color-lime);
-  color: #000;
-  border: none;
-  padding: var(--spacing-sm) var(--spacing-md);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  font-weight: 600;
-  font-size: 13px;
-  transition: opacity 0.2s ease;
-}
-
-.action-btn:hover {
-  opacity: 0.9;
-}
-
-.action-btn.secondary {
-  background: var(--color-border);
-  color: var(--color-text);
-}
-
-.meetings-list {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-lg);
+  gap: 2px;
 }
 
-.meeting-item {
-  display: grid;
-  grid-template-columns: 100px 1fr 150px 120px;
-  gap: var(--spacing-lg);
-  align-items: center;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-lg);
-  transition: all 0.2s ease;
-}
-
-.meeting-item:hover {
-  border-color: var(--color-lime);
-  box-shadow: 0 4px 12px rgba(184, 243, 107, 0.1);
-}
-
-.meeting-item.past {
-  opacity: 0.7;
-}
-
-.meeting-time {
-  display: flex;
-  align-items: center;
-}
-
-.time-box {
-  background: rgba(184, 243, 107, 0.1);
-  border-radius: var(--radius-md);
-  padding: var(--spacing-md);
-  text-align: center;
-}
-
-.time-hour {
-  display: block;
-  font-weight: 600;
-  color: var(--color-lime);
-  font-size: 14px;
-}
-
-.time-date {
-  display: block;
-  font-size: 11px;
-  color: var(--color-text-secondary);
-}
-
-.meeting-content h3 {
-  margin: 0 0 var(--spacing-sm) 0;
-  font-size: 15px;
-  font-weight: 600;
-}
-
-.meeting-content p {
-  margin: 0 0 var(--spacing-md) 0;
-  font-size: 12px;
-  color: var(--color-text-secondary);
-}
-
-.meeting-description {
+.meeting-title {
   font-size: 13px;
+  font-weight: 600;
   color: var(--color-text);
 }
 
-.meeting-badges {
-  display: flex;
-  gap: var(--spacing-sm);
+.meeting-dept,
+.meeting-forum {
+  font-size: 11px;
+  color: var(--color-text-secondary);
 }
 
-.badge {
-  font-size: 11px;
+.type-badge {
+  display: inline-block;
   padding: 4px 8px;
-  background: rgba(124, 196, 255, 0.2);
-  color: var(--color-sky);
-  border-radius: var(--radius-xs);
-}
-
-.btn-join {
-  background: var(--color-lime);
-  color: #000;
-  border: none;
-  padding: var(--spacing-sm) var(--spacing-lg);
-  border-radius: var(--radius-md);
-  cursor: pointer;
+  border-radius: 4px;
+  font-size: 11px;
   font-weight: 600;
+}
+
+.type-standup {
+  background: rgba(110, 231, 200, 0.2);
+  color: #6EE7C8;
+}
+
+.type-meeting {
+  background: rgba(124, 196, 255, 0.2);
+  color: #7CC4FF;
+}
+
+.col-date,
+.col-time,
+.col-repeats {
   font-size: 13px;
-  transition: opacity 0.2s ease;
+  color: var(--color-text);
 }
 
-.btn-join:hover {
-  opacity: 0.9;
-}
-
-.btn-recording,
-.btn-details {
+.participants-avatars {
   display: flex;
   align-items: center;
-  gap: var(--spacing-sm);
-  background: var(--color-border);
-  color: var(--color-text);
-  border: none;
-  padding: var(--spacing-sm) var(--spacing-md);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 600;
-  transition: all 0.2s ease;
+  gap: 4px;
+  flex-wrap: wrap;
 }
 
-.btn-recording:hover,
-.btn-details:hover {
-  background: var(--color-lime);
-  color: #000;
-}
-
-.no-content {
+.participant-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--spacing-lg);
-  padding: var(--spacing-xl);
-  color: var(--color-text-secondary);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
+  font-size: 9px;
+  font-weight: 700;
+  color: white;
 }
 
-.no-content :deep(svg) {
-  opacity: 0.5;
+.participant-count {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  margin-left: 4px;
+}
+
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 0;
+}
+
+.page-btn {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.page-btn:hover {
+  border-color: #B8F36B;
+  color: var(--color-text);
+}
+
+.page-info {
+  font-size: 12px;
+  color: var(--color-text-secondary);
 }
 
 @media (max-width: 1024px) {
-  .meeting-item {
+  .table-header,
+  .table-filters,
+  .table-row {
     grid-template-columns: 1fr;
-    gap: var(--spacing-md);
   }
-
-  .meetings-grid {
-    grid-template-columns: 1fr;
+  
+  .header-buttons {
+    flex-wrap: wrap;
   }
 }
 </style>

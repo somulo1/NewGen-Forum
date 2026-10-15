@@ -2,13 +2,20 @@
   <div class="wall-container">
     <div class="page-header">
       <div>
-        <h1>Community Wall</h1>
-        <p class="subtitle">Share updates with your team</p>
+        <h1>Community wall</h1>
+        <p class="subtitle">Everyone's space to post freely: photos, news, shout-outs, polls.</p>
       </div>
-      <button class="btn btn-primary">
-        <Icon name="edit" size="18" />
-        New Post
+    </div>
+
+    <div class="moments-section">
+      <button class="moment-btn add-moment">
+        <span class="plus-icon">+</span>
+        Add a moment
       </button>
+      <div v-for="moment in moments" :key="moment.id" class="moment-card" :style="{ background: moment.color }">
+        <div class="moment-avatar" :style="{ background: moment.avatarColor }">{{ moment.initials }}</div>
+        <div class="moment-text">{{ moment.text }}</div>
+      </div>
     </div>
 
     <div class="wall-layout">
@@ -77,33 +84,22 @@ definePageMeta({
   layout: 'default',
 })
 
+const moments = [
+  { id: 1, text: 'Brian at the server room', color: '#2C4563', avatarColor: '#7CC4FF', initials: 'BK' },
+  { id: 2, text: 'Team lunch', color: '#5C4936', avatarColor: '#FFB86B', initials: 'GN' },
+  { id: 3, text: 'Game night setup', color: '#5C3D5C', avatarColor: '#F49AC1', initials: 'DO' },
+  { id: 4, text: 'First day!', color: '#4D5C3D', avatarColor: '#B8F36B', initials: 'FA' },
+]
+
 const posts = [
   {
     id: 1,
-    author: 'John Doe',
-    authorInitials: 'JD',
-    time: '2 hours ago',
-    content: 'Excited to announce our new product launch! Check back next week for more details. #ProductX',
-    likes: 24,
-    comments: 5,
-  },
-  {
-    id: 2,
-    author: 'Sarah Martin',
-    authorInitials: 'SM',
-    time: '4 hours ago',
-    content: 'Great team meeting today! Lots of positive energy and great ideas. Looking forward to the next sprint!',
-    likes: 18,
-    comments: 3,
-  },
-  {
-    id: 3,
-    author: 'Marcus Davis',
-    authorInitials: 'MD',
-    time: '1 day ago',
-    content: 'Just released a new feature update. Thanks to everyone who contributed! 🚀',
-    likes: 42,
-    comments: 8,
+    author: 'Amina Wanjiru',
+    authorInitials: 'AW',
+    time: '12 min ago',
+    content: 'Huge thanks to everyone who joined the charity run on Saturday. We raised [AMOUNT] for the children\'s home!',
+    likes: 48,
+    comments: 11,
   },
 ]
 </script>
@@ -112,23 +108,95 @@ const posts = [
 .wall-container {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-xl);
+  gap: 24px;
 }
 
 .page-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
 }
 
 .page-header h1 {
   margin: 0;
+  font-size: 32px;
+  font-weight: 600;
 }
 
 .subtitle {
   color: var(--color-text-secondary);
   font-size: 14px;
-  margin: var(--spacing-sm) 0 0 0;
+  margin: 8px 0 0 0;
+}
+
+.moments-section {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  padding: 4px 0;
+}
+
+.moment-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.add-moment {
+  width: 120px;
+  height: 160px;
+  border: 2px solid var(--color-border);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--color-text);
+  transition: all 0.2s ease;
+}
+
+.add-moment:hover {
+  background: var(--color-surface);
+  border-color: #B8F36B;
+}
+
+.plus-icon {
+  font-size: 32px;
+  color: #B8F36B;
+}
+
+.moment-card {
+  width: 120px;
+  height: 160px;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: white;
+  flex-shrink: 0;
+  text-align: center;
+}
+
+.moment-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 700;
+  color: white;
+}
+
+.moment-text {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 0 8px;
 }
 
 .wall-layout {

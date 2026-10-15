@@ -2,274 +2,201 @@
   <div class="roles-container">
     <div class="page-header">
       <div>
-        <h1>Roles & Rights Management</h1>
-        <p class="subtitle">Configure user roles and permissions</p>
+        <h1>Roles & rights</h1>
+        <p class="subtitle">Who can do what in Hub</p>
       </div>
-      <button class="btn btn-primary" @click="showNewRole = true">
-        <Icon name="plus" size="18" />
-        New Role
-      </button>
     </div>
 
     <div class="roles-layout">
-      <div class="roles-list">
-        <div
-          v-for="role in roles"
-          :key="role.id"
-          :class="['role-card', { active: selectedRole?.id === role.id }]"
-          @click="selectedRole = role"
-        >
-          <div class="role-header">
-            <h3>{{ role.name }}</h3>
-            <button class="role-menu">
-              <Icon name="more-vertical" size="16" />
-            </button>
-          </div>
-          <p class="role-members">{{ role.members }} members</p>
-          <div class="role-badges">
-            <span v-for="perm in role.permissions.slice(0, 2)" :key="perm" class="perm-badge">{{ perm }}</span>
-            <span v-if="role.permissions.length > 2" class="perm-badge">+{{ role.permissions.length - 2 }}</span>
-          </div>
+      <div class="roles-sidebar">
+        <h3 class="sidebar-title">Roles</h3>
+        <div v-for="role in roles" :key="role.id" :class="['role-item', { active: selectedRoleId === role.id }]" @click="selectedRoleId = role.id">
+          {{ role.name }}
         </div>
       </div>
 
-      <div v-if="selectedRole" class="role-details">
-        <div class="details-header">
+      <div class="role-details">
+        <div v-if="selectedRole" class="details-content">
           <h2>{{ selectedRole.name }}</h2>
-          <button class="edit-btn">
-            <Icon name="edit" size="16" />
-            Edit
-          </button>
-        </div>
 
-        <div class="details-section">
-          <h3>Members ({{ selectedRole.members }})</h3>
-          <div class="members-list">
-            <div v-for="member in selectedRole.memberList" :key="member.id" class="member-item">
-              <div class="member-avatar">{{ member.initials }}</div>
-              <div class="member-info">
-                <p>{{ member.name }}</p>
-                <span>{{ member.department }}</span>
+          <div class="members-section">
+            <h3>Members</h3>
+            <div class="members-list">
+              <div v-for="member in selectedRole.members" :key="member.id" class="member-item">
+                <div class="member-avatar" :style="{ background: member.color }">{{ member.initials }}</div>
+                <span class="member-name">{{ member.name }}</span>
               </div>
-              <button class="remove-btn">Remove</button>
+            </div>
+          </div>
+
+          <div class="permissions-section">
+            <h3>Permissions</h3>
+            <div class="permissions-list">
+              <div v-for="permission in selectedRole.permissions" :key="permission.id" class="permission-item">
+                <input type="checkbox" :id="`perm-${permission.id}`" :checked="permission.enabled">
+                <label :for="`perm-${permission.id}`">{{ permission.name }}</label>
+              </div>
             </div>
           </div>
         </div>
-
-        <div class="details-section">
-          <h3>Permissions</h3>
-          <div class="permissions-grid">
-            <div v-for="perm in selectedRole.permissions" :key="perm" class="permission-item">
-              <input type="checkbox" :checked="true" />
-              <label>{{ perm }}</label>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div v-else class="no-selection">
-        <Icon name="lock" size="48" />
-        <p>Select a role to view details</p>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import Icon from '~/components/Icon.vue'
+import { ref } from 'vue'
 
 definePageMeta({
   layout: 'default',
 })
 
-const showNewRole = ref(false)
-const selectedRole = ref(null)
+const selectedRoleId = ref(1)
 
 const roles = [
   {
     id: 1,
-    name: 'Administrator',
-    members: 3,
-    permissions: ['create_users', 'delete_users', 'manage_roles', 'view_logs', 'export_data', 'system_settings'],
-    memberList: [
-      { id: 1, name: 'Alice Johnson', initials: 'AJ', department: 'IT Operations' },
-      { id: 2, name: 'Bob Smith', initials: 'BS', department: 'IT Operations' },
-      { id: 3, name: 'Carol Davis', initials: 'CD', department: 'Security' },
+    name: 'Employee',
+    members: [
+      { id: 1, name: 'John Doe', initials: 'JD', color: '#7CC4FF' },
+      { id: 2, name: 'Sarah Martin', initials: 'SM', color: '#F49AC1' },
+      { id: 3, name: 'Marcus Davis', initials: 'MD', color: '#FFB86B' },
+    ],
+    permissions: [
+      { id: 1, name: 'View announcements', enabled: true },
+      { id: 2, name: 'View people directory', enabled: true },
+      { id: 3, name: 'Post to community wall', enabled: true },
+      { id: 4, name: 'Create tickets', enabled: true },
+      { id: 5, name: 'View calendar', enabled: true },
+      { id: 6, name: 'Approve requests', enabled: false },
+      { id: 7, name: 'Manage security', enabled: false },
+      { id: 8, name: 'Delete content', enabled: false },
     ],
   },
   {
     id: 2,
     name: 'Manager',
-    members: 12,
-    permissions: ['create_projects', 'manage_team', 'view_reports', 'approve_requests', 'edit_content'],
-    memberList: [
-      { id: 4, name: 'David Wilson', initials: 'DW', department: 'Sales' },
-      { id: 5, name: 'Emma Taylor', initials: 'ET', department: 'Marketing' },
+    members: [
+      { id: 4, name: 'Grace Njeri', initials: 'GN', color: '#FFB86B' },
+      { id: 5, name: 'David Otieno', initials: 'DO', color: '#F49AC1' },
+    ],
+    permissions: [
+      { id: 1, name: 'View announcements', enabled: true },
+      { id: 2, name: 'View people directory', enabled: true },
+      { id: 3, name: 'Post to community wall', enabled: true },
+      { id: 4, name: 'Create tickets', enabled: true },
+      { id: 5, name: 'View calendar', enabled: true },
+      { id: 6, name: 'Approve requests', enabled: true },
+      { id: 7, name: 'Manage security', enabled: false },
+      { id: 8, name: 'Delete content', enabled: false },
     ],
   },
   {
     id: 3,
-    name: 'Team Lead',
-    members: 8,
-    permissions: ['create_tasks', 'assign_work', 'view_team_data', 'comment_on_issues'],
-    memberList: [
-      { id: 6, name: 'Frank Brown', initials: 'FB', department: 'Engineering' },
+    name: 'Administrator',
+    members: [
+      { id: 6, name: 'Amina Wanjiru', initials: 'AW', color: '#6EE7C8' },
+    ],
+    permissions: [
+      { id: 1, name: 'View announcements', enabled: true },
+      { id: 2, name: 'View people directory', enabled: true },
+      { id: 3, name: 'Post to community wall', enabled: true },
+      { id: 4, name: 'Create tickets', enabled: true },
+      { id: 5, name: 'View calendar', enabled: true },
+      { id: 6, name: 'Approve requests', enabled: true },
+      { id: 7, name: 'Manage security', enabled: true },
+      { id: 8, name: 'Delete content', enabled: true },
     ],
   },
-  {
-    id: 4,
-    name: 'Employee',
-    members: 85,
-    permissions: ['view_documents', 'create_tickets', 'comment_on_tickets'],
-    memberList: [],
-  },
 ]
+
+const selectedRole = computed(() => roles.find(r => r.id === selectedRoleId.value))
 </script>
 
 <style scoped>
 .roles-container {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-xl);
-}
-
-.page-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  gap: 24px;
 }
 
 .page-header h1 {
   margin: 0;
+  font-size: 32px;
+  font-weight: 600;
 }
 
 .subtitle {
   color: var(--color-text-secondary);
   font-size: 14px;
-  margin: var(--spacing-sm) 0 0 0;
+  margin: 8px 0 0 0;
 }
 
 .roles-layout {
   display: grid;
-  grid-template-columns: 280px 1fr;
-  gap: var(--spacing-lg);
-  min-height: 500px;
+  grid-template-columns: 200px 1fr;
+  gap: 24px;
 }
 
-.roles-list {
+.roles-sidebar {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-md);
+  gap: 12px;
 }
 
-.role-card {
-  background: var(--color-surface);
+.sidebar-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+}
+
+.role-item {
+  padding: 12px;
+  background: transparent;
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-lg);
+  border-radius: 6px;
   cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
   transition: all 0.2s ease;
 }
 
-.role-card:hover {
-  border-color: var(--color-lime);
-  box-shadow: 0 4px 12px rgba(184, 243, 107, 0.1);
+.role-item:hover {
+  border-color: #B8F36B;
+  color: var(--color-text);
 }
 
-.role-card.active {
-  border-color: var(--color-lime);
-  background: rgba(184, 243, 107, 0.05);
-}
-
-.role-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: var(--spacing-md);
-}
-
-.role-header h3 {
-  margin: 0;
-  font-size: 14px;
+.role-item.active {
+  background: var(--color-surface);
+  border-color: #B8F36B;
+  color: #B8F36B;
   font-weight: 600;
-}
-
-.role-menu {
-  background: none;
-  border: none;
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  padding: 0;
-}
-
-.role-members {
-  margin: 0 0 var(--spacing-md) 0;
-  font-size: 12px;
-  color: var(--color-text-secondary);
-}
-
-.role-badges {
-  display: flex;
-  gap: var(--spacing-sm);
-  flex-wrap: wrap;
-}
-
-.perm-badge {
-  font-size: 11px;
-  padding: 2px 6px;
-  background: var(--color-border);
-  color: var(--color-text-secondary);
-  border-radius: var(--radius-xs);
 }
 
 .role-details {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-xl);
+  border-radius: 12px;
+  padding: 24px;
 }
 
-.details-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: var(--spacing-xl);
-  padding-bottom: var(--spacing-lg);
-  border-bottom: 1px solid var(--color-border);
-}
-
-.details-header h2 {
-  margin: 0;
+.details-content h2 {
+  margin: 0 0 24px 0;
   font-size: 20px;
   font-weight: 600;
 }
 
-.edit-btn {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm);
-  background: var(--color-border);
-  border: none;
-  color: var(--color-text);
-  padding: var(--spacing-sm) var(--spacing-lg);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 600;
-  transition: all 0.2s ease;
+.members-section,
+.permissions-section {
+  margin-bottom: 32px;
 }
 
-.edit-btn:hover {
-  background: var(--color-lime);
-  color: #000;
-}
-
-.details-section {
-  margin-bottom: var(--spacing-xl);
-}
-
-.details-section h3 {
-  margin: 0 0 var(--spacing-lg) 0;
+.members-section h3,
+.permissions-section h3 {
+  margin: 0 0 12px 0;
   font-size: 14px;
   font-weight: 600;
 }
@@ -277,112 +204,58 @@ const roles = [
 .members-list {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-md);
+  gap: 8px;
 }
 
 .member-item {
   display: flex;
   align-items: center;
-  gap: var(--spacing-md);
-  padding: var(--spacing-lg);
-  background: var(--color-bg);
-  border-radius: var(--radius-md);
+  gap: 12px;
+  padding: 8px 0;
 }
 
 .member-avatar {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--color-sky) 0%, var(--color-teal) 100%);
-  color: white;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 600;
-  font-size: 12px;
-  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: white;
 }
 
-.member-info {
-  flex: 1;
-}
-
-.member-info p {
-  margin: 0;
+.member-name {
   font-size: 13px;
-  font-weight: 600;
+  color: var(--color-text);
 }
 
-.member-info span {
-  margin: 4px 0 0 0;
-  font-size: 12px;
-  color: var(--color-text-secondary);
-  display: block;
-}
-
-.remove-btn {
-  background: rgba(255, 155, 138, 0.1);
-  color: var(--color-coral);
-  border: none;
-  padding: 4px 12px;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 600;
-  transition: all 0.2s ease;
-}
-
-.remove-btn:hover {
-  background: rgba(255, 155, 138, 0.2);
-}
-
-.permissions-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: var(--spacing-md);
+.permissions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .permission-item {
   display: flex;
   align-items: center;
-  gap: var(--spacing-md);
-  padding: var(--spacing-md);
-  background: var(--color-bg);
-  border-radius: var(--radius-md);
+  gap: 8px;
 }
 
-.permission-item input {
-  width: 16px;
-  height: 16px;
+.permission-item input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
   cursor: pointer;
 }
 
 .permission-item label {
-  margin: 0;
   font-size: 13px;
   color: var(--color-text);
   cursor: pointer;
-  flex: 1;
 }
 
-.no-selection {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-xl);
-  color: var(--color-text-secondary);
-  gap: var(--spacing-lg);
-}
-
-.no-selection :deep(svg) {
-  opacity: 0.5;
-}
-
-@media (max-width: 1024px) {
+@media (max-width: 768px) {
   .roles-layout {
     grid-template-columns: 1fr;
   }
