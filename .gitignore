@@ -35,3 +35,7 @@ npm-debug.log*
 # OS
 .DS_Store
 Thumbs.db
+
+# Sample/Test Data
+sample/
+samples/

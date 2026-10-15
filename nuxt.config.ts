@@ -1,29 +1,22 @@
+// Hub — Nuxt port of the Claude Design prototype.
+// ssr:false because the prototype logic reads window/document; switch on later per page if needed.
 export default defineNuxtConfig({
-  ssr: true,
-  devtools: { enabled: true },
-  css: ['~/assets/css/globals.css'],
-  modules: ['@nuxtjs/tailwindcss'],
-  tailwindcss: {
-    configPath: '~/tailwind.config.ts',
-  },
+  ssr: false,
+  devtools: { enabled: false },
+  components: [{ path: '~/components', pathPrefix: false }],
+  css: ['~/assets/hub.css'],
+  runtimeConfig: { public: { apiBase: '' } }, // set NUXT_PUBLIC_API_BASE when the backend exists
+  vue: { compilerOptions: { whitespace: 'preserve' } },
   app: {
     head: {
-      title: 'Hub Intranet',
-      meta: [
-        { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-        { name: 'description', content: 'Intranet Hub - Enterprise Communication & Collaboration' }
-      ],
+      title: 'Hub',
+      htmlAttrs: { lang: 'en' },
+      meta: [{ name: 'viewport', content: 'width=device-width, initial-scale=1' }],
       link: [
         { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
-        { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' },
-        {
-          rel: 'stylesheet',
-          href: 'https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap'
-        }
+        { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=DM+Sans:wght@400;500;600&display=swap' }
       ]
     }
   },
-  experimental: {
-    appManifest: false
-  }
-})
+  compatibilityDate: '2024-10-01'
+});

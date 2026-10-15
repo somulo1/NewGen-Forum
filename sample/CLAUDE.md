@@ -6,6 +6,17 @@ interaction and the mobile layout match one-to-one. Screenshots were pixel-compa
 
 **Your job is to build on it, never to redesign it.**
 
+## Read these first
+| File | What it covers |
+|---|---|
+| `docs/01-FEATURE-SPEC.md` | Every feature and business rule, current to the latest prototype |
+| `docs/02-DATA-MODEL.md` + `types/hub.ts` | API data types and how they map to the current state fields |
+| `docs/03-API-CONTRACT.md` + `composables/useApi.ts` | Endpoints for the future backend, plus a typed client stub |
+| `docs/04-SEED-DATA.md` | Sample data, to seed the backend so the app looks the same |
+| `docs/05-ROADMAP-AND-QUALITY.md` | Phases for productionising, the tests and the definition of done |
+| `docs/07-AGENT-PLAYBOOK.md` | **Start here for any screen:** forum and chat panel modes, calls, wall, sidebar, widgets, roles tables, approvals, tickets, projects, org dashboards, profiles, mock data |
+| `docs/06-SCREEN-INDEX.md` | Index of all 70+ reference screenshots (desktop and mobile) |
+
 ## Hard rules
 1. **Do not redesign, restyle or "improve" the UI.**
    - Do not add Tailwind, Vuetify, Nuxt UI, PrimeVue, shadcn or any other UI kit.
@@ -40,6 +51,9 @@ components/
 logic/HubLogic.js            ALL state, sample data, business rules and actions (see below)
 logic/routes.js              section ↔ URL map
 composables/useHub.js        shared HubLogic instance, hubBindings(), URL ↔ section sync
+composables/useApi.ts        typed API client for the future backend (not used yet)
+types/hub.ts                 data model / API types
+docs/                        spec, data model, API contract, seed data, roadmap, screen index
 utils/dcLogic.js             setState()/forceUpdate() adapter (React-style state on Vue reactivity)
 assets/hub.css               global styles, light theme, responsive (mobile) rules
 prototype-source/            original Claude Design files + generated single-file version
@@ -78,12 +92,8 @@ scripts/                     convert/split/sync tools, screenshot script
 - **Private chat:** uses the same docked, full-screen and minimized modes as forums. A call from a
   private chat is between the two people only.
 
-## Recommended next steps (when asked to productionise)
-1. **Move state into Pinia stores per module.** Suggested stores: widgets, forums, dms, tickets,
-   projects, people, approvals, rights, org and calendar. Keep the field names. Do it gradually and
-   compare screenshots after each module.
-2. **Replace sample data with API calls** behind `composables/useApi.ts`. The backend is not chosen yet.
-3. **Make simulated features real:** realtime messages, calls (WebRTC or a vendor SDK) and file uploads.
+## Next steps
+Follow `docs/05-ROADMAP-AND-QUALITY.md` phase by phase. Stop for review after each phase.
 
 ## When the design changes in Claude Design
 1. Put the new `Main.dc.html` and `Table.dc.html` into `prototype-source/`.
