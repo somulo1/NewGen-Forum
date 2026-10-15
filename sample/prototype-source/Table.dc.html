@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Data table</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&amp;family=DM+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div style="font-family: 'DM Sans', system-ui, sans-serif; color: #E8EFEA; font-size: 13px; display: flex; flex-direction: column; gap: 10px">
+<div style="overflow-x: auto; border-radius: 14px; border: 1px solid #24322C; background: #16201C">
+<table style="width: 100%; min-width: {{ minW }}; border-collapse: collapse">
+<thead>
+<tr><sc-for list="{{ cols }}" as="c" hint-placeholder-count="5"><th scope="col" style="{{ c.thStyle }}">{{ c.label }}</th></sc-for></tr>
+<tr><sc-for list="{{ cols }}" as="c" hint-placeholder-count="5"><td style="padding: 0 8px 10px; background: #121B17; vertical-align: top; border-bottom: 1px solid #24322C">
+<sc-if value="{{ c.isText }}" hint-placeholder-val="{{ false }}"><input type="search" aria-label="Filter {{ c.label }}" placeholder="Filter…" value="{{ c.val }}" onChange="{{ c.onVal }}" style="width: 100%; min-width: 80px; box-sizing: border-box; height: 32px; padding: 0 8px; border-radius: 8px; border: 1px solid #2A3832; background: #16201C; color: #E8EFEA; font-size: 12px"></sc-if>
+<sc-if value="{{ c.isSelect }}" hint-placeholder-val="{{ false }}"><select aria-label="Filter {{ c.label }}" value="{{ c.val }}" onChange="{{ c.onVal }}" style="width: 100%; min-width: 90px; box-sizing: border-box; height: 32px; padding: 0 6px; border-radius: 8px; border: 1px solid #2A3832; background: #16201C; color: #E8EFEA; font-size: 12px"><option value="">All</option><sc-for list="{{ c.opts }}" as="o" hint-placeholder-count="3"><option value="{{ o.v }}">{{ o.v }}</option></sc-for></select></sc-if>
+<sc-if value="{{ c.isDate }}" hint-placeholder-val="{{ false }}"><div style="display: flex; flex-direction: column; gap: 4px; min-width: 130px"><input type="date" aria-label="{{ c.label }} from" title="From" value="{{ c.from }}" onChange="{{ c.onFrom }}" style="height: 30px; padding: 0 6px; border-radius: 8px; border: 1px solid #2A3832; background: #16201C; color: #E8EFEA; font-size: 12px; color-scheme: dark"><input type="date" aria-label="{{ c.label }} to" title="To" value="{{ c.to }}" onChange="{{ c.onTo }}" style="height: 30px; padding: 0 6px; border-radius: 8px; border: 1px solid #2A3832; background: #16201C; color: #E8EFEA; font-size: 12px; color-scheme: dark"></div></sc-if>
+</td></sc-for></tr>
+</thead>
+<tbody>
+<sc-for list="{{ rows }}" as="r" hint-placeholder-count="5">
+<tr style="{{ r.style }}"><sc-for list="{{ r.cells }}" as="cl" hint-placeholder-count="5"><td style="{{ cl.tdStyle }}">
+<sc-if value="{{ cl.isText }}" hint-placeholder-val="{{ true }}"><div style="display: flex; flex-direction: column; gap: 2px"><span style="{{ cl.textStyle }}">{{ cl.text }}</span><sc-if value="{{ cl.hasSub }}" hint-placeholder-val="{{ false }}"><span style="font-size: 11px; color: #9DB0A6; line-height: 1.35">{{ cl.sub }}</span></sc-if></div></sc-if>
+<sc-if value="{{ cl.isBadge }}" hint-placeholder-val="{{ false }}"><span style="{{ cl.badgeStyle }}">{{ cl.text }}</span><sc-if value="{{ cl.hasSub }}" hint-placeholder-val="{{ false }}"><div style="font-size: 11px; color: #9DB0A6; margin-top: 4px">{{ cl.sub }}</div></sc-if></sc-if>
+<sc-if value="{{ cl.isPerson }}" hint-placeholder-val="{{ false }}"><div style="display: flex; align-items: center; gap: 10px"><span style="position: relative; width: 32px; height: 32px; flex: none; border-radius: 50%; background: {{ cl.color }}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11px">{{ cl.initials }}<sc-if value="{{ cl.hasDot }}" hint-placeholder-val="{{ false }}"><span style="position: absolute; right: -1px; bottom: -1px; width: 10px; height: 10px; border-radius: 50%; background: {{ cl.dot }}; border: 2px solid #16201C"></span></sc-if></span><div style="display: flex; flex-direction: column; min-width: 0"><strong style="font-size: 13px; font-weight: 600; white-space: nowrap">{{ cl.text }}</strong><sc-if value="{{ cl.hasSub }}" hint-placeholder-val="{{ false }}"><span style="font-size: 11px; color: #9DB0A6">{{ cl.sub }}</span></sc-if></div></div></sc-if>
+<sc-if value="{{ cl.isAvatars }}" hint-placeholder-val="{{ false }}"><div style="display: flex; align-items: center"><sc-for list="{{ cl.list }}" as="av" hint-placeholder-count="3"><span title="{{ av.name }}" style="width: 26px; height: 26px; margin-right: -7px; border-radius: 50%; border: 2px solid #16201C; background: {{ av.color }}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 9px">{{ av.initials }}</span></sc-for><span style="font-size: 11px; color: #9DB0A6; margin-left: 14px; white-space: nowrap">{{ cl.sub }}</span></div></sc-if>
+<sc-if value="{{ cl.isCheck }}" hint-placeholder-val="{{ false }}"><div style="display: flex; flex-direction: column; align-items: center; gap: 2px"><input type="checkbox" aria-label="{{ cl.label }}" checked="{{ cl.on }}" disabled="{{ cl.disabled }}" onChange="{{ cl.toggle }}" style="width: 18px; height: 18px; accent-color: #B8F36B"><sc-if value="{{ cl.pending }}" hint-placeholder-val="{{ false }}"><span style="font-size: 9px; font-weight: 700; color: #FFB86B">PENDING</span></sc-if></div></sc-if>
+<sc-if value="{{ cl.isSelect }}" hint-placeholder-val="{{ false }}"><select aria-label="{{ cl.label }}" value="{{ cl.value }}" disabled="{{ cl.disabled }}" onChange="{{ cl.onChange }}" style="{{ cl.selectStyle }}"><sc-for list="{{ cl.options }}" as="op" hint-placeholder-count="3"><option value="{{ op.v }}">{{ op.l }}</option></sc-for></select></sc-if>
+<sc-if value="{{ cl.isBar }}" hint-placeholder-val="{{ false }}"><div style="display: flex; align-items: center; gap: 8px; min-width: 120px"><div style="flex: 1; height: 6px; border-radius: 3px; background: #22302A; overflow: hidden"><div style="{{ cl.barStyle }}"></div></div><span style="font-size: 11px; font-weight: 600; min-width: 34px; text-align: right">{{ cl.text }}</span></div></sc-if>
+<sc-if value="{{ cl.isActions }}" hint-placeholder-val="{{ false }}"><div style="display: flex; gap: 6px; justify-content: flex-end"><sc-for list="{{ cl.buttons }}" as="b" hint-placeholder-count="2"><button onClick="{{ b.run }}" disabled="{{ b.disabled }}" aria-label="{{ b.aria }}" style="{{ b.style }}">{{ b.label }}</button></sc-for></div></sc-if>
+</td></sc-for></tr>
+</sc-for>
+<sc-if value="{{ empty }}" hint-placeholder-val="{{ false }}"><tr><td colspan="{{ colCount }}" style="padding: 30px; text-align: center; color: #9DB0A6">{{ emptyText }}</td></tr></sc-if>
+</tbody>
+</table>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 12px; color: #9DB0A6">
+<span style="flex: 1 1 160px">{{ countLabel }}</span>
+<sc-if value="{{ filtered }}" hint-placeholder-val="{{ false }}"><button onClick="{{ clear }}" style="height: 32px; padding: 0 12px; border-radius: 16px; border: 0; background: transparent; color: #B8F36B; cursor: pointer; font-size: 12px; font-weight: 600">Clear filters</button></sc-if>
+<button onClick="{{ prev }}" disabled="{{ atStart }}" style="{{ prevStyle }}">Previous</button>
+<span style="color: #C9D6CF">Page {{ pageNo }} of {{ pages }}</span>
+<button onClick="{{ next }}" disabled="{{ atEnd }}" style="{{ nextStyle }}">Next</button>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"t":{"editor":null},"$preview":{"width":900,"height":420}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { tid: null, f: {}, from: {}, to: {}, page: 0 };
+  }
+  renderVals() {
+    const sample = {
+      id: 'sample', cols: [{ label: 'Name', filter: 'text' }, { label: 'Team', filter: 'select' }, { label: 'Date', filter: 'date' }, { label: '', align: 'right' }],
+      rows: [
+        { cells: [{ kind: 'person', text: 'Amina Wanjiru', initials: 'AW', color: '#6EE7C8', sub: 'Finance Analyst' }, { text: 'Finance' }, { text: '14 Oct', fv: '2026-10-14' }, { kind: 'actions', buttons: [{ label: 'View', run: () => {} }] }] },
+        { cells: [{ kind: 'person', text: 'Brian Kiprop', initials: 'BK', color: '#7CC4FF', sub: 'Systems Engineer' }, { text: 'IT Operations' }, { text: '15 Oct', fv: '2026-10-15' }, { kind: 'actions', buttons: [{ label: 'View', run: () => {} }] }] }
+      ]
+    };
+    const t = this.props.t || sample;
+    const st = this.state;
+    const same = st.tid === t.id;
+    const F = same ? st.f : {}, FR = same ? st.from : {}, TO = same ? st.to : {};
+    const cols = t.cols || [];
+    const all = t.rows || [];
+    const ps = t.pageSize || 10;
+    const fvOf = (cell) => String(cell && cell.fv != null ? cell.fv : (cell && cell.text != null ? cell.text : ''));
+    const rows = all.filter((r) => cols.every((c, i) => {
+      const cell = (r.cells || [])[i] || {};
+      const fv = fvOf(cell);
+      if (c.filter === 'text') { const q = String(F[i] || '').trim().toLowerCase(); return !q || (fv + ' ' + (cell.sub || '')).toLowerCase().indexOf(q) !== -1; }
+      if (c.filter === 'select') { const v = F[i] || ''; return !v || fv === v; }
+      if (c.filter === 'date') { const a = FR[i] || '', b = TO[i] || ''; return (!a || fv >= a) && (!b || fv <= b); }
+      return true;
+    }));
+    const pages = Math.max(1, Math.ceil(rows.length / ps));
+    const page = Math.min(same ? st.page : 0, pages - 1);
+    const upd = (patch) => this.setState((x) => {
+      const keep = x.tid === t.id;
+      return Object.assign({ tid: t.id, f: keep ? x.f : {}, from: keep ? x.from : {}, to: keep ? x.to : {}, page: 0 }, typeof patch === 'function' ? patch(keep ? x : { f: {}, from: {}, to: {} }) : patch);
+    });
+    const filtered = Object.keys(F).some((k) => F[k]) || Object.keys(FR).some((k) => FR[k]) || Object.keys(TO).some((k) => TO[k]);
+    const btnStyle = (b) => 'height:32px;padding:0 12px;border-radius:8px;font-size:12px;font-weight:600;white-space:nowrap;cursor:' + (b.disabled ? 'default;opacity:0.45' : 'pointer') + ';' +
+      (b.kind === 'primary' ? 'border:0;background:#B8F36B;color:#0F1714' : b.kind === 'danger' ? 'border:1px solid #5A3A36;background:transparent;color:#FF9B8A' : 'border:1px solid #2A3832;background:transparent;color:#E8EFEA');
+    const pager = (dis) => 'height:32px;padding:0 12px;border-radius:16px;border:1px solid #2A3832;background:transparent;font-size:12px;cursor:' + (dis ? 'default;color:#4A5C54' : 'pointer;color:#E8EFEA');
+    return {
+      minW: t.minWidth || '760px',
+      colCount: cols.length,
+      cols: cols.map((c, i) => {
+        const opts = c.filter === 'select' ? (c.options || Array.from(new Set(all.map((r) => fvOf((r.cells || [])[i])).filter(Boolean))).sort()) : [];
+        return {
+          label: c.label,
+          thStyle: 'padding:10px 12px 6px;background:#121B17;text-align:' + (c.align || 'left') + ';color:#9DB0A6;font-size:11px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;white-space:nowrap',
+          isText: c.filter === 'text', isSelect: c.filter === 'select', isDate: c.filter === 'date',
+          val: F[i] || '', from: FR[i] || '', to: TO[i] || '',
+          opts: opts.map((v) => ({ v: v })),
+          onVal: (e) => { const v = e.target.value; upd((x) => ({ f: Object.assign({}, x.f, { [i]: v }) })); },
+          onFrom: (e) => { const v = e.target.value; upd((x) => ({ from: Object.assign({}, x.from, { [i]: v }) })); },
+          onTo: (e) => { const v = e.target.value; upd((x) => ({ to: Object.assign({}, x.to, { [i]: v }) })); }
+        };
+      }),
+      rows: rows.slice(page * ps, (page + 1) * ps).map((r) => ({
+        style: 'border-top:1px solid #24322C;' + (r.tint ? 'background:' + r.tint + '14' : ''),
+        cells: cols.map((c, i) => {
+          const cl = (r.cells || [])[i] || { text: '' };
+          const k = cl.kind || 'text';
+          return Object.assign({}, cl, {
+            tdStyle: 'padding:10px 12px;vertical-align:middle;text-align:' + (c.align || 'left'),
+            isText: k === 'text', isBadge: k === 'badge', isPerson: k === 'person', isAvatars: k === 'avatars', isCheck: k === 'check', isSelect: k === 'select', isBar: k === 'bar', isActions: k === 'actions',
+            hasSub: !!cl.sub, hasDot: !!cl.dot,
+            textStyle: 'font-size:13px;line-height:1.4;color:' + (cl.color || '#E8EFEA') + ';' + (cl.strong ? 'font-weight:600;' : '') + (cl.mono ? 'font-family:Space Grotesk,sans-serif;' : '') + (cl.nowrap ? 'white-space:nowrap;' : ''),
+            badgeStyle: 'display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;white-space:nowrap;background:' + (cl.color || '#9DB0A6') + '22;color:' + (cl.color || '#9DB0A6') + ';border:1px solid ' + (cl.color || '#9DB0A6') + '55',
+            barStyle: 'height:100%;width:' + Math.max(2, Math.min(100, cl.pct || 0)) + '%;background:' + (cl.color || '#B8F36B') + ';border-radius:3px',
+            selectStyle: 'height:34px;min-width:' + (cl.minWidth || '130px') + ';padding:0 6px;border-radius:8px;border:1px solid #2A3832;background:#121B17;color:#E8EFEA;font-size:12px;' + (cl.disabled ? 'opacity:0.4' : ''),
+            buttons: (cl.buttons || []).map((b) => Object.assign({}, b, { aria: b.aria || b.label, style: btnStyle(b), disabled: !!b.disabled }))
+          });
+        })
+      })),
+      empty: rows.length === 0,
+      emptyText: t.emptyText || 'Nothing matches these filters.',
+      countLabel: rows.length ? ('Showing ' + (page * ps + 1) + '–' + Math.min(rows.length, (page + 1) * ps) + ' of ' + rows.length + (rows.length !== all.length ? ' (filtered from ' + all.length + ')' : '')) : '0 results',
+      filtered,
+      clear: () => this.setState({ tid: t.id, f: {}, from: {}, to: {}, page: 0 }),
+      pageNo: page + 1, pages,
+      atStart: page === 0, atEnd: page >= pages - 1,
+      prevStyle: pager(page === 0), nextStyle: pager(page >= pages - 1),
+      prev: () => this.setState({ tid: t.id, f: F, from: FR, to: TO, page: Math.max(0, page - 1) }),
+      next: () => this.setState({ tid: t.id, f: F, from: FR, to: TO, page: Math.min(pages - 1, page + 1) })
+    };
+  }
+}
+</script>
+</body>
+</html>

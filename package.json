@@ -1,0 +1,23 @@
+{
+  "name": "intranet-hub-nuxt",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "nuxt dev",
+    "build": "nuxt build",
+    "preview": "nuxt preview",
+    "generate": "nuxt generate"
+  },
+  "dependencies": {
+    "nuxt": "^3.8.0",
+    "vue": "^3.3.0",
+    "@nuxtjs/tailwindcss": "^6.10.0",
+    "lucide-vue-next": "^0.292.0"
+  },
+  "devDependencies": {
+    "@nuxt/devtools": "latest",
+    "tailwindcss": "^3.3.0",
+    "postcss": "^8.4.0"
+  }
+}

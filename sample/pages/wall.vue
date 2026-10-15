@@ -1,0 +1,3 @@
+<template>
+  <WallSection />
+</template>
