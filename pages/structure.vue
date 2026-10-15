@@ -1,0 +1,3 @@
+<template>
+  <StructureSection />
+</template>
