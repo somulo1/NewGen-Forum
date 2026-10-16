@@ -1,6 +1,6 @@
 <!-- Voice / video call screen -->
 <template><template v-if="inCall">
-<section aria-label="Meeting" style="position: fixed; inset: 0; z-index: 80; background: #0A100D; color: #E8EFEA; display: flex; flex-direction: column">
+<section aria-label="Meeting" :style="callSectionStyle">
 <div style="flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 18px">
 <span :style="`width: 36px; height: 36px; border-radius: 10px; background: ${call.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 13px`">{{ call.initials }}</span>
 <div style="flex: 1 1 200px; min-width: 0; display: flex; flex-direction: column"><strong style="font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ call.title }}</strong><span style="font-size: 12px; color: #9DB0A6">{{ call.modeLabel }} · {{ call.count }} people</span></div>
@@ -94,6 +94,16 @@ import { hubBindings } from '~/composables/useHub';
 
 export default {
   name: 'CallScreen',
-  ...hubBindings(["call","callKey","closeCallPanel","endCall","inCall","onCallDraft","openCallChat","openCallPeople","sendCallMsg","toggleCam","toggleHand","toggleMic","toggleRec","toggleShare"])
+  ...hubBindings(["call","callKey","closeCallPanel","endCall","inCall","onCallDraft","openCallChat","openCallPeople","sendCallMsg","toggleCam","toggleHand","toggleMic","toggleRec","toggleShare"]),
+  computed: {
+    callSectionStyle() {
+      if (!this.call) return '';
+      const isEmbedded = this.call.context === 'dm' || this.call.context === 'forum';
+      if (isEmbedded) {
+        return 'position: absolute; inset: 0; z-index: 20; background: #0A100D; color: #E8EFEA; display: flex; flex-direction: column; border-radius: 14px;';
+      }
+      return 'position: fixed; inset: 0; z-index: 80; background: #0A100D; color: #E8EFEA; display: flex; flex-direction: column';
+    }
+  }
 };
 </script>

@@ -387,10 +387,10 @@ export class HubLogic extends DCLogic {
     clearTimeout(this._toastT);
     this._toastT = setTimeout(() => this.setState({ toast: '' }), 3800);
   }
-  startCall(mode, title, initials, color, people) {
+  startCall(mode, title, initials, color, people, context) {
     clearInterval(this._ct);
     this._ct = setInterval(() => this.forceUpdate(), 1000);
-    this.setState({ call: { mode: mode, title: title, initials: initials, color: color, start: Date.now(), people: people || null }, personOpen: null, mic: true, cam: mode === 'video', sharing: false, hand: false, rec: false, callPanel: null, menu: false });
+    this.setState({ call: { mode: mode, title: title, initials: initials, color: color, start: Date.now(), people: people || null, context: context || null }, personOpen: null, mic: true, cam: mode === 'video', sharing: false, hand: false, rec: false, callPanel: null, menu: false });
   }
   endCall() {
     clearInterval(this._ct);
@@ -1057,7 +1057,7 @@ export class HubLogic extends DCLogic {
       awards: has.awards ? s.awardList.filter((a) => a.status === 'Approved' && a.people.indexOf(po.name) !== -1).map((a) => ({ type: a.type, when: new Date(a.date + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }), citation: a.citation })) : [],
       hasAwards: has.awards && s.awardList.some((a) => a.status === 'Approved' && a.people.indexOf(po.name) !== -1),
       canMessage: has.chat,
-      voice: () => this.startCall('voice', 'Private call with ' + po.name, po.initials, po.color, [po.name]), video: () => this.startCall('video', 'Private call with ' + po.name, po.initials, po.color, [po.name]) } : {};
+      voice: () => this.startCall('voice', 'Private call with ' + po.name, po.initials, po.color, [po.name], 'dm'), video: () => this.startCall('video', 'Private call with ' + po.name, po.initials, po.color, [po.name], 'dm') } : {};
 
     // ---- Security & logs ----
     const ruleDefs = [
@@ -2212,8 +2212,8 @@ export class HubLogic extends DCLogic {
         return items.map((t) => ({ ...t, hasDot: !!t.dot, dot: t.dot || 0, style: st(t.on) }));
       })(),
       startInstant: () => this.startCall('video', 'Instant meeting', 'S', '#F49AC1', []),
-      voiceCall: isDM ? () => this.startCall('voice', 'Private call with ' + curDm.with, dmView.initials, dmView.color, [curDm.with]) : () => this.startCall('voice', cur.name, cur.initials, cur.color),
-      videoCall: isDM ? () => this.startCall('video', 'Private call with ' + curDm.with, dmView.initials, dmView.color, [curDm.with]) : () => this.startCall('video', cur.name, cur.initials, cur.color),
+      voiceCall: isDM ? () => this.startCall('voice', 'Private call with ' + curDm.with, dmView.initials, dmView.color, [curDm.with], 'dm') : () => this.startCall('voice', cur.name, cur.initials, cur.color, [], 'forum'),
+      videoCall: isDM ? () => this.startCall('video', 'Private call with ' + curDm.with, dmView.initials, dmView.color, [curDm.with], 'dm') : () => this.startCall('video', cur.name, cur.initials, cur.color, [], 'forum'),
       endCall: () => this.endCall(),
       toggleMic: () => this.setState((st) => ({ mic: !st.mic })),
       toggleCam: () => this.setState((st) => ({ cam: !st.cam })),
