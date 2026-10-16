@@ -57,6 +57,8 @@
 
 <AlertDialog />
 
+<EtrDocument />
+
 <FileViewer />
 
 <AppToast />

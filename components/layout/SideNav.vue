@@ -48,10 +48,11 @@
 </template>
 </template>
 
-<template v-if="myUnits.length">
+<template v-if="myUnits.length || canSettings">
 <button data-keep="1" @click="toggleOrg" :aria-expanded="orgOpen" style="margin: 16px 4px 4px 2px; display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: #9DB0A6; cursor: pointer; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" :style="orgChevron"><path d="M6 9l6 6 6-6"></path></svg>Organization</button>
 <template v-if="orgOpen">
 <template v-for="(mu, mu__i) in myUnits" :key="mu__i"><button @click="mu.open" :style="mu.style"><span :style="`width: 30px; height: 30px; flex: none; border-radius: 9px; background: #22302A; color: ${mu.color}; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 10px`">{{ mu.short }}</span><span style="flex: 1; min-width: 0; display: flex; flex-direction: column; text-align: left"><span style="font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ mu.name }}</span><span style="font-size: 11px; color: #9DB0A6">My {{ mu.typeLower }}</span></span></button></template>
+<template v-if="canSettings"><button @click="go.settings" :style="nav.settings"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path></svg>Settings</button></template>
 </template>
 </template>
 <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px; margin: 16px 4px 6px 2px">
@@ -101,6 +102,6 @@ import { hubBindings } from '~/composables/useHub';
 export default {
   name: 'SideNav',
   methods: { signOut() { useAuth().signOut(); } },
-  ...hubBindings(["navSearch","canRoles","canSecurity","canSeeAdmin","createOpen","dmList","dmMatches","dmUnreadLabel","dmq","dmsChevron","dmsOpen","forumCount","forums","forumsChevron","forumsOpen","go","has","hasOpenAlerts","hasPendingApprovals","me","myUnits","nav","navClass","navClick","newDmOpen","onDmq","openAlertCount","orgChevron","orgOpen","pendingApprovals","ticketDeskOk","toggleCreate","toggleDms","toggleForums","toggleNewDm","toggleOrg"])
+  ...hubBindings(["canSettings","navSearch","canRoles","canSecurity","canSeeAdmin","createOpen","dmList","dmMatches","dmUnreadLabel","dmq","dmsChevron","dmsOpen","forumCount","forums","forumsChevron","forumsOpen","go","has","hasOpenAlerts","hasPendingApprovals","me","myUnits","nav","navClass","navClick","newDmOpen","onDmq","openAlertCount","orgChevron","orgOpen","pendingApprovals","ticketDeskOk","toggleCreate","toggleDms","toggleForums","toggleNewDm","toggleOrg"])
 };
 </script>

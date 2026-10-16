@@ -23,6 +23,7 @@ export function buildAccess(ctx) {
     people: ['View directory', 'See contact details', 'View full profiles', 'Onboard people', 'Edit profiles'],
     security: ['View alerts', 'View logs', 'Resolve alerts', 'Manage rules', 'Export logs'],
     roles: ['View roles', 'Manage roles & rights', 'Configure approvals'],
+    settings: ['View settings', 'Edit organization profile', 'Manage subscription'],
     calendar: ['View', 'Add events', 'Schedule meetings'],
     memos: ['Read', 'Send memos'],
     newsletter: ['Read', 'Publish newsletters'],
@@ -48,7 +49,7 @@ export function buildAccess(ctx) {
     home: ['Home & widgets', '#B8F36B'], announcements: ['Announcements', '#B8F36B'], wall: ['Community wall', '#F49AC1'], forums: ['Forums', '#7CC4FF'],
     tickets: ['Tickets', '#FF9B8A'], projects: ['Projects', '#7CC4FF'], files: ['Files', '#C9B6FF'], secureshare: ['Secure share', '#6EE7C8'],
     sessions: ['Meetings & standups', '#6EE7C8'], awards: ['Performance awards', '#FFD66B'], people: ['People', '#C9B6FF'],
-    security: ['Security & logs', '#FF9B8A'], roles: ['Roles & rights', '#FFB86B'],
+    security: ['Security & logs', '#FF9B8A'], roles: ['Roles & rights', '#FFB86B'], settings: ['Organization settings', '#7CC4FF'],
     calendar: ['Calendar', '#7CC4FF'], memos: ['Memos', '#FFD66B'], newsletter: ['Newsletter', '#F49AC1'],
     departments: ['Departments', '#B8F36B'], sectors: ['Sectors', '#FFB86B'], branches: ['Branches', '#7CC4FF'], units: ['Units', '#C9B6FF'], performance: ['Performance', '#6EE7C8'], chat: ['Private messages', '#C9B6FF']
   };

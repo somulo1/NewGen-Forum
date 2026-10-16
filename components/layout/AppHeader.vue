@@ -2,9 +2,9 @@
 <template><header class="hub-header" style="flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 16px; padding: 12px 20px; border-bottom: 1px solid #24322C; background: #121B17">
 <div style="display: flex; align-items: center; gap: 10px; flex: none">
 <button class="hub-m" aria-label="Open menu" @click="openNav" style="width: 40px; height: 40px; border-radius: 10px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer; align-items: center; justify-content: center"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"></path></svg></button>
-<div style="width: 34px; height: 34px; border-radius: 9px; background: #B8F36B; color: #0F1714; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 17px">H</div>
+<div style="width: 34px; height: 34px; border-radius: 9px; overflow: hidden; background: #B8F36B; color: #0F1714; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 17px"><img v-if="orgLogo" :src="orgLogo" alt="" style="width: 100%; height: 100%; object-fit: cover"><template v-else>H</template></div>
 <div class="hub-d" style="font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 18px; letter-spacing: -0.01em">Hub</div>
-<div class="hub-d" style="color: #9DB0A6; font-size: 13px; padding-left: 10px; border-left: 1px solid #2A3832">[YOUR ORGANIZATION]</div>
+<div class="hub-d" style="color: #9DB0A6; font-size: 13px; padding-left: 10px; border-left: 1px solid #2A3832">{{ orgName }}</div>
 </div>
 <div class="hub-searchwrap" style="position: relative; flex: 1 1 280px; max-width: 560px; min-width: 0">
 <label class="hub-search" style="display: flex; align-items: center; gap: 10px; height: 42px; padding: 0 14px; border-radius: 21px; background: #1A2520; border: 1px solid #2A3832; color: #9DB0A6">
@@ -68,6 +68,6 @@ export default {
   mounted() { this.fsSupported = !!document.documentElement.requestFullscreen; this._fs = () => { this.fs = !!document.fullscreenElement; }; document.addEventListener('fullscreenchange', this._fs); this._off = (e) => { if (this.acctOpen && this.$refs.acct && !this.$refs.acct.contains(e.target)) this.acctOpen = false; }; this._esc = (e) => { if (e.key === 'Escape') this.acctOpen = false; }; document.addEventListener('click', this._off); document.addEventListener('keydown', this._esc); },
   beforeUnmount() { document.removeEventListener('fullscreenchange', this._fs); document.removeEventListener('click', this._off); document.removeEventListener('keydown', this._esc); },
   methods: { toggleFs() { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch(() => {}); }, openProfile() { this.acctOpen = false; this.go.profile(); }, logout() { this.acctOpen = false; useAuth().signOut(); } },
-  ...hubBindings(["badgeCount","headerSearch","go","hasBadge","isDark","isLight","me","noNotifs","notifOpen","notifs","openNav","themeAria","toggleNotifs","toggleTheme"])
+  ...hubBindings(["orgName","orgLogo","badgeCount","headerSearch","go","hasBadge","isDark","isLight","me","noNotifs","notifOpen","notifs","openNav","themeAria","toggleNotifs","toggleTheme"])
 };
 </script>

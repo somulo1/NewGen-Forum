@@ -38,7 +38,7 @@ export function buildSecurity(ctx) {
     const openDlg = (mode) => () => this.setState({ alertDlg: { id: a.id, mode, outcome: 'Resolved', comment: '', err: '' } });
     return { ...a, sev: sv, color: sevColor[sv], sevStyle: badge(sevColor[sv]), ruleName: r.name, when: a.ago === 0 ? 'Just now' : agoLabel(a.ago), status: st, statusStyle: badge(stC),
       notes, lastNote: notes.length ? notes[notes.length - 1] : null,
-      investigate: openDlg('investigate'), closeAlert: openDlg('close'), history: openDlg('history'), isOpen: st === 'Open' || st === 'Investigating', canInvestigate: st === 'Open', canClose: st === 'Investigating', isClosed: closed };
+      investigate: openDlg('investigate'), closeAlert: openDlg('close'), falsePos: openDlg('falsepos'), history: openDlg('history'), isOpen: st === 'Open' || st === 'Investigating', canInvestigate: st === 'Open', canClose: st === 'Investigating', canFalsePos: st === 'Open' || st === 'Investigating', isClosed: closed };
   });
   const openAlerts = alertsAll.filter((a) => a.isOpen);
   const lq = s.lq.trim().toLowerCase();
@@ -85,16 +85,16 @@ export function buildSecurity(ctx) {
   const adAlert = AD ? alertsAll.find((x) => x.id === AD.id) : null;
   const setDlg = (patch) => this.setState((x) => ({ alertDlg: { ...x.alertDlg, ...patch } }));
   const alertDialog = adAlert ? { open: true, mode: AD.mode, isHistory: AD.mode === 'history', isClose: AD.mode === 'close',
-    title: AD.mode === 'investigate' ? 'Start investigating ' + adAlert.id : AD.mode === 'close' ? 'Close ' + adAlert.id : adAlert.id + ' history', alertTitle: adAlert.title, status: adAlert.status, statusStyle: adAlert.statusStyle,
+    title: AD.mode === 'investigate' ? 'Start investigating ' + adAlert.id : AD.mode === 'close' ? 'Close ' + adAlert.id : AD.mode === 'falsepos' ? 'Mark ' + adAlert.id + ' as a false positive' : adAlert.id + ' history', alertTitle: adAlert.title, status: adAlert.status, statusStyle: adAlert.statusStyle,
     outcomes: ['Resolved', 'False positive'].map((o) => ({ label: o, on: AD.outcome === o, pick: () => setDlg({ outcome: o }) })),
     comment: AD.comment, err: AD.err, hasErr: !!AD.err, onComment: (e) => setDlg({ comment: e.target.value, err: '' }), addEmoji: (ch) => setDlg({ comment: AD.comment + ch }),
     history: adAlert.notes.map((n) => ({ ...n, when: new Date(n.at).toLocaleString('en-GB', { hour12: false }) })).reverse(), hasHistory: adAlert.notes.length > 0,
-    confirmLabel: AD.mode === 'investigate' ? 'Start investigating' : 'Close alert',
+    confirmLabel: AD.mode === 'investigate' ? 'Start investigating' : AD.mode === 'falsepos' ? 'Mark false positive' : 'Close alert',
     cancel: () => this.setState({ alertDlg: null }),
     confirm: () => {
       const c = (this.state.alertDlg.comment || '').trim();
       if (c.length < 3) { setDlg({ err: 'Add a comment explaining this change.' }); return; }
-      const to = AD.mode === 'investigate' ? 'Investigating' : AD.outcome;
+      const to = AD.mode === 'investigate' ? 'Investigating' : AD.mode === 'falsepos' ? 'False positive' : AD.outcome;
       this.setState((x) => ({ alertDlg: null, alertSt: { ...x.alertSt, [adAlert.id]: to }, alertNotes: { ...x.alertNotes, [adAlert.id]: (x.alertNotes[adAlert.id] || []).concat([{ status: to, comment: c, who: 'Sam', at: Date.now() }]) },
         extraLogs: [{ id: 'x' + Date.now(), ago: 0, user: 'Samwel Okoth Omulo', action: adAlert.id + ' moved to ' + to + ': ' + c, module: 'Security', ip: '10.0.4.21', loc: 'Office network', result: 'Success', rule: '' }].concat(x.extraLogs) }));
       this.notify(adAlert.id + ' ' + (to === 'Investigating' ? 'is now being investigated.' : 'closed as ' + to.toLowerCase() + '.'), '#7CC4FF');
