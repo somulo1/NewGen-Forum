@@ -102,6 +102,7 @@ export function buildAccess(ctx) {
     this.setState((st) => ({ requests: [req].concat(st.requests) }));
     this.notify('Sent for approval: ' + title + ' (' + (f.levels === 1 ? 'direct approval' : f.levels + ' levels') + ').', '#FFB86B');
   };
+  this._makeRequest = makeRequest; this._flowById = flowById;
   const toggleRight = (role, mod, right) => {
     if (role === 'superadmin') return;
     const k = rKey(role, mod, right);

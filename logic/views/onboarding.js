@@ -3,7 +3,7 @@ import { GENDERS, MANDATORY, csvColumns, structureFields, structureOptions } fro
 
 // renderVals step: onboarding. The form only shows the structure levels this organization has set up.
 export function buildOnboarding(ctx) {
-  const { can, modEnabled, modInfo, ridOf, rightOf, rightsDef, s, visibleRoles } = ctx;
+  const { can, modEnabled, modInfo, reportRoleName, ridOf, rightOf, rightsDef, roleHolders, s, targetRoleOf, visibleRoles } = ctx;
   const has = hasLevelsFor(s);
   const ob = s.onboard;
   const canOnboard = can('people', 'Onboard people');
@@ -21,7 +21,14 @@ export function buildOnboarding(ctx) {
     const modules = Object.keys(rightsDef).filter(modEnabled).map((m) => ({ name: modInfo[m][0], tint: modInfo[m][1],
       rights: rightsDef[m].map((r) => { const on = valueOf(m, r), base = rightOf(curRole, m, r); return { label: r, on, custom: on !== base, disabled: !canEditRights, toggle: () => this.toggleOnboardRight(m + '|' + r, !on === base ? null : !on) }; }) }));
     const custom = modules.reduce((n, m) => n + m.rights.filter((x) => x.custom).length, 0);
-    access = { canEdit: canEditRights, roleValue: curRole, roles: visibleRoles.map((r) => ({ v: r.id, l: r.name })), onRole: (e) => this.setOnboardRole(e.target.value), roleChanged: curRole !== ridOf(person.name),
+    // Who they report to: the role by default, or one specific person in that role.
+    const tRole = targetRoleOf(person.name);
+    const savedPick = s.personReports[person.name] || '';
+    const pickNow = ob.reportDraft !== undefined && ob.reportDraft !== null ? ob.reportDraft : savedPick;
+    const reports = tRole ? { show: true, roleName: reportRoleName(tRole), value: pickNow, canEdit: canEditRights,
+      options: [{ v: '', l: 'Anyone in the ' + reportRoleName(tRole) + ' role (shown as the role)' }].concat(roleHolders(tRole).filter((h) => h.name !== person.name).slice(0, 80).map((h) => ({ v: h.name, l: h.name + (h.dept ? ' · ' + h.dept : '') }))),
+      onChange: (e) => this.setOnboardReport(e.target.value) } : { show: false };
+    access = { reports, canEdit: canEditRights, roleValue: curRole, roles: visibleRoles.map((r) => ({ v: r.id, l: r.name })), onRole: (e) => this.setOnboardRole(e.target.value), roleChanged: curRole !== ridOf(person.name),
       modules, customCount: custom, hasCustom: custom > 0, customNote: custom + (custom === 1 ? ' right differs' : ' rights differ') + ' from the role', reset: () => this.setState((st) => ({ onboard: { ...st.onboard, rightsDraft: Object.keys({ ...saved, ...rd }).reduce((m, k) => { m[k] = null; return m; }, {}) } })),
       open: !!ob.rightsOpen, toggleOpen: () => this.setState((st) => ({ onboard: { ...st.onboard, rightsOpen: !st.onboard.rightsOpen } })) };
   }

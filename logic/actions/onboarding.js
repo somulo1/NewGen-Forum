@@ -29,6 +29,7 @@ export const onboardingActions = {
     this.setState({ onboard: { tab: 'one', edit: id, orig: { ...f }, f, roleDraft: null, rightsDraft: {}, errs: {}, bulkText: '', bulk: null, fileName: '', done: null } });
   },
   // Role and rights drafts while editing a person; saved together with the details.
+  setOnboardReport(v) { this.setState((st) => ({ onboard: { ...st.onboard, reportDraft: v } })); },
   setOnboardRole(v) { this.setState((st) => ({ onboard: { ...st.onboard, roleDraft: v } })); },
   toggleOnboardRight(key, value) { this.setState((st) => ({ onboard: { ...st.onboard, rightsDraft: { ...st.onboard.rightsDraft, [key]: value } } })); },
   resetOnboardRights() { this.setState((st) => ({ onboard: { ...st.onboard, rightsDraft: Object.keys({ ...(st.personRights[this.dir[st.onboard.edit].name] || {}) }).reduce((m, k) => { m[k] = null; return m; }, {}) } })); },
@@ -60,6 +61,28 @@ export const onboardingActions = {
     return entry;
   },
 
+  // Applies an approved (or approval-free) edit of a person: details, role, individual rights and who they report to.
+  applyPersonEdit(ch) {
+    const p = this.dir[ch.id];
+    if (!p) return;
+    const before = p.name;
+    Object.assign(p, ch.details);
+    const logs = [];
+    if (ch.role) { this.setState((st) => ({ memberRoles: { ...st.memberRoles, [p.name]: ch.role } })); logs.push('Changed the role of ' + p.name + ' to ' + ch.role); }
+    if (ch.report !== null && ch.report !== undefined) {
+      this.setState((st) => { const pr = { ...st.personReports }; if (ch.report) pr[p.name] = ch.report; else delete pr[p.name]; return { personReports: pr }; });
+      logs.push(ch.report ? 'Set ' + ch.report + ' as the person ' + p.name + ' reports to' : 'Cleared the specific manager of ' + p.name + ' (reports to the role)');
+    }
+    const rd = ch.rights || {};
+    if (Object.keys(rd).length) {
+      this.setState((st) => { const cur = { ...(st.personRights[p.name] || {}) }; Object.keys(rd).forEach((k) => { if (rd[k] === null) delete cur[k]; else cur[k] = rd[k]; }); const pr = { ...st.personRights }; if (Object.keys(cur).length) pr[p.name] = cur; else delete pr[p.name]; return { personRights: pr }; });
+      logs.push('Changed individual rights of ' + p.name + ' (' + Object.keys(rd).length + ' change' + (Object.keys(rd).length === 1 ? '' : 's') + ')');
+    }
+    this.setState((st) => ({ extraLogs: logs.map((a, i) => ({ id: 'xr' + Date.now() + i, ago: 0, user: 'Samwel Okoth Omulo', action: a, module: 'Roles', ip: '10.0.4.21', loc: 'Office network', result: 'Success', rule: 'r5' })).concat([{ id: 'x' + Date.now() + p.id, ago: 0, user: 'Samwel Okoth Omulo', action: 'Edited details of ' + before, module: 'People', ip: '10.0.4.21', loc: 'Office network', result: 'Success', rule: '' }], st.extraLogs) }));
+    this.forceUpdate();
+    this.notify(p.name + '\'s changes are now in effect.', '#B8F36B');
+  },
+
   submitOnboard() {
     const ob = this.state.onboard;
     if (!ob) return;
@@ -72,17 +95,28 @@ export const onboardingActions = {
     if (Object.keys(errors).length) { this.setState({ onboard: { ...ob, errs: errors, done: null } }); return; }
     if (editing) {
       const p = this.dir[ob.edit];
-      Object.assign(p, { name: clean.first + ' ' + clean.last, first: clean.first, last: clean.last, initials: (clean.first[0] + clean.last[0]).toUpperCase(), title: clean.title || p.title, dept: clean.department || p.dept, loc: clean.branch || p.loc, sector: clean.sector, unit: clean.unit, email: clean.email, phone: clean.phone, dob: clean.dob, gender: clean.gender });
-      const logs = [];
-      if (ob.roleDraft) { this.setState((st) => ({ memberRoles: { ...st.memberRoles, [p.name]: ob.roleDraft } })); logs.push('Changed the role of ' + p.name + ' to ' + ob.roleDraft); }
+      const details = { name: clean.first + ' ' + clean.last, first: clean.first, last: clean.last, initials: (clean.first[0] + clean.last[0]).toUpperCase(), title: clean.title || p.title, dept: clean.department || p.dept, loc: clean.branch || p.loc, sector: clean.sector, unit: clean.unit, email: clean.email, phone: clean.phone, dob: clean.dob, gender: clean.gender };
+      const lines = [];
+      [['name', 'Name'], ['title', 'Job title'], ['dept', 'Department'], ['loc', 'Branch'], ['sector', 'Sector'], ['unit', 'Unit'], ['email', 'Email'], ['phone', 'Phone'], ['dob', 'Date of birth'], ['gender', 'Gender']].forEach(([k, l]) => {
+        if (String(details[k] || '') !== String(p[k] || '')) lines.push(l + ': ' + (p[k] || '—') + ' → ' + (details[k] || '—'));
+      });
+      if (ob.roleDraft && ob.roleDraft !== (this.state.memberRoles[p.name] || ob.roleDraft)) lines.push('Role changed to ' + ob.roleDraft);
+      else if (ob.roleDraft) lines.push('Role set to ' + ob.roleDraft);
       const rd = ob.rightsDraft || {};
-      if (Object.keys(rd).length) {
-        this.setState((st) => { const cur = { ...(st.personRights[p.name] || {}) }; Object.keys(rd).forEach((k) => { if (rd[k] === null) delete cur[k]; else cur[k] = rd[k]; }); const pr = { ...st.personRights }; if (Object.keys(cur).length) pr[p.name] = cur; else delete pr[p.name]; return { personRights: pr }; });
-        logs.push('Changed individual rights of ' + p.name + ' (' + Object.keys(rd).length + ' change' + (Object.keys(rd).length === 1 ? '' : 's') + ')');
+      if (Object.keys(rd).length) lines.push(Object.keys(rd).length + ' individual right change' + (Object.keys(rd).length === 1 ? '' : 's'));
+      if (ob.reportDraft !== undefined && ob.reportDraft !== null && ob.reportDraft !== (this.state.personReports[p.name] || '')) lines.push(ob.reportDraft ? 'Reports to ' + ob.reportDraft : 'Reports to the role');
+      if (!lines.length) { this.setState({ onboard: null }); this.notify('No changes to ' + p.name + '.', '#9DB0A6'); return; }
+      const pending = this.state.requests.find((r) => r.kind === 'personEdit' && r.personId === ob.edit && r.status === 'Pending');
+      if (pending) { this.notify('Changes to ' + p.name + ' are already waiting for approval (' + pending.id + '). Wait for it to finish first.', '#FFB86B'); return; }
+      const changes = { id: ob.edit, name: p.name, details, role: ob.roleDraft || null, rights: rd, report: ob.reportDraft === undefined ? null : ob.reportDraft };
+      const flow = this._flowById ? this._flowById('f11') : null;
+      this.setState({ onboard: null });
+      if (flow && flow.levels > 0 && this._makeRequest) {
+        // Nothing changes yet: the edit takes effect when the last approver signs off.
+        this._makeRequest('f11', 'Edit ' + p.name + ': ' + lines.join('; '), { kind: 'personEdit', personId: ob.edit, changes, note: lines.join('\n') });
+        return;
       }
-      this.setState((st) => ({ onboard: null, extraLogs: logs.map((a, i) => ({ id: 'xr' + Date.now() + i, ago: 0, user: 'Samwel Okoth Omulo', action: a, module: 'Roles', ip: '10.0.4.21', loc: 'Office network', result: 'Success', rule: 'r5' })).concat([{ id: 'x' + Date.now() + p.id, ago: 0, user: 'Samwel Okoth Omulo', action: 'Edited details of ' + p.name, module: 'People', ip: '10.0.4.21', loc: 'Office network', result: 'Success', rule: '' }].concat(st.extraLogs)) }));
-      this.forceUpdate();
-      this.notify(p.name + '\'s details were saved.', '#B8F36B');
+      this.applyPersonEdit(changes);
       return;
     }
     const entry = this.addPerson(clean);
