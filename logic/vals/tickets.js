@@ -38,7 +38,7 @@ export function valsTickets(ctx) {
       const list = Array.from(e.target.files || []);
       e.target.value = '';
       if (!cur_t || !list.length) return;
-      this.updTicket(cur_t.id, (t) => Object.assign({}, t, { activity: list.reduce((acc, f) => acc.concat([{ who: 'Sam', time: 'Just now', kind: 'file', text: f.name, meta: this.fmtSize(f.size) }]), t.activity) }));
+      this.updTicket(cur_t.id, (t) => Object.assign({}, t, { activity: list.reduce((acc, f) => acc.concat([{ who: 'Sam', time: 'Just now', kind: 'file', ...(i => ({ text: i.name, meta: i.meta, url: i.url, isImg: i.isImg }))(this.fileInfo(f)) }]), t.activity) }));
     },
     handover: (e) => {
       const name = e.target.value;
@@ -50,6 +50,8 @@ export function valsTickets(ctx) {
     ntOpen: s.ntOpen, nt: s.nt, ntCats, ntPrios,
     toggleNewTicket: () => this.setState((st) => ({ ntOpen: !st.ntOpen })),
     ntSetTitle: (e) => { const v = e.target.value; this.setState((st) => ({ nt: { ...st.nt, title: v } })); },
+    ntAttach: (e) => { const list = Array.from(e.target.files || []).map((f) => this.fileInfo(f)); e.target.value = ''; this.setState((st) => ({ nt: { ...st.nt, files: (st.nt.files || []).concat(list) } })); },
+    ntRemoveFile: (i) => this.setState((st) => ({ nt: { ...st.nt, files: (st.nt.files || []).filter((_, k) => k !== i) } })),
     ntSetDesc: (e) => { const v = e.target.value; this.setState((st) => ({ nt: { ...st.nt, desc: v } })); },
     ntBtnStyle: 'height:40px;padding:0 20px;border-radius:10px;border:0;font-weight:600;cursor:pointer;' + (s.nt.title.trim() ? 'background:#B8F36B;color:#0F1714' : 'background:#2A3832;color:#9DB0A6'),
     createTicket: () => {
@@ -59,8 +61,8 @@ export function valsTickets(ctx) {
       const handler = pickHandler(cat, this.state.tickets);
       const pre = /Software/.test(cat.name) ? 'DEV-' : /HR/.test(cat.name) ? 'HR-' : /Network|Hardware|Access/.test(cat.name) ? 'IT-' : 'TK-';
       const id = pre + (300 + this.state.tickets.length);
-      const t = { id: id, title: nt.title.trim(), cat: cat.name, prio: cat.custom ? cat.prio : nt.prio, step: 0, hold: false, raisedBy: 'Sam', assignees: handler ? [handler] : [], handler: handler, handlerSince: handler ? 'Just now' : '', created: 'Just now', elapsed: 0, sync: 'Not synced', dept: ntTargets.name || 'IT Operations', to: ntTargets.type === 'desk' ? { type: 'desk', name: 'Ticket desk' } : { type: ntTargets.type, name: ntTargets.name }, fromDept: 'Risk & Compliance', createdAt: new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Nairobi' }), escalated: false, tatH: cat.custom ? cat.tat : 0, desc: nt.desc.trim() || 'No details given.', activity: [{ who: 'Sam', kind: 'event', text: 'Raised the ticket', time: 'Just now' }] };
-      this.setState((st) => ({ tickets: [t].concat(st.tickets), ntOpen: false, nt: { title: '', cat: st.nt.cat, prio: 'Medium', desc: '', toType: st.nt.toType, toName: st.nt.toName }, ticketOpen: id }));
+      const t = { id: id, title: nt.title.trim(), cat: cat.name, prio: cat.custom ? cat.prio : nt.prio, step: 0, hold: false, raisedBy: 'Sam', assignees: handler ? [handler] : [], handler: handler, handlerSince: handler ? 'Just now' : '', created: 'Just now', elapsed: 0, sync: 'Not synced', dept: ntTargets.name || 'IT Operations', to: ntTargets.type === 'desk' ? { type: 'desk', name: 'Ticket desk' } : { type: ntTargets.type, name: ntTargets.name }, fromDept: 'Risk & Compliance', createdAt: new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Nairobi' }), escalated: false, tatH: cat.custom ? cat.tat : 0, desc: nt.desc.trim() || 'No details given.', activity: [{ who: 'Sam', kind: 'event', text: 'Raised the ticket', time: 'Just now' }].concat((nt.files || []).map((f) => ({ who: 'Sam', kind: 'file', time: 'Just now', text: f.name, meta: f.meta, url: f.url, isImg: f.isImg }))) };
+      this.setState((st) => ({ tickets: [t].concat(st.tickets), ntOpen: false, nt: { title: '', cat: st.nt.cat, prio: 'Medium', desc: '', files: [], toType: st.nt.toType, toName: st.nt.toName }, ticketOpen: id }));
       this.notify(id + ' raised in ' + cat.name + ' and sent to ' + (ntTargets.type === 'desk' ? 'the ticket desk' : ntTargets.name) + '. TAT ' + (cat.custom ? cat.tat + ' hours' : tatText(cat.name)) + (handler ? '. Assigned to ' + handler : '') + '.', '#7CC4FF', id);
     }
   };

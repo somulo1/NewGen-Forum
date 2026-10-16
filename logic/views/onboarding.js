@@ -1,8 +1,10 @@
+import { hasLevelsFor } from '~/logic/actions/onboarding.js';
 import { GENDERS, MANDATORY, csvColumns, structureFields, structureOptions } from '~/logic/onboarding.js';
 
 // renderVals step: onboarding. The form only shows the structure levels this organization has set up.
 export function buildOnboarding(ctx) {
-  const { can, has, s } = ctx;
+  const { can, s } = ctx;
+  const has = hasLevelsFor(s);
   const ob = s.onboard;
   const canOnboard = can('people', 'Onboard people');
   const base = { canOnboard, open: false, openOne: () => this.openOnboard('one'), openBulk: () => this.openOnboard('bulk') };
@@ -13,13 +15,14 @@ export function buildOnboarding(ctx) {
   const rowsAll = ob.bulk ? ob.bulk.rows : [];
   const good = rowsAll.filter((r) => r.ok).length;
   const bad = rowsAll.length - good;
-  const onb = { ...base, open: true, isOne: ob.tab === 'one', isBulk: ob.tab === 'bulk', close: () => this.closeOnboard(),
+  const isEdit = ob.edit !== undefined && ob.edit !== null;
+  const onb = { ...base, open: true, isEdit, heading: isEdit ? 'Edit ' + this.dir[ob.edit].name : 'Onboard people', submitLabel: isEdit ? 'Save changes' : 'Onboard person', isOne: ob.tab === 'one', isBulk: ob.tab === 'bulk' && !isEdit, showTabs: !isEdit, close: () => this.closeOnboard(),
     goOne: () => this.setOnboardTab('one'), goBulk: () => this.setOnboardTab('bulk'),
     done: ob.done, hasDone: !!ob.done, doneOne: !!(ob.done && ob.done.one), doneBulk: !!(ob.done && ob.done.count !== undefined),
     fields: MANDATORY.map((m) => ({ key: m.key, label: m.label, type: m.type, isSelect: m.type === 'select', value: f[m.key], err: errs[m.key] || '', hasErr: !!errs[m.key], options: GENDERS,
       onInput: (e) => this.setOnboardField(m.key, e.target.value) })),
     title: f.title, onTitle: (e) => this.setOnboardField('title', e.target.value),
-    structure: structure.map((x) => ({ key: x.key, label: x.label + (x.required ? '' : ' (optional)'), value: f[x.key], options: opts[x.key], err: errs[x.key] || '', hasErr: !!errs[x.key],
+    structure: structure.map((x) => ({ key: x.key, label: x.label + (x.required ? '' : ' (optional)'), value: f[x.key], options: isEdit && ob.orig[x.key] && opts[x.key].indexOf(ob.orig[x.key]) === -1 && f[x.key] === ob.orig[x.key] ? opts[x.key].concat([ob.orig[x.key]]) : opts[x.key], err: errs[x.key] || '', hasErr: !!errs[x.key],
       onChange: (e) => this.setOnboardField(x.key, e.target.value) })),
     hasStructure: structure.length > 0,
     structureNote: structure.length ? 'These come from your organization: ' + structure.map((x) => x.label.toLowerCase()).join(', ') + '. Each choice narrows the next one.' : 'This organization has no sectors, branches, units or departments set up, so only the required details are needed.',

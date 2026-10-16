@@ -40,7 +40,7 @@ export function valsHome(ctx) {
     },
     attachForum: (e) => {
       const list = Array.from(e.target.files || []);
-      list.forEach((f) => this.postMsg('', { name: f.name, meta: this.fmtSize(f.size) }));
+      list.forEach((f) => this.postMsg('', this.fileInfo(f)));
       e.target.value = '';
     },
     onWallFiles: (e) => {

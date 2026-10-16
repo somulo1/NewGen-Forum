@@ -21,6 +21,9 @@
 </div>
 <div v-if="!ntCatSel.custom" style="display: flex; flex-direction: column; gap: 6px"><span style="font-size: 13px; color: #C9D6CF">Priority</span><div style="display: flex; flex-wrap: wrap; gap: 8px"><template v-for="(np, np__i) in ntPrios" :key="np__i"><button @click="np.pick" :style="np.style">{{ np.label }}</button></template></div></div>
 <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C9D6CF">Details<textarea rows="3" :value="nt.desc" @input="ntSetDesc" placeholder="Describe what happened and where" style="padding: 10px 12px; border-radius: 10px; border: 1px solid #2A3832; background: #121B17; color: #E8EFEA; font-size: 14px; resize: vertical"></textarea></label>
+<div style="display: flex; flex-direction: column; gap: 8px"><span style="font-size: 13px; color: #C9D6CF">Evidence <span style="color: #9DB0A6">(images or documents, optional)</span></span>
+<label style="position: relative; align-self: flex-start; height: 38px; padding: 0 14px; border-radius: 10px; border: 1px dashed #3A4A42; color: #E8EFEA; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 13px"><input type="file" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.ppt,.pptx" aria-label="Upload evidence" @change="ntAttach" style="position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer">Upload evidence</label>
+<template v-for="(nf, nf__i) in nt.files" :key="nf__i"><div style="display: flex; align-items: center; gap: 8px"><FileChip :name="nf.name" :meta="nf.meta" :url="nf.url" :is-img="nf.isImg" style="flex: 1"/><button type="button" :aria-label="`Remove ${nf.name}`" @click="() => ntRemoveFile(nf__i)" style="width: 32px; height: 32px; border-radius: 50%; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer">×</button></div></template></div>
 <div style="display: flex; gap: 8px; justify-content: flex-end"><button @click="toggleNewTicket" style="height: 40px; padding: 0 16px; border-radius: 10px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer">Cancel</button><button @click="createTicket" :style="ntBtnStyle">Raise ticket</button></div>
 </div>
 </template>
@@ -62,7 +65,7 @@
 <div style="display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap"><strong style="font-size: 13px">{{ ac.who }}</strong><span style="font-size: 11px; color: #9DB0A6">{{ ac.time }}</span></div>
 <template v-if="ac.isEvent"><span style="font-size: 13px; color: #C9D6CF">{{ ac.text }}</span></template>
 <template v-if="ac.isComment"><div style="padding: 10px 12px; border-radius: 4px 14px 14px 14px; background: #1F2C26; font-size: 14px; line-height: 1.5; white-space: pre-line">{{ ac.text }}</div></template>
-<template v-if="ac.isFile"><div style="align-self: flex-start; display: flex; gap: 10px; align-items: center; padding: 8px 12px; border-radius: 10px; background: #121B17; border: 1px solid #2A3832"><span style="width: 30px; height: 30px; border-radius: 8px; background: #22302A; color: #B8F36B; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6z"></path><path d="M14 3v4h4"></path></svg></span><div style="display: flex; flex-direction: column"><strong style="font-size: 13px">{{ ac.text }}</strong><span style="font-size: 11px; color: #9DB0A6">{{ ac.meta }}</span></div></div></template>
+<template v-if="ac.isFile"><FileChip :name="ac.text" :meta="ac.meta" :url="ac.url" :is-img="ac.isImg"/></template>
 </div>
 </div>
 </template>
@@ -162,6 +165,6 @@ import { hubBindings } from '~/composables/useHub';
 
 export default {
   name: 'TicketsSection',
-  ...hubBindings(["attachTicket","canRaise","closeTicket","createTicket","esc","handover","has","nt","ntBtnStyle","ntCatSel","ntCats","ntTargets","ntOpen","ntPrios","ntSetDesc","ntSetTitle","onTComment","postTComment","showTicketList","showTicketView","tagOpen","tagPeople","tcomment","myTicketStats","ticketStats","tickets","ticketsTable","tk","toggleNewTicket","toggleTag"])
+  ...hubBindings(["attachTicket","canRaise","closeTicket","createTicket","esc","handover","has","nt","ntBtnStyle","ntCatSel","ntCats","ntTargets","ntOpen","ntPrios","ntSetDesc","ntAttach","ntRemoveFile","ntSetTitle","onTComment","postTComment","showTicketList","showTicketView","tagOpen","tagPeople","tcomment","myTicketStats","ticketStats","tickets","ticketsTable","tk","toggleNewTicket","toggleTag"])
 };
 </script>

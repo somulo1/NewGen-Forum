@@ -39,7 +39,7 @@
 <div :style="u.bubbleStyle">
 <div style="display: flex; gap: 8px; align-items: baseline"><strong style="font-size: 13px">{{ u.who }}</strong><span style="font-size: 11px; color: #9DB0A6">{{ u.time }}</span></div>
 <template v-if="u.hasText"><p style="margin: 4px 0 0; font-size: 14px; line-height: 1.45">{{ u.text }}</p></template>
-<template v-if="u.hasFile"><div style="margin-top: 6px; display: flex; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 10px; background: #121B17; border: 1px solid #2A3832"><span style="width: 32px; height: 32px; flex: none; border-radius: 8px; background: #22302A; color: #B8F36B; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6z"></path><path d="M14 3v4h4"></path></svg></span><div style="min-width: 0; display: flex; flex-direction: column"><strong style="font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ u.fileName }}</strong><span style="font-size: 11px; color: #9DB0A6">{{ u.fileMeta }}</span></div></div></template>
+<template v-if="u.hasFile"><FileChip :name="u.fileName" :meta="u.fileMeta" :url="u.fileUrl" :is-img="u.fileIsImg" style="margin-top: 6px"/></template>
 </div>
 </div>
 </template>

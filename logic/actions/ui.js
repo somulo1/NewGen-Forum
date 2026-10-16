@@ -44,6 +44,11 @@ export const uiActions = {
     }
   },
 
+  // A picked file as the {name, meta, url, isImg} record every attachment view reads.
+  fileInfo(f) {
+    return { name: f.name, meta: this.fmtSize(f.size), url: URL.createObjectURL(f), isImg: (f.type || '').indexOf('image/') === 0 };
+  },
+
   fmtSize(n) {
     if (n > 1048576) return (n / 1048576).toFixed(1) + ' MB';
     return Math.max(1, Math.round(n / 1024)) + ' KB';

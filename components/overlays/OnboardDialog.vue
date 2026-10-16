@@ -3,10 +3,10 @@
 <div class="hub-overlay" style="position: fixed; inset: 0; z-index: 70; background: rgba(5,10,8,0.6); display: flex; align-items: center; justify-content: center; padding: 16px">
 <div role="dialog" aria-modal="true" aria-label="Onboard people" style="width: 720px; max-width: 100%; max-height: 100%; display: flex; flex-direction: column; border-radius: 20px; background: #16201C; border: 1px solid #2A3832; overflow: hidden">
 <div style="flex: none; display: flex; align-items: center; gap: 12px; padding: 18px 22px 0">
-<h2 style="flex: 1; margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 22px">Onboard people</h2>
+<h2 style="flex: 1; margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 22px">{{ onb.heading }}</h2>
 <button type="button" aria-label="Close" @click="onb.close" style="width: 36px; height: 36px; border-radius: 50%; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer">✕</button>
 </div>
-<div role="tablist" style="flex: none; display: flex; gap: 4px; padding: 10px 22px 0; border-bottom: 1px solid #24322C">
+<div v-if="onb.showTabs" role="tablist" style="flex: none; display: flex; gap: 4px; padding: 10px 22px 0; border-bottom: 1px solid #24322C">
 <button role="tab" :aria-selected="onb.isOne" @click="onb.goOne" :style="`min-height: 42px; padding: 0 16px; border: 0; background: transparent; cursor: pointer; font-size: 14px; border-bottom: 2px solid ${onb.isOne ? '#B8F36B' : 'transparent'}; color: ${onb.isOne ? '#E8EFEA' : '#9DB0A6'}; font-weight: ${onb.isOne ? 600 : 500}`">One person</button>
 <button role="tab" :aria-selected="onb.isBulk" @click="onb.goBulk" :style="`min-height: 42px; padding: 0 16px; border: 0; background: transparent; cursor: pointer; font-size: 14px; border-bottom: 2px solid ${onb.isBulk ? '#B8F36B' : 'transparent'}; color: ${onb.isBulk ? '#E8EFEA' : '#9DB0A6'}; font-weight: ${onb.isBulk ? 600 : 500}`">Bulk onboarding</button>
 </div>
@@ -41,7 +41,7 @@
 </div>
 </template>
 </div>
-<div style="display: flex; gap: 8px; justify-content: flex-end"><button type="button" @click="onb.close" style="height: 40px; padding: 0 18px; border-radius: 20px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer">Close</button><button type="submit" style="height: 40px; padding: 0 22px; border-radius: 20px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">Onboard person</button></div>
+<div style="display: flex; gap: 8px; justify-content: flex-end"><button type="button" @click="onb.close" style="height: 40px; padding: 0 18px; border-radius: 20px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer">Close</button><button type="submit" style="height: 40px; padding: 0 22px; border-radius: 20px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">{{ onb.submitLabel }}</button></div>
 </form>
 </template>
 
