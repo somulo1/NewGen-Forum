@@ -1,6 +1,6 @@
 <!-- Private chat, full screen or fitted to the page (beside the sidebar) -->
 <template><template v-if="shown">
-<section :aria-label="fit === 'page' ? 'Private chat fit to page' : 'Private chat full screen'" :class="fit === 'page' ? 'hub-fitpage' : ''" :style="rootStyle">
+<section :aria-label="fit === 'page' ? 'Private chat fit to page' : 'Private chat full screen'" :class="fit === 'page' ? 'hub-fitpage' : 'hub-screen'" :style="rootStyle">
 <CallScreen variant="full" :fit="fit" />
 <template v-if="!showPanelCall">
 <div style="flex: none; border-bottom: 1px solid #24322C; background: #0F1714">

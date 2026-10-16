@@ -24,8 +24,13 @@ input,textarea{font-family:inherit}
 .hub-nav.open{transform:none}
 .hub-navback{position:fixed;inset:0;z-index:61;background:rgba(5,10,8,.6);border:0;padding:0}
 .hub-main{padding:16px 14px 150px !important}
-.hub-dock{position:fixed !important;inset:0 !important;width:auto !important;max-width:none !important;margin:0 !important;border-radius:0 !important;border:0 !important;z-index:58;flex:none !important}
+.hub-dock{position:fixed !important;inset:64px 0 64px 0 !important;width:auto !important;max-width:none !important;margin:0 !important;border-radius:0 !important;border:0 !important;z-index:58;flex:none !important}
 .hub-grip{display:none !important}
+.hub-screen{inset:64px 0 64px 0 !important;border-radius:0 !important;border:0 !important}
+.hub-notif{position:fixed !important;left:12px !important;right:12px !important;top:68px !important;width:auto !important;max-width:none !important;max-height:calc(100vh - 160px) !important}
+.hub-searchwrap{position:static !important}
+.hub-searchres{position:fixed !important;left:12px !important;right:12px !important;top:68px !important;max-height:calc(100vh - 160px) !important}
+.hub-minicall{bottom:76px !important;right:12px !important}
 .hub-fitpage{inset:0 0 64px 0 !important;border-radius:0 !important;border:0 !important}
 .hub-tabbar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:57;height:64px;padding-bottom:env(safe-area-inset-bottom);background:#121B17;border-top:1px solid #24322C}
 .hub-bubble{bottom:84px !important;right:14px !important}

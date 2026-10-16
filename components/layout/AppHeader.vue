@@ -6,11 +6,19 @@
 <div class="hub-d" style="font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 18px; letter-spacing: -0.01em">Hub</div>
 <div class="hub-d" style="color: #9DB0A6; font-size: 13px; padding-left: 10px; border-left: 1px solid #2A3832">[YOUR ORGANIZATION]</div>
 </div>
-<label class="hub-search" style="flex: 1 1 280px; max-width: 560px; display: flex; align-items: center; gap: 10px; height: 42px; padding: 0 14px; border-radius: 21px; background: #1A2520; border: 1px solid #2A3832; color: #9DB0A6">
+<div class="hub-searchwrap" style="position: relative; flex: 1 1 280px; max-width: 560px; min-width: 0">
+<label class="hub-search" style="display: flex; align-items: center; gap: 10px; height: 42px; padding: 0 14px; border-radius: 21px; background: #1A2520; border: 1px solid #2A3832; color: #9DB0A6">
 <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg>
 <span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Search</span>
-<input type="search" placeholder="Search people, forums, files, tickets…" style="flex: 1; min-width: 0; background: transparent; border: 0; outline: none; color: #E8EFEA; font-size: 14px">
+<input type="search" :value="headerSearch.q" @input="headerSearch.onInput" @keydown.esc="headerSearch.clear" placeholder="Search people, forums, pages…" style="flex: 1; min-width: 0; background: transparent; border: 0; outline: none; color: #E8EFEA; font-size: 14px">
 </label>
+<template v-if="headerSearch.active">
+<div class="hub-searchres" role="listbox" aria-label="Search results" style="position: absolute; left: 0; right: 0; top: 48px; z-index: 70; max-height: 420px; overflow-y: auto; padding: 6px; border-radius: 16px; background: #1D2A25; border: 1px solid #34453D; box-shadow: 0 18px 44px rgba(0,0,0,0.5)">
+<template v-for="(r, r__i) in headerSearch.results" :key="r__i"><button @click="r.run" style="display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 4px 10px; border: 0; border-radius: 10px; background: transparent; color: #E8EFEA; cursor: pointer; text-align: left; font-family: inherit"><span :style="`width: 30px; height: 30px; flex: none; border-radius: 9px; background: #22302A; color: ${r.color}; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11px`">{{ r.initials }}</span><span style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ r.label }}</span><span style="font-size: 11px; color: #9DB0A6">{{ r.group }}<template v-if="r.sub"> · {{ r.sub }}</template></span></span></button></template>
+<template v-if="headerSearch.none"><span style="display: block; padding: 12px; font-size: 13px; color: #9DB0A6">Nothing matches "{{ headerSearch.q }}".</span></template>
+</div>
+</template>
+</div>
 <div style="margin-left: auto; flex: none; display: flex; align-items: center; gap: 8px">
 <button @click="toggleTheme" :aria-label="themeAria" :title="themeAria" style="height: 40px; padding: 0 14px; border-radius: 20px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px">
 <template v-if="isDark"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg><span class="hub-d">Light</span></template>
@@ -21,7 +29,7 @@
 <template v-if="hasBadge"><span style="position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px; padding: 0 5px; box-sizing: border-box; border-radius: 9px; background: #FF9B8A; color: #0F1714; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center">{{ badgeCount }}</span></template>
 </button>
 <template v-if="notifOpen">
-<div role="menu" aria-label="Notifications" style="position: absolute; right: 0; top: 48px; z-index: 70; width: 360px; max-width: 86vw; max-height: 440px; overflow-y: auto; padding: 8px; border-radius: 16px; background: #1D2A25; border: 1px solid #34453D; box-shadow: 0 18px 44px rgba(0,0,0,0.5)">
+<div class="hub-notif" role="menu" aria-label="Notifications" style="position: absolute; right: 0; top: 48px; z-index: 70; width: 360px; max-width: 86vw; max-height: 440px; overflow-y: auto; padding: 8px; border-radius: 16px; background: #1D2A25; border: 1px solid #34453D; box-shadow: 0 18px 44px rgba(0,0,0,0.5)">
 <div style="padding: 6px 10px 8px; font-weight: 600; font-size: 14px">Notifications</div>
 <template v-if="noNotifs"><div style="padding: 16px 10px; color: #9DB0A6; font-size: 13px">You're all caught up.</div></template>
 <template v-for="(n, n__i) in notifs" :key="n__i">
@@ -56,6 +64,6 @@ export default {
   mounted() { this._off = (e) => { if (this.acctOpen && this.$refs.acct && !this.$refs.acct.contains(e.target)) this.acctOpen = false; }; this._esc = (e) => { if (e.key === 'Escape') this.acctOpen = false; }; document.addEventListener('click', this._off); document.addEventListener('keydown', this._esc); },
   beforeUnmount() { document.removeEventListener('click', this._off); document.removeEventListener('keydown', this._esc); },
   methods: { openProfile() { this.acctOpen = false; this.go.profile(); }, logout() { this.acctOpen = false; useAuth().signOut(); } },
-  ...hubBindings(["badgeCount","go","hasBadge","isDark","isLight","me","noNotifs","notifOpen","notifs","openNav","themeAria","toggleNotifs","toggleTheme"])
+  ...hubBindings(["badgeCount","headerSearch","go","hasBadge","isDark","isLight","me","noNotifs","notifOpen","notifs","openNav","themeAria","toggleNotifs","toggleTheme"])
 };
 </script>

@@ -1,6 +1,6 @@
 <!-- Forum, full screen or fitted to the page (beside the sidebar) -->
 <template><template v-if="shown">
-<section :aria-label="fit === 'page' ? 'Forum fit to page' : 'Forum full screen'" :class="fit === 'page' ? 'hub-fitpage' : ''" :style="rootStyle">
+<section :aria-label="fit === 'page' ? 'Forum fit to page' : 'Forum full screen'" :class="fit === 'page' ? 'hub-fitpage' : 'hub-screen'" :style="rootStyle">
 <CallScreen variant="full" :fit="fit" />
 <template v-if="!showPanelCall">
 <div style="max-width: 1100px; min-height: 100%; box-sizing: border-box; margin: 0 auto; padding: 0 clamp(16px, 3vw, 32px) 8px; display: flex; flex-direction: column; gap: 18px">
