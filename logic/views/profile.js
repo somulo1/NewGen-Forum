@@ -1,6 +1,6 @@
 // renderVals step: profile. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildProfile(ctx) {
-  const { fmtDay, forums, has, nav, projects, s, skillsByDept, ts } = ctx;
+  const { reportOf, fmtDay, forums, has, nav, projects, s, skillsByDept, ts } = ctx;
   // ---- My profile ----
   nav.profileCard = 'margin-top:auto;display:flex;align-items:center;gap:10px;width:100%;min-height:58px;padding:8px 10px;border-radius:12px;cursor:pointer;color:#E8EFEA;font-family:inherit;border:1px solid ' + (s.section === 'profile' && !s.profileOf ? '#3F524A' : '#24322C') + ';background:' + (s.section === 'profile' && !s.profileOf ? '#22302A' : '#16201C');
   const pf = s.profile;
@@ -33,7 +33,7 @@ export function buildProfile(ctx) {
   const kindOf = { W: 'Wall post', T: 'Ticket', F: 'File', A: 'Assignment', B: 'Badge', P: 'Project' };
   const withKind = (arr) => arr.map((a) => ({ ...a, kind: kindOf[a.tag] || 'Activity' }));
   const meOwn = {
-    isOther: false, initials: 'S', color: '#C2185B', aboutTitle: 'About me', forumsTitle: 'My forums', reportsTo: 'Head of Risk Management',
+    isOther: false, initials: 'S', color: '#C2185B', aboutTitle: 'About me', forumsTitle: 'My forums', reportsTo: reportOf('Samwel Okoth Omulo').name || 'Top of the organization',
     name: 'Samwel Okoth Omulo', role: 'Cybersecurity & Technology Risk Officer', dept: 'Risk & Compliance',
     status: curStatus.label, statusColor: curStatus.color, statusNote: curStatus.note, statusMenu: s.statusMenu,
     statuses: statusDefs.map((x) => ({ ...x, pick: () => this.setState((st) => ({ statusMenu: false, profile: { ...st.profile, status: x.label } })) })),
@@ -47,7 +47,7 @@ export function buildProfile(ctx) {
     skills: pf.skills.map((n, i) => ({ name: n, editing: s.profileEdit, remove: () => this.setState((st) => ({ profile: { ...st.profile, skills: st.profile.skills.filter((x, j) => j !== i) } })) })),
     facts: [
       { label: 'Department', value: 'Risk & Compliance', sub: 'Cybersecurity team' },
-      { label: 'Reports to', value: 'Head of Risk Management', sub: 'Risk & Compliance' },
+      { label: 'Reports to', value: reportOf('Samwel Okoth Omulo').top ? 'No one' : reportOf('Samwel Okoth Omulo').name, sub: reportOf('Samwel Okoth Omulo').sub },
       { label: 'Location', value: 'Kenya', sub: 'GMT+3 · ' + localTime + ' now' },
       { label: 'Member since', value: '[JOIN DATE]', sub: 'Hub member' }
     ],
@@ -93,7 +93,7 @@ export function buildProfile(ctx) {
         { tag: 'W', color: '#F49AC1', text: 'Reacted to a post on the community wall', time: 'Last month' }
       ]);
     meOther = {
-      isOther: true, initials: opDir.initials, color: opDir.color, aboutTitle: 'About ' + first, forumsTitle: 'Forums', reportsTo: 'Head of ' + opDir.dept,
+      isOther: true, initials: opDir.initials, color: opDir.color, aboutTitle: 'About ' + first, forumsTitle: 'Forums', reportsTo: reportOf(opDir.name).name || 'Top of the organization',
       name: opDir.name, role: opDir.title, dept: opDir.dept,
       status: opStatus.label, statusColor: opStatus.color, statusNote: opStatus.note, statusMenu: false, statuses: [],
       photo: '', hasPhoto: false, noPhoto: true, editing: false, notEditing: true,
@@ -102,7 +102,7 @@ export function buildProfile(ctx) {
       skills: (skillsByDept[opDir.dept] || ['Teamwork']).map((n) => ({ name: n, editing: false, remove: () => {} })),
       facts: [
         { label: 'Department', value: opDir.dept, sub: opDir.title },
-        { label: 'Reports to', value: 'Head of ' + opDir.dept, sub: opDir.dept },
+        { label: 'Reports to', value: reportOf(opDir.name).top ? 'No one' : reportOf(opDir.name).name, sub: reportOf(opDir.name).sub },
         { label: 'Location', value: opDir.loc || 'Kenya', sub: 'GMT+3 · ' + localTime + ' now' },
         { label: 'Member since', value: '[JOIN DATE]', sub: 'Hub member' }
       ],

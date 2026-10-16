@@ -41,6 +41,23 @@
 </div>
 </template>
 </div>
+<template v-if="onb.hasAccess">
+<div style="display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 14px; background: #121B17">
+<strong style="font-size: 14px">Role and rights</strong>
+<span style="font-size: 12px; color: #9DB0A6">Rights start from the role. Changes made here apply to this person only.</span>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #9DB0A6">Role<select :value="onb.access.roleValue" :disabled="!onb.access.canEdit" @change="onb.access.onRole" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid #2A3832; background: #16201C; color: #E8EFEA; font-size: 14px"><template v-for="r in onb.access.roles" :key="r.v"><option :value="r.v">{{ r.l }}</option></template></select></label>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><button type="button" :aria-expanded="onb.access.open" @click="onb.access.toggleOpen" style="height: 36px; padding: 0 16px; border-radius: 18px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer; font-size: 13px">{{ onb.access.open ? 'Hide individual rights' : 'Edit individual rights' }}</button>
+<span :style="`font-size: 12px; color: ${onb.access.hasCustom ? '#FFB86B' : '#9DB0A6'}`">{{ onb.access.hasCustom ? onb.access.customNote : 'No individual changes' }}</span>
+<button v-if="onb.access.hasCustom && onb.access.canEdit" type="button" @click="onb.access.reset" style="height: 32px; padding: 0 14px; border-radius: 16px; border: 0; background: transparent; color: #B8F36B; cursor: pointer; font-size: 12px; text-decoration: underline">Reset to role</button></div>
+<span v-if="!onb.access.canEdit" style="font-size: 12px; color: #FFD66B">Ask an admin for the "Manage roles &amp; rights" right to change these.</span>
+<div v-if="onb.access.open" style="max-height: 280px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 4px">
+<template v-for="m in onb.access.modules" :key="m.name"><fieldset style="margin: 0; padding: 10px 12px; border-radius: 12px; border: 1px solid #24322C; display: flex; flex-direction: column; gap: 6px; min-width: 0"><legend :style="`padding: 0 6px; font-size: 12px; font-weight: 700; color: ${m.tint}`">{{ m.name }}</legend>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 6px">
+<template v-for="r in m.rights" :key="r.label"><label :style="`display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 10px; border-radius: 10px; font-size: 13px; cursor: ${r.disabled ? 'default' : 'pointer'}; background: ${r.custom ? '#2A2314' : '#16201C'}; border: 1px solid ${r.custom ? '#FFB86B' : '#24322C'}`"><input type="checkbox" :checked="r.on" :disabled="r.disabled" @change="r.toggle" :aria-label="`${m.name}: ${r.label}`"><span style="flex: 1; min-width: 0">{{ r.label }}</span><span v-if="r.custom" style="font-size: 10px; color: #FFB86B">custom</span></label></template>
+</div></fieldset></template>
+</div>
+</div>
+</template>
 <div style="display: flex; gap: 8px; justify-content: flex-end"><button type="button" @click="onb.close" style="height: 40px; padding: 0 18px; border-radius: 20px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer">Close</button><button type="submit" style="height: 40px; padding: 0 22px; border-radius: 20px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">{{ onb.submitLabel }}</button></div>
 </form>
 </template>
