@@ -26,6 +26,7 @@ input,textarea{font-family:inherit}
 .hub-main{padding:16px 14px 150px !important}
 .hub-dock{position:fixed !important;inset:64px 0 64px 0 !important;width:auto !important;max-width:none !important;margin:0 !important;border-radius:0 !important;border:0 !important;z-index:58;flex:none !important}
 .hub-grip{display:none !important}
+.hub-overlay{inset:64px 0 64px 0 !important}
 .hub-screen{inset:64px 0 64px 0 !important;border-radius:0 !important;border:0 !important}
 .hub-notif{position:fixed !important;left:12px !important;right:12px !important;top:68px !important;width:auto !important;max-width:none !important;max-height:calc(100vh - 160px) !important}
 .hub-searchwrap{position:static !important}

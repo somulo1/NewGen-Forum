@@ -1,6 +1,6 @@
 <!-- Memo / announcement / newsletter composer -->
 <template><template v-if="cmOpen">
-<div style="position: fixed; inset: 0; z-index: 66; background: rgba(5,10,8,0.65); display: flex; align-items: center; justify-content: center; padding: 16px; box-sizing: border-box">
+<div class="hub-overlay" style="position: fixed; inset: 0; z-index: 66; background: rgba(5,10,8,0.65); display: flex; align-items: center; justify-content: center; padding: 16px; box-sizing: border-box">
 <div role="dialog" :aria-label="cm.heading" style="width: 100%; max-width: 660px; max-height: 92vh; display: flex; flex-direction: column; border-radius: 20px; background: #16201C; border: 1px solid #2A3832; box-shadow: 0 24px 60px rgba(0,0,0,0.5); overflow: hidden">
 <div style="flex: none; display: flex; align-items: center; gap: 12px; padding: 16px 20px; border-bottom: 1px solid #24322C"><h2 style="margin: 0; flex: 1; font-family: 'Space Grotesk', sans-serif; font-size: 20px">{{ cm.heading }}</h2><button aria-label="Close" @click="cm.close" style="width: 38px; height: 38px; border-radius: 50%; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></div>
 <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 18px 20px; display: flex; flex-direction: column; gap: 14px">

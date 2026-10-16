@@ -46,7 +46,7 @@
 </table>
 </div>
 <template v-if="catMgr.editor.open">
-<div style="position: fixed; inset: 0; z-index: 70; background: rgba(5,10,8,0.6); display: flex; align-items: center; justify-content: center; padding: 16px">
+<div class="hub-overlay" style="position: fixed; inset: 0; z-index: 70; background: rgba(5,10,8,0.6); display: flex; align-items: center; justify-content: center; padding: 16px">
 <div role="dialog" aria-modal="true" :aria-label="`Assign people to ${catMgr.editor.name}`" style="width: 480px; max-width: 100%; max-height: 100%; display: flex; flex-direction: column; gap: 12px; padding: 18px; border-radius: 18px; background: #16201C; border: 1px solid #2A3832">
 <div style="display: flex; align-items: center; gap: 10px"><div style="flex: 1; display: flex; flex-direction: column"><strong style="font-size: 16px">Who solves {{ catMgr.editor.name }}</strong><span style="font-size: 12px; color: #9DB0A6">{{ catMgr.editor.count }} selected. Tick one or many, then apply. Save changes in the table makes it permanent.</span></div><button aria-label="Close" @click="catMgr.editor.cancel" style="width: 34px; height: 34px; border-radius: 50%; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer">✕</button></div>
 <input type="search" aria-label="Search people" :value="catMgr.editor.q" @input="catMgr.editor.onQ" placeholder="Search people…" style="height: 38px; padding: 0 14px; border-radius: 19px; border: 1px solid #2A3832; background: #121B17; color: #E8EFEA; font-size: 14px">
