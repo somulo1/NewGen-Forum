@@ -25,12 +25,6 @@
 </div>
 </template>
 </div>
-<div style="display: flex; flex-wrap: wrap; gap: 8px">
-<span style="padding: 6px 12px; border-radius: 16px; background: #1A2520; border: 1px solid #2A3832; font-size: 13px">Jira · connected</span>
-<span style="padding: 6px 12px; border-radius: 16px; background: #1A2520; border: 1px solid #2A3832; font-size: 13px">GitHub · connected</span>
-<span style="padding: 6px 12px; border-radius: 16px; background: #1A2520; border: 1px solid #2A3832; font-size: 13px">Trello · connected</span>
-<button style="padding: 6px 12px; border-radius: 16px; background: transparent; border: 1px dashed #4A5C54; color: #C9D6CF; font-size: 13px; cursor: pointer">+ Connect Asana, ClickUp…</button>
-</div>
 <DataTable :t="ticketsTable" />
 </div>
 </template>

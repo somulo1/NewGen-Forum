@@ -1,7 +1,23 @@
 // Values and handlers the templates read through hubBindings: shell.
 export function valsShell(ctx) {
-  const { allNotifs, call, callMiniStyle, cur, curDm, curSec, dmView, has, isDM, restoreCall, s, sendCall, set, showCallMini, showMeetingDock, showMeetingFull, showPanelCall } = ctx;
+  const { can, forums, go, myUnits, ticketDeskOk, allNotifs, call, callMiniStyle, cur, curDm, curSec, dmView, has, isDM, restoreCall, s, sendCall, set, showCallMini, showMeetingDock, showMeetingFull, showPanelCall } = ctx;
+  const nq = (s.navq || '').trim().toLowerCase();
+  const hit = (txt) => txt.toLowerCase().indexOf(nq) !== -1;
+  const clear = () => this.setState({ navq: '' });
+  const pages = [['Home', 'home', true], ['Community wall', 'feed', true], ['Meetings & standups', 'meetings', has.sessions], ['Calendar', 'calendar', has.calendar], ['Communications', 'comms', has.comms],
+    ['My tickets', 'tickets', has.tickets], ['Ticket desk', 'ticketdesk', ticketDeskOk], ['Projects', 'projects', has.projects], ['Files', 'files', has.files], ['Secure share', 'share', has.secureshare],
+    ['People', 'people', true], ['Approvals', 'approvals', true], ['Security & logs', 'security', can('security', 'View alerts') || can('security', 'View logs')], ['Roles & rights', 'roles', can('roles', 'View roles')],
+    ['My profile', 'profile', true], ['Widgets', 'widgets', can('home', 'Open widgets page')]];
+  const results = [];
+  if (nq) {
+    pages.filter((p) => p[2] && hit(p[0])).forEach((p) => results.push({ group: 'Pages', label: p[0], sub: '', initials: p[0][0], color: '#E8EFEA', run: () => { go[p[1]](); clear(); } }));
+    forums.filter((f) => hit(f.name)).forEach((f) => results.push({ group: 'Forums', label: f.name, sub: f.members + ' members', initials: f.initials, color: f.color, run: () => { f.open(); clear(); } }));
+    myUnits.filter((u) => hit(u.name)).forEach((u) => results.push({ group: 'Organization', label: u.name, sub: u.type, initials: u.short, color: u.color, run: () => { u.open(); clear(); } }));
+    if (has.chat) this.dir.filter((d) => hit(d.name)).slice(0, 6).forEach((d) => results.push({ group: 'People', label: d.name, sub: d.title, initials: d.initials, color: d.color, run: () => { this.openDm(d.name); clear(); } }));
+  }
+  const navSearch = { q: s.navq || '', active: !!nq, onInput: (e) => this.setState({ navq: e.target.value }), clear, none: !!nq && results.length === 0, results: results.slice(0, 20) };
   return {
+    navSearch,
     notifs: allNotifs, noNotifs: allNotifs.length === 0,
     notifOpen: s.notifOpen,
     hasBadge: !s.notifSeen && allNotifs.length > 0,
