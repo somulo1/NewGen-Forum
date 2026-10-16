@@ -13,6 +13,7 @@ export default defineNuxtConfig({
       htmlAttrs: { lang: 'en' },
       meta: [{ name: 'viewport', content: 'width=device-width, initial-scale=1' }, { name: 'color-scheme', content: 'dark' }, { name: 'theme-color', content: '#0F1714' }],
       style: [{ innerHTML: 'html,body,#__nuxt{margin:0;background:#0F1714;color:#E8EFEA;color-scheme:dark}' }],
+      script: [{ innerHTML: "if (/^\\/(login|signup|reset-password)\\/?$/.test(location.pathname)) { var s = document.createElement('style'); s.textContent = 'html,body,#__nuxt{background:#F2F6F3 !important;color:#0F1714 !important;color-scheme:light !important}'; document.head.appendChild(s); }", tagPosition: 'head' }],
       link: [
         { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
         { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=DM+Sans:wght@400;500;600&display=swap' }
