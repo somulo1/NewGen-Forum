@@ -22,6 +22,13 @@ export function buildCalendar(ctx) {
   const weeks = Math.ceil((offset + dim) / 7);
   const monthShift = (d) => { let y = cy, m = cmn + d; if (m < 1) { m = 12; y--; } if (m > 12) { m = 1; y++; } return y + '-' + (m < 10 ? '0' : '') + m; };
   const chipStyleC = (c) => 'display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:2px 6px;border-radius:5px;font-size:10px;font-weight:600;background:' + c + '26;color:' + c;
+  // Past items are crossed out. Upcoming ones can be closed, but only by the person who set them.
+  const ME = 'Samwel Okoth Omulo';
+  const nowHM = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Nairobi', hour12: false });
+  const isPast = (e, iso) => iso < todayISO || (iso === todayISO && !!(e.end || e.start) && (e.end || e.start) < nowHM);
+  const isClosed = (e, iso) => (e.closedDates || []).indexOf(iso) !== -1;
+  const ended = (e, iso) => isPast(e, iso) || isClosed(e, iso);
+  const isMine = (e) => e.type !== 'Deadline' && (e.by === ME || e.by === 'Sam');
   const joinEvent = (e) => this.startCall(e.type === 'Standup' ? 'voice' : 'video', e.title, e.title.split(' ').map((x) => x[0]).join('').slice(0, 2).toUpperCase(), typeColor[e.type], e.people, null, null, e.by && e.by !== 'Samwel Okoth Omulo' ? 'in' : 'out');
   const cal = {
     monthLabel: new Date(firstISO + 'T12:00:00+03:00').toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'Africa/Nairobi' }),
@@ -40,19 +47,23 @@ export function buildCalendar(ctx) {
         pick: () => this.setState({ calSel: iso }),
         style: 'min-height:108px;padding:6px;border:0;border-right:1px solid #24322C;border-bottom:1px solid #24322C;display:flex;flex-direction:column;gap:3px;text-align:left;cursor:pointer;font-family:inherit;color:#E8EFEA;overflow:hidden;min-width:0;background:' + (isSel ? '#22302A' : inMonth ? '#16201C' : '#121B17') + ';' + (inMonth ? '' : 'opacity:0.5'),
         numStyle: isToday ? 'align-self:flex-start;min-width:24px;height:24px;padding:0 6px;box-sizing:border-box;border-radius:12px;background:#B8F36B;color:#0F1714;font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center' : 'font-size:12px;font-weight:600;color:#C9D6CF;padding:2px 4px',
-        items: its.slice(0, 3).map((e) => ({ label: (e.start ? e.start + ' ' : '') + e.title, style: chipStyleC(typeColor[e.type]) })),
+        items: its.slice(0, 3).map((e) => ({ label: (e.start ? e.start + ' ' : '') + e.title, style: chipStyleC(typeColor[e.type]) + (ended(e, iso) ? ';text-decoration:line-through;opacity:0.55' : '') })),
         hasMore: its.length > 3, more: its.length - 3 };
     }),
     selLabel: (s.calSel === todayISO ? 'Today · ' : '') + fmtDay(s.calSel),
     agenda: itemsOn(s.calSel).map((e) => ({
+      ended: ended(e, s.calSel), endedLabel: isClosed(e, s.calSel) ? 'Closed' : 'Ended',
+      cardStyle: 'padding:12px;border-radius:12px;background:#121B17;border:1px solid ' + typeColor[e.type] + ';display:flex;flex-direction:column;gap:6px;opacity:' + (ended(e, s.calSel) ? '0.65' : '1'),
       title: e.type === 'Deadline' ? 'Due: ' + e.title : e.title, type: e.type === 'Deadline' ? 'Project deadline' : e.type, color: typeColor[e.type],
       typeStyle: 'padding:2px 8px;border-radius:8px;font-size:11px;font-weight:600;background:' + typeColor[e.type] + '22;color:' + typeColor[e.type],
       time: e.start ? e.start + (e.end ? '–' + e.end : '') : 'All day',
       sub: [e.project, e.forum ? e.forum + ' forum' : '', e.repeat && e.repeat !== 'None' ? 'Repeats ' + e.repeat.toLowerCase() : '', e.notes || '', e.visibility ? 'Visible to: ' + e.visibility.toLowerCase() : '', e.remind && e.remind !== 'None' ? 'Reminder: ' + e.remind.toLowerCase() : ''].filter(Boolean).join(' · '),
       hasSub: !!(e.project || e.forum || (e.repeat && e.repeat !== 'None') || e.notes || e.visibility),
       people: e.people.slice(0, 6).map(personOf), hasPeople: e.people.length > 0, peopleLabel: e.people.length + (e.people.length === 1 ? ' person' : ' people'),
-      canJoin: (e.type === 'Meeting' || e.type === 'Standup') && s.calSel === todayISO, join: () => joinEvent(e),
-      canRemove: e.type !== 'Deadline', removeLabel: e.type === 'Task' ? 'Mark done' : 'Cancel',
+      canJoin: (e.type === 'Meeting' || e.type === 'Standup') && s.calSel === todayISO && !ended(e, s.calSel), join: () => joinEvent(e),
+      canClose: isMine(e) && !ended(e, s.calSel), closeLabel: e.type === 'Task' ? 'Mark done' : 'Close',
+      closeIt: () => { this.setState((x) => ({ events: x.events.map((y) => (y.id === e.id ? { ...y, closedDates: (y.closedDates || []).concat([s.calSel]) } : y)) })); this.notify('"' + e.title + '" ' + (e.type === 'Task' ? 'marked done.' : 'closed.'), '#7CC4FF'); },
+      canRemove: isMine(e) && !ended(e, s.calSel), removeLabel: 'Cancel',
       remove: () => { this.setState((x) => ({ events: x.events.filter((y) => y.id !== e.id) })); this.notify(e.type === 'Task' ? '"' + e.title + '" marked done.' : '"' + e.title + '" cancelled. Participants were told.', '#7CC4FF'); }
     }))
   };
