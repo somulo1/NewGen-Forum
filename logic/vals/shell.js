@@ -1,6 +1,6 @@
 // Values and handlers the templates read through hubBindings: shell.
 export function valsShell(ctx) {
-  const { can, forums, go, myUnits, ticketDeskOk, allNotifs, call, callMiniStyle, cur, curDm, curSec, dmView, has, isDM, restoreCall, s, sendCall, set, showCallMini, showMeetingDock, showMeetingFull, showPanelCall } = ctx;
+  const { denied, can, forums, go, myUnits, ticketDeskOk, allNotifs, call, callMiniStyle, cur, curDm, curSec, dmView, has, isDM, restoreCall, s, sendCall, set, showCallMini, showMeetingDock, showMeetingFull, showPanelCall } = ctx;
   const nq = (s.navq || '').trim().toLowerCase();
   const hit = (txt) => txt.toLowerCase().indexOf(nq) !== -1;
   const clear = () => this.setState({ navq: '' });
@@ -17,7 +17,7 @@ export function valsShell(ctx) {
   }
   const navSearch = { q: s.navq || '', active: !!nq, onInput: (e) => this.setState({ navq: e.target.value }), clear, none: !!nq && results.length === 0, results: results.slice(0, 20) };
   return {
-    navSearch,
+    navSearch, denied,
     notifs: allNotifs, noNotifs: allNotifs.length === 0,
     notifOpen: s.notifOpen,
     hasBadge: !s.notifSeen && allNotifs.length > 0,

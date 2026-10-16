@@ -6,8 +6,11 @@ export function buildNav(ctx) {
   const nav = {}, go = {}, show = {};
   const secNeeds = { meetings: 'sessions', projects: 'projects', calendar: 'calendar', comms: 'comms', structure: 'structure', orgunit: 'structure', tickets: 'tickets', files: 'files', share: 'secureshare' };
   const ticketDeskOk = !!has.tickets && !has.structure && (can('tickets', 'Solve') || can('tickets', 'Assign & hand over'));
-  const secOk = (k) => (k === 'ticketdesk' ? ticketDeskOk : k === 'widgets' ? can('home', 'Open widgets page') : !secNeeds[k] || !!has[secNeeds[k]]);
+  const secOk = (k) => (k === 'ticketdesk' ? ticketDeskOk : k === 'widgets' ? can('home', 'Open widgets page') : k === 'security' ? (can('security', 'View alerts') || can('security', 'View logs')) : k === 'roles' ? can('roles', 'View roles') : !secNeeds[k] || !!has[secNeeds[k]]);
   const curSec = secOk(s.section) ? s.section : 'home';
+  const labels = { meetings: 'Meetings & standups', projects: 'Projects', calendar: 'Calendar', comms: 'Communications', structure: 'Organization structure', orgunit: 'Organization dashboards', tickets: 'My tickets', ticketdesk: 'Ticket desk', files: 'Files', share: 'Secure share', security: 'Security & logs', roles: 'Roles & rights', widgets: 'Widgets' };
+  // Why a page can't open: its feature is not switched on (404-style), or the role lacks the right (403).
+  const denied = secOk(s.section) ? null : { label: labels[s.section] || 'this page', reason: secNeeds[s.section] && !has[secNeeds[s.section]] || (s.section === 'ticketdesk' && (!has.tickets || has.structure)) ? 'off' : 'rights' };
   sections.forEach((k) => {
     const on = curSec === k;
     nav[k] = navBase + (on ? 'background:#22302A;color:#E8EFEA;font-weight:600' : 'background:transparent;color:#C9D6CF');
@@ -22,5 +25,5 @@ export function buildNav(ctx) {
     tabTo[k] = set({ tab: k });
     ftab[k] = on && (k !== 'sessions' || has.sessions);
   });
-  return { curSec, ftab, go, nav, show, tab, tabTo, ticketDeskOk };
+  return { denied, curSec, ftab, go, nav, show, tab, tabTo, ticketDeskOk };
 }

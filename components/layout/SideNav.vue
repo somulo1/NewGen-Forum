@@ -88,6 +88,7 @@
 <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; text-align: left"><strong style="font-size: 13px">My profile</strong><span :style="`font-size: 11px; color: ${me.statusColor}`">● {{ me.status }}</span></span>
 </button>
 </template>
+<button type="button" @click="signOut" style="margin: 8px 0 0; height: 38px; border-radius: 10px; border: 1px solid #2A3832; background: transparent; color: #9DB0A6; cursor: pointer; font-size: 13px">Sign out</button>
 </nav>
 </template>
 
@@ -96,6 +97,7 @@ import { hubBindings } from '~/composables/useHub';
 
 export default {
   name: 'SideNav',
+  methods: { signOut() { useAuth().signOut(); } },
   ...hubBindings(["navSearch","canRoles","canSecurity","canSeeAdmin","createOpen","dmList","dmMatches","dmUnreadLabel","dmq","dmsChevron","dmsOpen","forumCount","forums","forumsChevron","forumsOpen","go","has","hasOpenAlerts","hasPendingApprovals","me","myUnits","nav","navClass","navClick","newDmOpen","onDmq","openAlertCount","orgChevron","orgOpen","pendingApprovals","ticketDeskOk","toggleCreate","toggleDms","toggleForums","toggleNewDm","toggleOrg"])
 };
 </script>
