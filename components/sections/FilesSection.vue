@@ -1,6 +1,6 @@
 <!-- Files and folder view -->
 <template><template v-if="showFolderList">
-<div style="max-width: 1120px; display: flex; flex-direction: column; gap: 18px">
+<div style="width: 100%; display: flex; flex-direction: column; gap: 18px">
 <div style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px">
 <div style="flex: 1 1 300px"><h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; letter-spacing: -0.02em">Files</h1><p style="margin: 4px 0 0; color: #9DB0A6">Folders shared across the organization. Open one to preview what's inside.</p></div>
 <button style="height: 40px; padding: 0 18px; border-radius: 20px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; font-weight: 600; cursor: pointer">New folder</button>
@@ -29,7 +29,7 @@
 </template>
 
 <template v-if="showFolderView">
-<div style="max-width: 1120px; display: flex; flex-direction: column; gap: 18px">
+<div style="width: 100%; display: flex; flex-direction: column; gap: 18px">
 <nav aria-label="Breadcrumb" style="display: flex; align-items: center; gap: 8px; font-size: 14px"><button @click="closeFolder" style="height: 34px; padding: 0 12px; border-radius: 17px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer">Files</button><span style="color: #9DB0A6">/</span><strong>{{ fv.name }}</strong></nav>
 <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
 <svg aria-hidden="true" width="34" height="34" viewBox="0 0 24 24" :fill="fv.color" stroke="none"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h5l2 2.5h8A1.5 1.5 0 0 1 21 9v9.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5z"></path></svg>

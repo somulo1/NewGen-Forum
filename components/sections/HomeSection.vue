@@ -1,6 +1,6 @@
 <!-- Home: awards ribbon + widget masonry -->
 <template><template v-if="show.home">
-<div style="max-width: 1180px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px">
+<div style="width: 100%; display: flex; flex-direction: column; gap: 18px">
 <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end">
 <div style="flex: 1 1 300px"><h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; letter-spacing: -0.02em">Good afternoon, Sam</h1><p style="margin: 4px 0 0; color: #9DB0A6">Your home page. Add, remove and arrange widgets to suit your organization.</p></div>
 <template v-if="canCustomize">

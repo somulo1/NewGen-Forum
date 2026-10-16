@@ -1,6 +1,6 @@
 <!-- Security & logs -->
 <template><template v-if="show.security">
-<div style="max-width: 1280px; display: flex; flex-direction: column; gap: 16px">
+<div style="width: 100%; display: flex; flex-direction: column; gap: 16px">
 <div style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px">
 <div style="flex: 1 1 300px"><h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; letter-spacing: -0.02em">Security &amp; logs</h1><p style="margin: 4px 0 0; color: #9DB0A6">Every action in Hub is logged. Rules flag anything suspicious automatically.</p></div>
 <div role="tablist" style="display: flex; padding: 3px; border-radius: 12px; background: #16201C; border: 1px solid #24322C"><button role="tab" @click="secTab.alertsGo" :style="secTab.alerts">Alerts</button><button role="tab" @click="secTab.logsGo" :style="secTab.logs">Audit logs</button><button role="tab" @click="secTab.rulesGo" :style="secTab.rules">Detection rules</button></div>

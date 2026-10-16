@@ -1,6 +1,6 @@
 <!-- Calendar -->
 <template><template v-if="show.calendar">
-<div style="max-width: 1240px; display: flex; flex-direction: column; gap: 16px">
+<div style="width: 100%; display: flex; flex-direction: column; gap: 16px">
 <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
 <h1 style="margin: 0; flex: 1 1 200px; font-family: 'Space Grotesk', sans-serif; font-size: 28px; letter-spacing: -0.02em">Calendar</h1>
 <div style="display: flex; align-items: center; gap: 6px">

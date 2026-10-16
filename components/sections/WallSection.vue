@@ -1,6 +1,6 @@
 <!-- Community wall -->
 <template><template v-if="show.feed">
-<div style="max-width: 1060px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start">
+<div style="width: 100%; display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start">
 
 <div style="flex: 999 1 460px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
 <div><h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; letter-spacing: -0.02em">Community wall</h1>

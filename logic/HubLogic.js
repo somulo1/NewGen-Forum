@@ -57,7 +57,7 @@ export class HubLogic extends DCLogic {
       pq: '', pdept: 'All', ploc: 'All', pAvail: false, pview: 'grid', ppage: 0, personOpen: null, taskOpen: null, taskReminders: {},
       secTab: 'alerts', alertSt: { 'AL-112': 'Investigating' }, openOnly: true, lq: '', lmod: 'All', lres: 'All', lflag: false, lshow: 25,
       rulesOn: { r1: true, r2: true, r3: true, r4: true, r5: true, r6: true, r7: false }, ruleSev: {}, extraLogs: [],
-      roleSel: 'staff', roleTab: 'rights', rightsOv: {}, pendingRights: {}, actingRole: 'admin', apTab: 'waiting',
+      profileOf: null, roleSel: 'staff', roleTab: 'rights', rightsOv: {}, pendingRights: {}, actingRole: 'admin', apTab: 'waiting',
       flows: [
         { id: 'f1', mod: 'announcements', action: 'Publish an announcement to everyone', levels: 2, approvers: ['Head of department', 'Communications lead', 'Managing Director'] },
         { id: 'f2', mod: 'projects', action: 'Create a new project', levels: 3, approvers: ['Head of department', 'Finance approver', 'Managing Director'] },
@@ -387,6 +387,21 @@ export class HubLogic extends DCLogic {
     clearTimeout(this._toastT);
     this._toastT = setTimeout(() => this.setState({ toast: '' }), 3800);
   }
+  setState(update, done) {
+    const raw = typeof update === 'function' ? update(this.state, this.props) : update;
+    const patch = raw ? Object.assign({}, raw) : raw;
+    if (patch) {
+      const person = patch.personOpen !== undefined && patch.personOpen !== null ? this.dir[patch.personOpen] : null;
+      if (person && this._canFullProfile) {
+        patch.personOpen = null; patch.profileOf = person.name; patch.section = 'profile';
+        patch.notifOpen = false; patch.statusMenu = false; patch.profileEdit = false;
+        if (this.state.mode === 'full') patch.mode = 'docked';
+      } else if (patch.section !== undefined && patch.profileOf === undefined) {
+        patch.profileOf = null;
+      }
+    }
+    super.setState(patch, done);
+  }
   callBusy() {
     if (!this.state.call) return false;
     this.setState({ toast: 'You are already in a call. Leave "' + this.state.call.title + '" before starting another.', toastColor: '#FFB86B' });
@@ -452,7 +467,7 @@ export class HubLogic extends DCLogic {
       secureshare: ['Create link', 'View link history'],
       sessions: ['Join', 'Start meeting', 'Record'],
       awards: ['View', 'Nominate', 'Approve awards'],
-      people: ['View directory', 'See contact details', 'Edit profiles'],
+      people: ['View directory', 'See contact details', 'View full profiles', 'Edit profiles'],
       security: ['View alerts', 'View logs', 'Resolve alerts', 'Manage rules', 'Export logs'],
       roles: ['View roles', 'Manage roles & rights', 'Configure approvals'],
       calendar: ['View', 'Add events', 'Schedule meetings'],
@@ -511,6 +526,7 @@ export class HubLogic extends DCLogic {
       branch: { branches: ['Manage branch', 'See performance'], memos: ['Send memos'], performance: ['Set targets'], tickets: ['Assign & hand over', 'Solve'] },
       unit: { units: ['Manage unit', 'See performance'], memos: ['Send memos'], tickets: ['Solve'] }
     };
+    extraAllow.hod.people = ['View full profiles'];
     extraAllow.hod.memos = ['Send memos']; extraAllow.hod.departments = ['Manage department', 'See performance']; extraAllow.hod.performance = ['Set targets'];
     const defaultRight = (role, mod, right) => {
       if (role === 'superadmin' || role === 'admin') return true;
@@ -523,6 +539,7 @@ export class HubLogic extends DCLogic {
     const rKey = (role, mod, right) => role + '|' + mod + '|' + right;
     const rightOf = (role, mod, right) => { const k = rKey(role, mod, right); return Object.prototype.hasOwnProperty.call(s.rightsOv, k) ? s.rightsOv[k] : defaultRight(role, mod, right); };
     const can = (mod, right) => rightOf(s.actingRole, mod, right);
+    this._canFullProfile = can('people', 'View full profiles');
     const flowById = (id) => s.flows.find((f) => f.id === id);
     const nextReqId = () => 'AP-' + (34 + s.requests.length);
     const makeRequest = (flowId, title, extra) => {
@@ -1649,32 +1666,48 @@ export class HubLogic extends DCLogic {
     const rulesTable = { id: 'rules', pageSize: 10, minWidth: '860px',
       cols: [{ label: 'Rule', filter: 'text' }, { label: 'Severity', filter: 'select' }, { label: 'Matches today' }, { label: 'On', filter: 'select', align: 'center' }],
       rows: sec.rules.map((r) => ({ cells: [C.t(r.name, { strong: true, sub: r.desc }), C.sel(r.sev, sevOpts, r.setSev, { label: 'Severity for ' + r.name, minWidth: '110px' }), C.t(r.hits), C.chk(r.on, r.toggle, { label: 'Turn ' + r.name + (r.on ? ' off' : ' on') })] })) };
+    const roleCur = visibleRoles.find((r) => r.id === s.roleSel) || visibleRoles.find((r) => r.id === 'staff') || visibleRoles[0];
     const rolesTable = { id: 'roles', pageSize: 10, minWidth: '900px',
       cols: [{ label: 'Role', filter: 'text' }, { label: 'Scope', filter: 'select' }, { label: 'People' }, { label: 'Rights granted' }, { label: '', align: 'right' }],
       rows: visibleRoles.map((r) => { const mods = Object.keys(rightsDef).filter(modEnabled); let on = 0, tot = 0; mods.forEach((m) => rightsDef[m].forEach((x) => { tot++; if (rightOf(r.id, m, x)) on++; })); const pc = Math.round(on / tot * 100);
-        return { cells: [C.t(r.name, { strong: true, sub: r.desc }), C.t(roleScope[r.id] || 'Whole organization'), C.t(String(r.count)), C.bar(pc, pc > 80 ? '#FFB86B' : '#B8F36B', on + ' / ' + tot),
-          C.a([{ label: 'Edit rights', kind: 'primary', run: () => this.setState({ rolesTab: 'rights' }) }, { label: 'Members', run: () => this.setState({ rolesTab: 'members' }) }])] }; }) };
+        return { tint: r.id === roleCur.id ? '#B8F36B' : '', cells: [C.t(r.name, { strong: true, sub: r.desc }), C.t(roleScope[r.id] || 'Whole organization'), C.t(String(r.count)), C.bar(pc, pc > 80 ? '#FFB86B' : '#B8F36B', on + ' / ' + tot),
+          C.a([{ label: 'Edit rights', kind: 'primary', run: () => this.setState({ roleSel: r.id, rolesTab: 'rights' }) }, { label: 'Members', run: () => this.setState({ roleSel: r.id, rolesTab: 'members' }) }])] }; }) };
     const rightsRows = [];
     Object.keys(rightsDef).filter(modEnabled).forEach((m) => rightsDef[m].forEach((x) => {
-      rightsRows.push({ cells: [C.t(modInfo[m][0], { fv: modInfo[m][0] }), C.t(x, { strong: true })].concat(visibleRoles.map((r) => C.chk(rightOf(r.id, m, x), () => toggleRight(r.id, m, x), { disabled: !!r.locked, pending: s.pendingRights[rKey(r.id, m, x)] !== undefined, label: r.name + ': ' + modInfo[m][0] + ' · ' + x }))) });
+      const pend = s.pendingRights[rKey(roleCur.id, m, x)] !== undefined;
+      rightsRows.push({ cells: [C.t(modInfo[m][0], { fv: modInfo[m][0] }), C.t(x, { strong: true }), C.chk(rightOf(roleCur.id, m, x), () => toggleRight(roleCur.id, m, x), { disabled: !!roleCur.locked, pending: pend, label: roleCur.name + ': ' + modInfo[m][0] + ' · ' + x })] });
     }));
-    const rightsTable = { id: 'rights', pageSize: 12, minWidth: (300 + visibleRoles.length * 96) + 'px',
-      cols: [{ label: 'Widget', filter: 'select' }, { label: 'Right', filter: 'text' }].concat(visibleRoles.map((r) => ({ label: r.name, align: 'center' }))), rows: rightsRows };
-    const rightsHint = 'Tick a box to let that role do that action. ' + (f8 && f8.levels > 0 ? 'Changes need approval (' + (f8.levels === 1 ? 'direct' : f8.levels + ' levels') + ') and show as PENDING until approved.' : 'Changes apply straight away and are logged.') + ' Widgets your organization does not use are hidden.';
+    const rightsTable = { id: 'rights-' + roleCur.id, pageSize: 12, minWidth: '560px',
+      cols: [{ label: 'Widget', filter: 'select' }, { label: 'Right', filter: 'text' }, { label: roleCur.name + ' can', align: 'center' }], rows: rightsRows };
+    const rightsHint = 'Setting rights for ' + roleCur.name + '. Tick a box to let this role do that action. ' + (f8 && f8.levels > 0 ? 'Changes need approval (' + (f8.levels === 1 ? 'direct' : f8.levels + ' levels') + ') and show as PENDING until approved.' : 'Changes apply straight away and are logged.') + ' Widgets your organization does not use are hidden.';
     const defaultRole = { 'Samwel Okoth Omulo': 'admin', 'Brian Kiprop': 'it', 'David Otieno': 'staff', 'Amina Wanjiru': 'finance', 'Grace Njeri': 'hod', 'Faith Achieng': 'staff', 'Kevin Mutua': 'staff', 'Mercy Wambui': 'staff', 'John Kamau': 'staff', 'Lilian Chebet': 'staff' };
     const memberList = ['Samwel Okoth Omulo'].concat(corePeople).concat(this.dir.slice(0, 40).map((d) => d.name)).filter((n, i, a) => a.indexOf(n) === i);
     const roleOpts = visibleRoles.map((r) => ({ v: r.id, l: r.name }));
-    const membersTable = { id: 'members', pageSize: 12, minWidth: '860px',
-      cols: [{ label: 'Person', filter: 'text' }, { label: 'Role', filter: 'select' }, { label: 'Department', filter: 'select' }, { label: '', align: 'right' }],
-      rows: memberList.map((n) => {
+    const ridOf = (n) => {
+      const d = this.dir.find((x) => x.name === n);
+      const rid = s.memberRoles[n] || defaultRole[n] || (d && /Lead|Supervisor/.test(d.title) ? (has.branches ? 'branch' : 'hod') : 'staff');
+      return visibleRoles.find((r) => r.id === rid) ? rid : 'staff';
+    };
+    const assignRole = (n, v) => {
+      const rn = (visibleRoles.find((r) => r.id === v) || {}).name;
+      this.setState((x) => ({ memberRoles: { ...x.memberRoles, [n]: v }, extraLogs: [{ id: 'x' + Date.now(), ago: 0, user: 'Samwel Okoth Omulo', action: 'Gave ' + n + ' the ' + rn + ' role', module: 'Roles', ip: '10.0.4.21', loc: 'Office network', result: 'Success', rule: 'r5' }].concat(x.extraLogs) }));
+      this.notify(n + ' is now ' + rn + '. Logged.', '#B8F36B');
+    };
+    const roleMembers = memberList.filter((n) => ridOf(n) === roleCur.id);
+    const roleAddOpts = memberList.filter((n) => ridOf(n) !== roleCur.id && n !== 'Samwel Okoth Omulo').map((n) => ({ v: n, l: n }));
+    const membersTable = { id: 'members-' + roleCur.id, pageSize: 12, minWidth: '760px', emptyText: 'Nobody has the ' + roleCur.name + ' role yet. Use "Add a person" above.',
+      cols: [{ label: 'Person', filter: 'text' }, { label: 'Department', filter: 'select' }, { label: 'Move to another role' }, { label: '', align: 'right' }],
+      rows: roleMembers.map((n) => {
         const d = this.dir.find((x) => x.name === n);
-        let rid = s.memberRoles[n] || defaultRole[n] || (d && /Lead|Supervisor/.test(d.title) ? (has.branches ? 'branch' : 'hod') : 'staff');
-        if (!visibleRoles.find((r) => r.id === rid)) rid = 'staff';
-        const rname = (visibleRoles.find((r) => r.id === rid) || {}).name;
-        return { cells: [C.p(n, { sub: d ? d.title : titleOf(n), fv: n }), C.sel(rid, roleOpts, (e) => { const v = e.target.value; this.setState((x) => ({ memberRoles: { ...x.memberRoles, [n]: v }, extraLogs: [{ id: 'x' + Date.now(), ago: 0, user: 'Samwel Okoth Omulo', action: 'Gave ' + n + ' the ' + (visibleRoles.find((r) => r.id === v) || {}).name + ' role', module: 'Roles', ip: '10.0.4.21', loc: 'Office network', result: 'Success', rule: 'r5' }].concat(x.extraLogs) })); this.notify(n + ' is now ' + (visibleRoles.find((r) => r.id === v) || {}).name + '. Logged.', '#B8F36B'); }, { fv: rname, label: 'Role for ' + n, minWidth: '170px', disabled: n === 'Samwel Okoth Omulo' }),
+        const mine = n === 'Samwel Okoth Omulo';
+        return { cells: [C.p(n, { sub: d ? d.title : titleOf(n), fv: n }),
           C.t(d ? d.dept : ({ 'Brian Kiprop': 'IT Operations', 'David Otieno': 'Software Development', 'Amina Wanjiru': 'Finance', 'Grace Njeri': 'HR', 'Faith Achieng': 'Customer Care', 'Kevin Mutua': 'Sales', 'Samwel Okoth Omulo': 'Risk & Compliance' }[n] || 'Operations')),
-          C.a([{ label: 'Remove role', kind: 'danger', disabled: n === 'Samwel Okoth Omulo', run: () => { this.setState((x) => ({ memberRoles: { ...x.memberRoles, [n]: 'staff' } })); this.notify(n + ' moved back to Staff.', '#7CC4FF'); } }])] };
+          C.sel(roleCur.id, roleOpts, (e) => assignRole(n, e.target.value), { fv: roleCur.name, label: 'Role for ' + n, minWidth: '170px', disabled: mine }),
+          C.a([{ label: 'Remove from role', kind: 'danger', disabled: mine || roleCur.id === 'staff', run: () => { this.setState((x) => ({ memberRoles: { ...x.memberRoles, [n]: 'staff' } })); this.notify(n + ' moved back to Staff.', '#7CC4FF'); } }])] };
       }) };
+    const roleBar = { name: roleCur.name, desc: roleCur.desc, scope: roleScope[roleCur.id] || 'Whole organization', count: roleMembers.length, options: visibleRoles.map((r) => ({ v: r.id, l: r.name })), value: roleCur.id, addOpts: roleAddOpts, locked: !!roleCur.locked };
+    const setRoleSel = (e) => this.setState({ roleSel: e.target.value });
+    const addToRole = (e) => { const n = e.target.value; if (n) assignRole(n, roleCur.id); };
     const approverOpts = ['Line manager', 'Head of department', 'Finance approver', 'HR Manager', 'Communications lead', 'Security officer', 'Head of IT Operations', 'Managing Director'].concat(has.sectors ? ['Sector manager'] : []).concat(has.branches ? ['Branch manager'] : []).concat(has.units ? ['Unit lead'] : []).map((x) => ({ v: x, l: x }));
     const levelOpts = [{ v: '0', l: 'No approval' }, { v: '1', l: 'Direct (1 level)' }, { v: '2', l: '2 levels' }, { v: '3', l: '3 levels' }];
     const flowsTable = { id: 'flows', pageSize: 10, minWidth: '1180px',
@@ -1903,7 +1936,7 @@ export class HubLogic extends DCLogic {
         add: () => { if (!added) this.setState((st) => ({ widgets: st.widgets.concat(id) })); } };
     });
     // ---- My profile ----
-    nav.profileCard = 'margin-top:auto;display:flex;align-items:center;gap:10px;width:100%;min-height:58px;padding:8px 10px;border-radius:12px;cursor:pointer;color:#E8EFEA;font-family:inherit;border:1px solid ' + (s.section === 'profile' ? '#3F524A' : '#24322C') + ';background:' + (s.section === 'profile' ? '#22302A' : '#16201C');
+    nav.profileCard = 'margin-top:auto;display:flex;align-items:center;gap:10px;width:100%;min-height:58px;padding:8px 10px;border-radius:12px;cursor:pointer;color:#E8EFEA;font-family:inherit;border:1px solid ' + (s.section === 'profile' && !s.profileOf ? '#3F524A' : '#24322C') + ';background:' + (s.section === 'profile' && !s.profileOf ? '#22302A' : '#16201C');
     const pf = s.profile;
     const statusDefs = [
       { label: 'Available', color: '#B8F36B', note: 'Available for chats and calls' },
@@ -1925,9 +1958,16 @@ export class HubLogic extends DCLogic {
       .concat([
         { tag: 'F', color: '#6EE7C8', text: 'Shared "Access review template" in Risk & Compliance', time: 'Yesterday' },
         { tag: 'A', color: '#7CC4FF', text: 'Assigned IT-208 to Brian Kiprop', time: 'Today, 08:40' },
-        { tag: 'B', color: '#FFD66B', text: 'Earned the Security Champion badge', time: 'Last month' }
+        { tag: 'B', color: '#FFD66B', text: 'Earned the Security Champion badge', time: 'Last month' },
+        { tag: 'A', color: '#7CC4FF', text: 'Approved access request for the Finance reporting folder', time: '2 days ago' },
+        { tag: 'F', color: '#6EE7C8', text: 'Uploaded "Q3 control test results.xlsx" to Files', time: '3 days ago' },
+        { tag: 'T', color: '#FF9B8A', text: 'Closed ticket IT-187: VPN certificate renewal', time: 'Last week' },
+        { tag: 'P', color: '#C9B6FF', text: 'Moved "Control testing" to In progress in Audit readiness', time: 'Last week' }
       ]);
-    const me = {
+    const kindOf = { W: 'Wall post', T: 'Ticket', F: 'File', A: 'Assignment', B: 'Badge', P: 'Project' };
+    const withKind = (arr) => arr.map((a) => ({ ...a, kind: kindOf[a.tag] || 'Activity' }));
+    const meOwn = {
+      isOther: false, initials: 'S', color: '#C2185B', aboutTitle: 'About me', forumsTitle: 'My forums', reportsTo: 'Head of Risk Management',
       name: 'Samwel Okoth Omulo', role: 'Cybersecurity & Technology Risk Officer', dept: 'Risk & Compliance',
       status: curStatus.label, statusColor: curStatus.color, statusNote: curStatus.note, statusMenu: s.statusMenu,
       statuses: statusDefs.map((x) => ({ ...x, pick: () => this.setState((st) => ({ statusMenu: false, profile: { ...st.profile, status: x.label } })) })),
@@ -1952,7 +1992,7 @@ export class HubLogic extends DCLogic {
         { label: 'Kudos received', n: 14, color: '#FFD66B' }
       ],
       projects: projects.filter((p) => p.id === 'audit' || p.id === 'network').map((p) => ({ ...p, myRole: p.id === 'audit' ? 'Controls reviewer' : 'Security reviewer' })),
-      activity: myActivity,
+      activity: withKind(myActivity),
       contact: [
         { label: 'Work email', value: '[you@company.com]', color: '#E8EFEA' },
         { label: 'Phone', value: pf.phone.trim() || 'Not added yet', color: pf.phone.trim() ? '#E8EFEA' : '#FFB86B' },
@@ -1961,9 +2001,64 @@ export class HubLogic extends DCLogic {
       localTime, hours: ts.start + ' to ' + ts.end,
       badges: has.awards ? s.awardList.filter((a) => a.status === 'Approved' && a.people.indexOf('Samwel Okoth Omulo') !== -1).map((a) => ({ name: a.type, when: fmtDay(a.date), color: '#FFD66B', bg: '#2A2716' })) : [],
       hasBadges: has.awards && s.awardList.some((a) => a.status === 'Approved' && a.people.indexOf('Samwel Okoth Omulo') !== -1),
-      peers: ['Brian Kiprop', 'David Otieno', 'Amina Wanjiru', 'Grace Njeri'].map((n) => ({ name: n, initials: ini(n), color: pColor[n] })),
       forums: forums.filter((f) => f.id === 'risk' || f.id === 'it' || f.id === 'dev').map((f) => ({ ...f, myRole: f.id === 'risk' ? 'Admin' : 'Member' }))
     };
+    // Full profile of another person (only for roles with the "View full profiles" right)
+    const opDir = s.profileOf ? this.dir.find((x) => x.name === s.profileOf) : null;
+    let meOther = null;
+    if (opDir) {
+      const first = opDir.name.split(' ')[0];
+      const mine = (v) => v === opDir.name || v === first;
+      const opStatus = statusDefs.find((x) => x.label === opDir.status) || statusDefs[0];
+      const opRaised = s.tickets.filter((t) => mine(t.raisedBy));
+      const opHandled = s.tickets.filter((t) => mine(t.handler) || (t.assignees || []).some(mine));
+      const opPosts = s.posts.filter((p) => mine(p.author));
+      const opAwards = has.awards ? s.awardList.filter((a) => a.status === 'Approved' && a.people.indexOf(opDir.name) !== -1) : [];
+      const opProjIds = s.projects.filter((p) => (p.tasks || []).some((t) => mine(t.who))).map((p) => p.id);
+      const opActivity = opPosts.slice(0, 2).map((p) => ({ tag: 'W', color: '#F49AC1', text: 'Posted on the wall: "' + ((p.text || 'a file').length > 70 ? p.text.slice(0, 70) + '…' : (p.text || 'a file')) + '"', time: p.meta.split('· ').pop() }))
+        .concat(opRaised.slice(0, 2).map((t) => ({ tag: 'T', color: '#FF9B8A', text: 'Raised ' + t.id + ': ' + t.title, time: t.created })))
+        .concat(opHandled.slice(0, 2).map((t) => ({ tag: 'A', color: '#7CC4FF', text: 'Handling ' + t.id + ': ' + t.title, time: t.created })))
+        .concat(opAwards.map((a) => ({ tag: 'B', color: '#FFD66B', text: 'Earned the ' + a.type + ' award', time: fmtDay(a.date) })))
+        .concat([
+          { tag: 'F', color: '#6EE7C8', text: 'Shared a document in the ' + opDir.dept + ' forum', time: 'Yesterday' },
+          { tag: 'P', color: '#C9B6FF', text: 'Updated a task in ' + opDir.dept + ' planning', time: 'Last week' },
+          { tag: 'A', color: '#7CC4FF', text: 'Joined the weekly ' + opDir.dept + ' standup', time: '2 weeks ago' },
+          { tag: 'F', color: '#6EE7C8', text: 'Downloaded the "Staff handbook" from Files', time: '2 weeks ago' },
+          { tag: 'W', color: '#F49AC1', text: 'Reacted to a post on the community wall', time: 'Last month' }
+        ]);
+      meOther = {
+        isOther: true, initials: opDir.initials, color: opDir.color, aboutTitle: 'About ' + first, forumsTitle: 'Forums', reportsTo: 'Head of ' + opDir.dept,
+        name: opDir.name, role: opDir.title, dept: opDir.dept,
+        status: opStatus.label, statusColor: opStatus.color, statusNote: opStatus.note, statusMenu: false, statuses: [],
+        photo: '', hasPhoto: false, noPhoto: true, editing: false, notEditing: true,
+        coverStyle: 'position:relative;height:190px;background:' + opDir.color + '40;overflow:hidden', covers: [],
+        complete: 100, completeTip: '', completeBar: '', bio: opDir.name + ' works in ' + opDir.dept + ' as ' + opDir.title + '.', phone: '', newSkill: '',
+        skills: (skillsByDept[opDir.dept] || ['Teamwork']).map((n) => ({ name: n, editing: false, remove: () => {} })),
+        facts: [
+          { label: 'Department', value: opDir.dept, sub: opDir.title },
+          { label: 'Reports to', value: 'Head of ' + opDir.dept, sub: opDir.dept },
+          { label: 'Location', value: opDir.loc || 'Kenya', sub: 'GMT+3 · ' + localTime + ' now' },
+          { label: 'Member since', value: '[JOIN DATE]', sub: 'Hub member' }
+        ],
+        stats: [
+          { label: 'Tickets raised', n: opRaised.length, color: '#FF9B8A' },
+          { label: 'Tickets handled', n: opHandled.length, color: '#7CC4FF' },
+          { label: 'Wall posts', n: opPosts.length, color: '#F49AC1' },
+          { label: 'Awards', n: opAwards.length, color: '#FFD66B' }
+        ],
+        projects: projects.filter((p) => opProjIds.indexOf(p.id) !== -1).map((p) => ({ ...p, myRole: 'Contributor' })),
+        activity: withKind(opActivity),
+        contact: [
+          { label: 'Work email', value: '[' + opDir.name.toLowerCase().replace(/ /g, '.') + '@company.com]', color: '#E8EFEA' },
+          { label: 'Phone', value: 'Not shared', color: '#9DB0A6' },
+          { label: 'Office', value: opDir.loc || '[OFFICE / FLOOR]', color: '#E8EFEA' }
+        ],
+        localTime, hours: ts.start + ' to ' + ts.end,
+        badges: opAwards.map((a) => ({ name: a.type, when: fmtDay(a.date), color: '#FFD66B', bg: '#2A2716' })), hasBadges: opAwards.length > 0,
+        forums: forums.slice(0, 3).map((f) => ({ ...f, myRole: 'Member' }))
+      };
+    }
+    const me = meOther || meOwn;
     const addSkill = () => {
       const v = this.state.newSkill.trim();
       if (!v) return;
@@ -2109,7 +2204,7 @@ export class HubLogic extends DCLogic {
       pendingApprovals: String(pendingCount), hasPendingApprovals: pendingCount > 0,
       apTab: { waiting: segS(s.apTab === 'waiting'), all: segS(s.apTab === 'all'), waitingGo: set({ apTab: 'waiting' }), allGo: set({ apTab: 'all' }) },
       requestProject: () => { const f = flowById('f2'); if (f && f.levels > 0) makeRequest('f2', 'New project: Untitled project', {}); else this.notify('Project created.', '#B8F36B'); },
-      me,
+      me, profileBack: () => this.setState({ section: 'people' }),
       toggleStatusMenu: () => this.setState((st) => ({ statusMenu: !st.statusMenu })),
       startEditProfile: set({ profileEdit: true, statusMenu: false }),
       cancelProfile: set({ profileEdit: false }),
@@ -2136,7 +2231,7 @@ export class HubLogic extends DCLogic {
       ou, ouTable,
       cm, cmOpen: s.cmOpen, commNew, commsTable,
       ticketsTable, peopleTable, peopleSummary, logsTable, alertsTable, rulesTable,
-      rolesTable, rightsTable, membersTable, flowsTable, rolesTabs, rolesView, rightsHint, ntDepts,
+      rolesTable, rightsTable, membersTable, flowsTable, rolesTabs, rolesView, rightsHint, ntDepts, roleBar, setRoleSel, addToRole,
       forumsOpen: s.forumsOpen,
       toggleForums: () => this.setState((st) => ({ forumsOpen: !st.forumsOpen })),
       forumsChevron: 'transition:transform 0.2s;transform:rotate(' + (s.forumsOpen ? '0' : '-90') + 'deg)',
