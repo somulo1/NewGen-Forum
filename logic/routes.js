@@ -17,5 +17,6 @@ export const sectionRoutes = {
   "share": "/secure-share",
   "approvals": "/approvals",
   "widgets": "/widgets",
-  "ticketdesk": "/ticket-desk"
+  "ticketdesk": "/ticket-desk",
+  "settings": "/settings"
 };

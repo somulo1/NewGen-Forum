@@ -40,7 +40,7 @@ export function buildAdminTables(ctx) {
     cols: [{ label: 'ID', filter: 'text' }, { label: 'Severity', filter: 'select' }, { label: 'Alert', filter: 'text' }, { label: 'Rule', filter: 'select' }, { label: 'Raised', filter: 'date' }, { label: 'Status', filter: 'select' }, { label: '', align: 'right' }],
     rows: alertsRange.map((a) => ({ tint: a.isOpen ? a.color : '', cells: [C.t(a.id, { mono: true, nowrap: true }), C.b(a.sev, a.color), C.t(a.title, { strong: true, sub: a.detail + (a.lastNote ? ' · Latest comment: ' + a.lastNote.comment : '') }), C.t(a.ruleName), C.t(a.when, { fv: isoFromAgo(a.ago), nowrap: true }),
       C.b(a.status, a.status === 'Open' ? '#FF9B8A' : a.status === 'Investigating' ? '#FFB86B' : '#9DB0A6'),
-      C.a((a.canInvestigate ? [{ label: 'Investigate', kind: 'primary', run: a.investigate }] : []).concat(a.canClose ? [{ label: 'Close', kind: 'primary', run: a.closeAlert }] : []).concat([{ label: 'History', run: a.history }]))] })) };
+      C.a((a.canInvestigate ? [{ label: 'Investigate', kind: 'primary', run: a.investigate }] : []).concat(a.canClose ? [{ label: 'Close', kind: 'primary', run: a.closeAlert }] : []).concat(a.canFalsePos ? [{ label: 'False positive', run: a.falsePos }] : []).concat([{ label: 'History', run: a.history }]))] })) };
   const sevOpts = [{ v: 'High', l: 'High' }, { v: 'Medium', l: 'Medium' }, { v: 'Low', l: 'Low' }];
   const rulesTable = { id: 'rules', pageSize: 10, minWidth: '860px',
     cols: [{ label: 'Rule', filter: 'text' }, { label: 'Severity', filter: 'select' }, { label: 'Matches today' }, { label: 'On', filter: 'select', align: 'center' }],

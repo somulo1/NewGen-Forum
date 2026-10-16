@@ -1,6 +1,6 @@
 // Values and handlers the Community wall reads through hubBindings: moments, polls, audience, hashtags, wishes.
 export function valsWall(ctx) {
-  const { moments, openEv, openPersonName, people, s, sharedViews } = ctx;
+  const { moments, openEv, openPersonName, people, s, sharedViews, settingsPage, orgName, orgLogo } = ctx;
   const set = (o) => this.setState(o);
   const COLORS = ['#2B4A63', '#6B4A2B', '#5A2E47', '#3B5A2B', '#4A3A6B', '#6B2B2B'];
   const wp = s.wpoll;
@@ -8,7 +8,7 @@ export function valsWall(ctx) {
   const tags = ['CharityRun', 'NewJoiners', 'TournamentNight'];
   const m = s.momentOpen !== null && s.momentOpen !== undefined ? moments[s.momentOpen] : null;
   return {
-    sharedViews,
+    sharedViews, settingsPage, orgName, orgLogo,
     onlineList: people.map((p) => ({ ...p, open: () => openPersonName(p.name) })),
     trending: tags.map((tg) => ({ tag: tg, on: s.wallTag === tg, pick: () => set({ wallTag: s.wallTag === tg ? '' : tg }) })),
     wallFilter: { active: !!s.wallTag, tag: s.wallTag, clear: () => set({ wallTag: '' }) },

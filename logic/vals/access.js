@@ -3,7 +3,7 @@ export function valsAccess(ctx) {
   const { addSkill, aw, awardStrip, awardsOn, cal, can, dir, ev, f8, flowById, flowsAll, has, makeRequest, me, openAlerts, openEv, pendingCount, po, psn, requestsShown, roleList, roleNames, roleSel, roleTab, s, sec, secTab, segS, set, setPf, td, tt } = ctx;
   return {
     canSecurity: can('security', 'View alerts') || can('security', 'View logs'),
-    canRoles: can('roles', 'View roles'),
+    canRoles: can('roles', 'View roles'), canSettings: can('settings', 'View settings'),
     canSeeAdmin: can('security', 'View alerts') || can('security', 'View logs') || can('roles', 'View roles'),
     canCustomize: can('home', 'Customize home'),
     canWidgetsPage: can('home', 'Open widgets page'), canManageWidgets: can('home', 'Add & remove widgets'),
