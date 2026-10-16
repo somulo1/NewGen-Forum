@@ -1,6 +1,8 @@
 <!-- Forum in full screen -->
 <template><template v-if="isFullForum">
 <section aria-label="Forum full screen" style="position: fixed; inset: 0; z-index: 40; background: #0F1714; overflow-y: auto">
+<CallScreen v-if="inCall" />
+<template v-if="!inCall">
 <div style="max-width: 1100px; margin: 0 auto; padding: 0 clamp(16px, 3vw, 32px) 120px; display: flex; flex-direction: column; gap: 18px">
 <div style="position: sticky; top: 0; z-index: 5; background: #0F1714; padding-top: 14px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 14px 16px -14px rgba(0,0,0,0.7)">
 <div style="display: flex; justify-content: flex-end; gap: 8px">
@@ -99,15 +101,18 @@
 </div>
 </template>
 </div>
+</template>
 </section>
 </template>
 </template>
 
 <script>
 import { hubBindings } from '~/composables/useHub';
+import CallScreen from '../overlays/CallScreen.vue';
 
 export default {
   name: 'ForumFull',
-  ...hubBindings(["attachForum","cur","emojiForumOpen","emojisForum","fKey","fdraft","files","ftab","has","inviteOpen","isFullForum","onFDraft","people","sendForum","tab","tabTo","toClosed","toDocked","toMin","toggleEmojiForum","toggleInvite","videoCall","voiceCall"])
+  components: { CallScreen },
+  ...hubBindings(["attachForum","cur","emojiForumOpen","emojisForum","fKey","fdraft","files","ftab","has","inCall","inviteOpen","isFullForum","onFDraft","people","sendForum","tab","tabTo","toClosed","toDocked","toMin","toggleEmojiForum","toggleInvite","videoCall","voiceCall"])
 };
 </script>

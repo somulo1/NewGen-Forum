@@ -1,6 +1,8 @@
 <!-- Private chat in full screen -->
 <template><template v-if="isFullDm">
 <section aria-label="Private chat full screen" style="position: fixed; inset: 0; z-index: 40; background: #0F1714; display: flex; flex-direction: column">
+<CallScreen v-if="inCall" />
+<template v-if="!inCall">
 <div style="flex: none; border-bottom: 1px solid #24322C; background: #0F1714">
 <div style="max-width: 900px; margin: 0 auto; padding: 14px clamp(16px, 3vw, 32px); display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
 <span :style="`width: 48px; height: 48px; flex: none; border-radius: 50%; background: ${cur.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px`">{{ cur.initials }}</span>
@@ -40,15 +42,19 @@
 <button aria-label="Send" @click="sendForum" style="width: 42px; height: 42px; border-radius: 50%; border: 0; background: #B8F36B; color: #0F1714; cursor: pointer; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 12l16-8-6 16-3-7z"></path></svg></button>
 
 </div>
-</div></section>
+</div>
+</template>
+</section>
 </template>
 </template>
 
 <script>
 import { hubBindings } from '~/composables/useHub';
+import CallScreen from '../overlays/CallScreen.vue';
 
 export default {
   name: 'PrivateChatFull',
-  ...hubBindings(["attachForum","cur","emojiForumOpen","emojisForum","fKey","fdraft","isFullDm","onFDraft","sendForum","toClosed","toDocked","toMin","toggleEmojiForum","videoCall","voiceCall"])
+  components: { CallScreen },
+  ...hubBindings(["attachForum","cur","emojiForumOpen","emojisForum","fKey","fdraft","inCall","isFullDm","onFDraft","sendForum","toClosed","toDocked","toMin","toggleEmojiForum","videoCall","voiceCall"])
 };
 </script>
