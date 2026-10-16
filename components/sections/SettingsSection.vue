@@ -110,6 +110,9 @@
 </section>
 </template>
 
+<section v-if="settingsPage.isSecurity" aria-label="Legal documents" style="padding: 18px; border-radius: 16px; background: #16201C; border: 1px solid #24322C; display: flex; flex-direction: column; gap: 10px"><strong style="font-size: 15px">Legal documents</strong>
+<div style="display: flex; flex-wrap: wrap; gap: 8px"><template v-for="d in legalDocs" :key="d.slug"><NuxtLink :to="d.path" target="_blank" :title="d.summary" style="height: 36px; padding: 0 16px; border-radius: 18px; border: 1px solid #2A3832; color: #E8EFEA; font-size: 13px; display: flex; align-items: center; text-decoration: none">{{ d.title }}</NuxtLink></template></div></section>
+
 <!-- Confirm -->
 <template v-if="settingsPage.confirm.open">
 <div class="hub-overlay" style="position: fixed; inset: 0; z-index: 70; background: rgba(5,10,8,0.6); display: flex; align-items: center; justify-content: center; padding: 16px">
@@ -124,9 +127,11 @@
 
 <script>
 import { hubBindings } from '~/composables/useHub';
+import { LEGAL_DOCS } from '~/logic/legal.js';
 
 export default {
   name: 'SettingsSection',
+  data() { return { legalDocs: LEGAL_DOCS }; },
   ...hubBindings(["settingsPage","show"])
 };
 </script>

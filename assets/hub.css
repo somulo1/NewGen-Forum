@@ -1,6 +1,8 @@
 /* Scrollbars stay out of sight; everything still scrolls with wheel, touch and keys. */
 *{scrollbar-width:none;-ms-overflow-style:none}
 *::-webkit-scrollbar{display:none;width:0;height:0}
+/* Forum screen: tabs sit in the header bar, so they are compact there */
+.ff-tabs button{min-height:36px !important;padding:0 8px !important;font-size:13px !important}
 /* pinned profile / sign-out footer: nav items scroll underneath it */
 .hub-navfoot{position:sticky;bottom:0;margin-top:auto;padding:8px 0 4px;background:#121B17;display:flex;flex-direction:column;box-shadow:0 -10px 12px -6px #121B17}
 
