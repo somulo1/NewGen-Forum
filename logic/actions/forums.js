@@ -1,3 +1,4 @@
+import { chime, hangup, startRing, stopRing } from '~/logic/tones.js';
 import { MY_NAME, defaultPolicy, othersVoted, pollCap } from '~/logic/polls.js';
 
 // HubLogic actions: forum polls, forum chat rules and private-chat privacy.
@@ -78,7 +79,7 @@ export const forumActions = {
     const pr = this.state.dmPrivacy[name] || {};
     const what = kind === 'chat' ? 'message' : kind === 'call' ? 'call' : 'video call';
     const blocked = pr.blocked || (kind === 'chat' && pr.noChat) || (kind === 'call' && pr.noCall) || (kind === 'video' && (pr.noVideo || pr.noCall));
-    if (blocked) { this.notify(name + ' tried to ' + (kind === 'chat' ? 'message you' : kind === 'call' ? 'call you' : 'video call you') + ', but your privacy settings stopped it.', '#FFB86B'); return; }
+    if (blocked) { if (kind !== 'chat') this.logCall({ ctx: 'dm', ref: name, kind: kind === 'video' ? 'video' : 'voice', dir: 'blocked' }); this.notify(name + ' tried to ' + (kind === 'chat' ? 'message you' : kind === 'call' ? 'call you' : 'video call you') + ', but your privacy settings stopped it.', '#FFB86B'); return; }
     if (kind === 'chat') {
       this.setState((st) => {
         const open = st.panelKind === 'dm' && st.dms.find((d) => d.id === st.dmId && d.with === name) && st.mode !== 'closed' && st.mode !== 'min';
@@ -87,23 +88,29 @@ export const forumActions = {
         const dms = exists ? st.dms.map((d) => (d.with === name ? { ...d, unread: open ? 0 : d.unread + 1, msgs: d.msgs.concat([msg]) } : d)) : [{ id: 'dm-' + Date.now(), with: name, unread: 1, msgs: [msg] }].concat(st.dms);
         return { dms };
       });
+      chime();
       return;
     }
     if (this.state.call) { this.notify('Missed ' + what + ' from ' + name + ' while you were in a call.', '#FFB86B'); return; }
     this.setState({ incoming: { name, kind: kind === 'video' ? 'video' : 'voice' } });
+    startRing();
     clearTimeout(this._incT);
-    this._incT = setTimeout(() => { if (this.state.incoming && this.state.incoming.name === name) { this.setState({ incoming: null }); this.notify('Missed ' + what + ' from ' + name + '.', '#FFB86B'); } }, 20000);
+    this._incT = setTimeout(() => { if (this.state.incoming && this.state.incoming.name === name) { stopRing(); this.logCall({ ctx: 'dm', ref: name, kind: kind === 'video' ? 'video' : 'voice', dir: 'missed' }); this.setState({ incoming: null }); this.notify('Missed ' + what + ' from ' + name + '.', '#FFB86B'); } }, 20000);
   },
   acceptIncoming() {
     const inc = this.state.incoming;
     if (!inc) return;
     clearTimeout(this._incT);
+    stopRing();
     this.setState({ incoming: null });
     const d = this.dir.find((x) => x.name === inc.name) || { initials: inc.name.split(' ').map((x) => x[0]).join(''), color: '#C9B6FF' };
-    this.startDmCall(inc.kind, inc.name, d.initials, d.color);
+    this.startDmCall(inc.kind, inc.name, d.initials, d.color, 'in');
   },
   declineIncoming() {
     clearTimeout(this._incT);
+    stopRing(); hangup();
+    const inc = this.state.incoming;
+    if (inc) this.logCall({ ctx: 'dm', ref: inc.name, kind: inc.kind, dir: 'declined' });
     this.setState({ incoming: null });
   }
 };

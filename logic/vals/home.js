@@ -28,25 +28,26 @@ export function valsHome(ctx) {
     sendForum: () => {
       const t = this.state.fdraft.trim();
       if (!t) return;
-      this.postMsg(t);
-      this.setState({ fdraft: '', emojiF: false });
+      this.postMsg(t, undefined, this.state.replyTo);
+      this.setState({ fdraft: '', emojiF: false, replyTo: null });
     },
+    replyBar: { active: !!s.replyTo && s.replyTo.key === this._replyKey, who: s.replyTo ? s.replyTo.who : '', snippet: s.replyTo ? s.replyTo.snippet : '', cancel: () => this.setState({ replyTo: null }) },
     fKey: (e) => {
       if (e.key !== 'Enter') return;
       const t = this.state.fdraft.trim();
       if (!t) return;
-      this.postMsg(t);
-      this.setState({ fdraft: '', emojiF: false });
+      this.postMsg(t, undefined, this.state.replyTo);
+      this.setState({ fdraft: '', emojiF: false, replyTo: null });
     },
     attachForum: (e) => {
       const list = Array.from(e.target.files || []);
-      if (list.length) this.postMsg('', list.map((f) => this.fileInfo(f)));
+      const ok = this.capFiles(0, list); if (ok.length) this.postMsg('', ok.map((f) => this.fileInfo(f)));
       e.target.value = '';
     },
     onWallFiles: (e) => {
-      const list = Array.from(e.target.files || []).map((f, i) => {
+      const list = this.capFiles(this.state.wfiles.length, Array.from(e.target.files || [])).map((f, i) => {
         const isImg = (f.type || '').indexOf('image/') === 0;
-        return { id: Date.now() + '-' + i, name: f.name, meta: this.fmtSize(f.size), isImg: isImg, url: isImg ? URL.createObjectURL(f) : '' };
+        return { id: Date.now() + '-' + i, name: f.name, meta: this.fmtSize(f.size), isImg: isImg, isVideo: (f.type || '').indexOf('video/') === 0, url: URL.createObjectURL(f) };
       });
       e.target.value = '';
       this.setState((st) => ({ wfiles: st.wfiles.concat(list) }));
@@ -56,8 +57,12 @@ export function valsHome(ctx) {
     onPost: () => {
       const t = this.state.draft.trim();
       const media = this.state.wfiles;
+      const wp = this.state.wpoll;
+      const opts = wp ? wp.opts.map((o) => o.trim()).filter(Boolean) : [];
+      if (wp && (opts.length < 2 || !t)) { this.notify('A poll needs a question and at least two options.', '#FFB86B'); return; }
       if (!t && !media.length) return;
-      this.setState({ draft: '', wfiles: [], emojiW: false, posts: [{ id: Date.now(), author: 'Sam', initials: 'S', color: '#F49AC1', meta: 'Everyone · Just now', text: t, likes: 0, extra: 0, shares: 0, comments: [], media: media }, ...this.state.posts] });
+      const pollData = wp ? { opts: opts.map((label, i) => ({ id: 'o' + i, label, votes: 0 })) } : undefined;
+      this.setState({ draft: '', wfiles: [], emojiW: false, wpoll: null, posts: [{ id: Date.now(), author: 'Sam', initials: 'S', color: '#F49AC1', meta: this.state.wallAudience + ' · Just now', text: t, likes: 0, extra: 0, shares: 0, comments: [], media: media, pollData }, ...this.state.posts] });
     },
     postBtnStyle: 'height:38px;padding:0 22px;border-radius:19px;border:0;font-weight:600;cursor:' + (canPost ? 'pointer' : 'default') + ';background:' + (canPost ? '#B8F36B' : '#2A3832') + ';color:' + (canPost ? '#0F1714' : '#9DB0A6')
   };

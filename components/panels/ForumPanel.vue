@@ -26,25 +26,28 @@
 </template>
 </div>
 <DmPrivacy />
-<template v-if="!isDM">
-<div role="tablist" style="flex: none; display: flex; gap: 4px; padding: 6px 14px 0 20px; border-bottom: 1px solid #24322C"><button role="tab" :aria-selected="isPanelChat" @click="goPanelChat" :style="`min-height: 38px; padding: 0 14px; border: 0; background: transparent; cursor: pointer; font-size: 13px; border-bottom: 2px solid ${isPanelChat ? '#B8F36B' : 'transparent'}; color: ${isPanelChat ? '#E8EFEA' : '#9DB0A6'}; font-weight: ${isPanelChat ? 600 : 500}`">Chat</button><button role="tab" :aria-selected="isPanelPolls" @click="goPanelPolls" :style="`min-height: 38px; padding: 0 14px; border: 0; background: transparent; cursor: pointer; font-size: 13px; border-bottom: 2px solid ${isPanelPolls ? '#B8F36B' : 'transparent'}; color: ${isPanelPolls ? '#E8EFEA' : '#9DB0A6'}; font-weight: ${isPanelPolls ? 600 : 500}`">Polls ({{ pollView.count }})</button></div>
+<template v-if="true">
+<div role="tablist" style="flex: none; display: flex; gap: 4px; padding: 6px 14px 0 20px; border-bottom: 1px solid #24322C"><button role="tab" :aria-selected="isPanelChat" @click="goPanelChat" :style="`min-height: 38px; padding: 0 14px; border: 0; background: transparent; cursor: pointer; font-size: 13px; border-bottom: 2px solid ${isPanelChat ? '#B8F36B' : 'transparent'}; color: ${isPanelChat ? '#E8EFEA' : '#9DB0A6'}; font-weight: ${isPanelChat ? 600 : 500}`">Chat</button><button v-if="!isDM" role="tab" :aria-selected="isPanelPolls" @click="goPanelPolls" :style="`min-height: 38px; padding: 0 14px; border: 0; background: transparent; cursor: pointer; font-size: 13px; border-bottom: 2px solid ${isPanelPolls ? '#B8F36B' : 'transparent'}; color: ${isPanelPolls ? '#E8EFEA' : '#9DB0A6'}; font-weight: ${isPanelPolls ? 600 : 500}`">Polls ({{ pollView.count }})</button><button role="tab" :aria-selected="isPanelCalls" @click="goPanelCalls" :style="`min-height: 38px; padding: 0 14px; border: 0; background: transparent; cursor: pointer; font-size: 13px; border-bottom: 2px solid ${isPanelCalls ? '#B8F36B' : 'transparent'}; color: ${isPanelCalls ? '#E8EFEA' : '#9DB0A6'}; font-weight: ${isPanelCalls ? 600 : 500}`">Calls</button></div>
 </template>
 <div v-if="!isDM && isPanelPolls" style="flex: 1; min-height: 0; overflow-y: auto; padding: 14px 14px 14px 20px"><ForumPolls /></div>
-<template v-if="isDM || isPanelChat">
+<div v-if="isPanelCalls" style="flex: 1; min-height: 0; overflow-y: auto; padding: 14px 14px 14px 20px"><CallHistory /></div>
+<template v-if="isPanelChat || (isDM && !isPanelCalls)">
 <div :ref="chatRef" style="flex: 1; min-height: 0; overflow-y: auto; padding: 14px 14px 14px 20px; display: flex; flex-direction: column; gap: 12px">
 <span style="align-self: center; font-size: 11px; color: #9DB0A6; padding: 4px 10px; border-radius: 10px; background: #1A2520">Today</span>
 <template v-for="(u, u__i) in cur.chat" :key="u__i">
 <div :style="u.rowStyle">
 <div aria-hidden="true" :style="`width: 32px; height: 32px; flex: none; border-radius: 50%; background: ${u.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px`">{{ u.initials }}</div>
 <div :style="u.bubbleStyle">
-<div style="display: flex; gap: 8px; align-items: baseline"><strong style="font-size: 13px">{{ u.who }}</strong><span style="font-size: 11px; color: #9DB0A6">{{ u.time }}</span></div>
+<div style="display: flex; gap: 8px; align-items: baseline"><strong style="font-size: 13px">{{ u.who }}</strong><span style="font-size: 11px; color: #9DB0A6">{{ u.time }}</span><template v-if="u.reply"><button type="button" @click="u.reply" aria-label="Reply to this message" style="margin-left: auto; height: 22px; padding: 0 8px; border: 0; border-radius: 11px; background: transparent; color: #9DB0A6; cursor: pointer; font-size: 11px">↩ Reply</button></template></div>
+<template v-if="u.hasReply"><div style="margin: 4px 0 0; padding: 4px 8px; border-left: 3px solid #B8F36B; border-radius: 4px; background: rgba(0,0,0,.2); font-size: 12px; color: #9DB0A6; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap"><strong style="color: #C9D6CF">{{ u.replyWho }}</strong> {{ u.replySnippet }}</div></template>
 <template v-if="u.hasText"><p style="margin: 4px 0 0; font-size: 14px; line-height: 1.45">{{ u.text }}</p></template>
 <template v-if="u.hasFile"><FileGrid :files="u.fileList" :size="112"/></template>
 </div>
 </div>
 </template>
 </div>
-<div style="flex: none; position: relative; padding: 12px 14px 12px 18px; border-top: 1px solid #24322C; display: flex; gap: 4px; align-items: center">
+<div style="flex: none; border-top: 1px solid #24322C"><div v-if="replyBar.active" style="padding: 8px 14px 0 18px"><div style="display: flex; align-items: center; gap: 8px; margin: 0 0 6px; padding: 6px 10px; border-left: 3px solid #B8F36B; border-radius: 6px; background: #16201C; font-size: 12px; color: #9DB0A6; min-width: 0"><span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">Replying to <strong style="color: #E8EFEA">{{ replyBar.who }}</strong>: {{ replyBar.snippet }}</span><button type="button" aria-label="Cancel reply" @click="replyBar.cancel" style="width: 24px; height: 24px; border: 0; border-radius: 12px; background: transparent; color: #E8EFEA; cursor: pointer">✕</button></div></div>
+<div style="position: relative; padding: 12px 14px 12px 18px; display: flex; gap: 4px; align-items: center">
 <template v-if="emojiForumOpen">
 <div role="menu" aria-label="Emoji" style="position: absolute; left: 14px; right: 14px; bottom: 66px; z-index: 4; padding: 8px; border-radius: 14px; background: #1D2A25; border: 1px solid #34453D; box-shadow: 0 12px 30px rgba(0,0,0,0.45); display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 2px">
 <template v-for="(e, e__i) in emojisForum" :key="e__i"><button :aria-label="e.label" @click="e.add" style="height: 38px; border: 0; border-radius: 8px; background: transparent; font-size: 20px; cursor: pointer">{{ e.ch }}</button></template>
@@ -55,6 +58,7 @@
 <template v-if="!isDM"><button aria-label="Create a poll" title="Create a poll" :disabled="!pollView.canCreate" @click="pollView.compose" style="width: 38px; height: 38px; flex: none; border-radius: 50%; border: 0; background: transparent; color: #C9D6CF; cursor: pointer; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 20V10M12 20V4M19 20v-7"></path></svg></button></template>
 <label style="flex: 1; min-width: 0"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Reply in forum</span><input type="text" :value="fdraft" @input="onFDraft" @keydown="fKey" :disabled="composerOff" :placeholder="composerOff ? composerNote : `Message ${cur.name}…`" style="width: 100%; box-sizing: border-box; height: 42px; padding: 0 14px; border-radius: 21px; border: 1px solid #2A3832; background: #121B17; color: #E8EFEA"></label>
 <button aria-label="Send" :disabled="composerOff" @click="sendForum" style="width: 42px; height: 42px; border-radius: 50%; border: 0; background: #B8F36B; color: #0F1714; cursor: pointer; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 12l16-8-6 16-3-7z"></path></svg></button>
+</div>
 </div>
 </template>
 </template>
@@ -69,6 +73,6 @@ import CallScreen from '../overlays/CallScreen.vue';
 export default {
   name: 'ForumPanel',
   components: { CallScreen },
-  ...hubBindings(["attachForum","chatRef","composerNote","composerOff","cur","dmPriv","emojiForumOpen","emojisForum","fKey","fdraft","goPanelChat","goPanelPolls","gripStyle","isDM","isDocked","isPanelChat","isPanelPolls","menuOpen","onFDraft","panelChips","panelStyle","pollView","resizeKey","sendForum","showPanelCall","startDrag","toClosed","toFull","toMin","toPage","toggleEmojiForum","toggleMenu","videoCall","voiceCall"])
+  ...hubBindings(["attachForum","chatRef","composerNote","composerOff","cur","dmPriv","emojiForumOpen","emojisForum","fKey","fdraft","goPanelChat","goPanelPolls","gripStyle","isDM","isDocked","isPanelChat","replyBar","isPanelCalls","goPanelCalls","isPanelPolls","menuOpen","onFDraft","panelChips","panelStyle","pollView","resizeKey","sendForum","showPanelCall","startDrag","toClosed","toFull","toMin","toPage","toggleEmojiForum","toggleMenu","videoCall","voiceCall"])
 };
 </script>

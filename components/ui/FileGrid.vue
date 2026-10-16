@@ -1,7 +1,7 @@
 <!-- All files of one message: thumbnails and pills that wrap, so many files stay tidy in any chat width. -->
 <template>
 <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; min-width: 0; max-width: 100%">
-<template v-for="(f, i) in files" :key="i"><FileChip :name="f.name" :meta="f.meta" :url="f.url" :is-img="!!f.isImg" :size="size"/></template>
+<template v-for="(f, i) in files" :key="i"><FileChip :name="f.name" :meta="f.meta" :url="f.url" :is-img="!!f.isImg" :is-video="!!f.isVideo" :size="size" :group="files" :index="i"/></template>
 </div>
 </template>
 

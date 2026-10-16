@@ -1,6 +1,16 @@
+// Every chat starts with 3 received, 3 missed and 3 blocked calls (plus one outgoing), spread over the last days.
+function seedCallLog() {
+  const H = 3600000, now = Date.now(), out = [];
+  const chats = [['dm', 'Brian Kiprop'], ['dm', 'Amina Wanjiru'], ['dm', 'Grace Njeri'], ['dm', 'David Otieno'], ['forum', 'it'], ['forum', 'dev'], ['forum', 'game'], ['forum', 'choir'], ['forum', 'risk']];
+  const plan = [['in', 2, 372], ['missed', 5, 0], ['blocked', 9, 0], ['in', 24, 840], ['missed', 29, 0], ['blocked', 33, 0], ['in', 52, 95], ['missed', 60, 0], ['blocked', 74, 0], ['out', 28, 1180]];
+  chats.forEach(([c, ref], ci) => plan.forEach(([dir, h, dur], i) => out.push({ id: 'cl-' + ci + '-' + i, ctx: c, ref, kind: (i + ci) % 3 === 0 ? 'video' : 'voice', dir, at: now - (h + ci) * H, dur })));
+  return out;
+}
+
 // Initial state: calls.
 export function callsState() {
   return {
+    callLog: seedCallLog(),
     call: null, callMode: 'docked', mic: true, cam: true, sharing: false, hand: false, rec: false, callPanel: null, callDraft: '',
     callMsgs: [{ who: 'Grace Njeri', text: 'Joining from the Coast branch. Can everyone hear me?' }, { who: 'Brian Kiprop', text: 'Loud and clear.' }],
     ticketOpen: null, escOpen: false, esc: { type: '', id: '', cat: '', person: '', why: '' }, tcomment: '', tagOpen: false, ntOpen: false, nt: { title: '', cat: 'Network & Wi-Fi', prio: 'Medium', desc: '', files: [], toType: '', toName: '' }, unitCats: {}, catEdit: null, catWork: null, catDraft: { name: '', tat: '4', prio: 'Medium', err: '' },

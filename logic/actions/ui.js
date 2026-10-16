@@ -1,3 +1,4 @@
+import { chime } from '~/logic/tones.js';
 // HubLogic actions: ui. Mixed into HubLogic.prototype, so `this` is the HubLogic instance.
 export const uiActions = {
   componentDidMount() { try { if (window.innerWidth <= 900 && this.state.mode === 'docked') this.setState({ mode: 'min' }); } catch (err) {} this.scrollChat(); this._tick = setInterval(() => this.forceUpdate(), 15000); this.startPollTimer(); },
@@ -22,6 +23,7 @@ export const uiActions = {
   },
 
   notify(text, color, ticket) {
+    chime();
     this.setState((st) => ({ notifs: [{ text: text, color: color || '#B8F36B', time: 'Just now', ticket: ticket || null }].concat(st.notifs), notifSeen: false, toast: text, toastColor: color || '#B8F36B' }));
     clearTimeout(this._toastT);
     this._toastT = setTimeout(() => this.setState({ toast: '' }), 3800);
@@ -44,9 +46,16 @@ export const uiActions = {
     }
   },
 
+  // At most 5 files per post, message or ticket step; tells the person when some were left out.
+  capFiles(already, list) {
+    const room = Math.max(0, 5 - already);
+    if (list.length > room) this.notify('You can attach up to 5 files at a time. ' + (room ? 'The first ' + room + ' were added.' : 'Remove one first.'), '#FFB86B');
+    return list.slice(0, room);
+  },
+
   // A picked file as the {name, meta, url, isImg} record every attachment view reads.
   fileInfo(f) {
-    return { name: f.name, meta: this.fmtSize(f.size), url: URL.createObjectURL(f), isImg: (f.type || '').indexOf('image/') === 0 };
+    return { name: f.name, meta: this.fmtSize(f.size), url: URL.createObjectURL(f), isImg: (f.type || '').indexOf('image/') === 0, isVideo: (f.type || '').indexOf('video/') === 0 };
   },
 
   fmtSize(n) {

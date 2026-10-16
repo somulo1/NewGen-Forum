@@ -49,6 +49,7 @@ import { buildProfile } from '~/logic/views/profile.js';
 import { buildWidgetSettings } from '~/logic/views/widgetSettings.js';
 import { buildCallState } from '~/logic/views/callState.js';
 import { valsAccess } from '~/logic/vals/access.js';
+import { valsWall } from '~/logic/vals/wall.js';
 import { valsPages } from '~/logic/vals/pages.js';
 import { valsProjects } from '~/logic/vals/projects.js';
 import { valsTickets } from '~/logic/vals/tickets.js';
@@ -100,4 +101,4 @@ export class HubLogic extends DCLogic {
 Object.assign(HubLogic.prototype, messagingActions, projectsActions, callsActions, uiActions, forumActions, onboardingActions, ticketCatActions);
 
 const VIEW_STEPS = [buildAccess, buildForums, buildNav, buildWall, buildTickets, buildForumExtras, buildProjects, buildPeople, buildOnboarding, buildSecurity, buildRoles, buildTableHelpers, buildProjectTables, buildCalendar, buildProjectStandup, buildOrg, buildCatMgr, buildComms, buildAdminTables, buildAwards, buildHomeWidgets, buildProfile, buildWidgetSettings, buildCallState];
-const VAL_PARTS = [valsAccess, valsPages, valsProjects, valsTickets, valsShell, valsHome, valsPanels];
+const VAL_PARTS = [valsAccess, valsPages, valsProjects, valsTickets, valsShell, valsHome, valsWall, valsPanels];
