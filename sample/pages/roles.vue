@@ -1,3 +1,0 @@
-<template>
-  <RolesSection />
-</template>
