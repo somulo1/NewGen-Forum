@@ -1,3 +1,5 @@
+/* pinned profile / sign-out footer: nav items scroll underneath it */
+.hub-navfoot{position:sticky;bottom:0;margin-top:auto;padding:8px 0 4px;background:#121B17;display:flex;flex-direction:column;box-shadow:0 -10px 12px -6px #121B17}
 
 body{margin:0;background:#0F1714}
 a{color:#B8F36B}a:hover{color:#D4FA9E}
@@ -16,13 +18,14 @@ input,textarea{font-family:inherit}
 .hub-rightcol{max-width:60%}
 .hub-rightcol > .hub-dock{flex:1 1 0 !important;min-height:0 !important;max-width:none !important}
 @media (max-width: 900px){
+.hub-navfoot{padding-bottom:16px !important}
 .hub-m{display:flex !important}
 .hub-d{display:none !important}
 .hub-header{padding:10px 12px !important;gap:8px !important;flex-wrap:nowrap !important}
 .hub-search{flex:1 1 auto !important;min-width:0 !important;height:40px !important}
-.hub-nav{position:fixed !important;top:0;left:0;bottom:0;z-index:62;width:min(300px,86vw) !important;flex:none !important;transform:translateX(-102%);transition:transform .25s ease;box-shadow:0 0 40px rgba(0,0,0,.5);padding-bottom:24px !important}
+.hub-nav{position:fixed !important;top:64px;left:0;bottom:64px;z-index:62;width:min(300px,86vw) !important;flex:none !important;transform:translateX(-102%);transition:transform .25s ease;box-shadow:0 0 40px rgba(0,0,0,.5);padding-bottom:0 !important}
 .hub-nav.open{transform:none}
-.hub-navback{position:fixed;inset:0;z-index:61;background:rgba(5,10,8,.6);border:0;padding:0}
+.hub-navback{position:fixed;inset:64px 0 64px 0;z-index:61;background:rgba(5,10,8,.6);border:0;padding:0}
 .hub-main{padding:16px 14px 150px !important}
 .hub-dock{position:fixed !important;inset:64px 0 64px 0 !important;width:auto !important;max-width:none !important;margin:0 !important;border-radius:0 !important;border:0 !important;z-index:58;flex:none !important}
 .hub-grip{display:none !important}

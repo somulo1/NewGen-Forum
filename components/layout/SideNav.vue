@@ -80,6 +80,8 @@
 </template>
 </template>
 
+</template>
+<div class="hub-navfoot">
 <button @click="go.profile" :style="nav.profileCard">
 <span style="position: relative; width: 38px; height: 38px; flex: none; border-radius: 50%; background: #C2185B; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 600; overflow: hidden">
 <template v-if="me.hasPhoto"><img :src="me.photo" alt="" style="width: 100%; height: 100%; object-fit: cover"></template>
@@ -87,8 +89,9 @@
 </span>
 <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; text-align: left"><strong style="font-size: 13px">My profile</strong><span :style="`font-size: 11px; color: ${me.statusColor}`">● {{ me.status }}</span></span>
 </button>
-</template>
+
 <button type="button" @click="signOut" style="margin: 8px 0 0; height: 38px; border-radius: 10px; border: 1px solid #2A3832; background: transparent; color: #9DB0A6; cursor: pointer; font-size: 13px">Sign out</button>
+</div>
 </nav>
 </template>
 
