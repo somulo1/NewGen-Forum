@@ -45,11 +45,11 @@
 
 <WidgetSettingsDrawer />
 
+<IncomingCall />
+
 <CallMini />
 
 <AppToast />
-
-<WidgetGallery />
 
 <MobileTabBar />
 

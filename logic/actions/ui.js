@@ -1,8 +1,8 @@
 // HubLogic actions: ui. Mixed into HubLogic.prototype, so `this` is the HubLogic instance.
 export const uiActions = {
-  componentDidMount() { try { if (window.innerWidth <= 900 && this.state.mode === 'docked') this.setState({ mode: 'min' }); } catch (err) {} this.scrollChat(); this._tick = setInterval(() => this.forceUpdate(), 30000); },
+  componentDidMount() { try { if (window.innerWidth <= 900 && this.state.mode === 'docked') this.setState({ mode: 'min' }); } catch (err) {} this.scrollChat(); this._tick = setInterval(() => this.forceUpdate(), 15000); this.startPollTimer(); },
 
-  componentWillUnmount() { clearInterval(this._tick); clearInterval(this._ct); clearTimeout(this._toastT); },
+  componentWillUnmount() { clearInterval(this._tick); clearInterval(this._ct); clearInterval(this._pollT); clearTimeout(this._toastT); clearTimeout(this._incT); },
 
   startDrag(e) {
     e.preventDefault();

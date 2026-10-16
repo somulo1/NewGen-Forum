@@ -34,6 +34,7 @@
 
 <div role="tablist" style="display: flex; gap: 4px; border-bottom: 1px solid #24322C; overflow-x: auto">
 <button role="tab" @click="tabTo.discussions" :style="tab.discussions">Discussions</button>
+<button role="tab" @click="tabTo.polls" :style="tab.polls">Polls ({{ pollView.count }})</button>
 <template v-if="has.sessions"><button role="tab" @click="tabTo.sessions" :style="tab.sessions">Meetings</button></template>
 <button role="tab" @click="tabTo.members" :style="tab.members">Members</button>
 <button role="tab" @click="tabTo.files" :style="tab.files">Files</button>
@@ -44,10 +45,10 @@
 <template v-if="ftab.discussions">
 <div style="display: flex; flex-direction: column; gap: 12px">
 <div style="display: flex; gap: 6px; align-items: center; padding: 6px; border-radius: 14px; border: 1px solid #2A3832; background: #16201C">
-<label title="Attach files" style="position: relative; width: 42px; height: 42px; flex: none; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: #C9D6CF; cursor: pointer"><input type="file" multiple="" aria-label="Attach files" @change="attachForum" style="position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer"><svg aria-hidden="true" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11.5l-8.2 8.2a5 5 0 0 1-7.1-7.1L13.2 4a3.4 3.4 0 0 1 4.8 4.8l-8.5 8.5a1.8 1.8 0 0 1-2.5-2.5L14.8 7"></path></svg></label>
+<label title="Attach files" style="position: relative; width: 42px; height: 42px; flex: none; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: #C9D6CF; cursor: pointer"><input type="file" multiple="" aria-label="Attach files" :disabled="composerOff" @change="attachForum" style="position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer"><svg aria-hidden="true" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11.5l-8.2 8.2a5 5 0 0 1-7.1-7.1L13.2 4a3.4 3.4 0 0 1 4.8 4.8l-8.5 8.5a1.8 1.8 0 0 1-2.5-2.5L14.8 7"></path></svg></label>
 <button aria-label="Insert emoji" @click="toggleEmojiForum" style="width: 42px; height: 42px; flex: none; border-radius: 10px; border: 0; background: transparent; color: #C9D6CF; cursor: pointer; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M8.5 14.5c1 1.2 2.2 1.8 3.5 1.8s2.5-.6 3.5-1.8M9 9.5h.01M15 9.5h.01"></path></svg></button>
-<label style="flex: 1; min-width: 0"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Start a topic</span><input type="text" :value="fdraft" @input="onFDraft" @keydown="fKey" :placeholder="`Start a new topic in ${cur.name}…`" style="width: 100%; box-sizing: border-box; height: 42px; padding: 0 10px; border: 0; outline: none; background: transparent; color: #E8EFEA; font-size: 15px"></label>
-<button @click="sendForum" style="height: 42px; padding: 0 20px; border-radius: 10px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">Post</button>
+<label style="flex: 1; min-width: 0"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Start a topic</span><input type="text" :value="fdraft" @input="onFDraft" @keydown="fKey" :disabled="composerOff" :placeholder="composerOff ? composerNote : `Start a new topic in ${cur.name}…`" style="width: 100%; box-sizing: border-box; height: 42px; padding: 0 10px; border: 0; outline: none; background: transparent; color: #E8EFEA; font-size: 15px"></label>
+<button :disabled="composerOff" @click="sendForum" style="height: 42px; padding: 0 20px; border-radius: 10px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">Post</button>
 </div>
 <template v-if="emojiForumOpen">
 <div role="menu" aria-label="Emoji" style="padding: 8px; border-radius: 14px; background: #1D2A25; border: 1px solid #34453D; display: grid; grid-template-columns: repeat(auto-fill, minmax(42px, 1fr)); gap: 2px">
@@ -74,7 +75,10 @@
 </div>
 </template>
 
+<template v-if="ftab.polls"><ForumPolls /></template>
+
 <template v-if="ftab.members">
+<ForumChatControls />
 <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px">
 <template v-for="(m, m__i) in people" :key="m__i">
 <div style="padding: 14px; border-radius: 14px; background: #16201C; border: 1px solid #24322C; display: flex; gap: 12px; align-items: center">
@@ -113,6 +117,6 @@ import CallScreen from '../overlays/CallScreen.vue';
 export default {
   name: 'ForumFull',
   components: { CallScreen },
-  ...hubBindings(["attachForum","cur","emojiForumOpen","emojisForum","fKey","fdraft","files","ftab","has","showPanelCall","inviteOpen","isFullForum","onFDraft","people","sendForum","tab","tabTo","toClosed","toDocked","toMin","toggleEmojiForum","toggleInvite","videoCall","voiceCall"])
+  ...hubBindings(["attachForum","composerNote","composerOff","cur","pollView","emojiForumOpen","emojisForum","fKey","fdraft","files","ftab","has","showPanelCall","inviteOpen","isFullForum","onFDraft","people","sendForum","tab","tabTo","toClosed","toDocked","toMin","toggleEmojiForum","toggleInvite","videoCall","voiceCall"])
 };
 </script>

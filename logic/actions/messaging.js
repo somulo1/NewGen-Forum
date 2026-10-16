@@ -1,6 +1,8 @@
 // HubLogic actions: messaging. Mixed into HubLogic.prototype, so `this` is the HubLogic instance.
 export const messagingActions = {
   postMsg(text, file) {
+    const gate = this._chatGate;
+    if (gate && !gate.allowed) { this.notify(gate.reason, '#FFB86B'); return; }
     if (this.state.panelKind === 'dm' && this.state.dmId) this.addDmMsg(this.state.dmId, text, file);
     else this.addForumMsg(this.state.forum, text, file);
   },
@@ -11,6 +13,9 @@ export const messagingActions = {
     const replies = ['Got it, thanks!', 'Sure, give me a minute.', 'Okay, I\'ll check and get back to you.', 'Thanks for the update.', 'Can we jump on a quick call?'];
     clearTimeout(this._dmT);
     this._dmT = setTimeout(() => {
+      const conv = this.state.dms.find((d) => d.id === id);
+      const pr = (conv && this.state.dmPrivacy[conv.with]) || {};
+      if (pr.blocked || pr.noChat) return;
       this.setState((st) => ({ dms: st.dms.map((d) => (d.id === id ? { ...d, msgs: d.msgs.concat([{ from: d.with, text: replies[d.msgs.length % replies.length], time: 'Just now' }]) } : d)) }));
     }, 2600);
   },

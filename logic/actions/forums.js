@@ -1,0 +1,109 @@
+import { MY_NAME, defaultPolicy, othersVoted, pollCap } from '~/logic/polls.js';
+
+// HubLogic actions: forum polls, forum chat rules and private-chat privacy.
+// Mixed into HubLogic.prototype, so `this` is the HubLogic instance.
+export const forumActions = {
+  // Other members vote while the page is open, so results move without a refresh.
+  startPollTimer() {
+    clearInterval(this._pollT);
+    this._pollT = setInterval(() => this.pollTick(), 4000);
+  },
+  pollTick() {
+    const open = this.state.polls.filter((p) => !p.locked && othersVoted(p) < pollCap(p));
+    if (!open.length) return;
+    const p = open[Math.floor(Math.random() * open.length)];
+    const weights = p.options.map((o) => o.votes + 1);
+    let r = Math.random() * weights.reduce((a, b) => a + b, 0), pick = 0;
+    while (pick < weights.length - 1 && (r -= weights[pick]) > 0) pick++;
+    const oid = p.options[pick].id;
+    this.setState((st) => ({ polls: st.polls.map((x) => (x.id === p.id ? { ...x, options: x.options.map((o) => (o.id === oid ? { ...o, votes: o.votes + 1 } : o)) } : x)) }));
+  },
+  updPoll(pid, fn) {
+    this.setState((st) => ({ polls: st.polls.map((p) => (p.id === pid ? fn(p) : p)) }));
+  },
+  votePoll(pid, oid) {
+    const p = this.state.polls.find((x) => x.id === pid);
+    if (!p) return;
+    if (p.locked) { this.notify('Voting is closed on this poll.', '#FFB86B'); return; }
+    if (p.blocked.indexOf(MY_NAME) !== -1) { this.notify('You have been blocked from voting on this poll.', '#FF9B8A'); return; }
+    this.updPoll(pid, (x) => ({ ...x, myVote: x.myVote === oid ? null : oid }));
+  },
+  togglePollLock(pid) {
+    const p = this.state.polls.find((x) => x.id === pid);
+    this.updPoll(pid, (x) => ({ ...x, locked: !x.locked }));
+    this.notify(p && !p.locked ? 'Voting is now blocked on "' + p.question + '".' : 'Voting is open again.', '#7CC4FF');
+  },
+  deletePoll(pid) {
+    this.setState((st) => ({ polls: st.polls.filter((p) => p.id !== pid), pollMenu: null }));
+  },
+  toggleBlockVoter(pid, name) {
+    this.updPoll(pid, (x) => ({ ...x, blocked: x.blocked.indexOf(name) !== -1 ? x.blocked.filter((n) => n !== name) : x.blocked.concat([name]) }));
+  },
+  createPoll() {
+    const f = this.state.pollForm;
+    if (!f) return;
+    const options = f.options.map((o) => o.trim()).filter(Boolean);
+    let err = '';
+    if (!f.question.trim()) err = 'Write the question first.';
+    else if (options.length < 2) err = 'Give at least two options.';
+    else if (new Set(options.map((o) => o.toLowerCase())).size !== options.length) err = 'Each option must be different.';
+    if (err) { this.setState({ pollForm: { ...f, err } }); return; }
+    const poll = { id: 'poll' + Date.now(), forum: f.forum, question: f.question.trim(), options: options.map((l, i) => ({ id: 'o' + (i + 1), label: l, votes: 0 })), by: 'You', at: Date.now(), locked: false, blocked: [], myVote: null, members: f.members };
+    this.setState((st) => ({ polls: [poll].concat(st.polls), pollForm: null }));
+    this.notify('Poll created. Members can vote now and the results update live.', '#B8F36B');
+  },
+
+  // ---- Forum chat rules ----
+  setForumChat(fid, patch) {
+    this.setState((st) => ({ forumChat: { ...st.forumChat, [fid]: { ...(st.forumChat[fid] || defaultPolicy()), ...patch } } }));
+  },
+  toggleChatRole(fid, role) {
+    const cur = this.state.forumChat[fid] || defaultPolicy();
+    this.setForumChat(fid, { roles: cur.roles.indexOf(role) !== -1 ? cur.roles.filter((r) => r !== role) : cur.roles.concat([role]) });
+  },
+  // Flips one person: someone who can chat is blocked; someone who cannot is let in (removed from the blocked list, or allowed by name).
+  toggleMemberChat(fid, name, canNow) {
+    const cur = this.state.forumChat[fid] || defaultPolicy();
+    if (canNow) this.setForumChat(fid, { blocked: cur.blocked.concat([name]), allowed: cur.allowed.filter((n) => n !== name) });
+    else if (cur.blocked.indexOf(name) !== -1) this.setForumChat(fid, { blocked: cur.blocked.filter((n) => n !== name) });
+    else this.setForumChat(fid, { allowed: cur.allowed.concat([name]) });
+  },
+
+  // ---- Private chat privacy ----
+  setDmPrivacy(name, patch) {
+    this.setState((st) => ({ dmPrivacy: { ...st.dmPrivacy, [name]: { ...(st.dmPrivacy[name] || {}), ...patch } } }));
+  },
+  // Something arrives from this person. Your privacy settings decide whether you ever see it.
+  simulateIncoming(name, kind) {
+    const pr = this.state.dmPrivacy[name] || {};
+    const what = kind === 'chat' ? 'message' : kind === 'call' ? 'call' : 'video call';
+    const blocked = pr.blocked || (kind === 'chat' && pr.noChat) || (kind === 'call' && pr.noCall) || (kind === 'video' && (pr.noVideo || pr.noCall));
+    if (blocked) { this.notify(name + ' tried to ' + (kind === 'chat' ? 'message you' : kind === 'call' ? 'call you' : 'video call you') + ', but your privacy settings stopped it.', '#FFB86B'); return; }
+    if (kind === 'chat') {
+      this.setState((st) => {
+        const open = st.panelKind === 'dm' && st.dms.find((d) => d.id === st.dmId && d.with === name) && st.mode !== 'closed' && st.mode !== 'min';
+        const exists = st.dms.some((d) => d.with === name);
+        const msg = { from: name, text: 'Hi Sam, do you have a minute?', time: 'Just now' };
+        const dms = exists ? st.dms.map((d) => (d.with === name ? { ...d, unread: open ? 0 : d.unread + 1, msgs: d.msgs.concat([msg]) } : d)) : [{ id: 'dm-' + Date.now(), with: name, unread: 1, msgs: [msg] }].concat(st.dms);
+        return { dms };
+      });
+      return;
+    }
+    if (this.state.call) { this.notify('Missed ' + what + ' from ' + name + ' while you were in a call.', '#FFB86B'); return; }
+    this.setState({ incoming: { name, kind: kind === 'video' ? 'video' : 'voice' } });
+    clearTimeout(this._incT);
+    this._incT = setTimeout(() => { if (this.state.incoming && this.state.incoming.name === name) { this.setState({ incoming: null }); this.notify('Missed ' + what + ' from ' + name + '.', '#FFB86B'); } }, 20000);
+  },
+  acceptIncoming() {
+    const inc = this.state.incoming;
+    if (!inc) return;
+    clearTimeout(this._incT);
+    this.setState({ incoming: null });
+    const d = this.dir.find((x) => x.name === inc.name) || { initials: inc.name.split(' ').map((x) => x[0]).join(''), color: '#C9B6FF' };
+    this.startDmCall(inc.kind, inc.name, d.initials, d.color);
+  },
+  declineIncoming() {
+    clearTimeout(this._incT);
+    this.setState({ incoming: null });
+  }
+};

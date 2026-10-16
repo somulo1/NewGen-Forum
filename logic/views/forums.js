@@ -67,7 +67,9 @@ export function buildForums(ctx) {
   const norm = (u) => ({ replies: 0, ...u, hasText: !!u.text, hasFile: !!u.file, fileName: u.file ? u.file.name : '', fileMeta: u.file ? u.file.meta : '' });
   const addedHere = (s.added[cur.id] || []).map(norm);
   const baseMsgs = cur.updates.map(norm);
-  const fStyle = (m) => ({ ...m, rowStyle: 'display:flex;gap:10px', bubbleStyle: 'flex:1;min-width:0;padding:10px 12px;border-radius:4px 12px 12px 12px;background:#1A2520' });
+  const fStyle = (m) => (m.who === 'Sam' || m.who === 'You'
+    ? { ...m, who: 'You', mine: true, rowStyle: 'display:flex;gap:10px;flex-direction:row-reverse', bubbleStyle: 'max-width:78%;min-width:0;padding:10px 14px;border-radius:14px 4px 14px 14px;background:#2C3D34' }
+    : { ...m, mine: false, rowStyle: 'display:flex;gap:10px', bubbleStyle: 'flex:1;min-width:0;padding:10px 12px;border-radius:4px 12px 12px 12px;background:#1A2520' });
   const forumView = { ...cur, chat: baseMsgs.slice().reverse().concat(addedHere).map(fStyle), topics: addedHere.slice().reverse().concat(baseMsgs), subline: cur.online + ' online · live updates', dotColor: '#B8F36B' };
   // Private messages (share the forum panel)
   const dmStatusCol = { 'Available': '#B8F36B', 'In a meeting': '#FFB86B', 'Focusing': '#7CC4FF', 'Away': '#9DB0A6' };

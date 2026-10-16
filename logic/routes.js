@@ -15,5 +15,6 @@ export const sectionRoutes = {
   "projects": "/projects",
   "files": "/files",
   "share": "/secure-share",
-  "approvals": "/approvals"
+  "approvals": "/approvals",
+  "widgets": "/widgets"
 };

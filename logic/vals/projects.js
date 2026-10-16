@@ -1,6 +1,6 @@
 // Values and handlers the templates read through hubBindings: projects.
 export function valsProjects(ctx) {
-  const { canMs, cur_f, cur_p, folders, forumsData, fv, msd, newMilestone, pj, projStats, projects, s, set } = ctx;
+  const { cur_f, cur_p, folders, forumsData, fv, msd, pj, projStats, projects, s, set } = ctx;
   return {
     forumsOpen: s.forumsOpen,
     toggleForums: () => this.setState((st) => ({ forumsOpen: !st.forumsOpen })),
@@ -10,7 +10,7 @@ export function valsProjects(ctx) {
     showProjectList: s.section === 'projects' && !cur_p,
     showProjectView: s.section === 'projects' && !!cur_p,
     closeProject: set({ projectOpen: null }),
-    msd, newMilestone, canMilestones: canMs,
+    msd,
     folders, fv,
     showFolderList: s.section === 'files' && !cur_f,
     showFolderView: s.section === 'files' && !!cur_f,

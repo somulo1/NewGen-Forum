@@ -1,7 +1,7 @@
 // Initial state: profile.
 export function profileState() {
   return {
-    forumsOpen: true, folder: null, projectOpen: null, newTask: '', msDialog: null, taskForm: null, sprintFilter: 'all', objDraft: {},
+    forumsOpen: true, folder: null, projectOpen: null, msDialog: null, taskForm: null, sprintFilter: 'all', projTab: 'milestones', wgFilter: 'all', standupForm: null,
     profileEdit: false, statusMenu: false, newSkill: '',
     profile: {
       status: 'Available', cover: '#1F3A2B', photo: '', phone: '',

@@ -2,7 +2,7 @@
 export function buildNav(ctx) {
   const { has, s, set } = ctx;
   const navBase ='display:flex;align-items:center;gap:12px;width:100%;min-height:44px;padding:0 12px;border:0;border-radius:10px;cursor:pointer;text-align:left;font-size:14px;';
-  const sections = ['home', 'profile', 'feed', 'meetings', 'projects', 'approvals', 'security', 'roles', 'calendar', 'comms', 'structure', 'orgunit', 'tickets', 'files', 'share', 'people'];
+  const sections = ['home', 'profile', 'feed', 'meetings', 'projects', 'approvals', 'security', 'roles', 'calendar', 'comms', 'structure', 'orgunit', 'tickets', 'files', 'share', 'people', 'widgets'];
   const nav = {}, go = {}, show = {};
   const secNeeds = { meetings: 'sessions', projects: 'projects', calendar: 'calendar', comms: 'comms', structure: 'structure', orgunit: 'structure', tickets: 'tickets', files: 'files', share: 'secureshare' };
   const secOk = (k) => !secNeeds[k] || !!has[secNeeds[k]];
@@ -13,7 +13,7 @@ export function buildNav(ctx) {
     go[k] = () => this.setState((x) => ({ callMode: x.callMode === 'full' ? 'docked' : x.callMode, section: k, ticketOpen: null, projectOpen: null, folder: null, notifOpen: false, statusMenu: false }));
     show[k] = on;
   });
-  const tabs = ['discussions', 'sessions', 'members', 'files', 'about'];
+  const tabs = ['discussions', 'polls', 'sessions', 'members', 'files', 'about'];
   const tab = {}, tabTo = {}, ftab = {};
   tabs.forEach((k) => {
     const on = s.tab === k;
