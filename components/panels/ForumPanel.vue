@@ -1,6 +1,8 @@
 <!-- Docked side panel for a forum or private chat (full screen on mobile) -->
 <template><template v-if="isDocked">
 <aside aria-label="Forum panel" class="hub-dock" :style="panelStyle">
+<CallScreen v-if="inCall" />
+<template v-if="!inCall" style="display: contents">
 <button class="hub-grip" aria-label="Drag to resize panel. Arrow keys also resize." @pointerdown="startDrag" @keydown="resizeKey" style="position: absolute; left: 0; top: 0; bottom: 0; width: 14px; padding: 0; border: 0; background: transparent; cursor: ew-resize; z-index: 3; touch-action: none; display: flex; align-items: center; justify-content: center"><span :style="gripStyle"></span></button>
 <div style="display: flex; align-items: center; gap: 10px; padding: 14px 14px 12px 20px; border-bottom: 1px solid #24322C">
 <span :style="`width: 34px; height: 34px; border-radius: 10px; background: ${cur.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 13px`">{{ cur.initials }}</span>
@@ -40,15 +42,18 @@
 <label style="flex: 1; min-width: 0"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Reply in forum</span><input type="text" :value="fdraft" @input="onFDraft" @keydown="fKey" :placeholder="`Message ${cur.name}…`" style="width: 100%; box-sizing: border-box; height: 42px; padding: 0 14px; border-radius: 21px; border: 1px solid #2A3832; background: #121B17; color: #E8EFEA"></label>
 <button aria-label="Send" @click="sendForum" style="width: 42px; height: 42px; border-radius: 50%; border: 0; background: #B8F36B; color: #0F1714; cursor: pointer; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 12l16-8-6 16-3-7z"></path></svg></button>
 </div>
+</template>
 </aside>
 </template>
 </template>
 
 <script>
 import { hubBindings } from '~/composables/useHub';
+import CallScreen from '../overlays/CallScreen.vue';
 
 export default {
   name: 'ForumPanel',
-  ...hubBindings(["attachForum","chatRef","cur","emojiForumOpen","emojisForum","fKey","fdraft","gripStyle","isDocked","onFDraft","panelChips","panelStyle","resizeKey","sendForum","startDrag","toClosed","toFull","toMin","toggleEmojiForum","videoCall","voiceCall"])
+  components: { CallScreen },
+  ...hubBindings(["attachForum","chatRef","cur","emojiForumOpen","emojisForum","fKey","fdraft","gripStyle","inCall","isDocked","onFDraft","panelChips","panelStyle","resizeKey","sendForum","startDrag","toClosed","toFull","toMin","toggleEmojiForum","videoCall","voiceCall"])
 };
 </script>
