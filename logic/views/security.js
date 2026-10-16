@@ -1,6 +1,8 @@
+import { buildXlsx, downloadBlob } from '~/logic/xlsx.js';
 // renderVals step: security. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildSecurity(ctx) {
   const { badge, chipS, nowMs, s, segS, set, ts } = ctx;
+  const iso9 = (m) => new Date(nowMs - m * 60000).toLocaleDateString('en-CA', { timeZone: 'Africa/Nairobi' });
   // ---- Security & logs ----
   const ruleDefs = [
     { id: 'r1', name: 'Repeated failed sign-ins', desc: '5 or more failed sign-ins on one account within 10 minutes.', sev: 'High' },
@@ -31,15 +33,72 @@ export function buildSecurity(ctx) {
     const sv = ruleSev(r);
     const st = s.alertSt[a.id] || 'Open';
     const stC = st === 'Open' ? '#FF9B8A' : st === 'Investigating' ? '#FFB86B' : '#9DB0A6';
-    const setSt = (v) => () => { this.setState((x) => ({ alertSt: { ...x.alertSt, [a.id]: v } })); this.notify(a.id + ' marked ' + v.toLowerCase() + '.', '#7CC4FF'); };
+    const notes = s.alertNotes[a.id] || [];
+    const closed = st !== 'Open' && st !== 'Investigating';
+    const openDlg = (mode) => () => this.setState({ alertDlg: { id: a.id, mode, outcome: 'Resolved', comment: '', err: '' } });
     return { ...a, sev: sv, color: sevColor[sv], sevStyle: badge(sevColor[sv]), ruleName: r.name, when: a.ago === 0 ? 'Just now' : agoLabel(a.ago), status: st, statusStyle: badge(stC),
-      investigate: setSt('Investigating'), resolve: setSt('Resolved'), falsePos: setSt('False positive'), isOpen: st === 'Open' || st === 'Investigating' };
+      notes, lastNote: notes.length ? notes[notes.length - 1] : null,
+      investigate: openDlg('investigate'), closeAlert: openDlg('close'), history: openDlg('history'), isOpen: st === 'Open' || st === 'Investigating', canInvestigate: st === 'Open', canClose: st === 'Investigating', isClosed: closed };
   });
   const openAlerts = alertsAll.filter((a) => a.isOpen);
   const lq = s.lq.trim().toLowerCase();
   const logsF = allLogs.filter((l) => (s.lmod === 'All' || l.module === s.lmod) && (s.lres === 'All' || l.result === s.lres) && (!s.lflag || (l.rule && ruleOn(l.rule))) && (!lq || (l.user + ' ' + l.action + ' ' + l.ip).toLowerCase().indexOf(lq) !== -1));
   const flaggedHours = {};
   allLogs.forEach((l) => { if (l.rule && ruleOn(l.rule)) flaggedHours[Math.floor(l.ago / 60)] = true; });
+  // ---- Time range: the tables and the Excel export use the same window ----
+  const R = s.secRange || { preset: 'all', from: '', to: '' };
+  const PRESET = { '24h': 1440, '7d': 10080, '30d': 43200 };
+  const inRange = (ago) => {
+    if (R.preset === 'custom') { const d = iso9(ago); return (!R.from || d >= R.from) && (!R.to || d <= R.to); }
+    return PRESET[R.preset] ? ago <= PRESET[R.preset] : true;
+  };
+  const alertsRange = alertsAll.filter((a) => inRange(a.ago));
+  const logsRange = allLogs.filter((l) => inRange(l.ago));
+  const setRange = (patch) => this.setState((x) => ({ secRange: { ...x.secRange, ...patch } }));
+  const range = { preset: R.preset, from: R.from, to: R.to, isCustom: R.preset === 'custom',
+    presets: [['all', 'All time'], ['24h', 'Last 24 hours'], ['7d', 'Last 7 days'], ['30d', 'Last 30 days'], ['custom', 'Custom']].map(([k, l]) => ({ label: l, on: R.preset === k, pick: () => setRange({ preset: k }) })),
+    onFrom: (e) => setRange({ preset: 'custom', from: e.target.value }), onTo: (e) => setRange({ preset: 'custom', to: e.target.value }),
+    label: R.preset === 'custom' ? (R.from || 'start') + ' to ' + (R.to || 'today') : ({ all: 'All time', '24h': 'Last 24 hours', '7d': 'Last 7 days', '30d': 'Last 30 days' })[R.preset],
+    summary: alertsRange.length + ' alerts · ' + logsRange.length + ' log entries in this range' };
+  const stamp = (ago) => new Date(nowMs - ago * 60000).toLocaleString('en-GB', { timeZone: 'Africa/Nairobi', hour12: false });
+  const exportXlsx = () => {
+    const tab = s.secTab;
+    let name, head, body;
+    if (tab === 'alerts') {
+      name = 'Alerts'; head = ['ID', 'Severity', 'Alert', 'Details', 'Rule', 'Raised', 'Status', 'Comments'];
+      body = alertsRange.map((a) => [a.id, a.sev, a.title, a.detail, a.ruleName, stamp(a.ago), a.status, a.notes.map((n) => new Date(n.at).toLocaleString('en-GB', { hour12: false }) + ' · ' + n.who + ' · ' + n.status + ': ' + n.comment).join('\n')]);
+    } else if (tab === 'logs') {
+      name = 'Audit logs'; head = ['When', 'User', 'Action', 'Module', 'IP', 'Location', 'Result', 'Flagged by rule'];
+      body = logsRange.map((l) => { const r = l.rule && ruleOn(l.rule) ? ruleDefs.find((x) => x.id === l.rule) : null; return [stamp(l.ago), l.user, l.action, l.module, l.ip, l.loc, l.result, r ? r.name : '']; });
+    } else {
+      name = 'Detection rules'; head = ['Rule', 'Description', 'Severity', 'On', 'Matches today'];
+      body = ruleDefs.map((r) => [r.name, r.desc, ruleSev(r), ruleOn(r.id) ? 'Yes' : 'No', allLogs.filter((l) => l.rule === r.id).length]);
+    }
+    const day = (d) => d || '';
+    const rangeTag = tab === 'rules' ? 'all' : R.preset === 'custom' ? (day(R.from) || 'start') + '_to_' + (day(R.to) || 'today') : R.preset;
+    downloadBlob(buildXlsx(name, [head].concat(body)), 'security-' + tab + '-' + rangeTag + '.xlsx');
+    this.setState((x) => ({ extraLogs: [{ id: 'x' + Date.now(), ago: 0, user: 'Samwel Okoth Omulo', action: 'Exported ' + body.length + ' ' + name.toLowerCase() + ' rows to Excel (' + range.label + ')', module: 'Security', ip: '10.0.4.21', loc: 'Office network', result: 'Success', rule: '' }].concat(x.extraLogs) }));
+    this.notify('Exported ' + body.length + ' ' + name.toLowerCase() + (tab === 'rules' ? '' : ' (' + range.label.toLowerCase() + ')') + ' to Excel. The export was logged.', '#7CC4FF');
+  };
+  // ---- Status change dialog: every change needs a comment; Open -> Investigating -> Closed ----
+  const AD = s.alertDlg;
+  const adAlert = AD ? alertsAll.find((x) => x.id === AD.id) : null;
+  const setDlg = (patch) => this.setState((x) => ({ alertDlg: { ...x.alertDlg, ...patch } }));
+  const alertDialog = adAlert ? { open: true, mode: AD.mode, isHistory: AD.mode === 'history', isClose: AD.mode === 'close',
+    title: AD.mode === 'investigate' ? 'Start investigating ' + adAlert.id : AD.mode === 'close' ? 'Close ' + adAlert.id : adAlert.id + ' history', alertTitle: adAlert.title, status: adAlert.status, statusStyle: adAlert.statusStyle,
+    outcomes: ['Resolved', 'False positive'].map((o) => ({ label: o, on: AD.outcome === o, pick: () => setDlg({ outcome: o }) })),
+    comment: AD.comment, err: AD.err, hasErr: !!AD.err, onComment: (e) => setDlg({ comment: e.target.value, err: '' }), addEmoji: (ch) => setDlg({ comment: AD.comment + ch }),
+    history: adAlert.notes.map((n) => ({ ...n, when: new Date(n.at).toLocaleString('en-GB', { hour12: false }) })).reverse(), hasHistory: adAlert.notes.length > 0,
+    confirmLabel: AD.mode === 'investigate' ? 'Start investigating' : 'Close alert',
+    cancel: () => this.setState({ alertDlg: null }),
+    confirm: () => {
+      const c = (this.state.alertDlg.comment || '').trim();
+      if (c.length < 3) { setDlg({ err: 'Add a comment explaining this change.' }); return; }
+      const to = AD.mode === 'investigate' ? 'Investigating' : AD.outcome;
+      this.setState((x) => ({ alertDlg: null, alertSt: { ...x.alertSt, [adAlert.id]: to }, alertNotes: { ...x.alertNotes, [adAlert.id]: (x.alertNotes[adAlert.id] || []).concat([{ status: to, comment: c, who: 'Sam', at: Date.now() }]) },
+        extraLogs: [{ id: 'x' + Date.now(), ago: 0, user: 'Samwel Okoth Omulo', action: adAlert.id + ' moved to ' + to + ': ' + c, module: 'Security', ip: '10.0.4.21', loc: 'Office network', result: 'Success', rule: '' }].concat(x.extraLogs) }));
+      this.notify(adAlert.id + ' ' + (to === 'Investigating' ? 'is now being investigated.' : 'closed as ' + to.toLowerCase() + '.'), '#7CC4FF');
+    } } : { open: false };
   const tabS = segS;
   const sec = {
     kpis: [
@@ -55,7 +114,7 @@ export function buildSecurity(ctx) {
     lmod: s.lmod, onLmod: (e) => this.setState({ lmod: e.target.value, lshow: 25 }),
     lres: s.lres, onLres: (e) => this.setState({ lres: e.target.value, lshow: 25 }),
     lflag: s.lflag, toggleLflag: () => this.setState((x) => ({ lflag: !x.lflag, lshow: 25 })),
-    export: () => this.notify('Exported ' + logsF.length + ' log entries to CSV. The export was logged.', '#7CC4FF'),
+    exportXlsx, range, alertDialog,
     logCountLabel: logsF.length + ' entries · showing ' + Math.min(logsF.length, s.lshow),
     logs: logsF.slice(0, s.lshow).map((l) => {
       const fl = !!(l.rule && ruleOn(l.rule));
@@ -73,5 +132,5 @@ export function buildSecurity(ctx) {
   const secTab = { alerts: tabS(s.secTab === 'alerts'), logs: tabS(s.secTab === 'logs'), rules: tabS(s.secTab === 'rules'),
     alertsGo: set({ secTab: 'alerts' }), logsGo: set({ secTab: 'logs' }), rulesGo: set({ secTab: 'rules' }),
     isAlerts: s.secTab === 'alerts', isLogs: s.secTab === 'logs', isRules: s.secTab === 'rules' };
-  return { agoLabel, alertsAll, allLogs, openAlerts, ruleDefs, ruleOn, ruleSev, sec, secTab, sevColor, tabS };
+  return { agoLabel, alertsAll, alertsRange, logsRange, allLogs, openAlerts, ruleDefs, ruleOn, ruleSev, sec, secTab, sevColor, tabS };
 }
