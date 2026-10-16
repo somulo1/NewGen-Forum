@@ -1,6 +1,6 @@
 <!-- Voice / video call screen -->
 <template><template v-if="inCall">
-<section aria-label="Meeting" style="position: absolute; inset: 0; z-index: 20; background: #0A100D; color: #E8EFEA; display: flex; flex-direction: column; border-radius: 14px; overflow: hidden">
+<section aria-label="Meeting" style="background: #0A100D; color: #E8EFEA; display: flex; flex-direction: column; border-radius: 14px; overflow: hidden; width: 100%; height: 100%">
 <div style="flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 18px">
 <span :style="`width: 36px; height: 36px; border-radius: 10px; background: ${call.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 13px`">{{ call.initials }}</span>
 <div style="flex: 1 1 200px; min-width: 0; display: flex; flex-direction: column"><strong style="font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ call.title }}</strong><span style="font-size: 12px; color: #9DB0A6">{{ call.modeLabel }} · {{ call.count }} people</span></div>
