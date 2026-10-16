@@ -390,7 +390,11 @@ export class HubLogic extends DCLogic {
   startCall(mode, title, initials, color, people, context) {
     clearInterval(this._ct);
     this._ct = setInterval(() => this.forceUpdate(), 1000);
-    this.setState({ call: { mode: mode, title: title, initials: initials, color: color, start: Date.now(), people: people || null, context: context || null }, personOpen: null, mic: true, cam: mode === 'video', sharing: false, hand: false, rec: false, callPanel: null, menu: false });
+    const newState = { call: { mode: mode, title: title, initials: initials, color: color, start: Date.now(), people: people || null, context: context || null }, personOpen: null, mic: true, cam: mode === 'video', sharing: false, hand: false, rec: false, callPanel: null, menu: false };
+    if (this.state.mode === 'min' && (context === 'dm' || context === 'forum')) {
+      newState.mode = 'docked';
+    }
+    this.setState(newState);
   }
   endCall() {
     clearInterval(this._ct);
