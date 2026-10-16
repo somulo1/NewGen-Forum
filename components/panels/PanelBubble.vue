@@ -1,5 +1,5 @@
 <!-- Minimized forum / chat bubble with its menu -->
-<template><template v-if="isMin && !inCall">
+<template><template v-if="isMin">
 <div class="hub-bubble" style="position: fixed; right: 20px; bottom: 20px; z-index: 50; display: flex; flex-direction: column; align-items: flex-end; gap: 10px">
 <template v-if="menuOpen">
 <div role="menu" style="width: 250px; padding: 8px; border-radius: 14px; background: #1D2A25; border: 1px solid #34453D; box-shadow: 0 16px 40px rgba(0,0,0,0.45); display: flex; flex-direction: column; gap: 2px">
@@ -14,18 +14,15 @@
 <div style="display: flex; flex-direction: column; padding-right: 4px"><strong style="font-size: 13px">{{ cur.name }}</strong><span style="font-size: 11px; color: #B8F36B">● 2 new updates</span></div>
 <button aria-label="Forum view options" aria-haspopup="menu" @click="toggleMenu" style="width: 44px; height: 44px; border-radius: 50%; border: 0; background: #B8F36B; color: #0F1714; cursor: pointer; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="19" cy="12" r="2"></circle></svg></button>
 </div>
-</template>
 </div>
 </template>
 </template>
 
 <script>
 import { hubBindings } from '~/composables/useHub';
-import CallScreen from '../overlays/CallScreen.vue';
 
 export default {
   name: 'PanelBubble',
-  components: { CallScreen },
-  ...hubBindings(["cur","inCall","isMin","menuOpen","toClosed","toDocked","toFull","toggleMenu"])
+  ...hubBindings(["cur","isMin","menuOpen","toClosed","toDocked","toFull","toggleMenu"])
 };
 </script>

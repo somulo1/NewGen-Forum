@@ -1,9 +1,9 @@
 <!-- Docked side panel for a forum or private chat (full screen on mobile) -->
 <template><template v-if="isDocked">
 <aside aria-label="Forum panel" class="hub-dock" :style="panelStyle">
-<CallScreen v-if="inCall" />
-<template v-if="!inCall" style="display: contents">
-<button class="hub-grip" aria-label="Drag to resize panel. Arrow keys also resize." @pointerdown="startDrag" @keydown="resizeKey" style="position: absolute; left: 0; top: 0; bottom: 0; width: 14px; padding: 0; border: 0; background: transparent; cursor: ew-resize; z-index: 3; touch-action: none; display: flex; align-items: center; justify-content: center"><span :style="gripStyle"></span></button>
+<CallScreen variant="panel" />
+<button class="hub-grip" aria-label="Drag to resize panel. Arrow keys also resize." @pointerdown="startDrag" @keydown="resizeKey" style="position: absolute; left: 0; top: 0; bottom: 0; width: 14px; padding: 0; border: 0; background: transparent; cursor: ew-resize; z-index: 40; touch-action: none; display: flex; align-items: center; justify-content: center"><span :style="gripStyle"></span></button>
+<template v-if="!showPanelCall">
 <div style="display: flex; align-items: center; gap: 10px; padding: 14px 14px 12px 20px; border-bottom: 1px solid #24322C">
 <span :style="`width: 34px; height: 34px; border-radius: 10px; background: ${cur.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 13px`">{{ cur.initials }}</span>
 <div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><strong style="font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ cur.name }}</strong><span style="font-size: 12px; color: #9DB0A6"><span :style="`color: ${cur.dotColor}`">●</span> {{ cur.subline }}</span></div>
@@ -54,6 +54,6 @@ import CallScreen from '../overlays/CallScreen.vue';
 export default {
   name: 'ForumPanel',
   components: { CallScreen },
-  ...hubBindings(["attachForum","chatRef","cur","emojiForumOpen","emojisForum","fKey","fdraft","gripStyle","inCall","isDocked","onFDraft","panelChips","panelStyle","resizeKey","sendForum","startDrag","toClosed","toFull","toMin","toggleEmojiForum","videoCall","voiceCall"])
+  ...hubBindings(["attachForum","chatRef","cur","emojiForumOpen","emojisForum","fKey","fdraft","gripStyle","showPanelCall","isDocked","onFDraft","panelChips","panelStyle","resizeKey","sendForum","startDrag","toClosed","toFull","toMin","toggleEmojiForum","videoCall","voiceCall"])
 };
 </script>

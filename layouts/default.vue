@@ -12,11 +12,18 @@
 <SideNav />
 
 <div style="flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; align-items: stretch">
+<div style="position: relative; flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; align-items: stretch">
 <main class="hub-main" style="flex: 1 1 auto; min-width: 0; overflow-y: auto; box-sizing: border-box; padding: 24px clamp(16px, 3vw, 40px) 120px">
 <slot />
 </main>
+<CallScreen variant="main" />
+</div>
+
+<div class="hub-rightcol" style="flex: none; min-height: 0; display: flex; flex-direction: column">
+<CallScreen variant="dock" />
 
 <ForumPanel />
+</div>
 </div>
 </div>
 
@@ -35,6 +42,8 @@
 <TaskDrawer />
 
 <WidgetSettingsDrawer />
+
+<CallMini />
 
 <AppToast />
 
