@@ -1,5 +1,13 @@
 <!-- Sidebar: main pages, admin, messages, organization, forums, profile -->
 <template><nav aria-label="Main" :class="navClass" @click="navClick" style="flex: 0 0 240px; overflow-y: auto; box-sizing: border-box; padding: 16px 12px; border-right: 1px solid #24322C; background: #121B17; display: flex; flex-direction: column; gap: 4px">
+<label style="position: relative; display: block; margin: 0 0 8px"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Search the sidebar</span><input data-keep="1" type="search" :value="navSearch.q" @input="navSearch.onInput" placeholder="Search pages, people, forums…" aria-label="Search the sidebar" style="width: 100%; box-sizing: border-box; height: 38px; padding: 0 12px; border-radius: 19px; border: 1px solid #2A3832; background: #16201C; color: #E8EFEA; font-size: 13px"></label>
+<template v-if="navSearch.active">
+<div role="list" aria-label="Search results" style="display: flex; flex-direction: column; gap: 2px">
+<template v-for="(r, r__i) in navSearch.results" :key="r__i"><button @click="r.run" style="display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 4px 10px; border: 0; border-radius: 10px; background: transparent; color: #E8EFEA; cursor: pointer; text-align: left; font-family: inherit"><span :style="`width: 30px; height: 30px; flex: none; border-radius: 9px; background: #22302A; color: ${r.color}; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11px`">{{ r.initials }}</span><span style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ r.label }}</span><span style="font-size: 11px; color: #9DB0A6">{{ r.group }}<template v-if="r.sub"> · {{ r.sub }}</template></span></span></button></template>
+<template v-if="navSearch.none"><span style="padding: 12px; font-size: 13px; color: #9DB0A6">Nothing matches "{{ navSearch.q }}".</span></template>
+</div>
+</template>
+<template v-if="!navSearch.active">
 <button @click="go.home" :style="nav.home"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"></path></svg>Home</button>
 <button @click="go.feed" :style="nav.feed"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"></rect><path d="M8 8h8M8 12h8M8 16h5"></path></svg>Community wall</button>
 <template v-if="has.sessions"><button @click="go.meetings" :style="nav.meetings"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3" y="6" width="13" height="12" rx="2"></rect><path d="M16 10l5-3v10l-5-3z"></path></svg>Meetings &amp; standups</button></template>
@@ -79,6 +87,7 @@
 </span>
 <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; text-align: left"><strong style="font-size: 13px">My profile</strong><span :style="`font-size: 11px; color: ${me.statusColor}`">● {{ me.status }}</span></span>
 </button>
+</template>
 </nav>
 </template>
 
@@ -87,6 +96,6 @@ import { hubBindings } from '~/composables/useHub';
 
 export default {
   name: 'SideNav',
-  ...hubBindings(["canRoles","canSecurity","canSeeAdmin","createOpen","dmList","dmMatches","dmUnreadLabel","dmq","dmsChevron","dmsOpen","forumCount","forums","forumsChevron","forumsOpen","go","has","hasOpenAlerts","hasPendingApprovals","me","myUnits","nav","navClass","navClick","newDmOpen","onDmq","openAlertCount","orgChevron","orgOpen","pendingApprovals","ticketDeskOk","toggleCreate","toggleDms","toggleForums","toggleNewDm","toggleOrg"])
+  ...hubBindings(["navSearch","canRoles","canSecurity","canSeeAdmin","createOpen","dmList","dmMatches","dmUnreadLabel","dmq","dmsChevron","dmsOpen","forumCount","forums","forumsChevron","forumsOpen","go","has","hasOpenAlerts","hasPendingApprovals","me","myUnits","nav","navClass","navClick","newDmOpen","onDmq","openAlertCount","orgChevron","orgOpen","pendingApprovals","ticketDeskOk","toggleCreate","toggleDms","toggleForums","toggleNewDm","toggleOrg"])
 };
 </script>
