@@ -9,7 +9,6 @@
       <main style="padding: clamp(22px, 5vw, 32px); border-radius: 24px; background: #FFFFFF; border: 1px solid #DCE5DF; box-shadow: 0 8px 30px rgba(15,23,20,0.08); display: flex; flex-direction: column; gap: 18px">
         <slot />
       </main>
-      <p style="margin: 0; text-align: center; font-size: 12px; color: #6B7A72">Demo mode: there is no server yet, so any details sign you in.</p>
     </div>
   </div>
 </template>

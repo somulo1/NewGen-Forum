@@ -17,7 +17,7 @@
 <template v-if="rolesView.isRights"><span style="font-size: 13px; color: #C9D6CF">{{ rightsHint }}</span><DataTable :t="rightsTable" /></template>
 <template v-if="rolesView.isMembers"><DataTable :t="membersTable" /></template>
 <template v-if="rolesView.isReporting">
-<span style="font-size: 13px; color: #9DB0A6; line-height: 1.5">Choose the role each role reports to. A person then reports to whoever holds that role in their own department, unit, branch or sector, and their profile shows it. If nobody holds it there, the next role up is used.</span>
+<span style="font-size: 13px; color: #9DB0A6; line-height: 1.5">Pick the role each role reports to, then the person in that role they report to (for example IT support reports to Head of IT, and that person is Hannah). Profiles show that person. If no person is chosen, profiles show the role name. Anyone can still be given a different manager in their own edit form.</span>
 <DataTable :t="reportingTable" />
 <div v-if="reportingBar.canEdit" style="position: sticky; bottom: 0; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px 16px; border-radius: 14px; background: #1D2A25; border: 1px solid #34453D">
 <span :style="`flex: 1 1 140px; font-size: 13px; color: ${reportingBar.dirty ? '#FFB86B' : '#9DB0A6'}`">{{ reportingBar.dirty ? 'You have unsaved changes' : 'All changes saved' }}</span>
