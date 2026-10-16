@@ -92,6 +92,7 @@
 </button>
 
 <button type="button" @click="signOut" style="margin: 8px 0 0; height: 38px; border-radius: 10px; border: 1px solid #2A3832; background: transparent; color: #9DB0A6; cursor: pointer; font-size: 13px">Sign out</button>
+<div style="display: flex; justify-content: center; gap: 12px; margin-top: 6px; font-size: 11px"><NuxtLink to="/privacy" target="_blank" style="color: #6F8178; text-decoration: none">Privacy</NuxtLink><NuxtLink to="/terms" target="_blank" style="color: #6F8178; text-decoration: none">Terms</NuxtLink><NuxtLink to="/legal" target="_blank" style="color: #6F8178; text-decoration: none">Legal</NuxtLink></div>
 </div>
 </nav>
 </template>

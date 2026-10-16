@@ -4,17 +4,17 @@
 <CallScreen variant="full" :fit="fit" />
 <template v-if="!showPanelCall">
 <div style="flex: none; border-bottom: 1px solid #24322C; background: #0F1714">
-<div style="max-width: 900px; margin: 0 auto; padding: 14px clamp(16px, 3vw, 32px); display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
-<span :style="`width: 48px; height: 48px; flex: none; border-radius: 50%; background: ${cur.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px`">{{ cur.initials }}</span>
-<div style="flex: 1 1 200px; min-width: 0; display: flex; flex-direction: column"><strong style="font-family: 'Space Grotesk', sans-serif; font-size: 20px">{{ cur.name }}</strong><span style="font-size: 13px; color: #9DB0A6"><span :style="`color: ${cur.dotColor}`">●</span> {{ cur.subline }} · only you two can see this</span></div>
-<button :aria-expanded="dmPriv.open" @click="dmPriv.toggleOpen" :style="`height: 38px; padding: 0 14px; border-radius: 19px; border: 1px solid ${dmPriv.anyOn ? '#FFB86B' : '#2A3832'}; background: ${dmPriv.open ? '#2C3D34' : 'transparent'}; color: ${dmPriv.anyOn ? '#FFB86B' : '#E8EFEA'}; cursor: pointer`">Privacy</button>
-<button @click="voiceCall" style="height: 38px; padding: 0 14px; border-radius: 19px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">Voice call</button>
-<button @click="videoCall" style="height: 38px; padding: 0 14px; border-radius: 19px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer">Video call</button>
-<template v-if="fit === 'page'"><button @click="toFull" style="height: 38px; padding: 0 14px; border-radius: 19px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer">Full screen</button></template>
-<template v-if="fit !== 'page'"><button @click="toPage" style="height: 38px; padding: 0 14px; border-radius: 19px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer">Fit to page</button></template>
-<button @click="toDocked" style="height: 38px; padding: 0 14px; border-radius: 19px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer">Side panel</button>
-<button @click="toMin" style="height: 38px; padding: 0 14px; border-radius: 19px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer">Minimize</button>
-<button aria-label="Close chat" @click="toClosed" style="width: 38px; height: 38px; border-radius: 50%; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+<div style="max-width: 900px; margin: 0 auto; padding: 8px clamp(16px, 3vw, 32px); display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px">
+<span :style="`width: 34px; height: 34px; flex: none; border-radius: 50%; background: ${cur.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px`">{{ cur.initials }}</span>
+<div style="flex: 1 1 200px; min-width: 0; display: flex; flex-direction: column"><strong style="font-family: 'Space Grotesk', sans-serif; font-size: 17px">{{ cur.name }}</strong><span style="font-size: 13px; color: #9DB0A6"><span :style="`color: ${cur.dotColor}`">●</span> {{ cur.subline }} · only you two can see this</span></div>
+<button :aria-expanded="dmPriv.open" @click="dmPriv.toggleOpen" :style="`height: 34px; padding: 0 12px; border-radius: 19px; border: 1px solid ${dmPriv.anyOn ? '#FFB86B' : '#2A3832'}; background: ${dmPriv.open ? '#2C3D34' : 'transparent'}; color: ${dmPriv.anyOn ? '#FFB86B' : '#E8EFEA'}; cursor: pointer`">Privacy</button>
+<button @click="voiceCall" style="height: 34px; padding: 0 12px; border-radius: 19px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">Voice call</button>
+<button @click="videoCall" style="height: 34px; padding: 0 12px; border-radius: 19px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer">Video call</button>
+<template v-if="fit === 'page'"><button @click="toFull" style="height: 34px; padding: 0 12px; border-radius: 19px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer">Full screen</button></template>
+<template v-if="fit !== 'page'"><button @click="toPage" style="height: 34px; padding: 0 12px; border-radius: 19px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer">Fit to page</button></template>
+<button @click="toDocked" style="height: 34px; padding: 0 12px; border-radius: 19px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer">Side panel</button>
+<button @click="toMin" style="height: 34px; padding: 0 12px; border-radius: 19px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer">Minimize</button>
+<button aria-label="Close chat" @click="toClosed" style="width: 34px; height: 34px; border-radius: 50%; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
 </div>
 </div>
 <div style="max-width: 900px; width: 100%; margin: 0 auto; box-sizing: border-box"><DmPrivacy /></div>

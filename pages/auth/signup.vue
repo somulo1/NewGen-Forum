@@ -43,6 +43,7 @@ const submit = async () => {
     </fieldset>
     <span v-if="err" role="alert" style="color: #C0392B; font-size: 13px">{{ err }}</span>
     <button type="submit" style="height: 46px; border-radius: 23px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 700; font-size: 15px; cursor: pointer">Create account</button>
+    <span style="text-align: center; font-size: 12px; color: #6B7A72">By creating an account you accept the <NuxtLink to="/terms" target="_blank" style="color: #2F7A12">Terms</NuxtLink> and <NuxtLink to="/privacy" target="_blank" style="color: #2F7A12">Privacy Policy</NuxtLink>.</span>
     <span style="text-align: center; color: #55645C">Already have an account? <NuxtLink to="/login" style="color: #2F7A12; font-weight: 600">Sign in</NuxtLink></span>
   </form>
 </template>
