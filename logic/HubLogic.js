@@ -162,7 +162,7 @@ export class HubLogic extends DCLogic {
           ],
           activity: [{ text: 'Milestone "Control testing" missed its date', time: 'Yesterday' }, { text: 'Amina uploaded "Audit committee pack.pptx"', time: 'Yesterday' }] }
       ],
-      call: null, mic: true, cam: true, sharing: false, hand: false, rec: false, callPanel: null, callDraft: '',
+      call: null, callMode: 'docked', mic: true, cam: true, sharing: false, hand: false, rec: false, callPanel: null, callDraft: '',
       callMsgs: [{ who: 'Grace Njeri', text: 'Joining from the Coast branch. Can everyone hear me?' }, { who: 'Brian Kiprop', text: 'Loud and clear.' }],
       ticketOpen: null, escOpen: false, esc: { type: '', id: '', cat: '', person: '', why: '' }, tcomment: '', tagOpen: false, ntOpen: false, nt: { title: '', cat: 'Network & Wi-Fi', prio: 'Medium', desc: '' },
       notifs: [{ text: 'DEV-91 was handed over to Amina Wanjiru.', color: '#7CC4FF', time: '1 h ago', ticket: 'DEV-91' }],
@@ -387,18 +387,29 @@ export class HubLogic extends DCLogic {
     clearTimeout(this._toastT);
     this._toastT = setTimeout(() => this.setState({ toast: '' }), 3800);
   }
-  startCall(mode, title, initials, color, people, context) {
+  callBusy() {
+    if (!this.state.call) return false;
+    this.setState({ toast: 'You are already in a call. Leave "' + this.state.call.title + '" before starting another.', toastColor: '#FFB86B' });
+    clearTimeout(this._toastT);
+    this._toastT = setTimeout(() => this.setState({ toast: '' }), 3800);
+    return true;
+  }
+  startCall(mode, title, initials, color, people, context, ref) {
+    if (this.callBusy()) return;
     clearInterval(this._ct);
     this._ct = setInterval(() => this.forceUpdate(), 1000);
-    const newState = { call: { mode: mode, title: title, initials: initials, color: color, start: Date.now(), people: people || null, context: context || null }, personOpen: null, mic: true, cam: mode === 'video', sharing: false, hand: false, rec: false, callPanel: null, menu: false };
-    if (this.state.mode === 'min' && (context === 'dm' || context === 'forum')) {
-      newState.mode = 'docked';
-    }
-    this.setState(newState);
+    const ns = { call: { mode: mode, title: title, initials: initials, color: color, start: Date.now(), people: people || null, context: context || null, ref: ref || null }, callMode: 'docked', personOpen: null, mic: true, cam: mode === 'video', sharing: false, hand: false, rec: false, callPanel: null, menu: false };
+    if ((context === 'dm' || context === 'forum') && this.state.mode !== 'docked' && this.state.mode !== 'full') ns.mode = 'docked';
+    this.setState(ns);
+  }
+  startDmCall(kind, name, initials, color) {
+    if (this.callBusy()) return;
+    this.openDm(name);
+    this.startCall(kind, 'Private call with ' + name, initials, color, [name], 'dm', name);
   }
   endCall() {
     clearInterval(this._ct);
-    this.setState({ call: null });
+    this.setState({ call: null, callMode: 'docked' });
   }
   updTicket(id, fn) {
     this.setState((st) => ({ tickets: st.tickets.map((t) => (t.id === id ? fn(t) : t)) }));
@@ -636,7 +647,7 @@ export class HubLogic extends DCLogic {
     sections.forEach((k) => {
       const on = curSec === k;
       nav[k] = navBase + (on ? 'background:#22302A;color:#E8EFEA;font-weight:600' : 'background:transparent;color:#C9D6CF');
-      go[k] = set({ section: k, ticketOpen: null, projectOpen: null, folder: null, notifOpen: false, statusMenu: false });
+      go[k] = () => this.setState((x) => ({ callMode: x.callMode === 'full' ? 'docked' : x.callMode, section: k, ticketOpen: null, projectOpen: null, folder: null, notifOpen: false, statusMenu: false }));
       show[k] = on;
     });
     const tabs = ['discussions', 'sessions', 'members', 'files', 'about'];
@@ -1061,7 +1072,7 @@ export class HubLogic extends DCLogic {
       awards: has.awards ? s.awardList.filter((a) => a.status === 'Approved' && a.people.indexOf(po.name) !== -1).map((a) => ({ type: a.type, when: new Date(a.date + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }), citation: a.citation })) : [],
       hasAwards: has.awards && s.awardList.some((a) => a.status === 'Approved' && a.people.indexOf(po.name) !== -1),
       canMessage: has.chat,
-      voice: () => this.startCall('voice', 'Private call with ' + po.name, po.initials, po.color, [po.name], 'dm'), video: () => this.startCall('video', 'Private call with ' + po.name, po.initials, po.color, [po.name], 'dm') } : {};
+      voice: () => this.startDmCall('voice', po.name, po.initials, po.color), video: () => this.startDmCall('video', po.name, po.initials, po.color) } : {};
 
     // ---- Security & logs ----
     const ruleDefs = [
@@ -1618,7 +1629,7 @@ export class HubLogic extends DCLogic {
       cols: [{ label: 'Person', filter: 'text' }].concat(has.departments ? [{ label: 'Department', filter: 'select' }] : []).concat(has.sectors ? [{ label: 'Sector', filter: 'select' }] : []).concat(has.branches ? [{ label: 'Branch', filter: 'select' }] : []).concat(has.units ? [{ label: 'Unit', filter: 'select' }] : []).concat([{ label: 'Status', filter: 'select' }, { label: '', align: 'right' }]),
       rows: this.dir.map((p) => ({ cells: [C.p(p.name, { sub: p.title, dot: statusColP[p.status], fv: p.name })].concat(has.departments ? [C.t(p.dept)] : []).concat(has.sectors ? [C.t(p.sector)] : []).concat(has.branches ? [C.t(p.loc)] : []).concat(has.units ? [C.t(p.unit || '—', { fv: p.unit || 'No unit' })] : []).concat([
         C.b(p.status, statusColP[p.status]),
-        C.a((has.chat ? [{ label: 'Message', run: () => this.openDm(p.name) }, { label: 'Call', run: () => this.startCall('voice', 'Private call with ' + p.name, p.initials, p.color, [p.name]) }] : []).concat([{ label: 'Profile', kind: 'primary', run: () => this.setState({ personOpen: p.id }) }]))]) })) };
+        C.a((has.chat ? [{ label: 'Message', run: () => this.openDm(p.name) }, { label: 'Call', run: () => this.startDmCall('voice', p.name, p.initials, p.color) }] : []).concat([{ label: 'Profile', kind: 'primary', run: () => this.setState({ personOpen: p.id }) }]))]) })) };
     const peopleSummary = this.dir.length + ' people' + (has.departments ? ' in ' + O.departments.length + ' departments' : '') + (has.branches ? ' across ' + O.branches.length + ' branches' : '') + ' · ' + this.dir.filter((p) => p.status === 'Available').length + ' available now';
     const isoFromAgo = (m) => new Date(nowMs - m * 60000).toLocaleDateString('en-CA', tz9);
     const logsTable = { id: 'logs', pageSize: 12, minWidth: '1120px', emptyText: 'No log entries match.',
@@ -2056,6 +2067,20 @@ export class HubLogic extends DCLogic {
         chatStyle: ctl(s.callPanel === 'chat', false), peopleStyle: ctl(s.callPanel === 'people', false)
       };
     }
+    const panelCallMatch = !!s.call && ((s.call.context === 'dm' && isDM && curDm.with === s.call.ref) || (s.call.context === 'forum' && !isDM && cur.id === s.call.ref));
+    const isMeetingCall = !!s.call && !s.call.context;
+    const showMeetingFull = isMeetingCall && s.callMode === 'full' && s.mode !== 'full';
+    const showMeetingDock = isMeetingCall && s.callMode === 'docked' && s.mode !== 'full';
+    const showPanelCall = panelCallMatch && (s.mode === 'docked' || s.mode === 'full');
+    const showCallMini = !!s.call && !showMeetingFull && !showMeetingDock && !showPanelCall;
+    const callMiniStyle = 'position:fixed;z-index:60;right:' + (s.mode === 'docked' ? pw + 36 : 20) + 'px;bottom:' + (s.mode === 'min' ? 92 : 20) + 'px';
+    const restoreCall = () => {
+      const c = this.state.call;
+      if (!c) return;
+      if (!c.context) this.setState({ callMode: 'docked', mode: this.state.mode === 'full' ? 'docked' : this.state.mode });
+      else if (c.context === 'dm') this.openDm(c.ref);
+      else this.setState({ forum: c.ref, panelKind: 'forum', mode: this.state.mode === 'full' ? 'full' : 'docked', menu: false, tab: 'discussions' });
+    };
     const sendCall = () => {
       const t = this.state.callDraft.trim();
       if (!t) return;
@@ -2216,9 +2241,11 @@ export class HubLogic extends DCLogic {
         return items.map((t) => ({ ...t, hasDot: !!t.dot, dot: t.dot || 0, style: st(t.on) }));
       })(),
       startInstant: () => this.startCall('video', 'Instant meeting', 'S', '#F49AC1', []),
-      voiceCall: isDM ? () => this.startCall('voice', 'Private call with ' + curDm.with, dmView.initials, dmView.color, [curDm.with], 'dm') : () => this.startCall('voice', cur.name, cur.initials, cur.color, [], 'forum'),
-      videoCall: isDM ? () => this.startCall('video', 'Private call with ' + curDm.with, dmView.initials, dmView.color, [curDm.with], 'dm') : () => this.startCall('video', cur.name, cur.initials, cur.color, [], 'forum'),
+      voiceCall: isDM ? () => this.startCall('voice', 'Private call with ' + curDm.with, dmView.initials, dmView.color, [curDm.with], 'dm', curDm.with) : () => this.startCall('voice', cur.name, cur.initials, cur.color, [], 'forum', cur.id),
+      videoCall: isDM ? () => this.startCall('video', 'Private call with ' + curDm.with, dmView.initials, dmView.color, [curDm.with], 'dm', curDm.with) : () => this.startCall('video', cur.name, cur.initials, cur.color, [], 'forum', cur.id),
       endCall: () => this.endCall(),
+      showMeetingFull, showMeetingDock, showPanelCall, showCallMini, callMiniStyle, restoreCall,
+      callToFull: set({ callMode: 'full' }), callToDock: set({ callMode: 'docked' }), callToMin: set({ callMode: 'min' }),
       toggleMic: () => this.setState((st) => ({ mic: !st.mic })),
       toggleCam: () => this.setState((st) => ({ cam: !st.cam })),
       toggleShare: () => this.setState((st) => ({ sharing: !st.sharing })),

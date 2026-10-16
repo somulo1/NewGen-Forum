@@ -1,8 +1,8 @@
 <!-- Private chat in full screen -->
 <template><template v-if="isFullDm">
 <section aria-label="Private chat full screen" style="position: fixed; inset: 0; z-index: 40; background: #0F1714; display: flex; flex-direction: column; overflow: hidden">
-<CallScreen v-if="inCall" />
-<template v-if="!inCall" style="display: contents">
+<CallScreen variant="full" />
+<template v-if="!showPanelCall">
 <div style="flex: none; border-bottom: 1px solid #24322C; background: #0F1714">
 <div style="max-width: 900px; margin: 0 auto; padding: 14px clamp(16px, 3vw, 32px); display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
 <span :style="`width: 48px; height: 48px; flex: none; border-radius: 50%; background: ${cur.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px`">{{ cur.initials }}</span>
@@ -55,6 +55,6 @@ import CallScreen from '../overlays/CallScreen.vue';
 export default {
   name: 'PrivateChatFull',
   components: { CallScreen },
-  ...hubBindings(["attachForum","cur","emojiForumOpen","emojisForum","fKey","fdraft","inCall","isFullDm","onFDraft","sendForum","toClosed","toDocked","toMin","toggleEmojiForum","videoCall","voiceCall"])
+  ...hubBindings(["attachForum","cur","emojiForumOpen","emojisForum","fKey","fdraft","showPanelCall","isFullDm","onFDraft","sendForum","toClosed","toDocked","toMin","toggleEmojiForum","videoCall","voiceCall"])
 };
 </script>
