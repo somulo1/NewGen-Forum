@@ -1,0 +1,51 @@
+// HubLogic actions: ui. Mixed into HubLogic.prototype, so `this` is the HubLogic instance.
+export const uiActions = {
+  componentDidMount() { try { if (window.innerWidth <= 900 && this.state.mode === 'docked') this.setState({ mode: 'min' }); } catch (err) {} this.scrollChat(); this._tick = setInterval(() => this.forceUpdate(), 30000); },
+
+  componentWillUnmount() { clearInterval(this._tick); clearInterval(this._ct); clearTimeout(this._toastT); },
+
+  startDrag(e) {
+    e.preventDefault();
+    const startX = e.clientX, startW = this.state.pw;
+    const move = (ev) => {
+      const w = Math.min(640, Math.max(320, startW + (startX - ev.clientX)));
+      this.setState({ pw: w });
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      this.setState({ dragging: false });
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    this.setState({ dragging: true });
+  },
+
+  notify(text, color, ticket) {
+    this.setState((st) => ({ notifs: [{ text: text, color: color || '#B8F36B', time: 'Just now', ticket: ticket || null }].concat(st.notifs), notifSeen: false, toast: text, toastColor: color || '#B8F36B' }));
+    clearTimeout(this._toastT);
+    this._toastT = setTimeout(() => this.setState({ toast: '' }), 3800);
+  },
+
+  updTicket(id, fn) {
+    this.setState((st) => ({ tickets: st.tickets.map((t) => (t.id === id ? fn(t) : t)) }));
+  },
+
+  act(t, entry) {
+    return t.activity.concat([Object.assign({ who: 'Sam', time: 'Just now', kind: 'event' }, entry)]);
+  },
+
+  componentDidUpdate() { this.scrollChat(); },
+
+  scrollChat() {
+    if (this.chatEl && this._scrolledKey !== this._chatKey) {
+      this.chatEl.scrollTop = this.chatEl.scrollHeight;
+      this._scrolledKey = this._chatKey;
+    }
+  },
+
+  fmtSize(n) {
+    if (n > 1048576) return (n / 1048576).toFixed(1) + ' MB';
+    return Math.max(1, Math.round(n / 1024)) + ' KB';
+  }
+};

@@ -1,0 +1,31 @@
+// HubLogic actions: messaging. Mixed into HubLogic.prototype, so `this` is the HubLogic instance.
+export const messagingActions = {
+  postMsg(text, file) {
+    if (this.state.panelKind === 'dm' && this.state.dmId) this.addDmMsg(this.state.dmId, text, file);
+    else this.addForumMsg(this.state.forum, text, file);
+  },
+
+  addDmMsg(id, text, file) {
+    this.setState((st) => ({ dms: st.dms.map((d) => (d.id === id ? { ...d, msgs: d.msgs.concat([{ from: 'me', text: text, file: file, time: 'Just now' }]) } : d)) }));
+    if (!text) return;
+    const replies = ['Got it, thanks!', 'Sure, give me a minute.', 'Okay, I\'ll check and get back to you.', 'Thanks for the update.', 'Can we jump on a quick call?'];
+    clearTimeout(this._dmT);
+    this._dmT = setTimeout(() => {
+      this.setState((st) => ({ dms: st.dms.map((d) => (d.id === id ? { ...d, msgs: d.msgs.concat([{ from: d.with, text: replies[d.msgs.length % replies.length], time: 'Just now' }]) } : d)) }));
+    }, 2600);
+  },
+
+  openDm(name) {
+    if (!name || name === 'Samwel Okoth Omulo') return;
+    this.setState((st) => {
+      let conv = st.dms.find((d) => d.with === name);
+      const dms = conv ? st.dms.map((d) => (d.id === conv.id ? { ...d, unread: 0 } : d)) : [{ id: 'dm-' + Date.now(), with: name, unread: 0, msgs: [] }].concat(st.dms);
+      if (!conv) conv = dms[0];
+      return { dms: dms, dmId: conv.id, panelKind: 'dm', mode: st.mode === 'full' ? 'full' : 'docked', menu: false, personOpen: null, newDmOpen: false, dmq: '', fdraft: '' };
+    });
+  },
+
+  addForumMsg(fid, text, file) {
+    this.setState((st) => ({ added: { ...st.added, [fid]: [...(st.added[fid] || []), { who: 'Sam', initials: 'S', color: '#F49AC1', time: 'Just now', text: text, file: file, replies: 0 }] } }));
+  }
+};
