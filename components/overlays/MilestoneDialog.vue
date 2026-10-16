@@ -1,6 +1,6 @@
 <!-- Milestone dialog: create a milestone or a sprint, or close / reopen a milestone with a required comment -->
 <template><template v-if="msd.open">
-<div style="position: fixed; inset: 0; z-index: 70; background: rgba(5,10,8,0.6); display: flex; align-items: center; justify-content: center; padding: 16px">
+<div class="hub-overlay" style="position: fixed; inset: 0; z-index: 70; background: rgba(5,10,8,0.6); display: flex; align-items: center; justify-content: center; padding: 16px">
 <form role="dialog" aria-modal="true" novalidate :aria-label="msd.title" @submit.prevent="msd.submit" style="width: 520px; max-width: 100%; max-height: 100%; overflow-y: auto; padding: 22px; border-radius: 20px; background: #16201C; border: 1px solid #2A3832; display: flex; flex-direction: column; gap: 14px">
 <div style="display: flex; align-items: center; gap: 12px"><div style="flex: 1; min-width: 0"><h2 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 22px">{{ msd.title }}</h2><span style="font-size: 12px; color: #9DB0A6">{{ msd.projectName }}</span></div><button type="button" aria-label="Close" @click="msd.cancel" style="width: 36px; height: 36px; border-radius: 50%; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer">✕</button></div>
 

@@ -1,6 +1,6 @@
 <!-- Onboard people: one at a time, or many from a CSV. Structure fields follow the organization. -->
 <template><template v-if="onb.open">
-<div style="position: fixed; inset: 0; z-index: 70; background: rgba(5,10,8,0.6); display: flex; align-items: center; justify-content: center; padding: 16px">
+<div class="hub-overlay" style="position: fixed; inset: 0; z-index: 70; background: rgba(5,10,8,0.6); display: flex; align-items: center; justify-content: center; padding: 16px">
 <div role="dialog" aria-modal="true" aria-label="Onboard people" style="width: 720px; max-width: 100%; max-height: 100%; display: flex; flex-direction: column; border-radius: 20px; background: #16201C; border: 1px solid #2A3832; overflow: hidden">
 <div style="flex: none; display: flex; align-items: center; gap: 12px; padding: 18px 22px 0">
 <h2 style="flex: 1; margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 22px">Onboard people</h2>
