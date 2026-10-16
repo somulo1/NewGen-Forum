@@ -1,7 +1,7 @@
 <!-- Meetings & standups -->
 <template><template v-if="show.meetings">
 <template v-if="inCall && !callContext">
-<div style="width: 100%; min-height: 600px; display: flex; flex-direction: column; background: #0F1714">
+<div style="max-width: 1280px; height: 600px; display: flex; flex-direction: column; border-radius: 20px; background: #0F1714; border: 1px solid #24322C; overflow: hidden">
 <CallScreen />
 </div>
 </template>
