@@ -107,7 +107,7 @@ export function buildTickets(ctx) {
           labelStyle: 'font-weight:' + (now ? '700' : '500') + ';color:' + (done || now ? '#E8EFEA' : '#9DB0A6')
         };
       }),
-      activity: cur_t.activity.map((a) => ({ ...a, initials: ini(a.who), color: pColor[a.who] || '#9DB0A6', isEvent: a.kind === 'event', isComment: a.kind === 'comment', isFile: a.kind === 'file', meta: a.meta || '' }))
+      activity: cur_t.activity.map((a) => ({ ...a, initials: ini(a.who), color: pColor[a.who] || '#9DB0A6', isEvent: a.kind === 'event', isComment: a.kind === 'comment', isFile: a.kind === 'file', isImg: !!a.isImg, url: a.url || '', meta: a.meta || '' }))
     };
   }
   const tagNames = ['Brian Kiprop', 'David Otieno', 'Amina Wanjiru', 'Grace Njeri', 'Faith Achieng', 'Kevin Mutua'];
