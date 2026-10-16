@@ -36,8 +36,6 @@
 
 <WidgetSettingsDrawer />
 
-<CallScreen />
-
 <AppToast />
 
 <WidgetGallery />
