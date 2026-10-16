@@ -41,6 +41,8 @@
 
 <TaskDrawer />
 
+<MilestoneDialog />
+
 <WidgetSettingsDrawer />
 
 <CallMini />

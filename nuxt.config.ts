@@ -11,7 +11,8 @@ export default defineNuxtConfig({
     head: {
       title: 'Hub',
       htmlAttrs: { lang: 'en' },
-      meta: [{ name: 'viewport', content: 'width=device-width, initial-scale=1' }],
+      meta: [{ name: 'viewport', content: 'width=device-width, initial-scale=1' }, { name: 'color-scheme', content: 'dark' }, { name: 'theme-color', content: '#0F1714' }],
+      style: [{ innerHTML: 'html,body,#__nuxt{margin:0;background:#0F1714;color:#E8EFEA;color-scheme:dark}' }],
       link: [
         { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
         { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=DM+Sans:wght@400;500;600&display=swap' }

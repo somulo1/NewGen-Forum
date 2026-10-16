@@ -1,0 +1,41 @@
+// Values and handlers the templates read through hubBindings: access.
+export function valsAccess(ctx) {
+  const { addSkill, aw, awardStrip, awardsOn, cal, can, dir, ev, f8, flowById, flowsAll, has, makeRequest, me, openAlerts, openEv, pendingCount, po, psn, requestsShown, roleList, roleNames, roleSel, roleTab, s, sec, secTab, segS, set, setPf, td, tt } = ctx;
+  return {
+    canSecurity: can('security', 'View alerts') || can('security', 'View logs'),
+    canRoles: can('roles', 'View roles'),
+    canSeeAdmin: can('security', 'View alerts') || can('security', 'View logs') || can('roles', 'View roles'),
+    canCustomize: can('home', 'Customize home'),
+    canRaise: can('tickets', 'Raise'),
+    canCreateProject: can('projects', 'Create project'),
+    canPostWall: can('wall', 'Post'), cannotPostWall: !can('wall', 'Post'),
+    previewing: s.actingRole !== 'admin', actingRole: s.actingRole, actingRoleName: roleNames[s.actingRole] || s.actingRole,
+    setActingRole: (e) => { const v = e.target.value; this.setState({ actingRole: v }); if (v !== 'admin') this.notify('Previewing Hub as ' + (roleNames[v] || v) + '.', '#FFD66B'); },
+    exitPreview: set({ actingRole: 'admin' }),
+    dir, personOpen: !!po, psn, closePerson: set({ personOpen: null }),
+    taskOpen: !!tt, td, closeTask: set({ taskOpen: null }),
+    sec, secTab, hasOpenAlerts: openAlerts.length > 0, openAlertCount: String(openAlerts.length),
+    roleList, roleSel, roleTab, flowsAll,
+    rightsNeedApproval: !!(f8 && f8.levels > 0), rightsFlowLabel: f8 ? (f8.levels === 1 ? 'direct approval by ' + f8.approvers[0] : f8.levels + ' levels: ' + f8.approvers.slice(0, f8.levels).join(' → ')) : '',
+    assignRole: () => this.notify('Role assigned. The change was logged.', '#B8F36B'),
+    requests: requestsShown, noRequests: requestsShown.length === 0,
+    pendingApprovals: String(pendingCount), hasPendingApprovals: pendingCount > 0,
+    apTab: { waiting: segS(s.apTab === 'waiting'), all: segS(s.apTab === 'all'), waitingGo: set({ apTab: 'waiting' }), allGo: set({ apTab: 'all' }) },
+    requestProject: () => { const f = flowById('f2'); if (f && f.levels > 0) makeRequest('f2', 'New project: Untitled project', {}); else this.notify('Project created.', '#B8F36B'); },
+    me, profileBack: () => this.setState({ section: 'people' }),
+    toggleStatusMenu: () => this.setState((st) => ({ statusMenu: !st.statusMenu })),
+    startEditProfile: set({ profileEdit: true, statusMenu: false }),
+    cancelProfile: set({ profileEdit: false }),
+    saveProfile: () => { this.setState({ profileEdit: false }); this.notify('Profile updated.', '#B8F36B'); },
+    shareProfile: () => this.notify('Profile link copied. Paste it anywhere in Hub.', '#7CC4FF'),
+    onBio: (e) => setPf({ bio: e.target.value }),
+    onPhone: (e) => setPf({ phone: e.target.value }),
+    onNewSkill: (e) => this.setState({ newSkill: e.target.value }),
+    newSkillKey: (e) => { if (e.key === 'Enter') addSkill(); },
+    addSkill,
+    onPhoto: (e) => { const f = (e.target.files || [])[0]; e.target.value = ''; if (f) setPf({ photo: URL.createObjectURL(f) }); },
+    has, cal, ev, evOpen: s.evOpen,
+    awardsOn, awardStrip, aw, awOpen: s.awOpen, openAward: set({ awOpen: true }),
+    newEvent: () => openEv('Personal'), newMeeting: () => openEv('Meeting')
+  };
+}
