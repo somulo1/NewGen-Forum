@@ -2,7 +2,7 @@ import { LEVEL_LABEL, catsFor, levelsOf } from '~/logic/ticketRouting.js';
 
 // renderVals step: adminTables. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildAdminTables(ctx) {
-  const { C, O, can, agoLabel, defaultCats, deskTickets, myTickets, alertsAll, allLogs, chip, corePeople, f8, flowItem, fmtDay, has, modEnabled, modInfo, nowMs, rKey, requestsShown, rightOf, rightsDef, roleScope, ruleDefs, ruleOn, ruleSev, s, sec, sevColor, tickets, titleOf, toggleRight, tz9, visibleRoles } = ctx;
+  const { C, O, can, agoLabel, defaultCats, deskTickets, myTickets, alertsAll, alertsRange, logsRange, allLogs, chip, corePeople, f8, flowItem, fmtDay, has, modEnabled, modInfo, nowMs, rKey, requestsShown, rightOf, rightsDef, roleScope, ruleDefs, ruleOn, ruleSev, s, sec, sevColor, tickets, titleOf, toggleRight, tz9, visibleRoles } = ctx;
   // =============== Tables for existing pages ===============
   const prioColor = { High: '#FF9B8A', Medium: '#FFB86B', Low: '#9DB0A6' };
   const ticketCols = [{ label: 'ID', filter: 'text' }, { label: 'Title', filter: 'text' }];
@@ -30,7 +30,7 @@ export function buildAdminTables(ctx) {
   const isoFromAgo = (m) => new Date(nowMs - m * 60000).toLocaleDateString('en-CA', tz9);
   const logsTable = { id: 'logs', pageSize: 12, minWidth: '1120px', emptyText: 'No log entries match.',
     cols: [{ label: 'When', filter: 'date' }, { label: 'User', filter: 'text' }, { label: 'Action', filter: 'text' }, { label: 'Module', filter: 'select' }, { label: 'IP · Location', filter: 'text' }, { label: 'Result', filter: 'select' }, { label: 'Flag', filter: 'select' }, { label: '', align: 'right' }],
-    rows: allLogs.map((l) => {
+    rows: logsRange.map((l) => {
       const fl = !!(l.rule && ruleOn(l.rule)); const r = fl ? ruleDefs.find((x) => x.id === l.rule) : null; const c = fl ? sevColor[ruleSev(r)] : '';
       return { tint: fl ? c : '', cells: [C.t(l.ago === 0 ? 'Just now' : agoLabel(l.ago), { fv: isoFromAgo(l.ago), nowrap: true, mono: true }), C.t(l.user, { nowrap: true }), C.t(l.action), C.t(l.module), C.t(l.ip + ' · ' + l.loc, { nowrap: true }),
         C.b(l.result, l.result === 'Success' ? '#9DB0A6' : l.result === 'Failed' ? '#FF9B8A' : '#FFB86B'), fl ? C.b(r.name, c, { fv: 'Flagged: ' + r.name }) : C.t('—', { fv: 'Not flagged', color: '#4A5C54' }),
@@ -38,9 +38,9 @@ export function buildAdminTables(ctx) {
     }) };
   const alertsTable = { id: 'alerts', pageSize: 8, minWidth: '1100px', emptyText: 'No alerts. Rules that are switched off do not raise alerts.',
     cols: [{ label: 'ID', filter: 'text' }, { label: 'Severity', filter: 'select' }, { label: 'Alert', filter: 'text' }, { label: 'Rule', filter: 'select' }, { label: 'Raised', filter: 'date' }, { label: 'Status', filter: 'select' }, { label: '', align: 'right' }],
-    rows: alertsAll.map((a) => ({ tint: a.isOpen ? a.color : '', cells: [C.t(a.id, { mono: true, nowrap: true }), C.b(a.sev, a.color), C.t(a.title, { strong: true, sub: a.detail }), C.t(a.ruleName), C.t(a.when, { fv: isoFromAgo(a.ago), nowrap: true }),
+    rows: alertsRange.map((a) => ({ tint: a.isOpen ? a.color : '', cells: [C.t(a.id, { mono: true, nowrap: true }), C.b(a.sev, a.color), C.t(a.title, { strong: true, sub: a.detail + (a.lastNote ? ' · Latest comment: ' + a.lastNote.comment : '') }), C.t(a.ruleName), C.t(a.when, { fv: isoFromAgo(a.ago), nowrap: true }),
       C.b(a.status, a.status === 'Open' ? '#FF9B8A' : a.status === 'Investigating' ? '#FFB86B' : '#9DB0A6'),
-      C.a([{ label: 'Investigate', run: a.investigate, disabled: a.status === 'Investigating' }, { label: 'Resolve', kind: 'primary', run: a.resolve, disabled: !a.isOpen }, { label: 'False positive', run: a.falsePos, disabled: !a.isOpen }])] })) };
+      C.a((a.canInvestigate ? [{ label: 'Investigate', kind: 'primary', run: a.investigate }] : []).concat(a.canClose ? [{ label: 'Close', kind: 'primary', run: a.closeAlert }] : []).concat([{ label: 'History', run: a.history }]))] })) };
   const sevOpts = [{ v: 'High', l: 'High' }, { v: 'Medium', l: 'Medium' }, { v: 'Low', l: 'Low' }];
   const rulesTable = { id: 'rules', pageSize: 10, minWidth: '860px',
     cols: [{ label: 'Rule', filter: 'text' }, { label: 'Severity', filter: 'select' }, { label: 'Matches today' }, { label: 'On', filter: 'select', align: 'center' }],

@@ -55,6 +55,8 @@
 
 <CallMini />
 
+<AlertDialog />
+
 <FileViewer />
 
 <AppToast />
