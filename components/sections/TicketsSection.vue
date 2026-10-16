@@ -34,7 +34,7 @@
 
 <template v-if="showTicketView">
 <div style="width: 100%; display: flex; flex-direction: column; gap: 16px">
-<button @click="closeTicket" style="align-self: flex-start; height: 38px; padding: 0 14px; border-radius: 19px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer; display: flex; align-items: center; gap: 6px"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"></path></svg>All tickets</button>
+<button @click="closeTicket" style="align-self: flex-start; height: 38px; padding: 0 14px; border-radius: 19px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer; display: flex; align-items: center; gap: 6px"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"></path></svg>{{ ticketBackLabel }}</button>
 <div style="display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center">
 <span style="font-family: 'Space Grotesk', sans-serif; color: #9DB0A6; font-size: 15px">{{ tk.id }}</span>
 <h1 style="margin: 0; flex: 1 1 320px; font-family: 'Space Grotesk', sans-serif; font-size: 26px; letter-spacing: -0.02em; line-height: 1.2">{{ tk.title }}</h1>
@@ -71,15 +71,19 @@
 </template>
 
 <div style="border-top: 1px solid #24322C; padding-top: 14px; display: flex; flex-direction: column; gap: 10px">
-<template v-if="tagOpen">
+<template v-if="tk.closed"><div role="status" style="padding: 12px 14px; border-radius: 12px; background: #121B17; color: #9DB0A6; font-size: 14px">This ticket is closed. Status changes and comments are turned off.</div></template>
+<template v-if="tagOpen && !tk.closed">
 <div style="display: flex; flex-wrap: wrap; gap: 6px; align-items: center"><span style="font-size: 12px; color: #9DB0A6">Tag:</span><template v-for="(tp, tp__i) in tagPeople" :key="tp__i"><button @click="tp.tag" style="height: 32px; padding: 0 12px; border-radius: 16px; border: 1px solid #2A3832; background: #121B17; color: #E8EFEA; cursor: pointer; font-size: 13px">@{{ tp.name }}</button></template></div>
 </template>
+<template v-if="!tk.closed">
 <label><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Comment</span><textarea rows="3" :value="tcomment" @input="onTComment" placeholder="Write a comment. Use Tag to mention someone and notify them." style="width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 12px; border: 1px solid #2A3832; background: #121B17; color: #E8EFEA; font-size: 14px; resize: vertical"></textarea></label>
 <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center">
 <label style="position: relative; height: 38px; padding: 0 12px; border-radius: 10px; border: 1px solid #2A3832; color: #E8EFEA; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 13px"><input type="file" multiple="" aria-label="Attach files to ticket" @change="attachTicket" style="position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11.5l-8.2 8.2a5 5 0 0 1-7.1-7.1L13.2 4a3.4 3.4 0 0 1 4.8 4.8l-8.5 8.5a1.8 1.8 0 0 1-2.5-2.5L14.8 7"></path></svg>Attach file</label>
+<EmojiButton :size="38" shape="10px" @pick="pickEmojiTicket"/>
 <button @click="toggleTag" style="height: 38px; padding: 0 12px; border-radius: 10px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer; font-size: 13px">@ Tag someone</button>
 <button @click="postTComment" style="margin-left: auto; height: 38px; padding: 0 18px; border-radius: 10px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">Comment</button>
 </div>
+</template>
 </div>
 </div>
 </div>
@@ -101,7 +105,7 @@
 </template>
 <template v-if="tk.noHandler"><span style="font-size: 14px; color: #FFB86B">Not assigned yet</span></template>
 <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C9D6CF">{{ tk.handoverLabel }}
-<select :value="tk.handlerValue" @change="handover" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid #2A3832; background: #121B17; color: #E8EFEA; font-size: 14px">
+<select :value="tk.handlerValue" :disabled="tk.closed" @change="handover" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid #2A3832; background: #121B17; color: #E8EFEA; font-size: 14px">
 <option value="">Choose a person…</option>
 <option value="Sam">Me (Sam)</option>
 <option value="Brian Kiprop">Brian Kiprop · IT</option>
@@ -165,6 +169,6 @@ import { hubBindings } from '~/composables/useHub';
 
 export default {
   name: 'TicketsSection',
-  ...hubBindings(["attachTicket","canRaise","closeTicket","createTicket","esc","handover","has","nt","ntBtnStyle","ntCatSel","ntCats","ntTargets","ntOpen","ntPrios","ntSetDesc","ntAttach","ntRemoveFile","ntSetTitle","onTComment","postTComment","showTicketList","showTicketView","tagOpen","tagPeople","tcomment","myTicketStats","ticketStats","tickets","ticketsTable","tk","toggleNewTicket","toggleTag"])
+  ...hubBindings(["ticketBackLabel","pickEmojiTicket","attachTicket","canRaise","closeTicket","createTicket","esc","handover","has","nt","ntBtnStyle","ntCatSel","ntCats","ntTargets","ntOpen","ntPrios","ntSetDesc","ntAttach","ntRemoveFile","ntSetTitle","onTComment","postTComment","showTicketList","showTicketView","tagOpen","tagPeople","tcomment","myTicketStats","ticketStats","tickets","ticketsTable","tk","toggleNewTicket","toggleTag"])
 };
 </script>

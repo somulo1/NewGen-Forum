@@ -42,7 +42,7 @@ export function buildTickets(ctx) {
     const c = calc(t);
     const to = recipientOf(t, this.org, has);
     return { ...t, to, toLabel: recipientLabel(to), isMine: t.raisedBy === 'Sam', prioStyle: prio(t.prio), statusLabel: t.step === 2 && t.hold ? 'On hold' : stepNames[t.step], slaLabel: c.sla, slaBadgeStyle: badge(c.color), remainingLabel: c.remainingLabel, handlerLabel: t.handler || 'Unassigned',
-      open: () => this.setState({ ticketOpen: t.id, tagOpen: false, tcomment: '' }), _c: c };
+      open: () => this.setState({ ticketOpen: t.id, ticketFrom: null, tagOpen: false, tcomment: '' }), _c: c };
   });
   const nOpen = tickets.filter((t) => t.step < 3).length;
   const nOver = tickets.filter((t) => t._c.sla === 'Overdue').length;
@@ -81,7 +81,6 @@ export function buildTickets(ctx) {
       actions.push({ label: 'Close ticket', style: primary, run: () => setStep(4, 'Closed the ticket') });
       actions.push({ label: 'Reopen', style: secondary, run: () => setStep(2, 'Reopened the ticket') });
     }
-    if (cur_t.step === 4) actions.push({ label: 'Reopen', style: secondary, run: () => setStep(2, 'Reopened the ticket') });
     const pauses = [ts.pause.weekends && 'weekends', ts.pause.holidays && 'public holidays', ts.pause.offhours && ('outside ' + ts.start + '–' + ts.end), ts.pause.onhold && 'on-hold time', ts.pause.awaiting && 'waiting for the requester'].filter(Boolean);
     tk = {
       ...cur_t,
@@ -96,7 +95,7 @@ export function buildTickets(ctx) {
       handoverLabel: cur_t.handler ? 'Hand over to' : 'Assign to',
       wasEscalated: !!cur_t.escalatedTo, escalatedToLabel: cur_t.escalatedTo || '',
       assignees: cur_t.assignees.map((n) => ({ name: n, initials: ini(n), color: pColor[n] || '#9DB0A6' })),
-      actions: actions, noActions: actions.length === 0,
+      closed: cur_t.step === 4, actions: actions, noActions: actions.length === 0 && cur_t.step !== 4,
       steps: stepNames.map((label, i) => {
         const done = i < cur_t.step, now = i === cur_t.step;
         const notes = [cur_t.created, cur_t.handler ? 'To ' + cur_t.handler : 'Waiting for someone', cur_t.step === 2 && cur_t.hold ? 'On hold' : (cur_t.step >= 2 ? 'Work started' : ''), cur_t.step >= 3 ? (cur_t.late ? 'After the TAT' : 'Within the TAT') : 'TAT ' + tatText(cur_t.cat), cur_t.step === 4 ? 'Done' : ''];
@@ -117,7 +116,7 @@ export function buildTickets(ctx) {
     if (t._c.sla === 'Overdue' && ts.notify.overdue) autoNotifs.push({ text: t.id + ' is overdue by ' + fmtH(-t._c.rem) + '. Escalated to ' + ts.escalate + '.', color: '#FF9B8A', time: 'Now', ticket: t.id });
     if (t._c.sla === 'Due soon' && ts.notify.nearing) autoNotifs.push({ text: t.id + ' is due soon: ' + fmtH(t._c.rem) + ' left on its TAT.', color: '#FFB86B', time: 'Now', ticket: t.id });
   });
-  const notifList = autoNotifs.concat(s.notifs).map((n) => ({ ...n, open: () => this.setState({ notifOpen: false, section: n.ticket ? 'tickets' : this.state.section, ticketOpen: n.ticket || this.state.ticketOpen }) }));
+  const notifList = autoNotifs.concat(s.notifs).map((n) => ({ ...n, open: n.url ? () => { if (typeof window !== 'undefined') { const w = window.open(n.url, '_blank'); if (w) w.opener = null; } this.setState({ notifOpen: false }); } : () => this.setState({ ticketFrom: null, notifOpen: false, section: n.ticket ? 'tickets' : this.state.section, ticketOpen: n.ticket || this.state.ticketOpen }) }));
   const chip = (on) => 'height:36px;padding:0 14px;border-radius:18px;cursor:pointer;font-size:13px;' + (on ? 'border:1px solid #B8F36B;background:#2C3D34;color:#E8EFEA;font-weight:600' : 'border:1px solid #2A3832;background:#121B17;color:#C9D6CF');
   const ntCats = ts.cats.map((c) => ({ label: c.name + ' · ' + tatText(c.name), pick: () => this.setState((st) => ({ nt: { ...st.nt, cat: c.name } })), style: chip(s.nt.cat === c.name) }));
   const ntPrios = ['High', 'Medium', 'Low'].map((p) => ({ label: p, pick: () => this.setState((st) => ({ nt: { ...st.nt, prio: p } })), style: chip(s.nt.prio === p) }));

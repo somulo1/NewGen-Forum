@@ -5,11 +5,22 @@ export const uiActions = {
 
   componentWillUnmount() { clearInterval(this._tick); clearInterval(this._ct); clearInterval(this._pollT); clearTimeout(this._toastT); clearTimeout(this._incT); },
 
+  // Widest the docked chat panel may be. On the Community wall it stops before it would push the wall's
+  // right-hand cards out: wall column (460) + gap (24) + cards (250), the page padding, the sidebar and the panel's margin.
+  panelMax() {
+    const base = 640;
+    if (this.state.section !== 'feed' || typeof window === 'undefined') return base;
+    const w = window.innerWidth;
+    if (w <= 900) return base;
+    const pad = Math.min(40, Math.max(16, w * 0.03)) + Math.min(8, Math.max(4, w * 0.005));
+    return Math.max(320, Math.min(base, w - 240 - 24 - pad - 734));
+  },
+
   startDrag(e) {
     e.preventDefault();
     const startX = e.clientX, startW = this.state.pw;
     const move = (ev) => {
-      const w = Math.min(640, Math.max(320, startW + (startX - ev.clientX)));
+      const w = Math.min(this.panelMax(), Math.max(320, startW + (startX - ev.clientX)));
       this.setState({ pw: w });
     };
     const up = () => {

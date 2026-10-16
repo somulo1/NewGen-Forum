@@ -42,6 +42,7 @@
 <span style="position: absolute; left: 10px; bottom: 10px; height: 28px; padding: 0 10px; border-radius: 14px; background: rgba(10,16,13,0.75); font-size: 12px; display: flex; align-items: center; gap: 6px">{{ tl.name }}<template v-if="tl.muted"><svg aria-label="Muted" role="img" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#FF9B8A" stroke-width="2" stroke-linecap="round"><path d="M9 9v2a3 3 0 0 0 5 2.2M15 10V5a3 3 0 0 0-6 0M5 11a7 7 0 0 0 11.5 5.3M19 11a7 7 0 0 1-.5 2.5M12 18v3M3 3l18 18"></path></svg></template></span>
 <template v-if="tl.hand"><span style="position: absolute; top: 10px; left: 10px; height: 28px; padding: 0 10px; border-radius: 14px; background: #FFD66B; color: #0F1714; font-size: 12px; font-weight: 700; display: flex; align-items: center">Hand raised</span></template>
 <template v-if="tl.speaking"><span style="position: absolute; top: 10px; right: 10px; font-size: 11px; font-weight: 600; color: #B8F36B">Speaking</span></template>
+<template v-if="tl.mod"><span style="position: absolute; right: 8px; bottom: 8px"><ModControls :tile="tl"/></span></template>
 </div>
 </template>
 </div>
@@ -57,6 +58,7 @@
 <span class="cs-voice" :style="tl.voiceStyle">{{ tl.initials }}</span>
 <span style="font-size: 14px; display: flex; align-items: center; gap: 6px">{{ tl.name }}<template v-if="tl.muted"><svg aria-label="Muted" role="img" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#FF9B8A" stroke-width="2" stroke-linecap="round"><path d="M9 9v2a3 3 0 0 0 5 2.2M15 10V5a3 3 0 0 0-6 0M5 11a7 7 0 0 0 11.5 5.3M19 11a7 7 0 0 1-.5 2.5M12 18v3M3 3l18 18"></path></svg></template></span>
 <template v-if="tl.hand"><span style="font-size: 11px; font-weight: 700; color: #FFD66B">Hand raised</span></template>
+<template v-if="tl.mod"><ModControls :tile="tl"/></template>
 </div>
 </template>
 </div>
@@ -69,7 +71,7 @@
 <div style="flex: none; display: flex; align-items: center; padding: 14px 16px; border-bottom: 1px solid #24322C"><strong style="flex: 1">{{ call.panelTitle }}</strong><button aria-label="Close panel" @click="closeCallPanel" style="width: 34px; height: 34px; border-radius: 50%; border: 0; background: transparent; color: #E8EFEA; cursor: pointer; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></div>
 <template v-if="call.showPeople">
 <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px">
-<template v-for="(tl, tl__i) in call.tiles" :key="tl__i"><div style="display: flex; gap: 10px; align-items: center"><span :style="`width: 34px; height: 34px; border-radius: 50%; background: ${tl.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px`">{{ tl.initials }}</span><span style="flex: 1; font-size: 14px">{{ tl.name }}</span><span style="font-size: 12px; color: #9DB0A6">{{ tl.stateLabel }}</span></div></template>
+<template v-for="(tl, tl__i) in call.tiles" :key="tl__i"><div style="display: flex; gap: 10px; align-items: center"><span :style="`width: 34px; height: 34px; border-radius: 50%; background: ${tl.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px`">{{ tl.initials }}</span><span style="flex: 1; font-size: 14px">{{ tl.name }}</span><template v-if="tl.mod"><ModControls :tile="tl"/></template><span style="font-size: 12px; color: #9DB0A6">{{ tl.stateLabel }}</span></div></template>
 <button style="margin-top: 6px; height: 38px; border-radius: 10px; border: 1px dashed #4A5C54; background: transparent; color: #E8EFEA; cursor: pointer">Invite people</button>
 </div>
 </template>
@@ -77,7 +79,7 @@
 <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px">
 <template v-for="(cm, cm__i) in call.msgs" :key="cm__i"><div style="display: flex; flex-direction: column; gap: 2px"><strong style="font-size: 12px">{{ cm.who }}</strong><span style="font-size: 14px; line-height: 1.4; padding: 8px 10px; border-radius: 4px 12px 12px 12px; background: #1F2C26">{{ cm.text }}</span></div></template>
 </div>
-<div style="flex: none; display: flex; gap: 8px; padding: 10px 12px; border-top: 1px solid #24322C"><label style="flex: 1; min-width: 0"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Message everyone</span><input type="text" :value="call.draft" @input="onCallDraft" @keydown="callKey" placeholder="Message everyone" style="width: 100%; box-sizing: border-box; height: 40px; padding: 0 12px; border-radius: 20px; border: 1px solid #2A3832; background: #121B17; color: #E8EFEA"></label><button aria-label="Send" @click="sendCallMsg" style="width: 40px; height: 40px; border-radius: 50%; border: 0; background: #B8F36B; color: #0F1714; cursor: pointer; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 12l16-8-6 16-3-7z"></path></svg></button></div>
+<div style="flex: none; display: flex; gap: 8px; align-items: center; padding: 10px 12px; border-top: 1px solid #24322C"><EmojiButton :size="38" @pick="pickEmojiCall"/><label style="flex: 1; min-width: 0"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Message everyone</span><input type="text" :value="call.draft" @input="onCallDraft" @keydown="callKey" placeholder="Message everyone" style="width: 100%; box-sizing: border-box; height: 40px; padding: 0 12px; border-radius: 20px; border: 1px solid #2A3832; background: #121B17; color: #E8EFEA"></label><button aria-label="Send" @click="sendCallMsg" style="width: 40px; height: 40px; border-radius: 50%; border: 0; background: #B8F36B; color: #0F1714; cursor: pointer; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 12l16-8-6 16-3-7z"></path></svg></button></div>
 </template>
 </aside>
 </template>
@@ -104,13 +106,13 @@ export default {
   name: 'CallScreen',
   props: { variant: { type: String, default: 'main' }, fit: { type: String, default: 'screen' } },
   computed: {
-    ...hubBindings(["call","callKey","closeCallPanel","endCall","onCallDraft","openCallChat","openCallPeople","sendCallMsg","gripStyle","panelStyle","resizeKey","showMeetingDock","showMeetingFull","showPanelCall","startDrag","callToDock","callToFull","callToMin","toDocked","toFull","toMin","toPage","toggleCam","toggleHand","toggleMic","toggleRec","toggleShare"]).computed,
+    ...hubBindings(["pickEmojiCall","call","callKey","closeCallPanel","endCall","onCallDraft","openCallChat","openCallPeople","sendCallMsg","gripStyle","panelStyle","resizeKey","showMeetingDock","showMeetingFull","showPanelCall","startDrag","callToDock","callToFull","callToMin","toDocked","toFull","toMin","toPage","toggleCam","toggleHand","toggleMic","toggleRec","toggleShare"]).computed,
     visible() { return this.variant === 'main' ? !!this.showMeetingFull : this.variant === 'dock' ? !!this.showMeetingDock : !!this.showPanelCall; },
     compact() { return this.variant === 'panel' || this.variant === 'dock'; },
     winBtn() { return 'width: 34px; height: 34px; border-radius: 50%; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer; display: flex; align-items: center; justify-content: center; flex: none'; },
     rootStyle() {
       const base = 'background: #0A100D; color: #E8EFEA; display: flex; flex-direction: column; overflow: hidden; box-sizing: border-box; z-index: 30; position: absolute;';
-      if (this.variant === 'main') return base + ' inset: 12px; border-radius: 22px; border: 1px solid #2A3832; box-shadow: 0 12px 36px rgba(0,0,0,0.35)';
+      if (this.variant === 'main') return base + ' inset: 24px 12px 12px 12px; border-radius: 22px; border: 1px solid #2A3832; box-shadow: 0 12px 36px rgba(0,0,0,0.35)';
       if (this.variant === 'dock') return this.panelStyle + ';background: #0A100D;color: #E8EFEA';
       return base + ' inset: 0; border-radius: inherit';
     },

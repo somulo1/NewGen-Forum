@@ -152,7 +152,7 @@
 </div>
 </template>
 </div>
-<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px"><button @click="w.startMeeting" style="height: 38px; border-radius: 10px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">Start a meeting</button><button @click="w.goMeetings" style="height: 38px; border-radius: 10px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer">Schedule</button></div>
+<div style="display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px"><button @click="w.goMeetings" style="height: 38px; border-radius: 10px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">Schedule a meeting</button></div>
 </template>
 
 <template v-if="w.t.awards">
@@ -273,7 +273,7 @@
 <template v-if="w.t.calendar">
 <div style="display: flex; flex-direction: column; gap: 8px">
 <template v-for="(ce, ce__i) in w.items" :key="ce__i">
-<div :style="`display: flex; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 10px; background: #121B17; border-left: 3px solid ${ce.color}`">
+<div :style="`display: flex; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 10px; background: #121B17; border: 1px solid ${ce.color}`">
 <div style="width: 52px; flex: none; display: flex; flex-direction: column"><span style="font-size: 11px; color: #9DB0A6">{{ ce.day }}</span><span style="font-family: 'Space Grotesk', sans-serif; font-size: 13px">{{ ce.time }}</span></div>
 <div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><strong style="font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ ce.title }}</strong><span style="font-size: 11px; color: #9DB0A6">{{ ce.type }}{{ ce.peopleLabel }}</span></div>
 </div>

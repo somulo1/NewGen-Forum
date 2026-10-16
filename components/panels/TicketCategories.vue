@@ -1,5 +1,15 @@
 <!-- Ticket categories a unit attends to, as one compact table: TAT, priority and the people who always solve them -->
 <template><template v-if="catMgr.active">
+<template v-if="catMgr.threshold.show">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 14px 16px; margin-bottom: 14px; border-radius: 14px; background: #16201C; border: 1px solid #24322C">
+<div style="flex: 1 1 240px; min-width: 0; display: flex; flex-direction: column; gap: 2px"><strong style="font-size: 15px">Performance threshold</strong><span style="font-size: 13px; color: #9DB0A6">{{ catMgr.threshold.note }}</span></div>
+<label style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: #C9D6CF">Target<input type="number" min="50" max="100" :value="catMgr.threshold.value" :disabled="!catMgr.threshold.canEdit" @input="catMgr.threshold.onInput" aria-label="Performance threshold in percent" style="width: 76px; height: 38px; padding: 0 10px; border-radius: 10px; border: 1px solid #2A3832; background: #121B17; color: #E8EFEA; font-size: 14px">%</label>
+<template v-if="catMgr.threshold.canEdit"><span :style="`font-size: 12px; color: ${catMgr.threshold.dirty ? '#FFB86B' : '#9DB0A6'}`">{{ catMgr.threshold.dirty ? 'Unsaved changes' : 'All saved' }}</span>
+<button :disabled="!catMgr.threshold.dirty" @click="catMgr.threshold.discard" style="height: 38px; padding: 0 14px; border-radius: 19px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer; font-size: 13px">Discard</button>
+<button :disabled="!catMgr.threshold.dirty" @click="catMgr.threshold.save" :style="`height: 38px; padding: 0 18px; border-radius: 19px; border: 0; font-weight: 600; font-size: 13px; cursor: ${catMgr.threshold.dirty ? 'pointer' : 'default'}; background: ${catMgr.threshold.dirty ? '#B8F36B' : '#2A3832'}; color: ${catMgr.threshold.dirty ? '#0F1714' : '#9DB0A6'}`">Save changes</button></template>
+<template v-else><span style="font-size: 12px; color: #9DB0A6">Only people who can set up ticket categories can change it.</span></template>
+</div>
+</template>
 <div style="display: flex; flex-direction: column; gap: 10px">
 <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px">
 <div style="flex: 1 1 320px; display: flex; flex-direction: column; gap: 2px"><strong style="font-size: 15px">{{ catMgr.title }}</strong><span style="font-size: 12px; color: #9DB0A6">{{ catMgr.note }}</span></div>

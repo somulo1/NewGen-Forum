@@ -1,3 +1,4 @@
+import { shareUrl } from '~/logic/shareOut.js';
 // renderVals step: roles. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildRoles(ctx) {
   const { badge, flowById, ini, modInfo, pColor, rKey, rightOf, rightsDef, roleDefs, s, set, tabS, toggleRight } = ctx;
@@ -69,7 +70,12 @@ export function buildRoles(ctx) {
             out.comms = st.comms.map((c) => (c.id === rq.commId ? { ...c, status: 'Published', read: 0 } : c));
             if (cmItem && cmItem.to.indexOf('Community wall') !== -1) out.posts = [{ id: Date.now(), author: cmItem.by === 'Samwel Okoth Omulo' ? 'Sam' : cmItem.by, initials: cmItem.by === 'Samwel Okoth Omulo' ? 'S' : ini(cmItem.by), color: '#F49AC1', meta: cmItem.type + ' · Just now', text: cmItem.title + '\n' + cmItem.body, likes: 0, extra: 0, shares: 0, comments: [] }].concat(st.posts);
           }
-          if (rq.kind === 'share') { out.shareCount = { ...st.shareCount, [rq.postId]: (st.shareCount[rq.postId] || 0) + 1 }; out.shareNote = { ...st.shareNote, [rq.postId]: 'Approved and shared to ' + rq.app + ' with the image and text.' }; }
+          if (rq.kind === 'share') {
+            const sp = st.posts.find((q) => q.id === rq.postId);
+            out.shareCount = { ...st.shareCount, [rq.postId]: (st.shareCount[rq.postId] || 0) + 1 };
+            out.shareNote = { ...st.shareNote, [rq.postId]: 'Approved. Open ' + rq.app + ' from your notifications to post it.' };
+            if (sp) out.notifs = [{ text: 'Approved: your post can go to ' + rq.app + '. Tap to open it with the full post.', color: '#B8F36B', time: 'Just now', ticket: null, url: shareUrl(rq.app, sp, []) }].concat(st.notifs);
+          }
           return out;
         });
         if (rq.kind === 'award') {

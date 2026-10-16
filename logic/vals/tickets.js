@@ -22,13 +22,14 @@ export function valsTickets(ctx) {
     showDeskList: s.section === 'ticketdesk' && ticketDeskOk && !cur_t,
     ticketDeskOk,
     showTicketView: (s.section === 'tickets' || s.section === 'ticketdesk') && !!cur_t,
-    closeTicket: set({ ticketOpen: null }),
+    closeTicket: () => { const from = this.state.ticketFrom; if (from) this.setState({ ticketOpen: null, ticketFrom: null, section: 'orgunit', ou: from.ou, ouTab: from.tab, ouItem: null }); else this.setState({ ticketOpen: null }); },
+    ticketBackLabel: s.ticketFrom ? '‹ Back to ' + s.ticketFrom.label : 'All tickets',
     esc, tcomment: s.tcomment, tagOpen: s.tagOpen,
     onTComment: (e) => this.setState({ tcomment: e.target.value }),
     toggleTag: () => this.setState((st) => ({ tagOpen: !st.tagOpen })),
     postTComment: () => {
       const text = this.state.tcomment.trim();
-      if (!text || !cur_t) return;
+      if (!text || !cur_t || cur_t.step === 4) return;
       const tagged = tagNames.filter((n) => text.indexOf('@' + n) !== -1);
       this.updTicket(cur_t.id, (t) => Object.assign({}, t, { activity: this.act(t, { kind: 'comment', text: text }) }));
       this.setState({ tcomment: '', tagOpen: false });

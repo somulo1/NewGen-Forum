@@ -1,10 +1,10 @@
 <!-- Files of one post, fitted to the card: one file fills it, several tile together like a collage. Click opens the viewer. -->
 <template>
-<div style="display: flex; flex-direction: column; gap: 6px; min-width: 0">
+<div :style="framed ? 'display: flex; flex-direction: column; gap: 4px; min-width: 0; max-width: 100%; padding: 3px; border-radius: 14px; border: 1px solid #2A3832; background: #0F1714' : 'display: flex; flex-direction: column; gap: 6px; min-width: 0'">
 <template v-if="visual.length === 1">
 <button type="button" @click="open(visual[0])" :aria-label="`Open ${visual[0].name}`" style="position: relative; display: block; width: 100%; padding: 0; border: 0; background: #0F1714; cursor: zoom-in; overflow: hidden; border-radius: 12px">
-<img v-if="visual[0].isImg" :src="visual[0].url" :alt="visual[0].name" style="display: block; width: 100%; max-height: 460px; object-fit: contain">
-<template v-else><video :src="visual[0].url" preload="metadata" muted playsinline style="display: block; width: 100%; max-height: 460px; background: #000"></video><span class="mc-play" aria-hidden="true">▶</span></template>
+<img v-if="visual[0].isImg" :src="visual[0].url" :alt="visual[0].name" :style="`display: block; width: 100%; max-height: ${maxH}px; object-fit: contain`">
+<template v-else><video :src="visual[0].url" preload="metadata" muted playsinline :style="`display: block; width: 100%; max-height: ${maxH}px; background: #000`"></video><span class="mc-play" aria-hidden="true">▶</span></template>
 </button>
 </template>
 <div v-else-if="visual.length > 1" :style="gridStyle">
@@ -24,7 +24,7 @@
 <script>
 export default {
   name: 'MediaCollage',
-  props: { files: { type: Array, default: () => [] } },
+  props: { files: { type: Array, default: () => [] }, framed: Boolean, maxH: { type: Number, default: 460 }, row: { type: Number, default: 170 } },
   setup() { return { viewer: useState('fileViewer', () => null) }; },
   computed: {
     visual() { return this.files.filter((m) => m.isImg || m.isVideo); },
@@ -33,7 +33,8 @@ export default {
     gridStyle() {
       const n = this.visual.length;
       const cols = n === 5 ? 'repeat(6, 1fr)' : '1fr 1fr';
-      const rows = n === 2 ? '240px' : n === 3 ? '170px 170px' : n === 4 ? '170px 170px' : '210px 150px';
+      const r = this.row;
+      const rows = n === 2 ? (r + 40) + 'px' : n === 5 ? (r + 40) + 'px ' + (r - 20) + 'px' : r + 'px ' + r + 'px';
       return `display: grid; gap: 4px; grid-template-columns: ${cols}; grid-template-rows: ${rows}`;
     }
   },

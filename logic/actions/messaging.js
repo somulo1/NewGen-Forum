@@ -30,7 +30,7 @@ export const messagingActions = {
     });
   },
 
-  addForumMsg(fid, text, file, replyTo) {
-    this.setState((st) => ({ added: { ...st.added, [fid]: [...(st.added[fid] || []), { who: 'Sam', initials: 'S', color: '#F49AC1', time: 'Just now', text: text, file: file, replyTo: replyTo || null, replies: 0 }] } }));
+  addForumMsg(fid, text, file, replyTo, shared) {
+    this.setState((st) => ({ added: { ...st.added, [fid]: [...(st.added[fid] || []), { who: 'Sam', initials: 'S', color: '#F49AC1', time: 'Just now', text: text, file: file, replyTo: replyTo || null, shared: shared || null, replies: 0 }] } }));
   }
 };

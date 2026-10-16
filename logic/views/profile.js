@@ -39,7 +39,7 @@ export function buildProfile(ctx) {
     statuses: statusDefs.map((x) => ({ ...x, pick: () => this.setState((st) => ({ statusMenu: false, profile: { ...st.profile, status: x.label } })) })),
     photo: pf.photo, hasPhoto: !!pf.photo, noPhoto: !pf.photo,
     editing: s.profileEdit, notEditing: !s.profileEdit,
-    coverStyle: 'position:relative;height:190px;background:' + pf.cover + ';overflow:hidden',
+    coverStyle: 'position:relative;height:190px;background:' + pf.cover + ';overflow:hidden;border-radius:21px 21px 0 0',
     covers: [['#1F3A2B', 'Forest'], ['#1E3347', 'Ocean'], ['#3A2433', 'Plum'], ['#3D3320', 'Sand']].map(([c, label]) => ({ label: label + ' cover', pick: () => setPf({ cover: c }),
       style: 'width:26px;height:26px;border-radius:50%;cursor:pointer;background:' + c + ';border:2px solid ' + (pf.cover === c ? '#E8EFEA' : 'rgba(255,255,255,0.25)') })),
     complete, completeTip: tip, completeBar: 'height:100%;width:' + complete + '%;background:' + (complete === 100 ? '#B8F36B' : '#FFB86B') + ';border-radius:3px',

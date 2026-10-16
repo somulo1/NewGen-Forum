@@ -1,6 +1,6 @@
 // Values and handlers the templates read through hubBindings: home.
 export function valsHome(ctx) {
-  const { canPost, curView, emojisForum, emojisWall, files, forums, ftab, gallery, go, ids, moments, nav, people, posts, s, sessions, set, show, tab, tabTo, tickets, wfiles, widgets } = ctx;
+  const { canPost, curView, files, forums, ftab, gallery, go, ids, moments, nav, people, posts, s, sessions, set, show, tab, tabTo, tickets, wfiles, widgets } = ctx;
   return {
     widgets, gallery,
     noWidgets: ids.length === 0,
@@ -16,12 +16,12 @@ export function valsHome(ctx) {
     customizeLabel: s.customize ? 'Done' : 'Customize',
     customizeBtnStyle: 'height:40px;padding:0 18px;border-radius:20px;font-weight:600;cursor:pointer;' + (s.customize ? 'border:0;background:#E8EFEA;color:#0F1714' : 'border:1px solid #2A3832;background:transparent;color:#E8EFEA'),
     forums, cur: curView, nav, go, show, tab, tabTo, ftab, posts, sessions, tickets, files, people, moments,
-    emojisForum, emojisWall, wfiles,
+    wfiles,
     hasWFiles: s.wfiles.length > 0,
-    emojiForumOpen: s.emojiF,
-    emojiWallOpen: s.emojiW,
-    toggleEmojiForum: () => this.setState((st) => ({ emojiF: !st.emojiF })),
-    toggleEmojiWall: () => this.setState((st) => ({ emojiW: !st.emojiW })),
+    pickEmojiForum: (ch) => this.setState((st) => ({ fdraft: st.fdraft + ch })),
+    pickEmojiWall: (ch) => this.setState((st) => ({ draft: st.draft + ch })),
+    pickEmojiTicket: (ch) => this.setState((st) => ({ tcomment: st.tcomment + ch })),
+    pickEmojiCall: (ch) => this.setState((st) => ({ callDraft: st.callDraft + ch })),
     chatRef: (el) => { this.chatEl = el; },
     fdraft: s.fdraft,
     onFDraft: (e) => this.setState({ fdraft: e.target.value }),

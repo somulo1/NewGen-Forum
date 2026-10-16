@@ -15,19 +15,24 @@ export function buildCallState(ctx) {
       { name: 'Amina Wanjiru', initials: 'AW', color: '#6EE7C8', bg: '#16332B', camBg: '#1F4A3E', muted: true, camOn: false },
       { name: 'Faith Achieng', initials: 'FA', color: '#B8F36B', bg: '#22301A', camBg: '#324624', muted: false, camOn: true }
     ];
-    const pick = s.call.people;
+    const pick = s.call.context === 'forum' && !(s.call.people || []).length ? null : s.call.people;
     const others = pick ? pick.filter((n) => n && n !== 'Everyone' && n !== 'Samwel Okoth Omulo').slice(0, 8).map((n, i) => {
       const c = pColor[n] || ((this.dir.find((d) => d.name === n) || {}).color) || '#C9B6FF';
       return { name: n, initials: ini(n), color: c, bg: c + '26', camBg: c + '40', muted: i % 3 === 1, camOn: i % 2 === 0 };
     }) : (isVideo ? othersAll : othersAll.slice(0, 3));
     const me = { name: 'You', initials: 'S', color: '#F49AC1', bg: '#2B2A1E', camBg: '#3D3B29', muted: !s.mic, camOn: isVideo && s.cam, you: true };
-    const all = [me].concat(others);
+    // Moderator = the person who started a meeting, standup or forum call. One-to-one calls have no moderator.
+    const isMod = s.call.context !== 'dm' && s.call.dir !== 'in';
+    const off = s.callOff || {};
+    const all = [me].concat(others.map((o) => ({ ...o, muted: o.muted || !!(off[o.name] && off[o.name].mic), camOn: o.camOn && !(off[o.name] && off[o.name].cam) })));
     const talkers = all.filter((p) => !p.muted);
     const speakerName = talkers.length ? talkers[Math.floor(secs / 4) % talkers.length].name : '';
     const tiles = all.map((p) => {
       const speaking = p.name === speakerName;
       const hand = p.you ? s.hand : false;
-      return { ...p, speaking, hand, camOff: !p.camOn || !isVideo, camOn: p.camOn && isVideo,
+      const mod = isMod && !p.you;
+      return { ...p, speaking, hand, mod, micOn: !p.muted, camOnNow: p.camOn && isVideo, camAvail: isVideo,
+        muteMic: () => this.modOff(p.name, 'mic'), stopCam: () => this.modOff(p.name, 'cam'), camOff: !p.camOn || !isVideo, camOn: p.camOn && isVideo,
         stateLabel: p.muted ? 'Muted' : speaking ? 'Speaking' : 'Listening',
         style: 'position:relative;aspect-ratio:16/9;min-height:150px;border-radius:18px;background:' + p.bg + ';display:flex;align-items:center;justify-content:center;overflow:hidden;box-sizing:border-box;border:2px solid ' + (speaking ? '#B8F36B' : 'transparent'),
         stripStyle: 'position:relative;flex:none;width:160px;height:96px;border-radius:12px;background:' + p.bg + ';display:flex;align-items:center;justify-content:center;box-sizing:border-box;border:2px solid ' + (speaking ? '#B8F36B' : 'transparent'),

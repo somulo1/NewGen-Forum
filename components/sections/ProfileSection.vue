@@ -2,7 +2,7 @@
 <template><template v-if="show.profile">
 <div style="width: 100%; display: flex; flex-direction: column; gap: 16px">
 
-<section aria-label="Profile header" style="border-radius: 22px; background: #16201C; border: 1px solid #24322C; overflow: hidden">
+<section aria-label="Profile header" style="border-radius: 22px; background: #16201C; border: 1px solid #24322C">
 <div :style="me.coverStyle">
 <svg aria-hidden="true" width="100%" height="100%" viewBox="0 0 800 180" preserveAspectRatio="xMidYMid slice" style="position: absolute; inset: 0"><g fill="none" stroke="rgba(255,255,255,0.09)" stroke-width="1.5"><circle cx="660" cy="40" r="60"></circle><circle cx="660" cy="40" r="110"></circle><circle cx="660" cy="40" r="160"></circle><circle cx="660" cy="40" r="210"></circle><path d="M0 150 L120 110 L220 135 L340 80 L460 120 L560 70"></path></g></svg>
 <template v-if="me.editing">

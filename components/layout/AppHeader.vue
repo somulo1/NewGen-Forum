@@ -20,6 +20,10 @@
 </template>
 </div>
 <div style="margin-left: auto; flex: none; display: flex; align-items: center; gap: 8px">
+<button v-if="fsSupported" type="button" class="hub-d" @click="toggleFs" :aria-label="fs ? 'Exit full screen' : 'Full screen'" :title="fs ? 'Exit full screen (Esc)' : 'Full screen'" style="width: 40px; height: 40px; border-radius: 50%; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer; display: flex; align-items: center; justify-content: center">
+<svg v-if="!fs" aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"></path></svg>
+<svg v-else aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"></path></svg>
+</button>
 <button @click="toggleTheme" :aria-label="themeAria" :title="themeAria" style="height: 40px; padding: 0 14px; border-radius: 20px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px">
 <template v-if="isDark"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg><span class="hub-d">Light</span></template>
 <template v-if="isLight"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"></path></svg><span class="hub-d">Dark</span></template>
@@ -60,10 +64,10 @@ import { hubBindings } from '~/composables/useHub';
 
 export default {
   name: 'AppHeader',
-  data() { return { acctOpen: false }; },
-  mounted() { this._off = (e) => { if (this.acctOpen && this.$refs.acct && !this.$refs.acct.contains(e.target)) this.acctOpen = false; }; this._esc = (e) => { if (e.key === 'Escape') this.acctOpen = false; }; document.addEventListener('click', this._off); document.addEventListener('keydown', this._esc); },
-  beforeUnmount() { document.removeEventListener('click', this._off); document.removeEventListener('keydown', this._esc); },
-  methods: { openProfile() { this.acctOpen = false; this.go.profile(); }, logout() { this.acctOpen = false; useAuth().signOut(); } },
+  data() { return { acctOpen: false, fs: false, fsSupported: false }; },
+  mounted() { this.fsSupported = !!document.documentElement.requestFullscreen; this._fs = () => { this.fs = !!document.fullscreenElement; }; document.addEventListener('fullscreenchange', this._fs); this._off = (e) => { if (this.acctOpen && this.$refs.acct && !this.$refs.acct.contains(e.target)) this.acctOpen = false; }; this._esc = (e) => { if (e.key === 'Escape') this.acctOpen = false; }; document.addEventListener('click', this._off); document.addEventListener('keydown', this._esc); },
+  beforeUnmount() { document.removeEventListener('fullscreenchange', this._fs); document.removeEventListener('click', this._off); document.removeEventListener('keydown', this._esc); },
+  methods: { toggleFs() { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch(() => {}); }, openProfile() { this.acctOpen = false; this.go.profile(); }, logout() { this.acctOpen = false; useAuth().signOut(); } },
   ...hubBindings(["badgeCount","headerSearch","go","hasBadge","isDark","isLight","me","noNotifs","notifOpen","notifs","openNav","themeAria","toggleNotifs","toggleTheme"])
 };
 </script>

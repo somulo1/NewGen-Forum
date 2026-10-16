@@ -71,7 +71,7 @@ export function buildForums(ctx) {
   this._replyKey = replyKey;
   const replyFn = (who, m) => () => this.setState({ replyTo: { key: replyKey, who, snippet: snip(m) } });
   const quote = (m) => ({ hasReply: !!m.replyTo, replyWho: m.replyTo ? m.replyTo.who : '', replySnippet: m.replyTo ? m.replyTo.snippet : '' });
-  const norm = (u) => ({ replies: 0, ...u, hasText: !!u.text, hasFile: !!u.file, fileList: [].concat(u.file || []), ...quote(u), reply: replyFn(u.who === 'Sam' ? 'You' : u.who, u) });
+  const norm = (u) => ({ replies: 0, ...u, hasText: !!u.text, hasFile: !!u.file, fileList: [].concat(u.file || []), ...quote(u), hasShared: !!u.shared, sid: u.shared ? u.shared.sid : '', reply: replyFn(u.who === 'Sam' ? 'You' : u.who, u) });
   const addedHere = (s.added[cur.id] || []).map(norm);
   const baseMsgs = cur.updates.concat(forumSamples()).map(norm);
   const fStyle = (m) => (m.who === 'Sam' || m.who === 'You'
@@ -94,9 +94,6 @@ export function buildForums(ctx) {
   }
   const curView = isDM ? dmView : forumView;
   this._chatKey = (isDM ? curDm.id : cur.id) + ':' + curView.chat.length;
-  const emojiSet = [['😀','grinning'],['😂','laughing'],['😍','heart eyes'],['😎','cool'],['🤔','thinking'],['😢','sad'],['🙏','thank you'],['👍','thumbs up'],['👏','clap'],['🎉','party'],['🔥','fire'],['❤️','heart'],['💯','hundred'],['🚀','rocket'],['✅','done'],['👀','eyes']];
-  const emojisForum = emojiSet.map(([ch, label]) => ({ ch, label, add: () => this.setState((st) => ({ fdraft: st.fdraft + ch })) }));
-  const emojisWall = emojiSet.map(([ch, label]) => ({ ch, label, add: () => this.setState((st) => ({ draft: st.draft + ch })) }));
   const wfiles = s.wfiles.map((w) => ({ ...w, notImg: !w.isImg, remove: () => this.setState((st) => ({ wfiles: st.wfiles.filter((x) => x.id !== w.id) })) }));
-  return { cur, curDm, curView, dmPerson, dmStatusCol, dmView, emojisForum, emojisWall, forums, forumsData, isDM, wfiles };
+  return { cur, curDm, curView, dmPerson, dmStatusCol, dmView, forums, forumsData, isDM, wfiles };
 }

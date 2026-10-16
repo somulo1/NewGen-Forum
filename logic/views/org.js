@@ -105,7 +105,7 @@ export function buildOrg(ctx) {
         const dirn = recvHere(t) ? (t.escalated ? 'Escalated' : 'Received') : 'Sent';
         return { id: t.id, date: t.createdAt, dir: dirn, title: t.title, cp: dirn === 'Sent' ? t.to.name : t.fromDept, status: t.slaLabel === 'Overdue' ? 'Overdue' : t.statusLabel, ok: t._c.sla !== 'Overdue' && t._c.sla !== 'Solved late', real: t };
       });
-      tks = real.concat(tks);
+      tks = real.concat(tks.filter((x) => !real.some((r) => r.id === x.id)));
     }
     const recv = (arr) => arr.filter((x) => x.dir !== 'Sent');
     const pct = (arr) => { const rr = recv(arr); return rr.length ? Math.round(rr.filter((x) => x.ok).length / rr.length * 100) : 100; };
@@ -115,7 +115,7 @@ export function buildOrg(ctx) {
   };
   const targetOf = (key) => s.targets[key] || 95;
   const perfColor = (v, tg) => (v >= tg ? '#B8F36B' : v >= tg - 10 ? '#FFB86B' : '#FF9B8A');
-  const openOu = (type, id) => () => this.setState({ section: 'orgunit', ou: type + ':' + id, ouTab: 'comms', ticketOpen: null, projectOpen: null });
+  const openOu = (type, id) => () => this.setState({ section: 'orgunit', ou: type + ':' + id, ouTab: 'comms', ouItem: null, ticketOpen: null, projectOpen: null });
   const orgRows = [{ depth: 0, type: 'Organization', name: '[YOUR ORGANIZATION]', sub: this.dir.length + ' people · ' + levels.map((t) => O[t].length + ' ' + typeName[t].toLowerCase() + (O[t].length === 1 ? '' : (t === 'branches' ? 'es' : 's'))).join(' · '), color: '#E8EFEA', canOpen: false }];
   const walk = (ptype, pid, depth) => {
     levels.forEach((t) => O[t].forEach((r) => {
@@ -182,22 +182,100 @@ export function buildOrg(ctx) {
       target: tg, setTarget: (e) => { const v = Math.max(50, Math.min(100, Number(e.target.value) || 95)); this.setState((x) => ({ targets: { ...x.targets, [key]: v } })); },
       perf: D.perf, perfColor: perfColor(D.perf, tg), perfNote: D.perf >= tg ? 'Target met' : (tg - D.perf) + ' points below target',
       breakdown: [mk('Communications acknowledged on time', D.pc, D.comms.filter((x) => x.dir !== 'Sent').length + ' received'), mk('Business requests resolved on time', D.pr, D.reqs.filter((x) => x.dir !== 'Sent').length + ' received'), mk('Tickets resolved on time', D.pt, D.tks.filter((x) => x.dir !== 'Sent').length + ' received')],
-      tabs: [['comms', 'Communications', D.comms.length], ['reqs', 'Business requests', D.reqs.length], ['tks', 'Tickets', D.tks.length], ['cats', 'Ticket categories', (s.unitCats[t + ':' + ouRec.name] || []).length], ['projects', 'Projects', ps.length]].map(([k, l, n]) => ({ label: l, count: n, go: () => this.setState({ ouTab: k }),
+      tabs: [['comms', 'Communications', D.comms.length], ['reqs', 'Business requests', D.reqs.length], ['tks', 'Tickets', D.tks.length], ['cats', 'Ticket categories', (s.unitCats[t + ':' + ouRec.name] || []).length], ['projects', 'Projects', ps.length]].map(([k, l, n]) => ({ label: l, count: n, go: () => this.setState({ ouTab: k, ouItem: null }),
         style: 'min-height:44px;padding:0 16px;border:0;background:transparent;cursor:pointer;font-size:14px;white-space:nowrap;font-family:inherit;border-bottom:2px solid ' + (ouTab === k ? '#B8F36B' : 'transparent') + ';color:' + (ouTab === k ? '#E8EFEA' : '#9DB0A6') + ';font-weight:' + (ouTab === k ? '600' : '500') }))
     };
+    // Small performance cards for the top card of the dashboard.
     const ouOff = (l) => (/Ticket/.test(l) && !has.tickets) || (/Project/.test(l) && !has.projects);
     ou.kpis = ou.kpis.filter((k) => !ouOff(k.label)); ou.tabs = ou.tabs.filter((k) => !ouOff(k.label)); ou.breakdown = ou.breakdown.filter((k) => !ouOff(k.label));
+    ou.perfTiles = [{ label: 'Overall', pct: D.perf, color: perfColor(D.perf, tg), note: D.perf >= tg ? 'Target ' + tg + '% met' : (tg - D.perf) + ' pts below ' + tg + '%' }].concat(ou.breakdown.map((b) => ({ label: b.label.replace(/ (acknowledged|resolved) on time/, ''), pct: b.pct, color: b.color, note: b.detail })));
+    // A ticket opens on the same page as My tickets. Demo tickets are created on first view so every status, comment and handover works.
+    const openTicketPage = (c) => () => {
+      const from = { ou: key, label: ouRec.name + ' dashboard' };
+      const go = () => this.setState({ section: 'tickets', ticketOpen: c.id, ticketFrom: { ...from, tab: 'tks' }, tagOpen: false, tcomment: '', ouItem: null });
+      if (this.state.tickets.some((x) => x.id === c.id)) { go(); return; }
+      const h = seedOf(c.id), cat = ts.cats[h % ts.cats.length];
+      const solved = /Solved/.test(c.status), step = solved ? 3 : /Assigned/.test(c.status) ? 1 : 2, late = /late/.test(c.status) || /Overdue/.test(c.status);
+      const mine = mem.length ? mem[h % mem.length].name : (lead ? lead.name : 'Sam');
+      const other = this.dir[(h * 7) % this.dir.length].name;
+      const handler = c.dir === 'Sent' ? other : mine;
+      const raisedBy = c.dir === 'Sent' ? mine : other;
+      const toRec = c.dir === 'Sent' ? (() => { const lt = levels.find((l) => (O[l] || []).some((r) => r.name === c.cp)); return lt ? { type: lt, name: c.cp } : { type: t, name: ouRec.name }; })() : { type: t, name: ouRec.name };
+      const created = fmtDay(c.date);
+      const tk = { id: c.id, title: c.title, cat: cat.name, prio: ['High', 'Medium', 'Low'][h % 3], step, hold: false, late: solved && late, raisedBy, assignees: [handler], handler, handlerSince: created, created, elapsed: solved ? (late ? 14 : 3) : /Overdue/.test(c.status) ? 40 : 2, tatH: 8, sync: 'Not synced',
+        dept: t === 'departments' ? ouRec.name : (this.org.departments[0] || {}).name, to: toRec, fromDept: c.dir === 'Sent' ? ouRec.name : c.cp, createdAt: c.date, escalated: c.dir === 'Escalated',
+        desc: c.dir === 'Sent' ? 'Raised by ' + raisedBy + ' in ' + ouRec.name + ' about "' + c.title + '".' : 'Raised by ' + raisedBy + ' about "' + c.title + '". Received by ' + ouRec.name + '.',
+        activity: [{ who: raisedBy, kind: 'event', text: 'Raised the ticket', time: created }, { who: 'Sam', kind: 'event', text: 'Assigned it to ' + handler, time: created }].concat(step >= 2 ? [{ who: handler, kind: 'event', text: 'Started work', time: created }] : []).concat(step >= 3 ? [{ who: handler, kind: 'event', text: 'Marked it solved', time: fmtDay(isoAdd(c.date, 1)) }] : []) };
+      this.setState((st) => ({ tickets: [tk].concat(st.tickets) }));
+      go();
+    };
+    const setItem = (kind, key) => () => this.setState({ ouItem: { kind, key } });
+    const recStep = (isReq, c) => {
+      if (isReq) return /Resolved/.test(c.status) ? 3 : /In progress/.test(c.status) ? 2 : 1;
+      return c.dir === 'Sent' ? (/Read by all/.test(c.status) ? 2 : 1) : (/Not acknowledged/.test(c.status) ? 1 : 2);
+    };
+    const reqNames = ['Submitted', 'In review', 'Approved', 'Resolved', 'Closed'];
+    const comNames = (c) => [c.dir === 'Sent' ? 'Sent' : 'Received', 'Delivered', 'Acknowledged', 'Closed'];
+    const ownerName = lead ? lead.name : 'Sam';
+    const memberAt = (i) => (mem.length ? mem[i % mem.length].name : ownerName);
+    const recInfo = (isReq, c, idx) => {
+      const rkey = isReq ? 'req:' + c.ref : 'com:' + key + ':' + idx;
+      const names = isReq ? reqNames : comNames(c);
+      const base = recStep(isReq, c);
+      const h = seedOf(rkey);
+      const seedAct = names.slice(0, base + 1).map((nm, i) => ({ who: i === 0 ? (c.dir === 'Sent' ? ownerName : c.cp) : memberAt(h + i), kind: 'event', text: i === 0 ? (isReq ? 'Submitted the request' : (c.dir === 'Sent' ? 'Sent it' : 'Received it from ' + c.cp)) : 'Moved to ' + nm, time: fmtDay(isoAdd(c.date, i)) }));
+      const ov = s.ouRecs[rkey];
+      const step = ov ? ov.step : base;
+      return { rkey, names, step, label: names[step], last: names.length - 1, closed: step === names.length - 1, activity: ov ? ov.activity : seedAct, base, seedAct, h };
+    };
+    const recColor = (info) => (info.closed ? '#9DB0A6' : info.step >= info.last - 1 ? '#B8F36B' : '#FFB86B');
+    ou.recInfo = recInfo; ou.recColor = recColor;
     const dirCell = (d) => C.b(d, dirC[d]);
     if (ouTab === 'comms') ouTable = { id: 'ou-c-' + key, pageSize: 10, minWidth: '900px', cols: [{ label: 'Date', filter: 'date' }, { label: 'Direction', filter: 'select' }, { label: 'Type', filter: 'select' }, { label: 'Subject', filter: 'text' }, { label: 'From / to', filter: 'text' }, { label: 'Status', filter: 'select' }, { label: '', align: 'right' }],
-      rows: D.comms.slice().sort((a, b) => b.date.localeCompare(a.date)).map((c) => ({ cells: [C.t(fmtDay(c.date), { fv: c.date, nowrap: true }), dirCell(c.dir), C.t(c.type), C.t(c.subject, { strong: true }), C.t(c.cp), C.b(c.status, stC(c.status)), C.a([{ label: 'Open', run: () => this.notify('Opening "' + c.subject + '".', '#7CC4FF') }])] })) };
+      rows: D.comms.slice().sort((a, b) => b.date.localeCompare(a.date)).map((c) => { const ri = recInfo(false, c, D.comms.indexOf(c)); return { cells: [C.t(fmtDay(c.date), { fv: c.date, nowrap: true }), dirCell(c.dir), C.t(c.type), C.t(c.subject, { strong: true }), C.t(c.cp), C.b(ri.label, recColor(ri)), C.a([{ label: 'View', kind: 'primary', run: setItem('comms', D.comms.indexOf(c)) }])] }; }) };
     if (ouTab === 'reqs') ouTable = { id: 'ou-r-' + key, pageSize: 10, minWidth: '940px', cols: [{ label: 'Ref', filter: 'text' }, { label: 'Date', filter: 'date' }, { label: 'Direction', filter: 'select' }, { label: 'Request', filter: 'text' }, { label: 'With', filter: 'select' }, { label: 'Status', filter: 'select' }, { label: '', align: 'right' }],
-      rows: D.reqs.slice().sort((a, b) => b.date.localeCompare(a.date)).map((c) => ({ tint: c.status === 'Overdue' ? '#FF9B8A' : '', cells: [C.t(c.ref, { mono: true }), C.t(fmtDay(c.date), { fv: c.date, nowrap: true }), dirCell(c.dir), C.t(c.subject, { strong: true }), C.t(c.cp), C.b(c.status, stC(c.status)),
-        C.a([{ label: 'View', run: () => this.notify('Opening ' + c.ref + '.', '#7CC4FF') }].concat(c.dir === 'Received' && c.status !== 'Resolved on time' && c.status !== 'Resolved late' ? [{ label: 'Escalate', kind: 'danger', run: () => this.notify(c.ref + ' escalated to the ' + (has.branches ? 'branch manager' : 'head of department') + '.', '#FF9B8A') }] : []))] })) };
+      rows: D.reqs.slice().sort((a, b) => b.date.localeCompare(a.date)).map((c) => { const ri = recInfo(true, c, 0); return { tint: c.status === 'Overdue' && !s.ouRecs['req:' + c.ref] ? '#FF9B8A' : '', cells: [C.t(c.ref, { mono: true }), C.t(fmtDay(c.date), { fv: c.date, nowrap: true }), dirCell(c.dir), C.t(c.subject, { strong: true }), C.t(c.cp), C.b(ri.label, recColor(ri)),
+        C.a([{ label: 'View', kind: 'primary', run: setItem('reqs', c.ref) }].concat(c.dir === 'Received' && !ri.closed && ri.step < 3 ? [{ label: 'Escalate', kind: 'danger', run: () => this.notify(c.ref + ' escalated to the ' + (has.branches ? 'branch manager' : 'head of department') + '.', '#FF9B8A') }] : []))] }; }) };
     if (ouTab === 'tks') ouTable = { id: 'ou-t-' + key, pageSize: 10, minWidth: '900px', cols: [{ label: 'Ticket', filter: 'text' }, { label: 'Date', filter: 'date' }, { label: 'Direction', filter: 'select' }, { label: 'Title', filter: 'text' }, { label: 'With', filter: 'select' }, { label: 'Status', filter: 'select' }, { label: '', align: 'right' }],
       rows: D.tks.slice().sort((a, b) => b.date.localeCompare(a.date)).map((c) => ({ tint: c.status === 'Overdue' ? '#FF9B8A' : '', cells: [C.t(c.id, { mono: true }), C.t(fmtDay(c.date), { fv: c.date, nowrap: true }), dirCell(c.dir), C.t(c.title, { strong: true }), C.t(c.cp), C.b(c.status, stC(c.status)),
-        C.a([{ label: 'View', run: c.real ? () => this.setState({ section: 'tickets', ticketOpen: c.id }) : () => this.notify('Opening ' + c.id + '.', '#7CC4FF') }])] })) };
+        C.a([{ label: 'View', kind: 'primary', run: openTicketPage(c) }])] })) };
     if (ouTab === 'projects') ouTable = { id: 'ou-p-' + key, pageSize: 10, minWidth: '760px', emptyText: 'No projects for this ' + typeName[t].toLowerCase() + ' yet.', cols: [{ label: 'Project', filter: 'text' }, { label: 'Status', filter: 'select' }, { label: 'Progress' }, { label: 'Due', filter: 'date' }, { label: '', align: 'right' }],
       rows: ps.map((p) => ({ cells: [C.t(p.name, { strong: true, sub: 'Led by ' + p.owner }), C.b(p.status, p.statusColor), C.bar(p.progress, p.statusColor), C.t(p.dueLabel, { fv: p.due, nowrap: true }), C.a([{ label: 'View', kind: 'primary', run: p.open }])] })) };
+    // ---- Communications and business requests open on a page built like the ticket page ----
+    // Status changes and comments are kept in ouRecs; both stop once the record is closed.
+    const it = s.ouItem;
+    ou.hasDetail = false;
+    if (it && (it.kind === 'reqs' || it.kind === 'comms')) {
+      const isReq = it.kind === 'reqs';
+      const c = isReq ? D.reqs.find((x) => x.ref === it.key) : D.comms[it.key];
+      if (c) {
+        const info = recInfo(isReq, c, it.key);
+        const setRec = (step, text) => this.setState((st) => { const cur = st.ouRecs[info.rkey] || { step: info.base, activity: info.seedAct }; return { ouRecs: { ...st.ouRecs, [info.rkey]: { step, activity: cur.activity.concat([{ who: 'Sam', kind: 'event', text, time: 'Just now' }]) } } }; });
+        const primary = 'height:42px;border-radius:10px;border:0;background:#B8F36B;color:#0F1714;font-weight:600;cursor:pointer;font-size:14px';
+        const secondary = 'height:42px;border-radius:10px;border:1px solid #2A3832;background:transparent;color:#E8EFEA;cursor:pointer;font-size:14px';
+        const nm = info.names, actions = [];
+        if (!info.closed) {
+          const next = info.step + 1;
+          const verb = isReq ? ['Start review', 'Approve', 'Mark as resolved', 'Close request'] : [c.dir === 'Sent' ? 'Mark delivered' : 'Open it', 'Acknowledge', 'Close'];
+          if (verb[info.step]) actions.push({ label: verb[info.step], style: primary, run: () => setRec(next, isReq ? ['Started the review', 'Approved the request', 'Marked it resolved', 'Closed the request'][info.step] : ['Marked it delivered', 'Acknowledged it', 'Closed it'][info.step]) });
+          if (isReq && info.step === 3) actions.push({ label: 'Reopen', style: secondary, run: () => setRec(2, 'Reopened the request') });
+        }
+        const lastNote = (i) => (i === info.last ? (info.closed ? 'Closed' : '') : '');
+        const approver = memberAt(info.h + 3);
+        ou.detail = { kind: isReq ? 'Business request' : c.type, ref: isReq ? c.ref : fmtDay(c.date), title: isReq ? c.subject : c.subject, badges: [{ text: c.dir, color: dirC[c.dir] }, { text: info.label, color: recColor(info) }],
+          back: () => this.setState({ ouItem: null }), backLabel: '‹ ' + ouRec.name + ' dashboard', closed: info.closed,
+          steps: nm.map((label, i) => { const done = i < info.step, now = i === info.step; return { label, num: done ? '✓' : String(i + 1), note: i === 0 ? fmtDay(c.date) : done ? 'Done' : now ? 'Now' : '',
+            barStyle: 'display:block;height:4px;border-radius:2px;background:' + (done || now ? '#B8F36B' : '#2A3832'),
+            dotStyle: 'width:22px;height:22px;flex:none;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;' + (done ? 'background:#B8F36B;color:#0F1714' : now ? 'border:2px solid #B8F36B;color:#B8F36B;box-sizing:border-box' : 'border:1px solid #3F5249;color:#9DB0A6;box-sizing:border-box'),
+            labelStyle: 'font-weight:' + (now ? '700' : '500') + ';color:' + (done || now ? '#E8EFEA' : '#9DB0A6') }; }),
+          about: isReq ? 'Business request "' + c.subject + '" ' + (c.dir === 'Sent' ? 'sent from ' + ouRec.name + ' to ' + c.cp : 'received by ' + ouRec.name + ' from ' + c.cp) + '. It needs sign-off from ' + approver + '.' : c.type + ' "' + c.subject + '" ' + (c.dir === 'Sent' ? 'sent from ' + ouRec.name + ' to ' + c.cp + '.' : 'received by ' + ouRec.name + ' from ' + c.cp + '.'),
+          activity: info.activity.map((a) => { const p = this.dir.find((d) => d.name === a.who); return { ...a, initials: a.who === 'Sam' ? 'S' : p ? p.initials : shortOf(a.who), color: a.who === 'Sam' ? '#F49AC1' : p ? p.color : '#9DB0A6', isEvent: a.kind === 'event', isComment: a.kind === 'comment' }; }),
+          comment: (text) => { if (info.closed) return; this.setState((st) => { const cur = st.ouRecs[info.rkey] || { step: info.base, activity: info.seedAct }; return { ouRecs: { ...st.ouRecs, [info.rkey]: { step: cur.step, activity: cur.activity.concat([{ who: 'Sam', kind: 'comment', text, time: 'Just now' }]) } } }; }); },
+          actions, noActions: actions.length === 0 && !info.closed,
+          side: [['Raised on', fmtDay(c.date)], ['Direction', c.dir], [c.dir === 'Sent' ? 'Sent to' : 'From', c.cp], ['Owner', ownerName]].concat(isReq ? [['Approver', approver], ['Time limit', '2 working days']] : [['Type', c.type]]).map(([l, v]) => ({ label: l, value: v })) };
+        ou.hasDetail = true;
+      }
+    }
   }
   const orgWidgetItems = {};
   ['departments', 'units'].forEach((t) => { if (!has[t]) return; orgWidgetItems[t] = O[t].map((r) => { const k = t + ':' + r.id; const pf = unitPerf[k].perf; const pp = parentFor(t, r); return { name: r.name, sub: (pp ? recOf(pp[0], pp[1]).name + ' · ' : '') + membersOf(t, r.name).length + ' people', perf: pf, perfColor: perfColor(pf, targetOf(k)), open: openOu(t, r.id) }; }); });
