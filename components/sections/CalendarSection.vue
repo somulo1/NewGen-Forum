@@ -27,12 +27,12 @@
 <strong style="font-size: 16px">{{ cal.selLabel }}</strong>
 <template v-if="cal.noAgenda"><span style="font-size: 13px; color: #9DB0A6">Nothing planned. Use + New to add something.</span></template>
 <template v-for="(ag, ag__i) in cal.agenda" :key="ag__i">
-<div :style="`padding: 12px; border-radius: 12px; background: #121B17; border: 1px solid ${ag.color}; display: flex; flex-direction: column; gap: 6px`">
+<div :style="ag.cardStyle">
 <div style="display: flex; gap: 8px; align-items: center"><span style="font-family: 'Space Grotesk', sans-serif; font-size: 13px; color: #C9D6CF">{{ ag.time }}</span><span :style="ag.typeStyle">{{ ag.type }}</span></div>
-<strong style="font-size: 14px; font-weight: 600">{{ ag.title }}</strong>
+<strong :style="`font-size: 14px; font-weight: 600; ${ag.ended ? 'text-decoration: line-through; color: #9DB0A6' : ''}`">{{ ag.title }}</strong><template v-if="ag.ended"><span style="align-self: flex-start; padding: 2px 10px; border-radius: 10px; background: #2A3832; color: #C9D6CF; font-size: 11px; font-weight: 600">{{ ag.endedLabel }}</span></template>
 <template v-if="ag.hasSub"><span style="font-size: 12px; color: #9DB0A6">{{ ag.sub }}</span></template>
 <template v-if="ag.hasPeople"><div style="display: flex; align-items: center"><template v-for="(pp, pp__i) in ag.people" :key="pp__i"><span :title="pp.name" :style="`width: 24px; height: 24px; margin-right: -6px; border-radius: 50%; border: 2px solid #121B17; background: ${pp.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 9px`">{{ pp.initials }}</span></template><span style="font-size: 11px; color: #9DB0A6; margin-left: 12px">{{ ag.peopleLabel }}</span></div></template>
-<div style="display: flex; gap: 6px"><template v-if="ag.canJoin"><button @click="ag.join" style="height: 32px; padding: 0 12px; border-radius: 8px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer; font-size: 12px">Join</button></template><template v-if="ag.canRemove"><button @click="ag.remove" style="height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer; font-size: 12px">{{ ag.removeLabel }}</button></template></div>
+<div style="display: flex; gap: 6px"><template v-if="ag.canJoin"><button @click="ag.join" style="height: 32px; padding: 0 12px; border-radius: 8px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer; font-size: 12px">Join</button></template><template v-if="ag.canClose"><button @click="ag.closeIt" style="height: 34px; padding: 0 14px; border-radius: 17px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer; font-size: 13px">{{ ag.closeLabel }}</button></template><template v-if="ag.canRemove"><button @click="ag.remove" style="height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer; font-size: 12px">{{ ag.removeLabel }}</button></template></div>
 </div>
 </template>
 </aside>
