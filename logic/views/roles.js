@@ -82,6 +82,7 @@ export function buildRoles(ctx) {
           const a = this.state.awardList.find((x) => x.id === rq.awardId);
           if (a) (a.forums || []).forEach((fid) => this.addForumMsg(fid, 'Award: ' + a.type + ' · Congratulations ' + a.people.map((n) => '@' + n).join(', ') + '!' + (a.poster ? ' (poster attached)' : ''), a.poster ? { name: 'Award poster.png', meta: 'Image', url: a.poster, isImg: true } : undefined));
         }
+        if (rq.kind === 'personEdit') this.applyPersonEdit(rq.changes);
         this.notify(rq.id + ' fully approved: ' + rq.title + (rq.kind === 'award' ? '. Everyone awarded was tagged and notified.' : '.'), '#B8F36B');
       }
     };

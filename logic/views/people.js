@@ -34,7 +34,7 @@ export function buildPeople(ctx) {
   };
   const po = s.personOpen !== null && s.personOpen !== undefined ? this.dir[s.personOpen] : null;
   const skillsByDept = { 'IT Operations': ['Networking', 'Windows server', 'Help desk'], 'Software Development': ['Laravel', 'Vue', 'Testing'], 'Finance': ['Reporting', 'Excel', 'Budgeting'], 'Risk & Compliance': ['Audit', 'Policy', 'Controls'], 'Sales': ['Negotiation', 'CRM'], 'HR': ['Recruiting', 'Onboarding'], 'Customer Care': ['Customer service', 'Complaints handling'], 'Marketing': ['Content', 'Social media'], 'Operations': ['Process improvement'], 'Logistics': ['Fleet', 'Scheduling'], 'Legal': ['Contracts', 'Compliance'] };
-  const psn = po ? { ...po, statusColor: statusCol[po.status], cover: po.color + '55', manager: (reportOf(po.name).top ? 'Top of the organization' : reportOf(po.name).name), hubRole: /Lead|Supervisor|Manager/.test(po.title) ? 'Head of department' : 'Staff',
+  const psn = po ? { ...po, statusColor: statusCol[po.status], cover: po.color + '55', manager: reportOf(po.name).top ? 'Top of the organization' : reportOf(po.name).display, hubRole: /Lead|Supervisor|Manager/.test(po.title) ? 'Head of department' : 'Staff',
     email: po.email || '[' + po.name.toLowerCase().replace(' ', '.') + '@company.com]', skills: (skillsByDept[po.dept] || ['Teamwork']).map((x) => ({ name: x })),
     message: () => this.openDm(po.name),
     awards: has.awards ? s.awardList.filter((a) => a.status === 'Approved' && a.people.indexOf(po.name) !== -1).map((a) => ({ type: a.type, when: new Date(a.date + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }), citation: a.citation })) : [],

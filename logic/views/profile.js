@@ -33,7 +33,7 @@ export function buildProfile(ctx) {
   const kindOf = { W: 'Wall post', T: 'Ticket', F: 'File', A: 'Assignment', B: 'Badge', P: 'Project' };
   const withKind = (arr) => arr.map((a) => ({ ...a, kind: kindOf[a.tag] || 'Activity' }));
   const meOwn = {
-    isOther: false, initials: 'S', color: '#C2185B', aboutTitle: 'About me', forumsTitle: 'My forums', reportsTo: reportOf('Samwel Okoth Omulo').name || 'Top of the organization',
+    isOther: false, initials: 'S', color: '#C2185B', aboutTitle: 'About me', forumsTitle: 'My forums', reportsTo: reportOf('Samwel Okoth Omulo').display,
     name: 'Samwel Okoth Omulo', role: 'Cybersecurity & Technology Risk Officer', dept: 'Risk & Compliance',
     status: curStatus.label, statusColor: curStatus.color, statusNote: curStatus.note, statusMenu: s.statusMenu,
     statuses: statusDefs.map((x) => ({ ...x, pick: () => this.setState((st) => ({ statusMenu: false, profile: { ...st.profile, status: x.label } })) })),
@@ -47,7 +47,7 @@ export function buildProfile(ctx) {
     skills: pf.skills.map((n, i) => ({ name: n, editing: s.profileEdit, remove: () => this.setState((st) => ({ profile: { ...st.profile, skills: st.profile.skills.filter((x, j) => j !== i) } })) })),
     facts: [
       { label: 'Department', value: 'Risk & Compliance', sub: 'Cybersecurity team' },
-      { label: 'Reports to', value: reportOf('Samwel Okoth Omulo').top ? 'No one' : reportOf('Samwel Okoth Omulo').name, sub: reportOf('Samwel Okoth Omulo').sub },
+      { label: 'Reports to', value: reportOf('Samwel Okoth Omulo').display, sub: reportOf('Samwel Okoth Omulo').sub },
       { label: 'Location', value: 'Kenya', sub: 'GMT+3 · ' + localTime + ' now' },
       { label: 'Member since', value: '[JOIN DATE]', sub: 'Hub member' }
     ],
@@ -93,7 +93,7 @@ export function buildProfile(ctx) {
         { tag: 'W', color: '#F49AC1', text: 'Reacted to a post on the community wall', time: 'Last month' }
       ]);
     meOther = {
-      isOther: true, initials: opDir.initials, color: opDir.color, aboutTitle: 'About ' + first, forumsTitle: 'Forums', reportsTo: reportOf(opDir.name).name || 'Top of the organization',
+      isOther: true, initials: opDir.initials, color: opDir.color, aboutTitle: 'About ' + first, forumsTitle: 'Forums', reportsTo: reportOf(opDir.name).display,
       name: opDir.name, role: opDir.title, dept: opDir.dept,
       status: opStatus.label, statusColor: opStatus.color, statusNote: opStatus.note, statusMenu: false, statuses: [],
       photo: '', hasPhoto: false, noPhoto: true, editing: false, notEditing: true,
@@ -102,7 +102,7 @@ export function buildProfile(ctx) {
       skills: (skillsByDept[opDir.dept] || ['Teamwork']).map((n) => ({ name: n, editing: false, remove: () => {} })),
       facts: [
         { label: 'Department', value: opDir.dept, sub: opDir.title },
-        { label: 'Reports to', value: reportOf(opDir.name).top ? 'No one' : reportOf(opDir.name).name, sub: reportOf(opDir.name).sub },
+        { label: 'Reports to', value: reportOf(opDir.name).display, sub: reportOf(opDir.name).sub },
         { label: 'Location', value: opDir.loc || 'Kenya', sub: 'GMT+3 · ' + localTime + ' now' },
         { label: 'Member since', value: '[JOIN DATE]', sub: 'Hub member' }
       ],

@@ -1,7 +1,7 @@
 // Initial state: admin.
 export function adminState() {
   return {
-    orgOpen: false, ou: null, ouTab: 'comms', targets: {}, rolesTab: 'roles', memberRoles: {}, reportsTo: {}, personRights: {}, reportDraft: null,
+    orgOpen: false, ou: null, ouTab: 'comms', targets: {}, rolesTab: 'roles', memberRoles: {}, reportsTo: {}, personRights: {}, personReports: {}, reportDraft: null,
     theme: 'dark',
     commRules: {
       departments: { Memo: { on: true, to: ['own', 'departments'], sender: 'hod', approver: 'none' }, Announcement: { on: true, to: ['own', 'wall'], sender: 'hod', approver: 'admin' } },
@@ -23,7 +23,8 @@ export function adminState() {
       { id: 'f7', mod: 'awards', action: 'Give a performance award', levels: 2, approvers: ['Head of department', 'HR Manager', 'Managing Director'] },
       { id: 'f8', mod: 'roles', action: 'Change what a role is allowed to do', levels: 3, approvers: ['Security officer', 'Head of IT Operations', 'Managing Director'] },
       { id: 'f9', mod: 'files', action: 'Upload to the Finance folder', levels: 0, approvers: ['Finance approver', 'Head of department', 'Managing Director'] },
-      { id: 'f10', mod: 'memos', action: 'Send a memo or announcement under a communication rule', levels: 1, approvers: ['Admin', 'Head of department', 'Managing Director'] }
+      { id: 'f10', mod: 'memos', action: 'Send a memo or announcement under a communication rule', levels: 1, approvers: ['Admin', 'Head of department', 'Managing Director'] },
+      { id: 'f11', mod: 'people', action: 'Change a person\'s details, role or rights', levels: 2, approvers: ['Line manager', 'HR Manager', 'Managing Director'] }
     ],
     requests: [
       { id: 'AP-33', flowId: 'f3', title: 'Share "Q3 budget tracker.xlsx" with the external auditor', by: 'Amina Wanjiru', when: 'Today, 11:40', level: 1, status: 'Pending', history: [], note: 'The auditor needs it before Friday\'s review.' },

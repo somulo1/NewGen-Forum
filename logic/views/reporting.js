@@ -18,28 +18,32 @@ export function buildReporting(ctx) {
   const personOf = (n) => (n === ME ? meDir : this.dir.find((x) => x.name === n));
   const holdersOf = (rid) => this.dir.map((d) => d).concat([meDir]).filter((d, i, a) => a.findIndex((x) => x.name === d.name) === i).filter((d) => ridOf(d.name) === rid);
   const reportsMap = { ...DEFAULT_REPORTS, ...s.reportsTo };
-  // Who a person reports to under a given map. If nobody holds the target role, it climbs to that role's own reporting role.
-  const reportOfWith = (map) => (name) => {
-    const d = personOf(name);
+  // The role a person reports to under a map. If the mapped role is not in use here, it climbs to that role's own reporting role.
+  const targetRoleWith = (map) => (name) => {
     let rid = ridOf(name);
     const seen = {};
     for (let hop = 0; hop < 8; hop++) {
       const t = map[rid];
-      if (!t || seen[t]) break;
+      if (!t || seen[t]) return '';
       seen[t] = true;
-      if (vis(t)) {
-        const list = holdersOf(t).filter((h) => h.name !== name);
-        const f = SCOPE[t];
-        const scoped = f && d ? list.filter((h) => h[f] && h[f] === d[f]) : list;
-        const pick = scoped[0] || list[0];
-        if (pick) return { name: pick.name, roleName: roleName(t), sub: roleName(t) + (pick.dept ? ' · ' + pick.dept : ''), top: false };
-      }
+      if (vis(t)) return t;
       rid = t;
     }
-    return { name: '', roleName: '', sub: 'Top of the organization', top: true };
+    return '';
+  };
+  // By default a person reports to a role, and the profile shows the role name. If someone picked a specific person in that
+  // role for them, the profile shows that exact person instead.
+  const reportOfWith = (map) => (name) => {
+    const t = targetRoleWith(map)(name);
+    if (!t) return { name: '', roleName: '', display: 'No one', sub: 'Top of the organization', specific: false, top: true };
+    const ov = s.personReports[name];
+    const pick = ov && ov !== name && personOf(ov) && ridOf(ov) === t ? personOf(ov) : null;
+    if (pick) return { name: pick.name, roleName: roleName(t), display: pick.name, sub: roleName(t) + (pick.dept ? ' · ' + pick.dept : ''), specific: true, top: false };
+    return { name: '', roleName: roleName(t), display: roleName(t), sub: 'Role', specific: false, top: false };
   };
   const reportOf = reportOfWith(reportsMap);
-  return { reportOf, reportOfWith, reportsMap, ridOf, roleHolders: holdersOf };
+  const targetRoleOf = targetRoleWith(reportsMap);
+  return { reportOf, reportOfWith, reportsMap, ridOf, roleHolders: holdersOf, targetRoleOf, reportRoleName: roleName };
 }
 
 export function buildReportingTab(ctx) {
@@ -58,7 +62,7 @@ export function buildReportingTab(ctx) {
     const opts = [{ v: '', l: 'Nobody (top level)' }].concat(visibleRoles.filter((x) => x.id !== r.id).map((x) => ({ v: x.id, l: x.name })));
     return { cells: [C.t(r.name, { strong: true, sub: r.desc }), C.t(String(holders.length), { nowrap: true }),
       C.sel(eff[r.id] || '', opts, (e) => set(r.id, e.target.value), { label: r.name + ' reports to', minWidth: '200px', disabled: !canEdit }),
-      C.t(first ? (to && !to.top ? first.name + ' → ' + to.name : first.name + ' → nobody (top level)') : 'No one has this role yet', { sub: to && !to.top ? to.sub : '' })] };
+      C.t(first ? (to && !to.top ? first.name + ' → ' + to.display : first.name + ' → nobody (top level)') : 'No one has this role yet', { sub: to && !to.top && to.specific ? to.sub : 'Shown on their profile as the role. Pick a specific person when editing someone.' })] };
   });
   const reportingTable = { id: 'reporting', pageSize: 12, minWidth: '820px', cols: [{ label: 'Role', filter: 'text' }, { label: 'People' }, { label: 'Reports to' }, { label: 'Example' }], rows };
   // A role cannot end up reporting to itself through a chain.
