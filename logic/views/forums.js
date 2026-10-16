@@ -1,3 +1,4 @@
+import { dmSamples, forumSamples } from '~/logic/samples.js';
 // renderVals step: forums. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildForums(ctx) {
   const { s } = ctx;
@@ -64,9 +65,15 @@ export function buildForums(ctx) {
       chipStyle: 'flex:none;width:36px;height:36px;border-radius:10px;cursor:pointer;font-family:Space Grotesk,sans-serif;font-weight:700;font-size:12px;color:#0F1714;background:' + f.color + ';border:2px solid ' + (f.id === cur.id ? '#E8EFEA' : 'transparent') + ';opacity:' + (f.id === cur.id ? '1' : '0.65')
     };
   });
-  const norm = (u) => ({ replies: 0, ...u, hasText: !!u.text, hasFile: !!u.file, fileList: [].concat(u.file || []) });
+  const snip = (m) => { const x = m.text || (m.file ? [].concat(m.file)[0].name : ''); return x.length > 90 ? x.slice(0, 90) + '…' : x; };
+  const dmNow = s.panelKind === 'dm' ? s.dms.find((d) => d.id === s.dmId) : null;
+  const replyKey = dmNow ? dmNow.id : cur.id;
+  this._replyKey = replyKey;
+  const replyFn = (who, m) => () => this.setState({ replyTo: { key: replyKey, who, snippet: snip(m) } });
+  const quote = (m) => ({ hasReply: !!m.replyTo, replyWho: m.replyTo ? m.replyTo.who : '', replySnippet: m.replyTo ? m.replyTo.snippet : '' });
+  const norm = (u) => ({ replies: 0, ...u, hasText: !!u.text, hasFile: !!u.file, fileList: [].concat(u.file || []), ...quote(u), reply: replyFn(u.who === 'Sam' ? 'You' : u.who, u) });
   const addedHere = (s.added[cur.id] || []).map(norm);
-  const baseMsgs = cur.updates.map(norm);
+  const baseMsgs = cur.updates.concat(forumSamples()).map(norm);
   const fStyle = (m) => (m.who === 'Sam' || m.who === 'You'
     ? { ...m, who: 'You', mine: true, rowStyle: 'display:flex;gap:10px;flex-direction:row-reverse', bubbleStyle: 'max-width:78%;min-width:0;padding:10px 14px;border-radius:14px 4px 14px 14px;background:#2C3D34' }
     : { ...m, mine: false, rowStyle: 'display:flex;gap:10px', bubbleStyle: 'flex:1;min-width:0;padding:10px 12px;border-radius:4px 12px 12px 12px;background:#1A2520' });
@@ -80,8 +87,8 @@ export function buildForums(ctx) {
   if (curDm) {
     const pr = dmPerson(curDm.with);
     dmView = { id: curDm.id, name: curDm.with, initials: pr.initials, color: pr.color, online: '', about: pr.title, subline: (pr.status || 'Available') + ' · private chat', dotColor: dmStatusCol[pr.status] || '#B8F36B', title: pr.title,
-      chat: curDm.msgs.map((m) => { const mine = m.from === 'me'; const who = mine ? 'You' : m.from; const pp = mine ? { initials: 'S', color: '#C2185B' } : dmPerson(m.from);
-        return { who: who, initials: pp.initials, color: pp.color, time: m.time, text: m.text || '', hasText: !!m.text, hasFile: !!m.file, fileList: [].concat(m.file || []), replies: 0, mine: mine,
+      chat: dmSamples(curDm.with).concat(curDm.msgs).map((m) => { const mine = m.from === 'me'; const who = mine ? 'You' : m.from; const pp = mine ? { initials: 'S', color: '#C2185B' } : dmPerson(m.from);
+        return { who: who, initials: pp.initials, color: pp.color, time: m.time, text: m.text || '', hasText: !!m.text, hasFile: !!m.file, fileList: [].concat(m.file || []), ...quote(m), reply: replyFn(who, m), replies: 0, mine: mine,
           rowStyle: 'display:flex;gap:10px;' + (mine ? 'flex-direction:row-reverse' : ''), bubbleStyle: 'max-width:78%;min-width:0;padding:10px 14px;border-radius:' + (mine ? '14px 4px 14px 14px;background:#2C3D34' : '4px 14px 14px 14px;background:#1A2520') }; }),
       topics: [] };
   }

@@ -7,22 +7,39 @@
 <p style="margin: 4px 0 0; color: #9DB0A6">Everyone's space to post freely: photos, news, shout-outs, polls.</p></div>
 
 <div style="display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px">
-<button style="flex: none; width: 112px; height: 180px; border-radius: 14px; border: 1px solid #2A3832; background: #16201C; color: #E8EFEA; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 8px; padding: 14px 8px; box-sizing: border-box">
+<button @click="momentForm.toggle" :aria-expanded="momentForm.open" style="flex: none; width: 112px; height: 180px; border-radius: 14px; border: 1px solid #2A3832; background: #16201C; color: #E8EFEA; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 8px; padding: 14px 8px; box-sizing: border-box">
 <span style="width: 40px; height: 40px; border-radius: 50%; background: #B8F36B; color: #0F1714; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg></span>
 <span style="font-size: 13px; font-weight: 600">Add a moment</span>
 </button>
 <template v-for="(m, m__i) in moments" :key="m__i">
-<button :style="`flex: none; width: 112px; height: 180px; border-radius: 14px; border: 0; background: ${m.bg}; color: #fff; cursor: pointer; display: flex; flex-direction: column; justify-content: space-between; padding: 10px; box-sizing: border-box; text-align: left`">
+<button @click="m.open" :aria-label="`View moment: ${m.caption}`" :style="`flex: none; width: 112px; height: 180px; border-radius: 14px; border: 0; background: ${m.bg}; color: #fff; cursor: pointer; display: flex; flex-direction: column; justify-content: space-between; padding: 10px; box-sizing: border-box; text-align: left`">
 <span :style="`width: 34px; height: 34px; border-radius: 50%; border: 3px solid #B8F36B; background: ${m.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px`">{{ m.initials }}</span>
 <span style="font-size: 13px; font-weight: 600; line-height: 1.3">{{ m.caption }}</span>
 </button>
 </template>
 </div>
+<template v-if="momentForm.open">
+<form @submit.prevent="submitMoment" aria-label="Add a moment" style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 12px; border-radius: 14px; background: #16201C; border: 1px solid #24322C">
+<input v-model="momentCaption" type="text" maxlength="60" placeholder="What's happening? (shown on your moment)" aria-label="Moment caption" style="flex: 1 1 220px; height: 40px; padding: 0 14px; border-radius: 20px; border: 1px solid #2A3832; background: #121B17; color: #E8EFEA; font-size: 14px">
+<span style="display: flex; gap: 6px"><template v-for="c in momentForm.colors" :key="c"><button type="button" :aria-label="`Background ${c}`" @click="momentBg = c" :style="`width: 26px; height: 26px; border-radius: 50%; border: 2px solid ${momentBg === c ? '#E8EFEA' : 'transparent'}; background: ${c}; cursor: pointer`"></button></template></span>
+<button type="submit" style="height: 38px; padding: 0 18px; border-radius: 19px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">Share moment</button>
+<button type="button" @click="momentForm.toggle" style="height: 38px; padding: 0 14px; border-radius: 19px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer">Cancel</button>
+</form>
+</template>
+<template v-if="momentView.open">
+<div class="hub-overlay" role="dialog" aria-modal="true" aria-label="Moment" style="position: fixed; inset: 0; z-index: 70; background: rgba(5,10,8,0.8); display: flex; align-items: center; justify-content: center; padding: 16px">
+<div :style="`position: relative; width: 340px; max-width: 100%; height: min(560px, 100%); border-radius: 20px; background: ${momentView.item.bg}; color: #fff; display: flex; flex-direction: column; justify-content: space-between; padding: 18px; box-sizing: border-box`">
+<div style="display: flex; align-items: center; gap: 10px"><span :style="`width: 38px; height: 38px; border-radius: 50%; background: ${momentView.item.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700`">{{ momentView.item.initials }}</span><span style="flex: 1; font-size: 12px; opacity: .8">{{ momentView.counter }}</span><button type="button" aria-label="Close moment" @click="momentView.close" style="width: 36px; height: 36px; border-radius: 50%; border: 1px solid rgba(255,255,255,.4); background: transparent; color: #fff; cursor: pointer">✕</button></div>
+<strong style="font-family: 'Space Grotesk', sans-serif; font-size: 24px; line-height: 1.3">{{ momentView.item.caption }}</strong>
+<div style="display: flex; gap: 8px"><button type="button" @click="momentView.prev" style="flex: 1; height: 42px; border-radius: 21px; border: 1px solid rgba(255,255,255,.4); background: transparent; color: #fff; cursor: pointer">Previous</button><button type="button" @click="momentView.next" style="flex: 1; height: 42px; border-radius: 21px; border: 0; background: #fff; color: #0F1714; font-weight: 600; cursor: pointer">Next</button></div>
+</div>
+</div>
+</template>
 
 <div style="padding: 16px; border-radius: 16px; background: #16201C; border: 1px solid #24322C; display: flex; flex-direction: column; gap: 12px">
 <div style="display: flex; gap: 12px; align-items: flex-start">
 <div aria-hidden="true" style="width: 42px; height: 42px; flex: none; border-radius: 50%; background: #C2185B; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 600">S</div>
-<label style="flex: 1"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Write a post</span><textarea rows="2" :value="draft" @input="onDraft" placeholder="What's on your mind, Sam?" style="width: 100%; box-sizing: border-box; padding: 12px 14px; border-radius: 14px; border: 1px solid #2A3832; background: #121B17; color: #E8EFEA; font-size: 15px; resize: vertical"></textarea></label>
+<label style="flex: 1"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Write a post</span><textarea ref="composer" rows="2" :value="draft" @input="onDraft" placeholder="What's on your mind, Sam?" style="width: 100%; box-sizing: border-box; padding: 12px 14px; border-radius: 14px; border: 1px solid #2A3832; background: #121B17; color: #E8EFEA; font-size: 15px; resize: vertical"></textarea></label>
 </div>
 <template v-if="hasWFiles">
 <div style="display: flex; flex-wrap: wrap; gap: 8px; padding-left: 54px">
@@ -41,23 +58,33 @@
 <template v-for="(e, e__i) in emojisWall" :key="e__i"><button :aria-label="e.label" @click="e.add" style="height: 42px; border: 0; border-radius: 8px; background: transparent; font-size: 22px; cursor: pointer">{{ e.ch }}</button></template>
 </div>
 </template>
+<template v-if="wpollView.on">
+<div style="display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 12px; background: #121B17; border: 1px solid #2A3832">
+<span style="font-size: 12px; color: #9DB0A6">Poll: your post text is the question. Add 2 to 5 options.</span>
+<template v-for="o in wpollView.opts" :key="o.n"><div style="display: flex; gap: 6px"><input type="text" :value="o.value" @input="o.onInput" :placeholder="`Option ${o.n}`" :aria-label="`Poll option ${o.n}`" style="flex: 1; min-width: 0; height: 38px; padding: 0 12px; border-radius: 10px; border: 1px solid #2A3832; background: #16201C; color: #E8EFEA; font-size: 14px"><button v-if="o.canRemove" type="button" :aria-label="`Remove option ${o.n}`" @click="o.remove" style="width: 38px; height: 38px; border-radius: 10px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer">✕</button></div></template>
+<button v-if="wpollView.canAdd" type="button" @click="wpollView.add" style="align-self: flex-start; height: 34px; padding: 0 14px; border-radius: 17px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer; font-size: 13px">+ Add option</button>
+</div>
+</template>
 <div style="display: flex; flex-wrap: wrap; gap: 6px; align-items: center; border-top: 1px solid #24322C; padding-top: 10px">
 <label style="position: relative; height: 38px; padding: 0 12px; border-radius: 10px; color: #C9D6CF; cursor: pointer; display: flex; align-items: center; gap: 8px"><input type="file" accept="image/*,video/*" multiple="" aria-label="Add photo or video" @change="onWallFiles" style="position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6EE7C8" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"></rect><circle cx="9" cy="10" r="2"></circle><path d="M21 16l-5-5-8 8"></path></svg>Photo / video</label>
 <label style="position: relative; height: 38px; padding: 0 12px; border-radius: 10px; color: #C9D6CF; cursor: pointer; display: flex; align-items: center; gap: 8px"><input type="file" multiple="" aria-label="Attach a file" @change="onWallFiles" style="position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C9B6FF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11.5l-8.2 8.2a5 5 0 0 1-7.1-7.1L13.2 4a3.4 3.4 0 0 1 4.8 4.8l-8.5 8.5a1.8 1.8 0 0 1-2.5-2.5L14.8 7"></path></svg>File</label>
 <button @click="toggleEmojiWall" style="height: 38px; padding: 0 12px; border-radius: 10px; border: 0; background: transparent; color: #C9D6CF; cursor: pointer; display: flex; align-items: center; gap: 8px"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFD66B" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M8.5 14.5c1 1.2 2.2 1.8 3.5 1.8s2.5-.6 3.5-1.8M9 9.5h.01M15 9.5h.01"></path></svg>Emoji</button>
-<button style="height: 38px; padding: 0 12px; border-radius: 10px; border: 0; background: transparent; color: #C9D6CF; cursor: pointer; display: flex; align-items: center; gap: 8px"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFB86B" stroke-width="1.8" stroke-linecap="round"><path d="M5 20V10M12 20V4M19 20v-7"></path></svg>Poll</button>
-<button style="height: 38px; padding: 0 12px; border-radius: 10px; border: 0; background: transparent; color: #C9D6CF; cursor: pointer; display: flex; align-items: center; gap: 8px"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7CC4FF" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M3 10h18M8 3v4M16 3v4"></path></svg>Event</button>
-<span style="margin-left: auto; font-size: 12px; color: #9DB0A6">Visible to: Everyone</span>
+<button @click="wpollView.toggle" :aria-pressed="wpollView.on" style="height: 38px; padding: 0 12px; border-radius: 10px; border: 0; background: transparent; color: #C9D6CF; cursor: pointer; display: flex; align-items: center; gap: 8px"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFB86B" stroke-width="1.8" stroke-linecap="round"><path d="M5 20V10M12 20V4M19 20v-7"></path></svg>Poll</button>
+<button @click="openEventFromWall" style="height: 38px; padding: 0 12px; border-radius: 10px; border: 0; background: transparent; color: #C9D6CF; cursor: pointer; display: flex; align-items: center; gap: 8px"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7CC4FF" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M3 10h18M8 3v4M16 3v4"></path></svg>Event</button>
+<label style="margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 12px; color: #9DB0A6">Visible to<select :value="wallAudience" @change="onAudience" aria-label="Who can see this post" style="height: 32px; padding: 0 8px; border-radius: 8px; border: 1px solid #2A3832; background: #121B17; color: #E8EFEA; font-size: 12px"><template v-for="a in wallAudiences" :key="a"><option :value="a">{{ a }}</option></template></select></label>
 <template v-if="canPostWall"><button @click="onPost" :style="postBtnStyle">Post</button></template><template v-if="cannotPostWall"><span style="font-size: 12px; color: #FFB86B">Your role can't post here</span></template>
 </div>
 </div>
 
+<template v-if="wallFilter.active"><div style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px; background: #1B2A1E; font-size: 14px">Showing posts about <strong>#{{ wallFilter.tag }}</strong><button @click="wallFilter.clear" style="margin-left: auto; height: 32px; padding: 0 14px; border-radius: 16px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer">Clear</button></div></template>
+<template v-if="wallFilter.active && !posts.length"><p style="margin: 0; color: #9DB0A6">No posts match this hashtag.</p></template>
 <template v-for="(p, p__i) in posts" :key="p__i">
 <article style="border-radius: 16px; background: #16201C; border: 1px solid #24322C; display: flex; flex-direction: column; overflow: hidden">
 <div style="display: flex; gap: 12px; align-items: center; padding: 16px 16px 0">
 <div aria-hidden="true" :style="`width: 42px; height: 42px; border-radius: 50%; background: ${p.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700`">{{ p.initials }}</div>
-<div style="flex: 1; display: flex; flex-direction: column"><strong style="font-size: 15px">{{ p.author }}</strong><span style="font-size: 12px; color: #9DB0A6">{{ p.meta }}</span></div>
-<button aria-label="Post options" style="width: 36px; height: 36px; border-radius: 50%; border: 0; background: transparent; color: #9DB0A6; cursor: pointer; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="19" cy="12" r="1.8"></circle></svg></button>
+<div style="flex: 1; display: flex; flex-direction: column"><strong style="font-size: 15px">{{ p.author }}<template v-if="p.saved"> <span style="font-size: 11px; color: #B8F36B; font-weight: 500">· Saved</span></template></strong><span style="font-size: 12px; color: #9DB0A6">{{ p.meta }}</span></div>
+<div style="position: relative"><button aria-label="Post options" aria-haspopup="menu" :aria-expanded="p.menuOpen" @click="p.toggleMenu" style="width: 36px; height: 36px; border-radius: 50%; border: 0; background: transparent; color: #9DB0A6; cursor: pointer; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="19" cy="12" r="1.8"></circle></svg></button>
+<template v-if="p.menuOpen"><div role="menu" aria-label="Post options" style="position: absolute; right: 0; top: 40px; z-index: 5; min-width: 170px; padding: 6px; border-radius: 12px; background: #1D2A25; border: 1px solid #34453D; box-shadow: 0 14px 30px rgba(0,0,0,0.45); display: flex; flex-direction: column"><template v-for="(mi, mi__i) in p.menuItems" :key="mi__i"><button role="menuitem" @click="mi.run" :style="`height: 38px; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; text-align: left; cursor: pointer; font-size: 14px; color: ${mi.danger ? '#FF9B8A' : '#E8EFEA'}`">{{ mi.label }}</button></template></div></template></div>
 </div>
 <p style="margin: 0; padding: 12px 16px; font-size: 15px; line-height: 1.55; white-space: pre-line">{{ p.text }}</p>
 <template v-if="p.hasPhoto">
@@ -72,16 +99,7 @@
 </div>
 </template>
 <template v-if="p.hasTags"><div style="padding: 0 16px 10px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center"><span style="font-size: 12px; color: #9DB0A6">Tagged:</span><template v-for="(tg, tg__i) in p.tagList" :key="tg__i"><button @click="tg.open" style="height: 28px; padding: 0 10px; border-radius: 14px; border: 1px solid #4A4426; background: #24220F; color: #FFD66B; cursor: pointer; font-size: 12px; font-weight: 600">@{{ tg.name }}</button></template></div></template>
-<template v-if="p.hasImages">
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 2px">
-<template v-for="(m, m__i) in p.images" :key="m__i"><img :src="m.url" :alt="m.name" style="width: 100%; height: 300px; object-fit: cover; display: block"></template>
-</div>
-</template>
-<template v-if="p.hasDocs">
-<div style="display: flex; flex-wrap: wrap; gap: 8px; padding: 0 16px 8px">
-<template v-for="(m, m__i) in p.docs" :key="m__i"><div style="display: flex; gap: 10px; align-items: center; padding: 8px 12px; border-radius: 10px; background: #121B17; border: 1px solid #2A3832"><span style="width: 34px; height: 34px; border-radius: 8px; background: #22302A; color: #B8F36B; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6z"></path><path d="M14 3v4h4"></path></svg></span><div style="display: flex; flex-direction: column"><strong style="font-size: 13px">{{ m.name }}</strong><span style="font-size: 11px; color: #9DB0A6">{{ m.meta }} · Download</span></div></div></template>
-</div>
-</template>
+<template v-if="p.hasMedia"><div style="padding: 0 16px 12px"><MediaCollage :files="p.media"/></div></template>
 <template v-if="p.hasPoll">
 <div style="display: flex; flex-direction: column; gap: 8px; padding: 0 16px 12px">
 <template v-for="(o, o__i) in p.poll" :key="o__i">
@@ -93,7 +111,7 @@
 <div style="display: flex; justify-content: space-between; padding: 10px 16px; font-size: 13px; color: #9DB0A6"><span>{{ p.likes }} likes</span><span>{{ p.commentCount }} comments · {{ p.shares }} shares</span></div>
 <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; margin: 0 12px; padding: 4px 0; border-top: 1px solid #24322C; border-bottom: 1px solid #24322C">
 <button @click="p.like" :style="p.likeStyle"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" :fill="p.heartFill" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"></path></svg>Like</button>
-<button style="height: 40px; border-radius: 10px; border: 0; background: transparent; color: #C9D6CF; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 14px"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 5h16v11H8l-4 4z"></path></svg>Comment</button>
+<button @click="p.toggleComments" :aria-expanded="p.commentsOpen" style="height: 40px; border-radius: 10px; border: 0; background: transparent; color: #C9D6CF; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 14px"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 5h16v11H8l-4 4z"></path></svg>Comment</button>
 <button @click="p.toggleShare" :aria-expanded="p.shareOpen" style="height: 40px; border-radius: 10px; border: 0; background: transparent; color: #C9D6CF; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 14px"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 5l7 7-7 7M21 12H9a6 6 0 0 0-6 6"></path></svg>Share</button>
 </div>
 <template v-if="p.shareOpen">
@@ -117,18 +135,18 @@
 </div>
 </template>
 <template v-if="p.hasShareNote"><span style="margin: 8px 16px 0; font-size: 12px; color: #B8F36B">{{ p.shareNote }}</span></template>
-<div style="display: flex; flex-direction: column; gap: 10px; padding: 12px 16px 16px">
-<template v-for="(c, c__i) in p.commentList" :key="c__i">
-<div style="display: flex; gap: 8px; align-items: flex-start">
-<div aria-hidden="true" :style="`width: 32px; height: 32px; flex: none; border-radius: 50%; background: ${c.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11px`">{{ c.initials }}</div>
-<div style="padding: 8px 12px; border-radius: 16px; background: #1F2C26"><strong style="font-size: 13px">{{ c.who }}</strong><div style="font-size: 14px; line-height: 1.4">{{ c.text }}</div></div>
+<template v-if="p.commentsOpen">
+<div role="region" aria-label="Comments" style="border-top: 1px solid #24322C; display: flex; flex-direction: column; min-width: 0">
+<div style="max-height: 340px; overflow-y: auto; padding: 4px 16px 8px">
+<template v-if="!p.hasComments"><p style="margin: 12px 0; font-size: 13px; color: #9DB0A6">No comments yet. Be the first.</p></template>
+<template v-for="n in p.commentTree" :key="n.key"><CommentNode :node="n"/></template>
+</div>
+<div style="display: flex; gap: 8px; align-items: center; padding: 8px 16px 14px; border-top: 1px solid #24322C">
+<div aria-hidden="true" style="width: 32px; height: 32px; flex: none; border-radius: 50%; background: #C2185B; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 12px">S</div>
+<CommentBox style="flex: 1" placeholder="Write a comment…" @send="p.addComment"/>
+</div>
 </div>
 </template>
-<div style="display: flex; gap: 8px; align-items: center">
-<div aria-hidden="true" style="width: 32px; height: 32px; flex: none; border-radius: 50%; background: #C2185B; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 12px">S</div>
-<label style="flex: 1"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Write a comment</span><input type="text" @keydown="p.onComment" placeholder="Write a comment… (Enter to send)" style="width: 100%; box-sizing: border-box; height: 38px; padding: 0 14px; border-radius: 19px; border: 1px solid #2A3832; background: #121B17; color: #E8EFEA; font-size: 14px"></label>
-</div>
-</div>
 </article>
 </template>
 </div>
@@ -137,22 +155,20 @@
 <div style="padding: 16px; border-radius: 16px; background: #16201C; border: 1px solid #24322C; display: flex; flex-direction: column; gap: 10px">
 <strong style="font-size: 15px">Birthdays today</strong>
 <span style="font-size: 14px; line-height: 1.5; color: #C9D6CF">Faith Achieng and 2 others. Send them a wish on the wall.</span>
-<button style="height: 38px; border-radius: 10px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer">Write a wish</button>
+<button @click="wish" style="height: 38px; border-radius: 10px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer">Write a wish</button>
 </div>
 <div style="padding: 16px; border-radius: 16px; background: #16201C; border: 1px solid #24322C; display: flex; flex-direction: column; gap: 12px">
 <strong style="font-size: 15px">Online now</strong>
-<template v-for="(m, m__i) in people" :key="m__i">
-<div style="display: flex; gap: 10px; align-items: center">
+<template v-for="(m, m__i) in onlineList" :key="m__i">
+<button @click="m.open" :aria-label="`View ${m.name}`" style="display: flex; gap: 10px; align-items: center; padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; text-align: left; font-family: inherit">
 <span :style="`position: relative; width: 34px; height: 34px; flex: none; border-radius: 50%; background: ${m.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px`">{{ m.initials }}<span style="position: absolute; right: -1px; bottom: -1px; width: 10px; height: 10px; border-radius: 50%; background: #B8F36B; border: 2px solid #16201C"></span></span>
 <span style="font-size: 14px">{{ m.name }}</span>
-</div>
+</button>
 </template>
 </div>
 <div style="padding: 16px; border-radius: 16px; background: #16201C; border: 1px solid #24322C; display: flex; flex-direction: column; gap: 8px">
 <strong style="font-size: 15px">Trending</strong>
-<span style="font-size: 14px; color: #C9D6CF">#CharityRun</span>
-<span style="font-size: 14px; color: #C9D6CF">#NewJoiners</span>
-<span style="font-size: 14px; color: #C9D6CF">#TournamentNight</span>
+<template v-for="tg in trending" :key="tg.tag"><button @click="tg.pick" :aria-pressed="tg.on" :style="`text-align: left; padding: 6px 8px; margin: 0 -8px; border: 0; border-radius: 8px; background: ${tg.on ? '#22302A' : 'transparent'}; color: ${tg.on ? '#B8F36B' : '#C9D6CF'}; cursor: pointer; font-size: 14px; font-family: inherit`">#{{ tg.tag }}</button></template>
 </div>
 </aside>
 </div>
@@ -164,6 +180,11 @@ import { hubBindings } from '~/composables/useHub';
 
 export default {
   name: 'WallSection',
-  ...hubBindings(["canPostWall","cannotPostWall","draft","emojiWallOpen","emojisWall","hasWFiles","moments","onDraft","onPost","onWallFiles","people","postBtnStyle","posts","show","toggleEmojiWall","wfiles"])
+  data() { return { momentCaption: '', momentBg: '#2B4A63' }; },
+  methods: {
+    submitMoment() { if (this.addMoment(this.momentCaption, this.momentBg)) this.momentCaption = ''; },
+    wish() { this.wishBirthday(); this.$nextTick(() => this.$refs.composer && this.$refs.composer.focus()); }
+  },
+  ...hubBindings(["addMoment","momentForm","momentView","wpollView","openEventFromWall","wallAudience","wallAudiences","onAudience","wishBirthday","onlineList","trending","wallFilter","canPostWall","cannotPostWall","draft","emojiWallOpen","emojisWall","hasWFiles","moments","onDraft","onPost","onWallFiles","people","postBtnStyle","posts","show","toggleEmojiWall","wfiles"])
 };
 </script>

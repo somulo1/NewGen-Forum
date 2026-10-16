@@ -35,7 +35,7 @@ export function valsTickets(ctx) {
       if (tagged.length) this.notify('You tagged ' + tagged.join(', ') + ' on ' + cur_t.id + '. They have been notified.', '#C9B6FF', cur_t.id);
     },
     attachTicket: (e) => {
-      const list = Array.from(e.target.files || []);
+      const list = this.capFiles(0, Array.from(e.target.files || []));
       e.target.value = '';
       if (!cur_t || !list.length) return;
       this.updTicket(cur_t.id, (t) => Object.assign({}, t, { activity: list.reduce((acc, f) => acc.concat([{ who: 'Sam', time: 'Just now', kind: 'file', ...(i => ({ text: i.name, meta: i.meta, url: i.url, isImg: i.isImg }))(this.fileInfo(f)) }]), t.activity) }));
@@ -50,7 +50,7 @@ export function valsTickets(ctx) {
     ntOpen: s.ntOpen, nt: s.nt, ntCats, ntPrios,
     toggleNewTicket: () => this.setState((st) => ({ ntOpen: !st.ntOpen })),
     ntSetTitle: (e) => { const v = e.target.value; this.setState((st) => ({ nt: { ...st.nt, title: v } })); },
-    ntAttach: (e) => { const list = Array.from(e.target.files || []).map((f) => this.fileInfo(f)); e.target.value = ''; this.setState((st) => ({ nt: { ...st.nt, files: (st.nt.files || []).concat(list) } })); },
+    ntAttach: (e) => { const list = this.capFiles((this.state.nt.files || []).length, Array.from(e.target.files || [])).map((f) => this.fileInfo(f)); e.target.value = ''; this.setState((st) => ({ nt: { ...st.nt, files: (st.nt.files || []).concat(list) } })); },
     ntRemoveFile: (i) => this.setState((st) => ({ nt: { ...st.nt, files: (st.nt.files || []).filter((_, k) => k !== i) } })),
     ntSetDesc: (e) => { const v = e.target.value; this.setState((st) => ({ nt: { ...st.nt, desc: v } })); },
     ntBtnStyle: 'height:40px;padding:0 20px;border-radius:10px;border:0;font-weight:600;cursor:pointer;' + (s.nt.title.trim() ? 'background:#B8F36B;color:#0F1714' : 'background:#2A3832;color:#9DB0A6'),

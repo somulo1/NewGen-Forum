@@ -18,14 +18,17 @@
 </div>
 </div>
 <div style="max-width: 900px; width: 100%; margin: 0 auto; box-sizing: border-box"><DmPrivacy /></div>
-<div style="flex: 1; min-height: 0; overflow-y: auto">
+<div style="flex: none; border-bottom: 1px solid #24322C"><div role="tablist" style="max-width: 900px; margin: 0 auto; padding: 0 clamp(8px, 2vw, 24px); display: flex; gap: 4px"><button role="tab" :aria-selected="!isPanelCalls" @click="goPanelChat" :style="`min-height: 40px; padding: 0 16px; border: 0; background: transparent; cursor: pointer; font-size: 14px; border-bottom: 2px solid ${!isPanelCalls ? '#B8F36B' : 'transparent'}; color: ${!isPanelCalls ? '#E8EFEA' : '#9DB0A6'}; font-weight: ${!isPanelCalls ? 600 : 500}`">Chat</button><button role="tab" :aria-selected="isPanelCalls" @click="goPanelCalls" :style="`min-height: 40px; padding: 0 16px; border: 0; background: transparent; cursor: pointer; font-size: 14px; border-bottom: 2px solid ${isPanelCalls ? '#B8F36B' : 'transparent'}; color: ${isPanelCalls ? '#E8EFEA' : '#9DB0A6'}; font-weight: ${isPanelCalls ? 600 : 500}`">Calls</button></div></div>
+<div v-if="isPanelCalls" style="flex: 1; min-height: 0; overflow-y: auto"><div style="max-width: 900px; margin: 0 auto; padding: 18px clamp(16px, 3vw, 32px)"><CallHistory /></div></div>
+<div v-if="!isPanelCalls" style="flex: 1; min-height: 0; overflow-y: auto">
 <div style="max-width: 900px; margin: 0 auto; padding: 18px clamp(16px, 3vw, 32px); display: flex; flex-direction: column; gap: 12px">
 <span style="align-self: center; font-size: 11px; color: #9DB0A6; padding: 4px 10px; border-radius: 10px; background: #1A2520">Today</span>
 <template v-for="(u, u__i) in cur.chat" :key="u__i">
 <div :style="u.rowStyle">
 <div aria-hidden="true" :style="`width: 32px; height: 32px; flex: none; border-radius: 50%; background: ${u.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px`">{{ u.initials }}</div>
 <div :style="u.bubbleStyle">
-<div style="display: flex; gap: 8px; align-items: baseline"><strong style="font-size: 13px">{{ u.who }}</strong><span style="font-size: 11px; color: #9DB0A6">{{ u.time }}</span></div>
+<div style="display: flex; gap: 8px; align-items: baseline"><strong style="font-size: 13px">{{ u.who }}</strong><span style="font-size: 11px; color: #9DB0A6">{{ u.time }}</span><template v-if="u.reply"><button type="button" @click="u.reply" aria-label="Reply to this message" style="margin-left: auto; height: 22px; padding: 0 8px; border: 0; border-radius: 11px; background: transparent; color: #9DB0A6; cursor: pointer; font-size: 11px">↩ Reply</button></template></div>
+<template v-if="u.hasReply"><div style="margin: 4px 0 0; padding: 4px 8px; border-left: 3px solid #B8F36B; border-radius: 4px; background: rgba(0,0,0,.2); font-size: 12px; color: #9DB0A6; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap"><strong style="color: #C9D6CF">{{ u.replyWho }}</strong> {{ u.replySnippet }}</div></template>
 <template v-if="u.hasText"><p style="margin: 4px 0 0; font-size: 14px; line-height: 1.45">{{ u.text }}</p></template>
 <template v-if="u.hasFile"><FileGrid :files="u.fileList" :size="140"/></template>
 </div>
@@ -33,7 +36,8 @@
 </template>
 </div>
 </div>
-<div style="flex: none; border-top: 1px solid #24322C">
+<div v-if="!isPanelCalls" style="flex: none; border-top: 1px solid #24322C">
+<div v-if="replyBar.active" style="max-width: 900px; margin: 0 auto; padding: 8px clamp(16px, 3vw, 32px) 0"><div style="display: flex; align-items: center; gap: 8px; margin: 0 0 6px; padding: 6px 10px; border-left: 3px solid #B8F36B; border-radius: 6px; background: #16201C; font-size: 12px; color: #9DB0A6; min-width: 0"><span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">Replying to <strong style="color: #E8EFEA">{{ replyBar.who }}</strong>: {{ replyBar.snippet }}</span><button type="button" aria-label="Cancel reply" @click="replyBar.cancel" style="width: 24px; height: 24px; border: 0; border-radius: 12px; background: transparent; color: #E8EFEA; cursor: pointer">✕</button></div></div>
 <div style="max-width: 900px; margin: 0 auto; position: relative; padding: 12px clamp(16px, 3vw, 32px); display: flex; gap: 4px; align-items: center">
 <template v-if="emojiForumOpen">
 <div role="menu" aria-label="Emoji" style="position: absolute; left: 14px; right: 14px; bottom: 66px; z-index: 4; padding: 8px; border-radius: 14px; background: #1D2A25; border: 1px solid #34453D; box-shadow: 0 12px 30px rgba(0,0,0,0.45); display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 2px">
@@ -61,7 +65,7 @@ export default {
   components: { CallScreen },
   props: { fit: { type: String, default: 'screen' } },
   computed: {
-    ...hubBindings(["attachForum","composerNote","composerOff","cur","dmPriv","emojiForumOpen","emojisForum","fKey","fdraft","isFullDm","isPageDm","onFDraft","sendForum","showPanelCall","toClosed","toDocked","toFull","toMin","toPage","toggleEmojiForum","videoCall","voiceCall"]).computed,
+    ...hubBindings(["attachForum","composerNote","composerOff","cur","dmPriv","emojiForumOpen","emojisForum","fKey","fdraft","isFullDm","replyBar","isPanelCalls","goPanelChat","goPanelCalls","isPageDm","onFDraft","sendForum","showPanelCall","toClosed","toDocked","toFull","toMin","toPage","toggleEmojiForum","videoCall","voiceCall"]).computed,
     shown() { return this.fit === 'page' ? !!this.isPageDm : !!this.isFullDm; },
     rootStyle() {
       const base = 'background: #0F1714; display: flex; flex-direction: column; overflow: hidden; box-sizing: border-box;';

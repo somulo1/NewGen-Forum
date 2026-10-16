@@ -1,14 +1,14 @@
 // HubLogic actions: messaging. Mixed into HubLogic.prototype, so `this` is the HubLogic instance.
 export const messagingActions = {
-  postMsg(text, file) {
+  postMsg(text, file, replyTo) {
     const gate = this._chatGate;
     if (gate && !gate.allowed) { this.notify(gate.reason, '#FFB86B'); return; }
-    if (this.state.panelKind === 'dm' && this.state.dmId) this.addDmMsg(this.state.dmId, text, file);
-    else this.addForumMsg(this.state.forum, text, file);
+    if (this.state.panelKind === 'dm' && this.state.dmId) this.addDmMsg(this.state.dmId, text, file, replyTo);
+    else this.addForumMsg(this.state.forum, text, file, replyTo);
   },
 
-  addDmMsg(id, text, file) {
-    this.setState((st) => ({ dms: st.dms.map((d) => (d.id === id ? { ...d, msgs: d.msgs.concat([{ from: 'me', text: text, file: file, time: 'Just now' }]) } : d)) }));
+  addDmMsg(id, text, file, replyTo) {
+    this.setState((st) => ({ dms: st.dms.map((d) => (d.id === id ? { ...d, msgs: d.msgs.concat([{ from: 'me', text: text, file: file, replyTo: replyTo || null, time: 'Just now' }]) } : d)) }));
     if (!text) return;
     const replies = ['Got it, thanks!', 'Sure, give me a minute.', 'Okay, I\'ll check and get back to you.', 'Thanks for the update.', 'Can we jump on a quick call?'];
     clearTimeout(this._dmT);
@@ -30,7 +30,7 @@ export const messagingActions = {
     });
   },
 
-  addForumMsg(fid, text, file) {
-    this.setState((st) => ({ added: { ...st.added, [fid]: [...(st.added[fid] || []), { who: 'Sam', initials: 'S', color: '#F49AC1', time: 'Just now', text: text, file: file, replies: 0 }] } }));
+  addForumMsg(fid, text, file, replyTo) {
+    this.setState((st) => ({ added: { ...st.added, [fid]: [...(st.added[fid] || []), { who: 'Sam', initials: 'S', color: '#F49AC1', time: 'Just now', text: text, file: file, replyTo: replyTo || null, replies: 0 }] } }));
   }
 };

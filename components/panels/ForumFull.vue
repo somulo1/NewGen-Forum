@@ -38,18 +38,21 @@
 <button role="tab" @click="tabTo.discussions" :style="tab.discussions">Discussions</button>
 <button role="tab" @click="tabTo.polls" :style="tab.polls">Polls ({{ pollView.count }})</button>
 <template v-if="has.sessions"><button role="tab" @click="tabTo.sessions" :style="tab.sessions">Meetings</button></template>
+<button role="tab" @click="tabTo.calls" :style="tab.calls">Calls</button>
 <button role="tab" @click="tabTo.members" :style="tab.members">Members</button>
 <button role="tab" @click="tabTo.files" :style="tab.files">Files</button>
 <button role="tab" @click="tabTo.about" :style="tab.about">About</button>
 </div>
 </div>
 
+<template v-if="ftab.calls"><CallHistory /></template>
+
 <template v-if="ftab.discussions">
 <div style="display: flex; flex-direction: column; gap: 12px">
 <template v-for="(u, u__i) in cur.topics" :key="u__i">
 <div style="display: flex; gap: 14px; padding: 16px; border-radius: 14px; background: #16201C; border: 1px solid #24322C">
 <div aria-hidden="true" :style="`width: 40px; height: 40px; flex: none; border-radius: 50%; background: ${u.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700`">{{ u.initials }}</div>
-<div style="flex: 1; display: flex; flex-direction: column; gap: 6px"><div style="display: flex; gap: 8px; align-items: baseline"><strong>{{ u.who }}</strong><span style="font-size: 12px; color: #9DB0A6">{{ u.time }}</span></div><template v-if="u.hasText"><p style="margin: 0; font-size: 15px; line-height: 1.5">{{ u.text }}</p></template><template v-if="u.hasFile"><FileGrid :files="u.fileList" :size="140"/></template><span style="font-size: 13px; color: #9DB0A6">{{ u.replies }} replies · Reply</span></div>
+<div style="flex: 1; display: flex; flex-direction: column; gap: 6px"><div style="display: flex; gap: 8px; align-items: baseline"><strong>{{ u.who }}</strong><span style="font-size: 12px; color: #9DB0A6">{{ u.time }}</span></div><template v-if="u.hasReply"><div style="margin: 4px 0 0; padding: 4px 8px; border-left: 3px solid #B8F36B; border-radius: 4px; background: rgba(0,0,0,.2); font-size: 12px; color: #9DB0A6; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap"><strong style="color: #C9D6CF">{{ u.replyWho }}</strong> {{ u.replySnippet }}</div></template><template v-if="u.hasText"><p style="margin: 0; font-size: 15px; line-height: 1.5">{{ u.text }}</p></template><template v-if="u.hasFile"><FileGrid :files="u.fileList" :size="140"/></template><button type="button" @click="u.reply" aria-label="Reply to this message" style="align-self: flex-start; padding: 0; border: 0; background: transparent; color: #9DB0A6; cursor: pointer; font-size: 13px">↩ Reply<template v-if="u.replies"> · {{ u.replies }} earlier replies</template></button></div>
 </div>
 </template>
 </div>
@@ -99,6 +102,7 @@
 
 <template v-if="ftab.discussions">
 <div style="margin-top: auto; position: sticky; bottom: 0; z-index: 5; padding: 12px 0 16px; background: #0F1714; box-shadow: 0 -14px 16px -14px rgba(0,0,0,0.7)">
+<template v-if="replyBar.active"><div style="display: flex; align-items: center; gap: 8px; margin: 0 0 6px; padding: 6px 10px; border-left: 3px solid #B8F36B; border-radius: 6px; background: #16201C; font-size: 12px; color: #9DB0A6; min-width: 0"><span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">Replying to <strong style="color: #E8EFEA">{{ replyBar.who }}</strong>: {{ replyBar.snippet }}</span><button type="button" aria-label="Cancel reply" @click="replyBar.cancel" style="width: 24px; height: 24px; border: 0; border-radius: 12px; background: transparent; color: #E8EFEA; cursor: pointer">✕</button></div></template>
 <div style="position: relative; display: flex; gap: 6px; align-items: center; padding: 6px; border-radius: 14px; border: 1px solid #2A3832; background: #16201C">
 <template v-if="emojiForumOpen">
 <div role="menu" aria-label="Emoji" style="position: absolute; left: 0; right: 0; bottom: calc(100% + 8px); padding: 8px; border-radius: 14px; background: #1D2A25; border: 1px solid #34453D; box-shadow: 0 12px 30px rgba(0,0,0,0.45); display: grid; grid-template-columns: repeat(auto-fill, minmax(42px, 1fr)); gap: 2px">
@@ -128,7 +132,7 @@ export default {
   components: { CallScreen },
   props: { fit: { type: String, default: 'screen' } },
   computed: {
-    ...hubBindings(["attachForum","chatCtl","composerNote","composerOff","cur","emojiForumOpen","emojisForum","fKey","fdraft","files","ftab","has","inviteOpen","isFullForum","isPageForum","onFDraft","pollView","sendForum","showPanelCall","tab","tabTo","toClosed","toDocked","toFull","toMin","toPage","toggleEmojiForum","toggleInvite","videoCall","voiceCall"]).computed,
+    ...hubBindings(["attachForum","replyBar","chatCtl","composerNote","composerOff","cur","emojiForumOpen","emojisForum","fKey","fdraft","files","ftab","has","inviteOpen","isFullForum","isPageForum","onFDraft","pollView","sendForum","showPanelCall","tab","tabTo","toClosed","toDocked","toFull","toMin","toPage","toggleEmojiForum","toggleInvite","videoCall","voiceCall"]).computed,
     shown() { return this.fit === 'page' ? !!this.isPageForum : !!this.isFullForum; },
     rootStyle() {
       const base = 'background: #0F1714; overflow-y: auto; box-sizing: border-box;';

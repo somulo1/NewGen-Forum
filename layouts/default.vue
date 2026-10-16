@@ -55,6 +55,8 @@
 
 <CallMini />
 
+<FileViewer />
+
 <AppToast />
 
 <MobileTabBar />

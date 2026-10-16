@@ -17,7 +17,7 @@ export function buildNav(ctx) {
     go[k] = () => this.setState((x) => ({ callMode: x.callMode === 'full' ? 'docked' : x.callMode, mode: x.mode === 'page' ? 'docked' : x.mode, section: k, ticketOpen: null, projectOpen: null, folder: null, notifOpen: false, statusMenu: false }));
     show[k] = on;
   });
-  const tabs = ['discussions', 'polls', 'sessions', 'members', 'files', 'about'];
+  const tabs = ['discussions', 'polls', 'sessions', 'calls', 'members', 'files', 'about'];
   const tab = {}, tabTo = {}, ftab = {};
   tabs.forEach((k) => {
     const on = s.tab === k;
