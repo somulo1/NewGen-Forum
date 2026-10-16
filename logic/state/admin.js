@@ -1,7 +1,7 @@
 // Initial state: admin.
 export function adminState() {
   return {
-    orgOpen: false, ou: null, ouTab: 'comms', targets: {}, rolesTab: 'roles', memberRoles: {},
+    orgOpen: false, ou: null, ouTab: 'comms', targets: {}, rolesTab: 'roles', memberRoles: {}, reportsTo: {}, personRights: {}, reportDraft: null,
     theme: 'dark',
     commRules: {
       departments: { Memo: { on: true, to: ['own', 'departments'], sender: 'hod', approver: 'none' }, Announcement: { on: true, to: ['own', 'wall'], sender: 'hod', approver: 'admin' } },

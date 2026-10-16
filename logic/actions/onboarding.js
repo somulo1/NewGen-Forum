@@ -26,8 +26,12 @@ export const onboardingActions = {
     const parts = (p.name || '').split(' ');
     const first = p.first || parts[0] || '', last = p.last || parts.slice(1).join(' ');
     const f = { ...BLANK, first, last, dob: p.dob || '', gender: p.gender || '', email: p.email || '', phone: p.phone || '', title: p.title || '', sector: p.sector || '', branch: p.loc || '', unit: p.unit || '', department: p.dept || '' };
-    this.setState({ onboard: { tab: 'one', edit: id, orig: { ...f }, f, errs: {}, bulkText: '', bulk: null, fileName: '', done: null } });
+    this.setState({ onboard: { tab: 'one', edit: id, orig: { ...f }, f, roleDraft: null, rightsDraft: {}, errs: {}, bulkText: '', bulk: null, fileName: '', done: null } });
   },
+  // Role and rights drafts while editing a person; saved together with the details.
+  setOnboardRole(v) { this.setState((st) => ({ onboard: { ...st.onboard, roleDraft: v } })); },
+  toggleOnboardRight(key, value) { this.setState((st) => ({ onboard: { ...st.onboard, rightsDraft: { ...st.onboard.rightsDraft, [key]: value } } })); },
+  resetOnboardRights() { this.setState((st) => ({ onboard: { ...st.onboard, rightsDraft: Object.keys({ ...(st.personRights[this.dir[st.onboard.edit].name] || {}) }).reduce((m, k) => { m[k] = null; return m; }, {}) } })); },
   closeOnboard() { this.setState({ onboard: null }); },
   setOnboardTab(tab) { this.setState((st) => ({ onboard: { ...st.onboard, tab, done: null } })); },
 
@@ -69,7 +73,14 @@ export const onboardingActions = {
     if (editing) {
       const p = this.dir[ob.edit];
       Object.assign(p, { name: clean.first + ' ' + clean.last, first: clean.first, last: clean.last, initials: (clean.first[0] + clean.last[0]).toUpperCase(), title: clean.title || p.title, dept: clean.department || p.dept, loc: clean.branch || p.loc, sector: clean.sector, unit: clean.unit, email: clean.email, phone: clean.phone, dob: clean.dob, gender: clean.gender });
-      this.setState((st) => ({ onboard: null, extraLogs: [{ id: 'x' + Date.now() + p.id, ago: 0, user: 'Samwel Okoth Omulo', action: 'Edited details of ' + p.name, module: 'People', ip: '10.0.4.21', loc: 'Office network', result: 'Success', rule: '' }].concat(st.extraLogs) }));
+      const logs = [];
+      if (ob.roleDraft) { this.setState((st) => ({ memberRoles: { ...st.memberRoles, [p.name]: ob.roleDraft } })); logs.push('Changed the role of ' + p.name + ' to ' + ob.roleDraft); }
+      const rd = ob.rightsDraft || {};
+      if (Object.keys(rd).length) {
+        this.setState((st) => { const cur = { ...(st.personRights[p.name] || {}) }; Object.keys(rd).forEach((k) => { if (rd[k] === null) delete cur[k]; else cur[k] = rd[k]; }); const pr = { ...st.personRights }; if (Object.keys(cur).length) pr[p.name] = cur; else delete pr[p.name]; return { personRights: pr }; });
+        logs.push('Changed individual rights of ' + p.name + ' (' + Object.keys(rd).length + ' change' + (Object.keys(rd).length === 1 ? '' : 's') + ')');
+      }
+      this.setState((st) => ({ onboard: null, extraLogs: logs.map((a, i) => ({ id: 'xr' + Date.now() + i, ago: 0, user: 'Samwel Okoth Omulo', action: a, module: 'Roles', ip: '10.0.4.21', loc: 'Office network', result: 'Success', rule: 'r5' })).concat([{ id: 'x' + Date.now() + p.id, ago: 0, user: 'Samwel Okoth Omulo', action: 'Edited details of ' + p.name, module: 'People', ip: '10.0.4.21', loc: 'Office network', result: 'Success', rule: '' }].concat(st.extraLogs)) }));
       this.forceUpdate();
       this.notify(p.name + '\'s details were saved.', '#B8F36B');
       return;
