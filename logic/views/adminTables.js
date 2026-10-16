@@ -1,12 +1,25 @@
+import { LEVEL_LABEL, catsFor, levelsOf } from '~/logic/ticketRouting.js';
+
 // renderVals step: adminTables. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildAdminTables(ctx) {
-  const { C, O, agoLabel, alertsAll, allLogs, chip, corePeople, f8, flowItem, fmtDay, has, modEnabled, modInfo, nowMs, rKey, requestsShown, rightOf, rightsDef, roleScope, ruleDefs, ruleOn, ruleSev, s, sec, sevColor, tickets, titleOf, toggleRight, tz9, visibleRoles } = ctx;
+  const { C, O, agoLabel, defaultCats, deskTickets, myTickets, alertsAll, allLogs, chip, corePeople, f8, flowItem, fmtDay, has, modEnabled, modInfo, nowMs, rKey, requestsShown, rightOf, rightsDef, roleScope, ruleDefs, ruleOn, ruleSev, s, sec, sevColor, tickets, titleOf, toggleRight, tz9, visibleRoles } = ctx;
   // =============== Tables for existing pages ===============
-  const ticketsTable = { id: 'tickets', pageSize: 10, minWidth: has.departments ? '1180px' : '1060px', emptyText: 'No tickets match.',
-    cols: [{ label: 'ID', filter: 'text' }, { label: 'Title', filter: 'text' }].concat(has.departments ? [{ label: 'Department', filter: 'select' }, { label: 'From', filter: 'select' }] : []).concat([{ label: 'Category', filter: 'select' }, { label: 'Priority', filter: 'select' }, { label: 'Status', filter: 'select' }, { label: 'TAT', filter: 'select' }, { label: 'Handling', filter: 'select' }, { label: 'Raised', filter: 'date' }, { label: '', align: 'right' }]),
-    rows: tickets.map((t) => ({ tint: t._c.sla === 'Overdue' ? '#FF9B8A' : '', cells: [C.t(t.id, { mono: true, nowrap: true }), C.t(t.title, { strong: true })].concat(has.departments ? [C.t(t.dept), C.t(t.fromDept)] : []).concat([
-      C.t(t.cat), C.b(t.prio, { High: '#FF9B8A', Medium: '#FFB86B', Low: '#9DB0A6' }[t.prio]), C.t(t.statusLabel + (t.escalated ? ' · escalated' : ''), { fv: t.statusLabel }), C.b(t.slaLabel, t._c.color, { sub: t.remainingLabel }), C.t(t.handlerLabel), C.t(fmtDay(t.createdAt), { fv: t.createdAt, nowrap: true }),
-      C.a([{ label: 'View', kind: 'primary', run: t.open }])]) })) };
+  const prioColor = { High: '#FF9B8A', Medium: '#FFB86B', Low: '#9DB0A6' };
+  const ticketCols = [{ label: 'ID', filter: 'text' }, { label: 'Title', filter: 'text' }];
+  const ticketCells = (t) => [C.t(t.id, { mono: true, nowrap: true }), C.t(t.title, { strong: true })];
+  const tailCols = [{ label: 'Priority', filter: 'select' }, { label: 'Status', filter: 'select' }, { label: 'TAT', filter: 'select' }, { label: 'Handling', filter: 'select' }, { label: 'Raised', filter: 'date' }, { label: '', align: 'right' }];
+  const tailCells = (t) => [C.b(t.prio, prioColor[t.prio]), C.t(t.statusLabel + (t.escalated ? ' · escalated' : ''), { fv: t.statusLabel }), C.b(t.slaLabel, t._c.color, { sub: t.remainingLabel }), C.t(t.handlerLabel), C.t(fmtDay(t.createdAt), { fv: t.createdAt, nowrap: true }), C.a([{ label: 'View', kind: 'primary', run: t.open }])];
+  // My tickets: what you raised, and where each one is now.
+  const ticketsTable = { id: 'tickets-mine', pageSize: 10, minWidth: '1060px', emptyText: 'You have not raised any tickets yet.',
+    cols: ticketCols.concat([{ label: 'Sent to', filter: 'select' }, { label: 'Category', filter: 'select' }]).concat(tailCols),
+    rows: myTickets.map((t) => ({ tint: t._c.sla === 'Overdue' ? '#FF9B8A' : '', cells: ticketCells(t).concat([C.t(t.toLabel, { fv: t.toLabel }), C.t(t.cat)]).concat(tailCells(t)) })) };
+  // Ticket desk: every ticket received when the organization has no department, unit, branch or sector. Sorted by priority, then by how urgent the TAT is.
+  const prioRank = { High: 0, Medium: 1, Low: 2 };
+  const deskRows = deskTickets.slice().sort((a, b) => (a.step >= 3) - (b.step >= 3) || prioRank[a.prio] - prioRank[b.prio] || a._c.rem - b._c.rem);
+  const deskTable = { id: 'ticket-desk', pageSize: 10, minWidth: '1100px', emptyText: 'No tickets have been received.',
+    cols: ticketCols.concat([{ label: 'From', filter: 'select' }, { label: 'Category', filter: 'select' }]).concat(tailCols),
+    rows: deskRows.map((t) => ({ tint: t._c.sla === 'Overdue' ? '#FF9B8A' : '', cells: ticketCells(t).concat([C.t(t.fromDept || t.raisedBy), C.t(t.cat)]).concat(tailCells(t)) })) };
+  const deskCats = Array.from(new Set(deskTickets.map((t) => t.cat))).map((c) => { const list = deskTickets.filter((t) => t.cat === c); return { name: c, total: list.length, open: list.filter((t) => t.step < 3).length, overdue: list.filter((t) => t._c.sla === 'Overdue').length }; }).sort((a, b) => b.open - a.open);
   const statusColP = { 'Available': '#B8F36B', 'In a meeting': '#FFB86B', 'Focusing': '#7CC4FF', 'Away': '#9DB0A6' };
   const peopleTable = { id: 'people', pageSize: 15, minWidth: '880px',
     cols: [{ label: 'Person', filter: 'text' }].concat(has.departments ? [{ label: 'Department', filter: 'select' }] : []).concat(has.sectors ? [{ label: 'Sector', filter: 'select' }] : []).concat(has.branches ? [{ label: 'Branch', filter: 'select' }] : []).concat(has.units ? [{ label: 'Unit', filter: 'select' }] : []).concat([{ label: 'Status', filter: 'select' }, { label: '', align: 'right' }]),
@@ -97,6 +110,18 @@ export function buildAdminTables(ctx) {
   const rolesTabs = [['roles', 'Roles'], ['rights', 'Rights'], ['members', 'Members'], ['flows', 'Approval rules']].map(([k, l]) => ({ label: l, go: () => this.setState({ rolesTab: k }),
     style: 'min-height:44px;padding:0 16px;border:0;background:transparent;cursor:pointer;font-size:14px;font-family:inherit;border-bottom:2px solid ' + (s.rolesTab === k ? '#B8F36B' : 'transparent') + ';color:' + (s.rolesTab === k ? '#E8EFEA' : '#9DB0A6') + ';font-weight:' + (s.rolesTab === k ? '600' : '500') }));
   const rolesView = { isRoles: s.rolesTab === 'roles', isRights: s.rolesTab === 'rights', isMembers: s.rolesTab === 'members', isFlows: s.rolesTab === 'flows' };
-  const ntDepts = has.departments ? O.departments.map((d) => ({ label: d.name, pick: () => this.setState((x) => ({ nt: { ...x.nt, dept: d.name } })), style: chip((s.nt.dept || 'IT Operations') === d.name) })) : [];
-  return { addToRole, alertsTable, approvalsTable, flowsTable, logsTable, membersTable, ntDepts, peopleSummary, peopleTable, rightsHint, rightsTable, roleBar, rolesTable, rolesTabs, rolesView, rulesTable, setRoleSel, ticketsTable };
+  const tLevels = levelsOf(has);
+  const ntType = tLevels.indexOf(s.nt.toType) !== -1 ? s.nt.toType : (tLevels[0] || 'desk');
+  const ntRecs = ntType === 'desk' ? [] : (O[ntType] || []);
+  const ntName = ntRecs.some((r) => r.name === s.nt.toName) ? s.nt.toName : (ntRecs[0] ? ntRecs[0].name : '');
+  const ntRecip = ntType === 'desk' ? { type: 'desk', name: 'Ticket desk' } : { type: ntType, name: ntName };
+  const ntCatList = catsFor(s.unitCats, ntRecip, defaultCats);
+  const ntCatSel = ntCatList.find((c) => c.name === s.nt.cat) || ntCatList[0];
+  const ntCats = ntCatList.map((c) => ({ label: c.name + ' · ' + c.tat + 'h' + (c.custom ? ' · ' + c.prio + ' priority' : ''), pick: () => this.setState((x) => ({ nt: { ...x.nt, cat: c.name } })), style: chip(ntCatSel.name === c.name) }));
+  const ntTargets = { hasLevels: tLevels.length > 0, multiple: tLevels.length > 1, type: ntType, name: ntName,
+    types: tLevels.map((l) => ({ label: LEVEL_LABEL[l], pick: () => this.setState((x) => ({ nt: { ...x.nt, toType: l, toName: '' } })), style: chip(ntType === l) })),
+    recs: ntRecs.map((r) => ({ label: r.name, pick: () => this.setState((x) => ({ nt: { ...x.nt, toType: ntType, toName: r.name } })), style: chip(ntName === r.name) })),
+    recsLabel: ntType === 'desk' ? '' : 'Send to ' + LEVEL_LABEL[ntType].toLowerCase(),
+    summary: ntType === 'desk' ? 'This organization has no departments, units, branches or sectors, so tickets go to the ticket desk.' : 'It will show on the ' + LEVEL_LABEL[ntType].toLowerCase() + ' dashboard of ' + ntName + '.' };
+  return { ntCats, ntCatSel, deskCats, deskTable, addToRole, alertsTable, approvalsTable, flowsTable, logsTable, membersTable, ntTargets, peopleSummary, peopleTable, rightsHint, rightsTable, roleBar, rolesTable, rolesTabs, rolesView, rulesTable, setRoleSel, ticketsTable };
 }

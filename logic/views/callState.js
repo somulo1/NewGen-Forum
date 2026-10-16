@@ -49,9 +49,9 @@ export function buildCallState(ctx) {
   }
   const panelCallMatch = !!s.call && ((s.call.context === 'dm' && isDM && curDm.with === s.call.ref) || (s.call.context === 'forum' && !isDM && cur.id === s.call.ref));
   const isMeetingCall = !!s.call && !s.call.context;
-  const showMeetingFull = isMeetingCall && s.callMode === 'full' && s.mode !== 'full';
+  const showMeetingFull = isMeetingCall && s.callMode === 'full' && s.mode !== 'full' && s.mode !== 'page';
   const showMeetingDock = isMeetingCall && s.callMode === 'docked' && s.mode !== 'full';
-  const showPanelCall = panelCallMatch && (s.mode === 'docked' || s.mode === 'full');
+  const showPanelCall = panelCallMatch && (s.mode === 'docked' || s.mode === 'full' || s.mode === 'page');
   const showCallMini = !!s.call && !showMeetingFull && !showMeetingDock && !showPanelCall;
   const callMiniStyle = 'position:fixed;z-index:60;right:' + (s.mode === 'docked' ? pw + 36 : 20) + 'px;bottom:' + (s.mode === 'min' ? 92 : 20) + 'px';
   const restoreCall = () => {
@@ -59,7 +59,7 @@ export function buildCallState(ctx) {
     if (!c) return;
     if (!c.context) this.setState({ callMode: 'docked', mode: this.state.mode === 'full' ? 'docked' : this.state.mode });
     else if (c.context === 'dm') this.openDm(c.ref);
-    else this.setState({ forum: c.ref, panelKind: 'forum', mode: this.state.mode === 'full' ? 'full' : 'docked', menu: false, tab: 'discussions' });
+    else this.setState({ forum: c.ref, panelKind: 'forum', mode: this.state.mode === 'full' || this.state.mode === 'page' ? this.state.mode : 'docked', menu: false, tab: 'discussions' });
   };
   const sendCall = () => {
     const t = this.state.callDraft.trim();

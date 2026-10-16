@@ -9,17 +9,7 @@
 <template v-for="(rl, rl__i) in chatCtl.roles" :key="rl__i"><label :style="`display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px; border-radius: 17px; cursor: pointer; font-size: 13px; ${rl.on ? 'background: #2C3D34; border: 1px solid #B8F36B' : 'background: #121B17; border: 1px solid #2A3832'}`"><input type="checkbox" :checked="rl.on" @change="rl.toggle" style="accent-color: #B8F36B">{{ rl.name }}</label></template>
 </div>
 </template>
-<span style="font-size: 12px; color: #9DB0A6">Block or allow single people below. A name on the allowed list can chat even when their role cannot.</span>
-<div style="display: flex; flex-direction: column; gap: 6px">
-<template v-for="(mb, mb__i) in chatCtl.members" :key="mb__i">
-<div style="display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; background: #121B17">
-<span aria-hidden="true" :style="`width: 32px; height: 32px; border-radius: 50%; background: ${mb.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11px`">{{ mb.initials }}</span>
-<div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><strong style="font-size: 14px; font-weight: 600">{{ mb.name }}</strong><span style="font-size: 12px; color: #9DB0A6">{{ mb.forumRole }}</span></div>
-<span :style="`font-size: 12px; font-weight: 600; color: ${mb.stateColor}`">{{ mb.stateLabel }}</span>
-<button @click="mb.toggle" :aria-label="`${mb.actionLabel}: ${mb.name}`" :style="`height: 30px; padding: 0 12px; border-radius: 15px; cursor: pointer; font-size: 12px; ${mb.can ? 'border: 1px solid #6A3A34; background: transparent; color: #FF9B8A' : 'border: 0; background: #B8F36B; color: #0F1714; font-weight: 600'}`">{{ mb.actionLabel }}</button>
-</div>
-</template>
-</div>
+<span style="font-size: 12px; color: #9DB0A6">To block or allow one person, use the button on their card below. A name on the allowed list can chat even when their role cannot.</span>
 </template>
 </div>
 </template>

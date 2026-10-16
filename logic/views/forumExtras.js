@@ -37,6 +37,8 @@ export function buildForumExtras(ctx) {
   const setOpt = (i) => (e) => { const v = e.target.value; this.setState((st) => ({ pollForm: { ...st.pollForm, err: '', options: st.pollForm.options.map((o, j) => (j === i ? v : o)) } })); };
   const pollView = { count: forumPolls.length, noPolls: forumPolls.length === 0, canCreate: chatGate.allowed, createHint: chatGate.allowed ? '' : chatGate.reason,
     openForm: () => this.setState({ pollForm: { forum: fid, question: '', options: ['', ''], err: '', members: cur.members } }),
+    // The poll button next to attach and emoji: jump to the Polls view with the new-poll form open.
+    compose: () => this.setState({ tab: 'polls', panelTab: 'polls', pollForm: { forum: fid, question: '', options: ['', ''], err: '', members: cur.members } }),
     form: pf ? { open: true, question: pf.question, err: pf.err, hasErr: !!pf.err, canAdd: pf.options.length < 6,
       onQuestion: (e) => { const v = e.target.value; this.setState((st) => ({ pollForm: { ...st.pollForm, question: v, err: '' } })); },
       options: pf.options.map((v, i) => ({ value: v, placeholder: 'Option ' + (i + 1), onInput: setOpt(i), canRemove: pf.options.length > 2,

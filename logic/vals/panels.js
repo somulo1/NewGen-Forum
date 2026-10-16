@@ -15,6 +15,7 @@ export function valsPanels(ctx) {
     },
     isDocked: s.mode === 'docked',
     isFull: s.mode === 'full', isFullForum: s.mode === 'full' && !isDM, isFullDm: s.mode === 'full' && isDM, isDM: isDM,
+    isPageForum: s.mode === 'page' && !isDM, isPageDm: s.mode === 'page' && isDM, isPage: s.mode === 'page',
     panelChips: isDM ? s.dms.map((d) => { const pr = dmPerson(d.with); const on = d.id === s.dmId; return { name: d.with, initials: pr.initials, open: () => this.openDm(d.with),
       chipStyle: 'flex:none;width:36px;height:36px;border-radius:50%;cursor:pointer;font-weight:700;font-size:12px;color:#0F1714;font-family:inherit;background:' + pr.color + ';border:2px solid ' + (on ? '#E8EFEA' : 'transparent') + ';opacity:' + (on ? '1' : '0.65') }; }) : forums,
     dmList: s.dms.map((d) => { const pr = dmPerson(d.with); const last = d.msgs[d.msgs.length - 1]; const on = isDM && d.id === s.dmId && s.mode !== 'closed';
@@ -34,6 +35,7 @@ export function valsPanels(ctx) {
     linkMade: s.link,
     toDocked: set({ mode: 'docked', menu: false }),
     toFull: set({ mode: 'full', menu: false }),
+    toPage: set({ mode: 'page', menu: false }),
     toMin: set({ mode: 'min', menu: false }),
     toClosed: set({ mode: 'closed', menu: false }),
     toggleMenu: () => this.setState({ menu: !s.menu }),

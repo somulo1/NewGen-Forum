@@ -17,6 +17,8 @@
 <slot />
 </main>
 <CallScreen variant="main" />
+<ForumFull fit="page" />
+<PrivateChatFull fit="page" />
 </div>
 
 <div class="hub-rightcol" style="flex: none; min-height: 0; display: flex; flex-direction: column">
@@ -42,6 +44,8 @@
 <TaskDrawer />
 
 <MilestoneDialog />
+
+<OnboardDialog />
 
 <WidgetSettingsDrawer />
 

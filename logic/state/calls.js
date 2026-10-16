@@ -3,7 +3,7 @@ export function callsState() {
   return {
     call: null, callMode: 'docked', mic: true, cam: true, sharing: false, hand: false, rec: false, callPanel: null, callDraft: '',
     callMsgs: [{ who: 'Grace Njeri', text: 'Joining from the Coast branch. Can everyone hear me?' }, { who: 'Brian Kiprop', text: 'Loud and clear.' }],
-    ticketOpen: null, escOpen: false, esc: { type: '', id: '', cat: '', person: '', why: '' }, tcomment: '', tagOpen: false, ntOpen: false, nt: { title: '', cat: 'Network & Wi-Fi', prio: 'Medium', desc: '' },
+    ticketOpen: null, escOpen: false, esc: { type: '', id: '', cat: '', person: '', why: '' }, tcomment: '', tagOpen: false, ntOpen: false, nt: { title: '', cat: 'Network & Wi-Fi', prio: 'Medium', desc: '', toType: '', toName: '' }, unitCats: {}, catEdit: null, catWork: null, catDraft: { name: '', tat: '4', prio: 'Medium', err: '' },
     notifs: [{ text: 'DEV-91 was handed over to Amina Wanjiru.', color: '#7CC4FF', time: '1 h ago', ticket: 'DEV-91' }],
     notifSeen: false, notifOpen: false, toast: '', toastColor: '#B8F36B',
     settingsFor: null, wcfg: {},

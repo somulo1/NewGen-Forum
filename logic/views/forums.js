@@ -53,7 +53,7 @@ export function buildForums(ctx) {
     }
   });
   const cur = forumsData.find((f) => f.id === s.forum) || forumsData[0];
-  const openMode = s.mode === 'full' ? 'full' : 'docked';
+  const openMode = s.mode === 'full' || s.mode === 'page' ? s.mode : 'docked';
   const forums = forumsData.map((f) => {
     const active = f.id === cur.id && s.mode !== 'closed';
     return {

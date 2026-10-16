@@ -5,7 +5,7 @@
 <div style="flex: 1 1 300px"><h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; letter-spacing: -0.02em">Good afternoon, Sam</h1><p style="margin: 4px 0 0; color: #9DB0A6">Your home page. Add, remove and arrange widgets to suit your organization.</p></div>
 <template v-if="canCustomize">
 <button @click="toggleCustomize" :style="customizeBtnStyle">{{ customizeLabel }}</button>
-<button @click="openGallery" style="height: 40px; padding: 0 18px; border-radius: 20px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>Add widget</button>
+<button v-if="canWidgetsPage" @click="openGallery" style="height: 40px; padding: 0 18px; border-radius: 20px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>Add widget</button>
 </template>
 </div>
 
@@ -13,13 +13,13 @@
 <div style="padding: 40px 20px; border-radius: 18px; border: 1px dashed #4A5C54; text-align: center; color: #9DB0A6">No widgets yet. Use Add widget to build your home page.</div>
 </template>
 
-<template v-if="awardsOn">
+<template v-if="awardsOn && (!awardStrip.hidden || customizing)">
 <section aria-label="Performance awards" style="border-radius: 20px; background: #1B1A12; border: 1px solid #4A4426; overflow: hidden; display: flex; flex-direction: column">
 <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 14px 18px 4px">
 <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFD66B" stroke-width="1.8" stroke-linejoin="round"><path d="M8 4h8v5a4 4 0 0 1-8 0z"></path><path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8 20h8M10 17h4"></path></svg>
 <div style="display: flex; flex-direction: column"><strong style="font-size: 15px; color: #F3EBC8">{{ awardStrip.title }}</strong><span style="font-size: 12px; color: #C9BE8F">{{ awardStrip.sub }}</span></div>
 <span style="flex: 1"></span>
-<template v-if="customizing"><button @click="awardStrip.openSettings" style="height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid #4A4426; background: transparent; color: #F3EBC8; cursor: pointer; font-size: 12px">Settings</button><button @click="awardStrip.remove" aria-label="Remove awards from Home" style="height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid #5A3A36; background: transparent; color: #FF9B8A; cursor: pointer; font-size: 12px">Remove</button></template>
+<template v-if="customizing"><button @click="awardStrip.toggleHide" style="height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid #4A4426; background: transparent; color: #F3EBC8; cursor: pointer; font-size: 13px">{{ awardStrip.hideLabel }}</button><button @click="awardStrip.openSettings" style="height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid #4A4426; background: transparent; color: #F3EBC8; cursor: pointer; font-size: 12px">Settings</button><button @click="awardStrip.remove" aria-label="Remove awards from Home" style="height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid #5A3A36; background: transparent; color: #FF9B8A; cursor: pointer; font-size: 12px">Remove</button></template>
 <template v-if="awardStrip.canGive"><button @click="openAward" style="height: 36px; padding: 0 16px; border-radius: 18px; border: 0; background: #FFD66B; color: #0F1714; font-weight: 700; cursor: pointer; font-size: 13px">Give an award</button></template>
 </div>
 <template v-if="awardStrip.empty"><div style="padding: 20px 18px 22px; color: #C9BE8F; font-size: 13px">No approved awards yet. Awards show here once they are approved.</div></template>
@@ -39,11 +39,12 @@
 </template>
 <div style="columns: 300px; column-gap: 16px">
 <template v-for="(w, w__i) in widgets" :key="w__i">
-<section :aria-label="w.title" :style="w.cardStyle">
+<section :aria-label="w.title" :style="w.cardStyle + (w.hidden ? ';opacity: 0.5' : '')">
 <div style="display: flex; align-items: center; gap: 10px">
 <span :style="`width: 10px; height: 10px; flex: none; border-radius: 50%; background: ${w.tint}`"></span>
 <div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><strong style="font-size: 15px">{{ w.title }}</strong><span style="font-size: 12px; color: #9DB0A6">{{ w.sub }}</span></div>
 <template v-if="w.customizing">
+<button :aria-label="`${w.hideLabel} ${w.title}`" @click="w.toggleHide" style="height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer; font-size: 13px">{{ w.hideLabel }}</button>
 <button :aria-label="`Settings for ${w.title}`" @click="w.openSettings" style="height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 12px"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3.5"></circle><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"></path></svg>Settings</button>
 <button :aria-label="`Move ${w.title} earlier`" @click="w.moveUp" style="width: 32px; height: 32px; border-radius: 8px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"></path></svg></button>
 <button :aria-label="`Remove ${w.title}`" @click="w.remove" style="width: 32px; height: 32px; border-radius: 8px; border: 1px solid #5A3A36; background: transparent; color: #FF9B8A; cursor: pointer; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
@@ -352,7 +353,7 @@
 </section>
 </template>
 <template v-if="customizing">
-<button @click="openGallery" style="width: 100%; break-inside: avoid; margin: 0 0 16px; min-height: 160px; border-radius: 18px; border: 2px dashed #3F524A; background: transparent; color: #C9D6CF; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; font-size: 14px"><svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>Add a widget</button>
+<button v-if="canWidgetsPage" @click="openGallery" style="width: 100%; break-inside: avoid; margin: 0 0 16px; min-height: 160px; border-radius: 18px; border: 2px dashed #3F524A; background: transparent; color: #C9D6CF; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; font-size: 14px"><svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>Add a widget</button>
 </template>
 </div>
 </div>
@@ -364,6 +365,6 @@ import { hubBindings } from '~/composables/useHub';
 
 export default {
   name: 'HomeSection',
-  ...hubBindings(["awardStrip","awardsOn","canCustomize","customizeBtnStyle","customizeLabel","customizing","noWidgets","openAward","openGallery","show","toggleCustomize","toggleNewDm","widgets"])
+  ...hubBindings(["awardStrip","awardsOn","canCustomize","canWidgetsPage","customizeBtnStyle","customizeLabel","customizing","noWidgets","openAward","openGallery","show","toggleCustomize","toggleNewDm","widgets"])
 };
 </script>

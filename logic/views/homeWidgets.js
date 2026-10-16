@@ -104,7 +104,10 @@ export function buildHomeWidgets(ctx) {
   };
   const daysLeft = Math.max(0, Math.ceil((new Date('2026-12-18T00:00:00+03:00') - new Date()) / 86400000));
   const ids = s.widgets;
-  const widgets = ids.filter((x) => x !== 'awards').map((id, i) => ({
+  const isHidden = (id) => s.hiddenWidgets.indexOf(id) !== -1;
+  const toggleHide = (id) => () => this.setState((st) => ({ hiddenWidgets: st.hiddenWidgets.indexOf(id) !== -1 ? st.hiddenWidgets.filter((x) => x !== id) : st.hiddenWidgets.concat([id]) }));
+  const widgets = ids.filter((x) => x !== 'awards' && (s.customize || !isHidden(x))).map((id, i) => ({
+    hidden: isHidden(id), hideLabel: isHidden(id) ? 'Show' : 'Hide', toggleHide: toggleHide(id),
     ...catalog[id],
     title: (s.wcfg[id] && s.wcfg[id].title) || catalog[id].title,
     openSettings: () => this.setState({ settingsFor: id }),
@@ -149,10 +152,10 @@ export function buildHomeWidgets(ctx) {
   }));
   const gallery = Object.keys(catalog).filter((id) => id !== 'performance' || has.structure).map((id) => {
     const added = ids.indexOf(id) !== -1;
-    return { ...catalog[id], added, btnLabel: added ? 'Added' : 'Add to home',
+    return { ...catalog[id], added, hidden: added && isHidden(id), hideLabel: isHidden(id) ? 'Show on Home' : 'Hide on Home', toggleHide: toggleHide(id), remove: () => this.setState((st) => ({ widgets: st.widgets.filter((x) => x !== id) })), btnLabel: added ? 'Added' : 'Add to home',
       openSettings: () => this.setState({ settingsFor: id }),
       btnStyle: 'flex:1;height:38px;border-radius:10px;font-weight:600;cursor:' + (added ? 'default' : 'pointer') + ';' + (added ? 'border:1px solid #2A3832;background:transparent;color:#9DB0A6' : 'border:0;background:#B8F36B;color:#0F1714'),
       add: () => { if (!added) this.setState((st) => ({ widgets: st.widgets.concat(id) })); } };
   });
-  return { catalog, cur_f, folders, fv, gallery, ids, widgets };
+  return { catalog, cur_f, folders, fv, gallery, ids, isHidden, toggleHide, widgets };
 }

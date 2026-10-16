@@ -11,6 +11,7 @@ import { callsState } from '~/logic/state/calls.js';
 import { ticketsState } from '~/logic/state/tickets.js';
 import { wallState } from '~/logic/state/wall.js';
 import { forumsState } from '~/logic/state/forums.js';
+import { onboardingState } from '~/logic/state/onboarding.js';
 import { seedProjects } from '~/logic/seed/projects.js';
 import { seedOrg } from '~/logic/seed/org.js';
 import { seedTickets } from '~/logic/seed/tickets.js';
@@ -21,6 +22,8 @@ import { projectsActions } from '~/logic/actions/projects.js';
 import { callsActions } from '~/logic/actions/calls.js';
 import { uiActions } from '~/logic/actions/ui.js';
 import { forumActions } from '~/logic/actions/forums.js';
+import { onboardingActions } from '~/logic/actions/onboarding.js';
+import { ticketCatActions } from '~/logic/actions/ticketCats.js';
 import { buildAccess } from '~/logic/views/access.js';
 import { buildForums } from '~/logic/views/forums.js';
 import { buildNav } from '~/logic/views/nav.js';
@@ -32,7 +35,9 @@ import { buildSecurity } from '~/logic/views/security.js';
 import { buildRoles } from '~/logic/views/roles.js';
 import { buildTableHelpers } from '~/logic/views/tableHelpers.js';
 import { buildCalendar } from '~/logic/views/calendar.js';
+import { buildOnboarding } from '~/logic/views/onboarding.js';
 import { buildForumExtras } from '~/logic/views/forumExtras.js';
+import { buildCatMgr } from '~/logic/views/catMgr.js';
 import { buildProjectTables } from '~/logic/views/projectTables.js';
 import { buildProjectStandup } from '~/logic/views/projectStandup.js';
 import { buildOrg } from '~/logic/views/org.js';
@@ -61,7 +66,7 @@ import { valsPanels } from '~/logic/vals/panels.js';
 export class HubLogic extends DCLogic {
   constructor(props) {
     super(props);
-    this.state = Object.assign({}, coreState(), awardsState(), calendarState(), commsState(), adminState(), profileState(), filesState(), projectsState(), callsState(), ticketsState(), wallState(), forumsState());
+    this.state = Object.assign({}, coreState(), awardsState(), calendarState(), commsState(), adminState(), profileState(), filesState(), projectsState(), callsState(), ticketsState(), wallState(), forumsState(), onboardingState());
     seedProjects.call(this);
     seedOrg.call(this);
     seedTickets.call(this);
@@ -76,7 +81,7 @@ export class HubLogic extends DCLogic {
       if (person && this._canFullProfile) {
         patch.personOpen = null; patch.profileOf = person.name; patch.section = 'profile';
         patch.notifOpen = false; patch.statusMenu = false; patch.profileEdit = false;
-        if (this.state.mode === 'full') patch.mode = 'docked';
+        if (this.state.mode === 'full' || this.state.mode === 'page') patch.mode = 'docked';
       } else if (patch.section !== undefined && patch.profileOf === undefined) {
         patch.profileOf = null;
       }
@@ -92,7 +97,7 @@ export class HubLogic extends DCLogic {
   }
 }
 
-Object.assign(HubLogic.prototype, messagingActions, projectsActions, callsActions, uiActions, forumActions);
+Object.assign(HubLogic.prototype, messagingActions, projectsActions, callsActions, uiActions, forumActions, onboardingActions, ticketCatActions);
 
-const VIEW_STEPS = [buildAccess, buildForums, buildNav, buildWall, buildTickets, buildForumExtras, buildProjects, buildPeople, buildSecurity, buildRoles, buildTableHelpers, buildProjectTables, buildCalendar, buildProjectStandup, buildOrg, buildComms, buildAdminTables, buildAwards, buildHomeWidgets, buildProfile, buildWidgetSettings, buildCallState];
+const VIEW_STEPS = [buildAccess, buildForums, buildNav, buildWall, buildTickets, buildForumExtras, buildProjects, buildPeople, buildOnboarding, buildSecurity, buildRoles, buildTableHelpers, buildProjectTables, buildCalendar, buildProjectStandup, buildOrg, buildCatMgr, buildComms, buildAdminTables, buildAwards, buildHomeWidgets, buildProfile, buildWidgetSettings, buildCallState];
 const VAL_PARTS = [valsAccess, valsPages, valsProjects, valsTickets, valsShell, valsHome, valsPanels];

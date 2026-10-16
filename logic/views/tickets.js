@@ -1,3 +1,5 @@
+import { recipientOf, recipientLabel } from '~/logic/ticketRouting.js';
+
 // renderVals step: tickets. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildTickets(ctx) {
   const { has, prio, s } = ctx;
@@ -24,7 +26,7 @@ export function buildTickets(ctx) {
   const stepNames = ['Raised', 'Assigned', 'In progress', 'Resolved', 'Closed'];
   const badge = (c) => 'display:inline-block;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:600;white-space:nowrap;background:' + c + '22;color:' + c + ';border:1px solid ' + c + '66';
   const calc = (t) => {
-    const tat = tatHours(t.cat);
+    const tat = t.tatH || tatHours(t.cat);
     const paused = t.step === 2 && t.hold && ts.pause.onhold;
     const rem = tat - t.elapsed;
     const pct = Math.min(100, Math.round((t.elapsed / tat) * 100));
@@ -38,19 +40,25 @@ export function buildTickets(ctx) {
   };
   const tickets = s.tickets.map((t) => {
     const c = calc(t);
-    return { ...t, prioStyle: prio(t.prio), statusLabel: t.step === 2 && t.hold ? 'On hold' : stepNames[t.step], slaLabel: c.sla, slaBadgeStyle: badge(c.color), remainingLabel: c.remainingLabel, handlerLabel: t.handler || 'Unassigned',
+    const to = recipientOf(t, this.org, has);
+    return { ...t, to, toLabel: recipientLabel(to), isMine: t.raisedBy === 'Sam', prioStyle: prio(t.prio), statusLabel: t.step === 2 && t.hold ? 'On hold' : stepNames[t.step], slaLabel: c.sla, slaBadgeStyle: badge(c.color), remainingLabel: c.remainingLabel, handlerLabel: t.handler || 'Unassigned',
       open: () => this.setState({ ticketOpen: t.id, tagOpen: false, tcomment: '' }), _c: c };
   });
   const nOpen = tickets.filter((t) => t.step < 3).length;
   const nOver = tickets.filter((t) => t._c.sla === 'Overdue').length;
   const nSoon = tickets.filter((t) => t._c.sla === 'Due soon').length;
   const nDone = tickets.filter((t) => t.step >= 3).length;
-  const ticketStats = [
-    { label: 'Open', n: nOpen, color: '#E8EFEA' },
-    { label: 'Overdue', n: nOver, color: '#FF9B8A' },
-    { label: 'Due soon', n: nSoon, color: '#FFB86B' },
-    { label: 'Solved', n: nDone, color: '#B8F36B' }
+  const statsOf = (list) => [
+    { label: 'Open', n: list.filter((t) => t.step < 3).length, color: '#E8EFEA' },
+    { label: 'Overdue', n: list.filter((t) => t._c.sla === 'Overdue').length, color: '#FF9B8A' },
+    { label: 'Due soon', n: list.filter((t) => t._c.sla === 'Due soon').length, color: '#FFB86B' },
+    { label: 'Solved', n: list.filter((t) => t.step >= 3).length, color: '#B8F36B' }
   ];
+  const ticketStats = statsOf(tickets);
+  const myTickets = tickets.filter((t) => t.isMine);
+  const myTicketStats = statsOf(myTickets);
+  const deskTickets = tickets.filter((t) => t.to.type === 'desk');
+  const deskStats = statsOf(deskTickets);
   const cur_t = s.tickets.find((t) => t.id === s.ticketOpen);
   let tk = {};
   if (cur_t) {
@@ -149,5 +157,6 @@ export function buildTickets(ctx) {
     { name: 'Faith Achieng', initials: 'FA', color: '#B8F36B', role: 'Customer Care', forumRole: 'Member' },
     { name: 'Kevin Mutua', initials: 'KM', color: '#C9B6FF', role: 'Sales Lead', forumRole: 'Guest' }
   ];
-  return { badge, chip, cur_t, dayH, files, ini, nOpen, nOver, nSoon, notifList, notifyRules, ntCats, ntPrios, pColor, pauseRules, people, setTs, tagNames, tagPeople, tatText, ticketStats, tickets, tk, ts, tsetCats };
+  const defaultCats = ts.cats.map((c) => ({ name: c.name, tat: tatHours(c.name) }));
+  return { defaultCats, deskStats, deskTickets, myTicketStats, myTickets, badge, chip, cur_t, dayH, files, ini, nOpen, nOver, nSoon, notifList, notifyRules, ntCats, ntPrios, pColor, pauseRules, people, setTs, tagNames, tagPeople, tatText, ticketStats, tickets, tk, ts, tsetCats };
 }

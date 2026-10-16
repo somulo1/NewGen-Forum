@@ -10,17 +10,17 @@ export function buildAccess(ctx) {
 
   // ---- Roles & rights ----
   const rightsDef = {
-    home: ['Customize home', 'Manage widget settings'],
+    home: ['Customize home', 'Manage widget settings', 'Open widgets page', 'Add & remove widgets'],
     announcements: ['View', 'Post', 'Edit', 'Delete', 'See who read'],
     wall: ['View', 'Post', 'Comment', 'Share outside Hub', 'Moderate posts'],
     forums: ['View', 'Create forum', 'Invite members', 'Start calls', 'Moderate'],
-    tickets: ['View', 'Raise', 'Assign & hand over', 'Solve', 'Close', 'Manage TAT settings'],
+    tickets: ['View', 'Raise', 'Assign & hand over', 'Solve', 'Close', 'Manage TAT settings', 'Set up ticket categories'],
     projects: ['View', 'Create project', 'Manage milestones', 'Edit tasks', 'Move tasks', 'Manage team'],
     files: ['View', 'Upload', 'Delete', 'Share outside Hub'],
     secureshare: ['Create link', 'View link history'],
     sessions: ['Join', 'Start meeting', 'Record'],
     awards: ['View', 'Nominate', 'Approve awards'],
-    people: ['View directory', 'See contact details', 'View full profiles', 'Edit profiles'],
+    people: ['View directory', 'See contact details', 'View full profiles', 'Onboard people', 'Edit profiles'],
     security: ['View alerts', 'View logs', 'Resolve alerts', 'Manage rules', 'Export logs'],
     roles: ['View roles', 'Manage roles & rights', 'Configure approvals'],
     calendar: ['View', 'Add events', 'Schedule meetings'],
@@ -70,17 +70,17 @@ export function buildAccess(ctx) {
   const staffAllow = { home: ['Customize home'], announcements: ['View'], wall: ['View', 'Post', 'Comment', 'Share outside Hub'], forums: ['View', 'Start calls'],
     tickets: ['View', 'Raise'], projects: ['View', 'Edit tasks', 'Move tasks'], files: ['View', 'Upload'], secureshare: ['Create link'], sessions: ['Join', 'Start meeting'],
     awards: ['View', 'Nominate'], people: ['View directory', 'See contact details'], security: [], roles: [],
-    calendar: ['View', 'Add events', 'Schedule meetings'], memos: ['Read'], newsletter: ['Read'], departments: ['View dashboard'], sectors: ['View dashboard'], branches: ['View dashboard'], units: ['View dashboard'], performance: ['View'], chat: ['Send private messages', 'Private calls'] };
+    calendar: ['View', 'Add events', 'Schedule meetings'], memos: ['Read'], newsletter: ['Read'], departments: [], sectors: [], branches: [], units: [], performance: ['View'], chat: ['Send private messages', 'Private calls'] };
   const extraAllow = {
-    hod: { announcements: ['Post', 'Edit', 'See who read'], wall: ['Moderate posts'], forums: ['Create forum', 'Invite members', 'Moderate'], tickets: ['Assign & hand over', 'Solve', 'Close'], projects: ['Create project', 'Manage milestones', 'Manage team'], files: ['Share outside Hub'], sessions: ['Record'], awards: ['Approve awards'], roles: ['View roles'] },
-    it: { tickets: ['Assign & hand over', 'Solve', 'Close', 'Manage TAT settings'], security: ['View alerts', 'View logs', 'Resolve alerts'], files: ['Delete'], forums: ['Create forum', 'Invite members'], secureshare: ['View link history'] },
+    hod: { announcements: ['Post', 'Edit', 'See who read'], wall: ['Moderate posts'], forums: ['Create forum', 'Invite members', 'Moderate'], tickets: ['Assign & hand over', 'Solve', 'Close', 'Set up ticket categories'], projects: ['Create project', 'Manage milestones', 'Manage team'], files: ['Share outside Hub'], sessions: ['Record'], awards: ['Approve awards'], roles: ['View roles'] },
+    it: { tickets: ['Assign & hand over', 'Solve', 'Close', 'Manage TAT settings', 'Set up ticket categories'], security: ['View alerts', 'View logs', 'Resolve alerts'], files: ['Delete'], forums: ['Create forum', 'Invite members'], secureshare: ['View link history'] },
     finance: { files: ['Share outside Hub'], projects: ['Create project'] },
-    sector: { sectors: ['Manage sector', 'See performance'], memos: ['Send memos'], performance: ['Set targets'], announcements: ['Post'], tickets: ['Assign & hand over'] },
-    branch: { branches: ['Manage branch', 'See performance'], memos: ['Send memos'], performance: ['Set targets'], tickets: ['Assign & hand over', 'Solve'] },
-    unit: { units: ['Manage unit', 'See performance'], memos: ['Send memos'], tickets: ['Solve'] }
+    sector: { sectors: ['View dashboard', 'Manage sector', 'See performance'], memos: ['Send memos'], performance: ['Set targets'], announcements: ['Post'], tickets: ['Assign & hand over', 'Set up ticket categories'] },
+    branch: { branches: ['View dashboard', 'Manage branch', 'See performance'], memos: ['Send memos'], performance: ['Set targets'], tickets: ['Assign & hand over', 'Solve', 'Set up ticket categories'] },
+    unit: { units: ['View dashboard', 'Manage unit', 'See performance'], memos: ['Send memos'], tickets: ['Solve', 'Set up ticket categories'] }
   };
-  extraAllow.hod.people = ['View full profiles'];
-  extraAllow.hod.memos = ['Send memos']; extraAllow.hod.departments = ['Manage department', 'See performance']; extraAllow.hod.performance = ['Set targets'];
+  extraAllow.hod.people = ['View full profiles', 'Onboard people']; extraAllow.hod.home = ['Open widgets page'];
+  extraAllow.hod.memos = ['Send memos']; extraAllow.hod.departments = ['View dashboard', 'Manage department', 'See performance']; extraAllow.hod.performance = ['Set targets'];
   const defaultRight = (role, mod, right) => {
     if (role === 'superadmin' || role === 'admin') return true;
     if (!rightsDef[mod]) return (role === 'hod' || role === 'sector' || role === 'branch') ? right !== 'Manage settings' : right === 'View';
