@@ -49,7 +49,7 @@
 <template v-for="(u, u__i) in cur.topics" :key="u__i">
 <div style="display: flex; gap: 14px; padding: 16px; border-radius: 14px; background: #16201C; border: 1px solid #24322C">
 <div aria-hidden="true" :style="`width: 40px; height: 40px; flex: none; border-radius: 50%; background: ${u.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700`">{{ u.initials }}</div>
-<div style="flex: 1; display: flex; flex-direction: column; gap: 6px"><div style="display: flex; gap: 8px; align-items: baseline"><strong>{{ u.who }}</strong><span style="font-size: 12px; color: #9DB0A6">{{ u.time }}</span></div><template v-if="u.hasText"><p style="margin: 0; font-size: 15px; line-height: 1.5">{{ u.text }}</p></template><template v-if="u.hasFile"><FileChip :name="u.fileName" :meta="u.fileMeta" :url="u.fileUrl" :is-img="u.fileIsImg" style="margin-top: 6px"/></template><span style="font-size: 13px; color: #9DB0A6">{{ u.replies }} replies · Reply</span></div>
+<div style="flex: 1; display: flex; flex-direction: column; gap: 6px"><div style="display: flex; gap: 8px; align-items: baseline"><strong>{{ u.who }}</strong><span style="font-size: 12px; color: #9DB0A6">{{ u.time }}</span></div><template v-if="u.hasText"><p style="margin: 0; font-size: 15px; line-height: 1.5">{{ u.text }}</p></template><template v-if="u.hasFile"><FileGrid :files="u.fileList" :size="140"/></template><span style="font-size: 13px; color: #9DB0A6">{{ u.replies }} replies · Reply</span></div>
 </div>
 </template>
 </div>

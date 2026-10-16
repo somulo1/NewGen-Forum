@@ -64,7 +64,7 @@ export function buildForums(ctx) {
       chipStyle: 'flex:none;width:36px;height:36px;border-radius:10px;cursor:pointer;font-family:Space Grotesk,sans-serif;font-weight:700;font-size:12px;color:#0F1714;background:' + f.color + ';border:2px solid ' + (f.id === cur.id ? '#E8EFEA' : 'transparent') + ';opacity:' + (f.id === cur.id ? '1' : '0.65')
     };
   });
-  const norm = (u) => ({ replies: 0, ...u, hasText: !!u.text, hasFile: !!u.file, fileName: u.file ? u.file.name : '', fileMeta: u.file ? u.file.meta : '', fileUrl: u.file ? u.file.url || '' : '', fileIsImg: !!(u.file && u.file.isImg) });
+  const norm = (u) => ({ replies: 0, ...u, hasText: !!u.text, hasFile: !!u.file, fileList: [].concat(u.file || []) });
   const addedHere = (s.added[cur.id] || []).map(norm);
   const baseMsgs = cur.updates.map(norm);
   const fStyle = (m) => (m.who === 'Sam' || m.who === 'You'
@@ -81,7 +81,7 @@ export function buildForums(ctx) {
     const pr = dmPerson(curDm.with);
     dmView = { id: curDm.id, name: curDm.with, initials: pr.initials, color: pr.color, online: '', about: pr.title, subline: (pr.status || 'Available') + ' · private chat', dotColor: dmStatusCol[pr.status] || '#B8F36B', title: pr.title,
       chat: curDm.msgs.map((m) => { const mine = m.from === 'me'; const who = mine ? 'You' : m.from; const pp = mine ? { initials: 'S', color: '#C2185B' } : dmPerson(m.from);
-        return { who: who, initials: pp.initials, color: pp.color, time: m.time, text: m.text || '', hasText: !!m.text, hasFile: !!m.file, fileName: m.file ? m.file.name : '', fileMeta: m.file ? m.file.meta : '', fileUrl: m.file ? m.file.url || '' : '', fileIsImg: !!(m.file && m.file.isImg), replies: 0, mine: mine,
+        return { who: who, initials: pp.initials, color: pp.color, time: m.time, text: m.text || '', hasText: !!m.text, hasFile: !!m.file, fileList: [].concat(m.file || []), replies: 0, mine: mine,
           rowStyle: 'display:flex;gap:10px;' + (mine ? 'flex-direction:row-reverse' : ''), bubbleStyle: 'max-width:78%;min-width:0;padding:10px 14px;border-radius:' + (mine ? '14px 4px 14px 14px;background:#2C3D34' : '4px 14px 14px 14px;background:#1A2520') }; }),
       topics: [] };
   }
