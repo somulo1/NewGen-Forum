@@ -15,6 +15,11 @@ export default defineNuxtConfig({
       style: [{ innerHTML: 'html,body,#__nuxt{margin:0;background:#0F1714;color:#E8EFEA;color-scheme:dark}' }],
       script: [{ innerHTML: "if (/^\\/(login|signup|reset-password)\\/?$/.test(location.pathname)) { var s = document.createElement('style'); s.textContent = 'html,body,#__nuxt{background:#F2F6F3 !important;color:#0F1714 !important;color-scheme:light !important}'; document.head.appendChild(s); }", tagPosition: 'head' }],
       link: [
+        { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
+        { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/favicon-32.png' },
+        { rel: 'icon', href: '/favicon.ico', sizes: 'any' },
+        { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' },
+        { rel: 'manifest', href: '/site.webmanifest' },
         { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
         { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=DM+Sans:wght@400;500;600&display=swap' }
       ]
