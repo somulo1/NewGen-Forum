@@ -1,6 +1,6 @@
 <!-- Meetings & standups -->
 <template><template v-if="show.meetings">
-<div style="max-width: 860px; display: flex; flex-direction: column; gap: 16px">
+<div style="width: 100%; display: flex; flex-direction: column; gap: 16px">
 <h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; letter-spacing: -0.02em">Meetings &amp; standups</h1>
 <p style="margin: -8px 0 4px; color: #9DB0A6">Schedule meetings and standups, pick who joins, and start them from here.</p>
 <div style="display: flex; flex-wrap: wrap; gap: 8px">

@@ -1,6 +1,6 @@
 <!-- Department / sector / branch / unit dashboard -->
 <template><template v-if="show.orgunit">
-<div style="max-width: 1240px; display: flex; flex-direction: column; gap: 16px">
+<div style="width: 100%; display: flex; flex-direction: column; gap: 16px">
 <button @click="go.home" style="align-self: flex-start; height: 38px; padding: 0 14px; border-radius: 19px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer">‹ Home</button>
 <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: center; padding: 20px; border-radius: 20px; background: #16201C; border: 1px solid #24322C">
 <span :style="`width: 56px; height: 56px; flex: none; border-radius: 16px; background: #22302A; color: ${ou.color}; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 18px`">{{ ou.short }}</span>

@@ -1,6 +1,6 @@
 <!-- Tickets list and ticket details -->
 <template><template v-if="showTicketList">
-<div style="max-width: 1120px; display: flex; flex-direction: column; gap: 16px">
+<div style="width: 100%; display: flex; flex-direction: column; gap: 16px">
 <div style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px">
 <div style="flex: 1 1 300px"><h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; letter-spacing: -0.02em">Tickets</h1><p style="margin: 4px 0 0; color: #9DB0A6">Raise, track and solve requests within their turnaround time.</p></div>
 <template v-if="canRaise"><button @click="toggleNewTicket" style="height: 40px; padding: 0 18px; border-radius: 20px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">New ticket</button></template>
@@ -42,7 +42,7 @@
 </template>
 
 <template v-if="showTicketView">
-<div style="max-width: 1180px; display: flex; flex-direction: column; gap: 16px">
+<div style="width: 100%; display: flex; flex-direction: column; gap: 16px">
 <button @click="closeTicket" style="align-self: flex-start; height: 38px; padding: 0 14px; border-radius: 19px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer; display: flex; align-items: center; gap: 6px"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"></path></svg>All tickets</button>
 <div style="display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center">
 <span style="font-family: 'Space Grotesk', sans-serif; color: #9DB0A6; font-size: 15px">{{ tk.id }}</span>

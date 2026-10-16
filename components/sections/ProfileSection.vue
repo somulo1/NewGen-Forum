@@ -1,6 +1,6 @@
 <!-- My profile -->
 <template><template v-if="show.profile">
-<div style="max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px">
+<div style="width: 100%; display: flex; flex-direction: column; gap: 16px">
 
 <section aria-label="Profile header" style="border-radius: 22px; background: #16201C; border: 1px solid #24322C; overflow: hidden">
 <div :style="me.coverStyle">
@@ -11,9 +11,9 @@
 </div>
 <div style="padding: 0 24px 20px; display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-end; margin-top: -54px; position: relative">
 <div style="position: relative; flex: none">
-<span style="width: 124px; height: 124px; border-radius: 50%; border: 5px solid #16201C; background: #C2185B; color: #fff; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-size: 46px; font-weight: 700; overflow: hidden; box-sizing: border-box">
+<span :style="`width: 124px; height: 124px; border-radius: 50%; border: 5px solid #16201C; background: ${me.color}; color: ${me.isOther ? '#0F1714' : '#fff'}; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-size: 46px; font-weight: 700; overflow: hidden; box-sizing: border-box`">
 <template v-if="me.hasPhoto"><img :src="me.photo" alt="Profile photo" style="width: 100%; height: 100%; object-fit: cover"></template>
-<template v-if="me.noPhoto">S</template>
+<template v-if="me.noPhoto">{{ me.initials }}</template>
 </span>
 <span aria-hidden="true" :style="`position: absolute; right: 8px; bottom: 8px; width: 22px; height: 22px; border-radius: 50%; background: ${me.statusColor}; border: 4px solid #16201C`"></span>
 <template v-if="me.editing"><label style="position: absolute; left: 50%; bottom: -6px; transform: translateX(-50%); height: 30px; padding: 0 12px; border-radius: 15px; background: #E8EFEA; color: #0F1714; font-size: 12px; font-weight: 600; white-space: nowrap; display: flex; align-items: center; cursor: pointer"><input type="file" accept="image/*" aria-label="Change photo" @change="onPhoto" style="position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer">Change photo</label></template>
@@ -21,7 +21,8 @@
 <div style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 6px; padding-bottom: 2px">
 <h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; letter-spacing: -0.02em">{{ me.name }}</h1>
 <span style="font-size: 14px; color: #C9D6CF">{{ me.role }} · {{ me.dept }}</span>
-<div style="position: relative; align-self: flex-start">
+<template v-if="me.isOther"><span style="align-self: flex-start; height: 32px; padding: 0 12px; border-radius: 16px; border: 1px solid #2A3832; background: #121B17; display: flex; align-items: center; gap: 8px; font-size: 13px"><span :style="`width: 9px; height: 9px; border-radius: 50%; background: ${me.statusColor}`"></span>{{ me.status }}</span></template>
+<div v-if="!me.isOther" style="position: relative; align-self: flex-start">
 <button @click="toggleStatusMenu" aria-haspopup="menu" style="height: 32px; padding: 0 12px; border-radius: 16px; border: 1px solid #2A3832; background: #121B17; color: #E8EFEA; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 13px"><span :style="`width: 9px; height: 9px; border-radius: 50%; background: ${me.statusColor}`"></span>{{ me.status }}<svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></button>
 <template v-if="me.statusMenu">
 <div role="menu" style="position: absolute; top: 38px; left: 0; z-index: 20; width: 220px; padding: 6px; border-radius: 12px; background: #1D2A25; border: 1px solid #34453D; box-shadow: 0 14px 30px rgba(0,0,0,0.45)">
@@ -31,7 +32,8 @@
 </div>
 </div>
 <div style="display: flex; gap: 8px; flex-wrap: wrap">
-<template v-if="me.notEditing">
+<template v-if="me.isOther"><button @click="profileBack" style="height: 42px; padding: 0 20px; border-radius: 21px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; font-weight: 600; cursor: pointer">Back to people</button></template>
+<template v-if="me.notEditing && !me.isOther">
 <button @click="startEditProfile" style="height: 42px; padding: 0 20px; border-radius: 21px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">Edit profile</button>
 <button @click="shareProfile" style="height: 42px; padding: 0 18px; border-radius: 21px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; font-weight: 600; cursor: pointer">Share profile</button>
 </template>
@@ -41,7 +43,7 @@
 </template>
 </div>
 </div>
-<div style="padding: 0 24px 20px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center">
+<div v-if="!me.isOther" style="padding: 0 24px 20px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center">
 <span style="font-size: 12px; color: #9DB0A6">Profile {{ me.complete }}% complete</span>
 <div style="flex: 1 1 200px; max-width: 320px; height: 6px; border-radius: 3px; background: #22302A; overflow: hidden"><div :style="me.completeBar"></div></div>
 <span style="font-size: 12px; color: #C9D6CF">{{ me.completeTip }}</span>
@@ -64,7 +66,7 @@
 <div style="flex: 999 1 480px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
 
 <div style="padding: 20px; border-radius: 18px; background: #16201C; border: 1px solid #24322C; display: flex; flex-direction: column; gap: 10px">
-<strong style="font-size: 15px">About me</strong>
+<strong style="font-size: 15px">{{ me.aboutTitle }}</strong>
 <template v-if="me.notEditing"><p style="margin: 0; font-size: 15px; line-height: 1.6; color: #C9D6CF; white-space: pre-line">{{ me.bio }}</p></template>
 <template v-if="me.editing"><label><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">About me</span><textarea rows="4" :value="me.bio" @input="onBio" style="width: 100%; box-sizing: border-box; padding: 12px; border-radius: 12px; border: 1px solid #2A3832; background: #121B17; color: #E8EFEA; font-size: 15px; line-height: 1.5; resize: vertical"></textarea></label></template>
 </div>
@@ -81,6 +83,7 @@
 
 <div style="padding: 20px; border-radius: 18px; background: #16201C; border: 1px solid #24322C; display: flex; flex-direction: column; gap: 12px">
 <strong style="font-size: 15px">Working on</strong>
+<span v-if="!me.projects.length" style="font-size: 14px; color: #9DB0A6">No active projects right now.</span>
 <template v-for="(mp, mp__i) in me.projects" :key="mp__i">
 <div style="display: flex; gap: 12px; align-items: center; padding: 12px; border-radius: 12px; background: #121B17">
 <span :style="`width: 38px; height: 38px; flex: none; border-radius: 11px; background: ${mp.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 13px`">{{ mp.initials }}</span>
@@ -95,12 +98,24 @@
 
 <div style="padding: 20px; border-radius: 18px; background: #16201C; border: 1px solid #24322C; display: flex; flex-direction: column; gap: 14px">
 <strong style="font-size: 15px">Recent activity</strong>
+<div tabindex="0" aria-label="Recent activity table" style="max-height: 300px; overflow: auto; border-radius: 12px; border: 1px solid #24322C">
+<table style="width: 100%; min-width: 460px; border-collapse: separate; border-spacing: 0; font-size: 14px">
+<thead><tr>
+<th style="position: sticky; top: 0; z-index: 1; padding: 10px 14px; text-align: left; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #9DB0A6; background: #1B2822; white-space: nowrap">Type</th>
+<th style="position: sticky; top: 0; z-index: 1; padding: 10px 14px; text-align: left; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #9DB0A6; background: #1B2822">Activity</th>
+<th style="position: sticky; top: 0; z-index: 1; padding: 10px 14px; text-align: left; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #9DB0A6; background: #1B2822; white-space: nowrap">When</th>
+</tr></thead>
+<tbody>
 <template v-for="(ma, ma__i) in me.activity" :key="ma__i">
-<div style="display: flex; gap: 12px; align-items: flex-start">
-<span :style="`width: 32px; height: 32px; flex: none; border-radius: 10px; background: #22302A; color: ${ma.color}; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700`">{{ ma.tag }}</span>
-<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 14px; line-height: 1.45">{{ ma.text }}</span><span style="font-size: 12px; color: #9DB0A6">{{ ma.time }}</span></div>
-</div>
+<tr>
+<td style="padding: 10px 14px; border-top: 1px solid #24322C; white-space: nowrap"><span :style="`height: 24px; padding: 0 10px; border-radius: 12px; background: #22302A; color: ${ma.color}; display: inline-flex; align-items: center; font-size: 12px; font-weight: 600`">{{ ma.kind }}</span></td>
+<td style="padding: 10px 14px; border-top: 1px solid #24322C; line-height: 1.45">{{ ma.text }}</td>
+<td style="padding: 10px 14px; border-top: 1px solid #24322C; color: #9DB0A6; white-space: nowrap">{{ ma.time }}</td>
+</tr>
 </template>
+</tbody>
+</table>
+</div>
 </div>
 </div>
 
@@ -122,7 +137,7 @@
 <template v-if="me.hasBadges">
 <div style="padding: 18px; border-radius: 18px; background: #16201C; border: 1px solid #24322C; display: flex; flex-direction: column; gap: 12px">
 <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #9DB0A6">Badges &amp; awards</span>
-<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+<div tabindex="0" aria-label="Badges and awards, scrollable" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; max-height: 214px; overflow-y: auto; padding-right: 4px">
 <template v-for="(bd, bd__i) in me.badges" :key="bd__i">
 <div style="padding: 12px 6px; border-radius: 12px; background: #121B17; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center">
 <span :style="`width: 44px; height: 44px; border-radius: 50%; background: ${bd.bg}; color: ${bd.color}; display: flex; align-items: center; justify-content: center`"><svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><circle cx="12" cy="9" r="6"></circle><path d="M8.5 14l-1.5 7 5-3 5 3-1.5-7"></path></svg></span>
@@ -136,13 +151,11 @@
 
 <div style="padding: 18px; border-radius: 18px; background: #16201C; border: 1px solid #24322C; display: flex; flex-direction: column; gap: 10px">
 <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #9DB0A6">Team</span>
-<div style="display: flex; gap: 10px; align-items: center; padding: 10px; border-radius: 12px; background: #121B17"><span aria-hidden="true" style="width: 34px; height: 34px; border-radius: 50%; background: #6EE7C8; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px">HR</span><div style="display: flex; flex-direction: column"><span style="font-size: 12px; color: #9DB0A6">Reports to</span><strong style="font-size: 14px; font-weight: 600">Head of Risk Management</strong></div></div>
-<span style="font-size: 12px; color: #9DB0A6">Works closely with</span>
-<div style="display: flex; flex-wrap: wrap; gap: 6px"><template v-for="(pe, pe__i) in me.peers" :key="pe__i"><span style="height: 30px; padding: 0 10px 0 4px; border-radius: 15px; background: #121B17; border: 1px solid #2A3832; display: flex; align-items: center; gap: 6px; font-size: 12px"><span :style="`width: 22px; height: 22px; border-radius: 50%; background: ${pe.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 9px`">{{ pe.initials }}</span>{{ pe.name }}</span></template></div>
+<div style="display: flex; gap: 10px; align-items: center; padding: 10px; border-radius: 12px; background: #121B17"><span aria-hidden="true" style="width: 34px; height: 34px; border-radius: 50%; background: #6EE7C8; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px">HR</span><div style="display: flex; flex-direction: column"><span style="font-size: 12px; color: #9DB0A6">Reports to</span><strong style="font-size: 14px; font-weight: 600">{{ me.reportsTo }}</strong></div></div>
 </div>
 
 <div style="padding: 18px; border-radius: 18px; background: #16201C; border: 1px solid #24322C; display: flex; flex-direction: column; gap: 10px">
-<span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #9DB0A6">My forums</span>
+<span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #9DB0A6">{{ me.forumsTitle }}</span>
 <template v-for="(mf, mf__i) in me.forums" :key="mf__i"><button @click="mf.open" style="display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 4px 8px; border: 0; border-radius: 10px; background: transparent; color: #E8EFEA; cursor: pointer; text-align: left"><span :style="`width: 28px; height: 28px; border-radius: 8px; background: ${mf.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 10px`">{{ mf.initials }}</span><span style="flex: 1; font-size: 14px">{{ mf.name }}</span><span style="font-size: 12px; color: #9DB0A6">{{ mf.myRole }}</span></button></template>
 </div>
 </aside>
@@ -156,6 +169,6 @@ import { hubBindings } from '~/composables/useHub';
 
 export default {
   name: 'ProfileSection',
-  ...hubBindings(["addSkill","cancelProfile","me","newSkillKey","onBio","onNewSkill","onPhone","onPhoto","saveProfile","shareProfile","show","startEditProfile","toggleStatusMenu"])
+  ...hubBindings(["addSkill","cancelProfile","me","newSkillKey","onBio","onNewSkill","onPhone","onPhoto","profileBack","saveProfile","shareProfile","show","startEditProfile","toggleStatusMenu"])
 };
 </script>
