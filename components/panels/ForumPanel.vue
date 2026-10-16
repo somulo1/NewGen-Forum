@@ -39,7 +39,7 @@
 <div :style="u.bubbleStyle">
 <div style="display: flex; gap: 8px; align-items: baseline"><strong style="font-size: 13px">{{ u.who }}</strong><span style="font-size: 11px; color: #9DB0A6">{{ u.time }}</span></div>
 <template v-if="u.hasText"><p style="margin: 4px 0 0; font-size: 14px; line-height: 1.45">{{ u.text }}</p></template>
-<template v-if="u.hasFile"><FileChip :name="u.fileName" :meta="u.fileMeta" :url="u.fileUrl" :is-img="u.fileIsImg" style="margin-top: 6px"/></template>
+<template v-if="u.hasFile"><FileGrid :files="u.fileList" :size="112"/></template>
 </div>
 </div>
 </template>
