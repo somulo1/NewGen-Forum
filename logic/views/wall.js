@@ -1,3 +1,4 @@
+import { shareUrl } from '~/logic/shareOut.js';
 // renderVals step: wall. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildWall(ctx) {
   const { can, flowById, forumsData, makeRequest, openPersonName, s } = ctx;
@@ -32,17 +33,18 @@ export function buildWall(ctx) {
       send: (text) => this.setState((st) => ({ replyFor: null, posts: st.posts.map((q) => (q.id === p.id ? { ...q, comments: addAt(q.comments || [], here, text) } : q)) })),
       replies: buildComments(p, c.replies || [], here) };
   });
+  const userPollOf = (p) => (p.pollData ? (() => {
+      const my = s.pollVotes[p.id];
+      const tot = p.pollData.opts.reduce((n, o) => n + o.votes, 0) + (my ? 1 : 0);
+      return { tot, list: p.pollData.opts.map((o) => { const v = o.votes + (my === o.id ? 1 : 0); return { label: o.label + (my === o.id ? '  ✓' : ''), pct: my ? Math.round((v / tot) * 100) + '%' : '', vote: () => this.setState((st) => ({ pollVotes: { ...st.pollVotes, [p.id]: o.id } })),
+        style: 'display:flex;align-items:center;min-height:44px;padding:0 14px;border-radius:10px;cursor:pointer;font-size:14px;color:#E8EFEA;text-align:left;border:1px solid ' + (my === o.id ? '#B8F36B' : '#2A3832') + ';background:#121B17' }; }) };
+  })() : null);
   const posts = s.posts.filter((p) => !s.hiddenPosts[p.id] && tagHit(p)).map((p) => {
     const liked = !!s.liked[p.id];
     const mineP = p.author === 'Sam';
     const saved = !!s.savedPosts[p.id];
     const closeMenu = { postMenu: null };
-    const userPoll = p.pollData ? (() => {
-      const my = s.pollVotes[p.id];
-      const tot = p.pollData.opts.reduce((n, o) => n + o.votes, 0) + (my ? 1 : 0);
-      return { tot, list: p.pollData.opts.map((o) => { const v = o.votes + (my === o.id ? 1 : 0); return { label: o.label + (my === o.id ? '  ✓' : ''), pct: my ? Math.round((v / tot) * 100) + '%' : '', vote: () => this.setState((st) => ({ pollVotes: { ...st.pollVotes, [p.id]: o.id } })),
-        style: 'display:flex;align-items:center;min-height:44px;padding:0 14px;border-radius:10px;cursor:pointer;font-size:14px;color:#E8EFEA;text-align:left;border:1px solid ' + (my === o.id ? '#B8F36B' : '#2A3832') + ';background:#121B17' }; }) };
-    })() : null;
+    const userPoll = userPollOf(p);
     return {
       ...p,
       menuOpen: s.postMenu === p.id,
@@ -61,6 +63,7 @@ export function buildWall(ctx) {
       pollNote: userPoll ? (s.pollVotes[p.id] ? userPoll.tot + ' votes · thanks for voting' : 'Tap an option to vote') : s.vote ? total + ' votes · thanks for voting' : 'Tap an option to vote · closes Friday',
       likes: p.likes + (liked ? 1 : 0),
       commentsOpen: !!s.commentsOpen[p.id],
+      replyingAny: !!s.replyFor && s.replyFor.indexOf(p.id + ':') === 0,
       toggleComments: () => this.setState((st) => ({ commentsOpen: { ...st.commentsOpen, [p.id]: !st.commentsOpen[p.id] }, replyFor: null })),
       commentTree: buildComments(p, p.comments || [], []),
       hasComments: (p.comments || []).length > 0,
@@ -87,17 +90,20 @@ export function buildWall(ctx) {
         const f = flowById('f4');
         if (f && f.levels > 0) {
           makeRequest('f4', 'Share ' + p.author + '\'s post to ' + app, { kind: 'share', postId: p.id, app: app });
-          this.setState((st) => ({ shareFor: null, shareNote: { ...st.shareNote, [p.id]: 'Waiting for approval before sharing to ' + app + '.' } }));
+          this.setState((st) => ({ shareFor: null, shareNote: { ...st.shareNote, [p.id]: 'Waiting for approval. Once approved you get a notification that opens ' + app + ' with the post.' } }));
         } else {
-          this.setState((st) => ({ shareFor: null, shareCount: { ...st.shareCount, [p.id]: (st.shareCount[p.id] || 0) + 1 }, shareNote: { ...st.shareNote, [p.id]: 'Shared to ' + app + ' with the image and text.' } }));
+          const win = typeof window !== 'undefined' ? window.open(shareUrl(app, p, pollInfo(p).list.map((o) => o.label.replace(/\s+✓$/, ''))), '_blank') : null;
+          if (win) win.opener = null;
+          this.setState((st) => ({ shareFor: null, shareCount: { ...st.shareCount, [p.id]: (st.shareCount[p.id] || 0) + 1 }, shareNote: { ...st.shareNote, [p.id]: win ? 'Opened ' + app + ' with the post. Finish posting there; reactions are not tracked once it is out.' : 'Your browser blocked the ' + app + ' window. Allow pop-ups and try again.' } }));
         }
       } })) : [],
       toggleShare: () => this.setState((st) => ({ shareFor: st.shareFor === p.id ? null : p.id })),
       copyLink: () => this.setState((st) => ({ shareFor: null, shareNote: { ...st.shareNote, [p.id]: 'Link copied. Paste it anywhere in Hub.' } })),
       shareTargets: forumsData.map((f) => ({ name: f.name, initials: f.initials, color: f.color, pick: () => {
-        const snippet = p.text.length > 60 ? p.text.slice(0, 60) + '…' : p.text;
-        this.addForumMsg(f.id, 'Shared a wall post from ' + p.author + ': "' + snippet + '"');
-        this.setState((st) => ({ shareFor: null, shareCount: { ...st.shareCount, [p.id]: (st.shareCount[p.id] || 0) + 1 }, shareNote: { ...st.shareNote, [p.id]: 'Shared to ' + f.name } }));
+        const sid = 'sp' + Date.now();
+        // The post goes to the forum as it is: text, images and poll. Reactions do not follow it; polls stay one poll.
+        this.addForumMsg(f.id, '', undefined, undefined, { sid, postId: p.id, snap: { author: p.author, initials: p.initials, color: p.color, meta: p.meta, text: p.text || '', media: p.media || [] } });
+        this.setState((st) => ({ shareFor: null, shareCount: { ...st.shareCount, [p.id]: (st.shareCount[p.id] || 0) + 1 }, shareNote: { ...st.shareNote, [p.id]: 'Shared to ' + f.name + ' as it is.' } }));
       } })),
       commentCount: p.extra + countAll(p.comments || []),
       heartFill: liked ? 'currentColor' : 'none',
@@ -111,16 +117,32 @@ export function buildWall(ctx) {
       }
     };
   });
-  const baseMoments = [
-    { initials: 'BK', color: '#7CC4FF', bg: '#2B4A63', caption: 'Brian at the server room' },
-    { initials: 'GN', color: '#FFB86B', bg: '#6B4A2B', caption: 'Team lunch' },
-    { initials: 'DO', color: '#F49AC1', bg: '#5A2E47', caption: 'Game night setup' },
-    { initials: 'FA', color: '#B8F36B', bg: '#3B5A2B', caption: 'First day!' }
-  ];
-  const moments = s.myMoments.concat(baseMoments).map((m, i, all) => ({ ...m, open: () => this.setState({ momentOpen: i }), key: i }));
+  // One place that knows a post's poll, so the wall and a forum the post was shared to always show the same votes.
+  const pollInfo = (p) => {
+    const u = userPollOf(p);
+    if (u) return { list: u.list, note: s.pollVotes[p.id] ? u.tot + ' votes · thanks for voting' : 'Tap an option to vote', isPoll: true };
+    if (p.hasPoll) return { list: poll, note: s.vote ? total + ' votes · thanks for voting' : 'Tap an option to vote · closes Friday', isPoll: true };
+    return { list: [], note: '', isPoll: false };
+  };
+  const sharedViews = {};
+  const addedMsgs = Object.values(s.added || {}).reduce((acc, arr) => acc.concat(arr), []);
+  forumsData.forEach((f) => (f.updates || []).forEach((m) => { if (m.shared) addedMsgs.push(m); }));
+  addedMsgs.filter((m) => m.shared).forEach((m) => {
+    const sh = m.shared, orig = s.posts.find((q) => q.id === sh.postId), snap = sh.snap || {};
+    const pi = orig ? pollInfo(orig) : { list: [], note: '', isPoll: false };
+    // Polls stay one poll with one thread; anything else keeps its own comments in the forum only.
+    const own = pi.isPoll && orig ? (orig.comments || []) : (s.sharedComments[sh.sid] || []);
+    sharedViews[sh.sid] = { ...snap, hasMedia: !!(snap.media && snap.media.length), isPoll: pi.isPoll, poll: pi.list, pollNote: pi.note, comments: own.map((c) => ({ who: c.who, initials: c.initials, color: c.color, text: c.text, time: c.time || '' })), hasComments: own.length > 0,
+      syncNote: pi.isPoll ? 'Votes and comments are shared with the original post.' : 'Reactions stay on the wall. Comments here stay in this forum.',
+      addComment: (text) => this.setState((st) => (pi.isPoll && orig
+        ? { posts: st.posts.map((q) => (q.id === orig.id ? { ...q, comments: (q.comments || []).concat([{ who: 'Sam', initials: 'S', color: '#F49AC1', text, time: 'Just now', replies: [] }]) } : q)) }
+        : { sharedComments: { ...st.sharedComments, [sh.sid]: (st.sharedComments[sh.sid] || []).concat([{ who: 'Sam', initials: 'S', color: '#F49AC1', text, time: 'Just now' }]) } })) };
+  });
+  const moments = s.moments.map((m, i) => ({ ...m, key: m.id, mine: m.owner === 'Sam', hasMedia: !!m.media, mediaUrl: m.media ? m.media.url : '', mediaIsImg: !!(m.media && m.media.isImg), mediaIsVideo: !!(m.media && m.media.isVideo),
+    likeCount: m.likes.length, loveCount: m.loves.length, open: () => this.setState({ momentOpen: i }) }));
   const pollReady = !!(s.wpoll && s.wpoll.opts.filter((o) => o.trim()).length >= 2 && s.draft.trim());
   const canPost = s.draft.trim().length > 0 && (!s.wpoll || pollReady) || s.wfiles.length > 0;
-  const pw = s.pw;
+  const pw = Math.min(s.pw, this.panelMax());
   const panelStyle = 'position:relative;flex:0 0 ' + pw + 'px;width:' + pw + 'px;max-width:60%;min-height:0;box-sizing:border-box;margin:12px;border-radius:22px;border:1px solid #2A3832;background:#131D19;box-shadow:0 12px 36px rgba(0,0,0,0.35);display:flex;flex-direction:column;overflow:hidden';
   const sessions = [
     { title: 'IT daily standup', forum: 'IT Operations', initials: 'IT', color: '#B8F36B', when: 'Weekdays 9:15', live: false, btn: 'Remind me' },
@@ -132,5 +154,5 @@ export function buildWall(ctx) {
     const c = { High: '#FF9B8A', Medium: '#FFB86B', Low: '#9DB0A6' }[p];
     return 'padding:3px 10px;border-radius:12px;font-size:12px;font-weight:600;border:1px solid ' + c + ';color:' + c;
   };
-  return { canPost, moments, panelStyle, posts, prio, pw, sessions };
+  return { canPost, moments, panelStyle, posts, prio, pw, sessions, sharedViews };
 }

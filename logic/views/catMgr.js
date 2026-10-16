@@ -2,7 +2,7 @@ import { catsFor } from '~/logic/ticketRouting.js';
 
 // renderVals step: catMgr. Ticket categories for whatever is open: a unit dashboard, or the ticket desk.
 export function buildCatMgr(ctx) {
-  const { O, can, corePeople, defaultCats, ou, recOf, s } = ctx;
+  const { O, can, corePeople, defaultCats, ou, recOf, s, tickets } = ctx;
   const field = { departments: 'dept', branches: 'loc', sectors: 'sector', units: 'unit' };
   const right = { departments: 'Manage department', sectors: 'Manage sector', branches: 'Manage branch', units: 'Manage unit' };
   let target = null;
@@ -27,7 +27,16 @@ export function buildCatMgr(ctx) {
     selected: ed.members.map((n) => ({ ...person(n), remove: () => this.toggleCatEdit(n) })), count: ed.members.length,
     results: target.pool.filter((n) => !q || n.toLowerCase().indexOf(q) !== -1).map((n) => ({ ...person(n), on: ed.members.indexOf(n) !== -1, toggle: () => this.toggleCatEdit(n) })),
     dirty: !same, save: () => this.applyCatEdit(key), cancel: () => this.cancelCatEdit() } : { open: false };
-  return { catMgr: { active: true, editor, dirty, save: () => this.saveWork(), discard: () => this.discardWork(), noAccessNote: target.canManage ? '' : 'You can view these categories. Ask an admin to give your role the "Set up ticket categories" right to change them.', key, canManage: target.canManage, title: target.type === 'desk' ? 'Ticket desk categories' : 'Ticket categories for ' + target.name,
+  // Performance threshold for this dashboard, edited here and saved with the button.
+  const unitKey = s.section === 'orgunit' ? s.ou : null;
+  const curThr = unitKey ? (s.targets[unitKey] || 95) : 95;
+  const thr = s.ouThr && s.ouThr.key === unitKey ? s.ouThr.value : curThr;
+  const thrNum = Math.max(50, Math.min(100, Number(thr) || 0));
+  const threshold = { show: !!unitKey && target.type !== 'desk', current: curThr, value: thr, canEdit: target.canManage, dirty: String(thr) !== String(curThr) && !!thr,
+    onInput: (e) => this.setState({ ouThr: { key: unitKey, value: e.target.value } }),
+    save: () => { const v = Number(thr); if (!(v >= 50 && v <= 100)) { this.notify('Choose a threshold between 50 and 100%.', '#FFB86B'); return; } this.setState((st) => ({ targets: { ...st.targets, [unitKey]: Math.round(v) }, ouThr: null })); this.notify('Performance threshold saved at ' + Math.round(v) + '%.', '#B8F36B'); },
+    discard: () => this.setState({ ouThr: null }), note: thrNum + '% of what ' + target.name + ' receives should be resolved within its time limit.' };
+  return { catMgr: { active: true, threshold, editor, dirty, save: () => this.saveWork(), discard: () => this.discardWork(), noAccessNote: target.canManage ? '' : 'You can view these categories. Ask an admin to give your role the "Set up ticket categories" right to change them.', key, canManage: target.canManage, title: target.type === 'desk' ? 'Ticket desk categories' : 'Ticket categories for ' + target.name,
     usingDefaults: !own.length && !working, startOwn: () => this.startOwnCats(key, defaultCats),
     note: own.length ? 'Tickets sent here can only use these categories. Each has its own TAT and priority, and its members take new tickets automatically until you delink them.' : 'No categories of its own yet, so the organization defaults apply. Create your own to set TATs, priorities and who always takes them.',
     rows: list.map((c) => ({ id: c.id, name: c.name, tat: c.tat, prio: c.prio, custom: c.custom,       summary: c.members.slice(0, 3).map(person), extra: Math.max(0, c.members.length - 3), count: c.members.length, manage: () => this.openCatEdit(c.id, c.members),

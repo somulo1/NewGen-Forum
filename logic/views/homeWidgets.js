@@ -111,7 +111,6 @@ export function buildHomeWidgets(ctx) {
     ...catalog[id],
     title: (s.wcfg[id] && s.wcfg[id].title) || catalog[id].title,
     openSettings: () => this.setState({ settingsFor: id }),
-    startMeeting: () => this.startCall('video', 'Instant meeting', 'S', '#F49AC1', []),
     t: { [id]: true },
     items: id === 'calendar' ? calItems : (id === 'memos' || id === 'newsletter') ? s.comms.filter((c) => c.type === (id === 'memos' ? 'Memo' : 'Newsletter') && c.status === 'Published').slice(0, 3).map((c) => ({ ...c, by: c.by === 'Samwel Okoth Omulo' ? 'You' : c.by, dateLabel: fmtDay(c.date), audience: c.to.length > 2 ? c.to.slice(0, 2).join(', ') + ' +' + (c.to.length - 2) : c.to.join(', '), readBar: 'height:100%;width:' + c.read + '%;background:#B8F36B' })) : (orgWidgetItems[id] || itemsFor[id] || []),
     isCommList: id === 'memos' || id === 'newsletter',

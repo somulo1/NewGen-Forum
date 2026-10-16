@@ -11,30 +11,31 @@
 <span style="width: 40px; height: 40px; border-radius: 50%; background: #B8F36B; color: #0F1714; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg></span>
 <span style="font-size: 13px; font-weight: 600">Add a moment</span>
 </button>
-<template v-for="(m, m__i) in moments" :key="m__i">
-<button @click="m.open" :aria-label="`View moment: ${m.caption}`" :style="`flex: none; width: 112px; height: 180px; border-radius: 14px; border: 0; background: ${m.bg}; color: #fff; cursor: pointer; display: flex; flex-direction: column; justify-content: space-between; padding: 10px; box-sizing: border-box; text-align: left`">
-<span :style="`width: 34px; height: 34px; border-radius: 50%; border: 3px solid #B8F36B; background: ${m.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px`">{{ m.initials }}</span>
-<span style="font-size: 13px; font-weight: 600; line-height: 1.3">{{ m.caption }}</span>
+<template v-for="m in moments" :key="m.key">
+<button @click="m.open" :aria-label="`View moment: ${m.caption}`" :style="`position: relative; flex: none; width: 112px; height: 180px; padding: 0; border-radius: 14px; border: 0; overflow: hidden; background: ${m.bg}; color: #fff; cursor: pointer; text-align: left; box-sizing: border-box`">
+<img v-if="m.mediaIsImg" :src="m.mediaUrl" alt="" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover">
+<video v-else-if="m.mediaIsVideo" :src="m.mediaUrl" muted playsinline preload="metadata" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover"></video>
+<span aria-hidden="true" style="position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(0,0,0,.18), rgba(0,0,0,0) 35%, rgba(0,0,0,.7))"></span>
+<span style="position: relative; display: flex; flex-direction: column; justify-content: space-between; height: 100%; padding: 10px; box-sizing: border-box; min-width: 0">
+<span style="display: flex; align-items: center; justify-content: space-between; gap: 4px"><span :style="`width: 34px; height: 34px; flex: none; border-radius: 50%; border: 3px solid #B8F36B; background: ${m.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px`">{{ m.initials }}</span><span v-if="m.mediaIsVideo" aria-label="Video" style="font-size: 11px; padding: 2px 6px; border-radius: 8px; background: rgba(0,0,0,.55)">▶</span></span>
+<span style="display: flex; flex-direction: column; gap: 4px; min-width: 0">
+<span style="font-size: 13px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; word-break: break-word; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden">{{ m.caption }}</span>
+<span v-if="m.likeCount + m.loveCount" style="font-size: 11px; opacity: .9; display: flex; align-items: center; gap: 4px"><svg aria-hidden="true" width="11" height="11" viewBox="0 0 24 24" fill="#FF6B81" stroke="#FF6B81" stroke-width="2" stroke-linejoin="round"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"></path></svg>{{ m.likeCount + m.loveCount }}</span>
+</span>
+</span>
 </button>
 </template>
 </div>
 <template v-if="momentForm.open">
 <form @submit.prevent="submitMoment" aria-label="Add a moment" style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 12px; border-radius: 14px; background: #16201C; border: 1px solid #24322C">
-<input v-model="momentCaption" type="text" maxlength="60" placeholder="What's happening? (shown on your moment)" aria-label="Moment caption" style="flex: 1 1 220px; height: 40px; padding: 0 14px; border-radius: 20px; border: 1px solid #2A3832; background: #121B17; color: #E8EFEA; font-size: 14px">
+<input v-model="momentCaption" type="text" maxlength="120" placeholder="What's happening? (optional with a photo or video)" aria-label="Moment caption" style="flex: 1 1 220px; height: 40px; padding: 0 14px; border-radius: 20px; border: 1px solid #2A3832; background: #121B17; color: #E8EFEA; font-size: 14px">
 <span style="display: flex; gap: 6px"><template v-for="c in momentForm.colors" :key="c"><button type="button" :aria-label="`Background ${c}`" @click="momentBg = c" :style="`width: 26px; height: 26px; border-radius: 50%; border: 2px solid ${momentBg === c ? '#E8EFEA' : 'transparent'}; background: ${c}; cursor: pointer`"></button></template></span>
+<label style="position: relative; height: 38px; padding: 0 14px; border-radius: 19px; border: 1px solid #2A3832; display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px; max-width: 200px; overflow: hidden"><input type="file" accept="image/*,video/*" aria-label="Add a photo or video to your moment" @change="pickMomentFile" style="position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer"><span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ momentFile ? momentFile.name : 'Photo / video' }}</span></label>
 <button type="submit" style="height: 38px; padding: 0 18px; border-radius: 19px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">Share moment</button>
 <button type="button" @click="momentForm.toggle" style="height: 38px; padding: 0 14px; border-radius: 19px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer">Cancel</button>
 </form>
 </template>
-<template v-if="momentView.open">
-<div class="hub-overlay" role="dialog" aria-modal="true" aria-label="Moment" style="position: fixed; inset: 0; z-index: 70; background: rgba(5,10,8,0.8); display: flex; align-items: center; justify-content: center; padding: 16px">
-<div :style="`position: relative; width: 340px; max-width: 100%; height: min(560px, 100%); border-radius: 20px; background: ${momentView.item.bg}; color: #fff; display: flex; flex-direction: column; justify-content: space-between; padding: 18px; box-sizing: border-box`">
-<div style="display: flex; align-items: center; gap: 10px"><span :style="`width: 38px; height: 38px; border-radius: 50%; background: ${momentView.item.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700`">{{ momentView.item.initials }}</span><span style="flex: 1; font-size: 12px; opacity: .8">{{ momentView.counter }}</span><button type="button" aria-label="Close moment" @click="momentView.close" style="width: 36px; height: 36px; border-radius: 50%; border: 1px solid rgba(255,255,255,.4); background: transparent; color: #fff; cursor: pointer">✕</button></div>
-<strong style="font-family: 'Space Grotesk', sans-serif; font-size: 24px; line-height: 1.3">{{ momentView.item.caption }}</strong>
-<div style="display: flex; gap: 8px"><button type="button" @click="momentView.prev" style="flex: 1; height: 42px; border-radius: 21px; border: 1px solid rgba(255,255,255,.4); background: transparent; color: #fff; cursor: pointer">Previous</button><button type="button" @click="momentView.next" style="flex: 1; height: 42px; border-radius: 21px; border: 0; background: #fff; color: #0F1714; font-weight: 600; cursor: pointer">Next</button></div>
-</div>
-</div>
-</template>
+<MomentViewer />
 
 <div style="padding: 16px; border-radius: 16px; background: #16201C; border: 1px solid #24322C; display: flex; flex-direction: column; gap: 12px">
 <div style="display: flex; gap: 12px; align-items: flex-start">
@@ -53,11 +54,6 @@
 </template>
 </div>
 </template>
-<template v-if="emojiWallOpen">
-<div role="menu" aria-label="Emoji" style="padding: 8px; border-radius: 14px; background: #1D2A25; border: 1px solid #34453D; display: grid; grid-template-columns: repeat(auto-fill, minmax(42px, 1fr)); gap: 2px">
-<template v-for="(e, e__i) in emojisWall" :key="e__i"><button :aria-label="e.label" @click="e.add" style="height: 42px; border: 0; border-radius: 8px; background: transparent; font-size: 22px; cursor: pointer">{{ e.ch }}</button></template>
-</div>
-</template>
 <template v-if="wpollView.on">
 <div style="display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 12px; background: #121B17; border: 1px solid #2A3832">
 <span style="font-size: 12px; color: #9DB0A6">Poll: your post text is the question. Add 2 to 5 options.</span>
@@ -68,7 +64,7 @@
 <div style="display: flex; flex-wrap: wrap; gap: 6px; align-items: center; border-top: 1px solid #24322C; padding-top: 10px">
 <label style="position: relative; height: 38px; padding: 0 12px; border-radius: 10px; color: #C9D6CF; cursor: pointer; display: flex; align-items: center; gap: 8px"><input type="file" accept="image/*,video/*" multiple="" aria-label="Add photo or video" @change="onWallFiles" style="position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6EE7C8" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"></rect><circle cx="9" cy="10" r="2"></circle><path d="M21 16l-5-5-8 8"></path></svg>Photo / video</label>
 <label style="position: relative; height: 38px; padding: 0 12px; border-radius: 10px; color: #C9D6CF; cursor: pointer; display: flex; align-items: center; gap: 8px"><input type="file" multiple="" aria-label="Attach a file" @change="onWallFiles" style="position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C9B6FF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11.5l-8.2 8.2a5 5 0 0 1-7.1-7.1L13.2 4a3.4 3.4 0 0 1 4.8 4.8l-8.5 8.5a1.8 1.8 0 0 1-2.5-2.5L14.8 7"></path></svg>File</label>
-<button @click="toggleEmojiWall" style="height: 38px; padding: 0 12px; border-radius: 10px; border: 0; background: transparent; color: #C9D6CF; cursor: pointer; display: flex; align-items: center; gap: 8px"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFD66B" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M8.5 14.5c1 1.2 2.2 1.8 3.5 1.8s2.5-.6 3.5-1.8M9 9.5h.01M15 9.5h.01"></path></svg>Emoji</button>
+<EmojiButton :size="38" @pick="pickEmojiWall"/>
 <button @click="wpollView.toggle" :aria-pressed="wpollView.on" style="height: 38px; padding: 0 12px; border-radius: 10px; border: 0; background: transparent; color: #C9D6CF; cursor: pointer; display: flex; align-items: center; gap: 8px"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFB86B" stroke-width="1.8" stroke-linecap="round"><path d="M5 20V10M12 20V4M19 20v-7"></path></svg>Poll</button>
 <button @click="openEventFromWall" style="height: 38px; padding: 0 12px; border-radius: 10px; border: 0; background: transparent; color: #C9D6CF; cursor: pointer; display: flex; align-items: center; gap: 8px"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7CC4FF" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M3 10h18M8 3v4M16 3v4"></path></svg>Event</button>
 <label style="margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 12px; color: #9DB0A6">Visible to<select :value="wallAudience" @change="onAudience" aria-label="Who can see this post" style="height: 32px; padding: 0 8px; border-radius: 8px; border: 1px solid #2A3832; background: #121B17; color: #E8EFEA; font-size: 12px"><template v-for="a in wallAudiences" :key="a"><option :value="a">{{ a }}</option></template></select></label>
@@ -141,7 +137,7 @@
 <template v-if="!p.hasComments"><p style="margin: 12px 0; font-size: 13px; color: #9DB0A6">No comments yet. Be the first.</p></template>
 <template v-for="n in p.commentTree" :key="n.key"><CommentNode :node="n"/></template>
 </div>
-<div style="display: flex; gap: 8px; align-items: center; padding: 8px 16px 14px; border-top: 1px solid #24322C">
+<div v-if="!p.replyingAny" style="display: flex; gap: 8px; align-items: center; padding: 8px 16px 14px; border-top: 1px solid #24322C">
 <div aria-hidden="true" style="width: 32px; height: 32px; flex: none; border-radius: 50%; background: #C2185B; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 12px">S</div>
 <CommentBox style="flex: 1" placeholder="Write a comment…" @send="p.addComment"/>
 </div>
@@ -151,7 +147,7 @@
 </template>
 </div>
 
-<aside aria-label="Wall highlights" class="hub-static" style="flex: 1 1 250px; min-width: 0; position: sticky; top: 0; align-self: flex-start; max-height: calc(100vh - 100px); overflow-y: auto; display: flex; flex-direction: column; gap: 16px">
+<aside aria-label="Wall highlights" class="hub-static" style="flex: 1 1 250px; min-width: 0; position: sticky; top: 0; align-self: flex-start; overflow: visible; display: flex; flex-direction: column; gap: 16px">
 <div style="padding: 16px; border-radius: 16px; background: #16201C; border: 1px solid #24322C; display: flex; flex-direction: column; gap: 10px">
 <strong style="font-size: 15px">Birthdays today</strong>
 <span style="font-size: 14px; line-height: 1.5; color: #C9D6CF">Faith Achieng and 2 others. Send them a wish on the wall.</span>
@@ -180,11 +176,12 @@ import { hubBindings } from '~/composables/useHub';
 
 export default {
   name: 'WallSection',
-  data() { return { momentCaption: '', momentBg: '#2B4A63' }; },
+  data() { return { momentCaption: '', momentBg: '#2B4A63', momentFile: null }; },
   methods: {
-    submitMoment() { if (this.addMoment(this.momentCaption, this.momentBg)) this.momentCaption = ''; },
+    submitMoment() { if (this.addMoment(this.momentCaption, this.momentBg, this.momentFile)) { this.momentCaption = ''; this.momentFile = null; } },
+    pickMomentFile(e) { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) this.momentFile = f; },
     wish() { this.wishBirthday(); this.$nextTick(() => this.$refs.composer && this.$refs.composer.focus()); }
   },
-  ...hubBindings(["addMoment","momentForm","momentView","wpollView","openEventFromWall","wallAudience","wallAudiences","onAudience","wishBirthday","onlineList","trending","wallFilter","canPostWall","cannotPostWall","draft","emojiWallOpen","emojisWall","hasWFiles","moments","onDraft","onPost","onWallFiles","people","postBtnStyle","posts","show","toggleEmojiWall","wfiles"])
+  ...hubBindings(["pickEmojiWall","addMoment","momentForm","momentView","wpollView","openEventFromWall","wallAudience","wallAudiences","onAudience","wishBirthday","onlineList","trending","wallFilter","canPostWall","cannotPostWall","draft","hasWFiles","moments","onDraft","onPost","onWallFiles","people","postBtnStyle","posts","show","wfiles"])
 };
 </script>

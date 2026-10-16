@@ -2,7 +2,46 @@
 <template><template v-if="show.orgunit && !ou.name">
 <div style="padding: 40px 20px; border-radius: 16px; border: 1px dashed #3F524A; text-align: center; color: #9DB0A6">You do not have access to this dashboard. Ask an admin to give your role the "View dashboard" right.</div>
 </template>
-<template v-if="show.orgunit && ou.name">
+<template v-if="show.orgunit && ou.name && ou.hasDetail">
+<div style="display: flex; flex-direction: column; gap: 20px; width: 100%; min-width: 0">
+<button @click="ou.detail.back" style="align-self: flex-start; height: 38px; padding: 0 16px; border-radius: 19px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer; font-size: 14px">{{ ou.detail.backLabel }}</button>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px">
+<span style="font-family: ui-monospace, monospace; font-size: 13px; color: #9DB0A6">{{ ou.detail.ref }}</span>
+<h1 style="margin: 0; flex: 1 1 260px; min-width: 0; font-family: 'Space Grotesk', sans-serif; font-size: clamp(22px, 3.4vw, 30px); letter-spacing: -0.02em; overflow-wrap: anywhere">{{ ou.detail.title }}</h1>
+<template v-for="(b, b__i) in ou.detail.badges" :key="b__i"><span :style="`padding: 4px 12px; border-radius: 14px; font-size: 12px; font-weight: 600; border: 1px solid ${b.color}; color: ${b.color}`">{{ b.text }}</span></template>
+</div>
+<ol aria-label="Progress" style="list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px">
+<template v-for="(st, st__i) in ou.detail.steps" :key="st__i"><li style="display: flex; flex-direction: column; gap: 8px; min-width: 0"><span :style="st.barStyle"></span><span style="display: flex; align-items: center; gap: 8px; font-size: 13px; min-width: 0"><span :style="st.dotStyle">{{ st.num }}</span><span :style="st.labelStyle">{{ st.label }}</span></span><span style="font-size: 12px; color: #9DB0A6">{{ st.note }}</span></li></template>
+</ol>
+<div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start">
+<div style="flex: 2 1 380px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+<div style="padding: 18px; border-radius: 16px; background: #16201C; border: 1px solid #24322C; display: flex; flex-direction: column; gap: 8px"><strong style="font-size: 15px">Description</strong><p style="margin: 0; font-size: 14px; line-height: 1.55; color: #C9D6CF; overflow-wrap: anywhere">{{ ou.detail.about }}</p></div>
+<div style="padding: 18px; border-radius: 16px; background: #16201C; border: 1px solid #24322C; display: flex; flex-direction: column; gap: 14px">
+<strong style="font-size: 15px">Activity</strong>
+<template v-for="(ac, ac__i) in ou.detail.activity" :key="ac__i">
+<div style="display: flex; gap: 10px; min-width: 0"><span aria-hidden="true" :style="`width: 32px; height: 32px; flex: none; border-radius: 50%; background: ${ac.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11px`">{{ ac.initials }}</span>
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px"><div style="display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline"><strong style="font-size: 13px">{{ ac.who }}</strong><span style="font-size: 12px; color: #9DB0A6">{{ ac.time }}</span></div>
+<template v-if="ac.isEvent"><span style="font-size: 13px; color: #C9D6CF">{{ ac.text }}</span></template>
+<template v-if="ac.isComment"><div style="padding: 8px 12px; border-radius: 4px 12px 12px 12px; background: #1F2C26; font-size: 14px; line-height: 1.45; overflow-wrap: anywhere">{{ ac.text }}</div></template></div></div>
+</template>
+<template v-if="ou.detail.closed"><div role="status" style="padding: 12px 14px; border-radius: 12px; background: #121B17; color: #9DB0A6; font-size: 14px">This is closed. Status changes and comments are turned off.</div></template>
+<template v-else><CommentBox placeholder="Write a comment…" send-label="Comment" @send="ou.detail.comment"/></template>
+</div>
+</div>
+<aside aria-label="Details" style="flex: 1 1 280px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+<div style="padding: 18px; border-radius: 16px; background: #16201C; border: 1px solid #24322C; display: flex; flex-direction: column; gap: 10px">
+<span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #9DB0A6">Actions</span>
+<template v-for="(act, act__i) in ou.detail.actions" :key="act__i"><button @click="act.run" :style="act.style">{{ act.label }}</button></template>
+<template v-if="ou.detail.closed"><span style="font-size: 13px; color: #9DB0A6">Closed. Nothing more can be changed.</span></template>
+</div>
+<div style="padding: 18px; border-radius: 16px; background: #16201C; border: 1px solid #24322C; display: grid; grid-template-columns: auto 1fr; gap: 8px 14px; font-size: 13px">
+<template v-for="(m, m__i) in ou.detail.side" :key="m__i"><span style="color: #9DB0A6">{{ m.label }}</span><span style="overflow-wrap: anywhere">{{ m.value }}</span></template>
+</div>
+</aside>
+</div>
+</div>
+</template>
+<template v-if="show.orgunit && ou.name && !ou.hasDetail">
 <div style="width: 100%; display: flex; flex-direction: column; gap: 16px">
 <button @click="go.home" style="align-self: flex-start; height: 38px; padding: 0 14px; border-radius: 19px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer">‹ Home</button>
 <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: center; padding: 20px; border-radius: 20px; background: #16201C; border: 1px solid #24322C">
@@ -11,8 +50,10 @@
 <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center"><h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 26px; letter-spacing: -0.02em">{{ ou.name }}</h1><span :style="ou.badge">{{ ou.type }}</span></div>
 <span style="font-size: 13px; color: #9DB0A6">{{ ou.path }}</span>
 <span style="font-size: 13px; color: #C9D6CF">Managed by the {{ ou.managerRole }} role · {{ ou.manager }} · {{ ou.members }} people</span>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap: 10px; margin-top: 6px">
+<template v-for="(pt, pt__i) in ou.perfTiles" :key="pt__i"><div role="group" :aria-label="`${pt.label} performance`" :style="`padding: 10px 12px; border-radius: 12px; background: #121B17; border: 1px solid ${pt.color}; display: flex; flex-direction: column; gap: 2px; min-width: 0`"><span :style="`font-family: 'Space Grotesk', sans-serif; font-size: 24px; font-weight: 700; color: ${pt.color}`">{{ pt.pct }}%</span><span style="font-size: 13px; font-weight: 600">{{ pt.label }}</span><span style="font-size: 11px; color: #9DB0A6; overflow-wrap: anywhere">{{ pt.note }}</span></div></template>
 </div>
-<div style="flex: 1 1 260px; max-width: 420px; padding: 12px 14px; border-radius: 12px; background: #121B17; border: 1px solid #24322C; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #9DB0A6">Communication rules</span><template v-for="(cr, cr__i) in ou.commRules" :key="cr__i"><span style="font-size: 12px; color: #C9D6CF; line-height: 1.45">{{ cr.text }}</span></template><span style="font-size: 11px; color: #9DB0A6">Set in the {{ ou.typePlural }} widget settings.</span></div>
+</div>
 </div>
 
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px">
@@ -24,23 +65,6 @@
 </template>
 </div>
 
-<div style="padding: 20px; border-radius: 18px; background: #16201C; border: 1px solid #24322C; display: flex; flex-direction: column; gap: 16px">
-<div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end">
-<div style="flex: 1 1 260px; display: flex; flex-direction: column; gap: 4px"><strong style="font-size: 15px">How we resolve what we receive</strong><span style="font-size: 13px; color: #9DB0A6">Share of received items resolved within their time limit, this month.</span></div>
-<label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #9DB0A6">Target<input type="number" min="50" max="100" :value="ou.target" @input="ou.setTarget" style="width: 70px; height: 34px; padding: 0 8px; border-radius: 8px; border: 1px solid #2A3832; background: #121B17; color: #E8EFEA; font-size: 14px">%</label>
-</div>
-<div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: center">
-<div style="display: flex; flex-direction: column; gap: 2px; min-width: 150px"><span :style="`font-family: 'Space Grotesk', sans-serif; font-size: 48px; font-weight: 700; line-height: 1; color: ${ou.perfColor}`">{{ ou.perf }}%</span><span :style="`font-size: 13px; color: ${ou.perfColor}`">{{ ou.perfNote }}</span></div>
-<div style="flex: 1 1 320px; display: flex; flex-direction: column; gap: 14px">
-<template v-for="(bk, bk__i) in ou.breakdown" :key="bk__i">
-<div style="display: flex; flex-direction: column; gap: 6px">
-<div style="display: flex; justify-content: space-between; font-size: 13px"><span>{{ bk.label }}</span><span :style="`color: ${bk.color}; font-weight: 600`">{{ bk.pct }}% <span style="color: #9DB0A6; font-weight: 400">· {{ bk.detail }}</span></span></div>
-<div style="position: relative; height: 10px; border-radius: 5px; background: #22302A"><div :style="bk.bar"></div><span title="Target" :style="bk.marker"></span></div>
-</div>
-</template>
-</div>
-</div>
-</div>
 
 <div role="tablist" style="display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid #24322C"><template v-for="(ot, ot__i) in ou.tabs" :key="ot__i"><button role="tab" @click="ot.go" :style="ot.style">{{ ot.label }} <span style="color: #9DB0A6; font-weight: 400">{{ ot.count }}</span></button></template></div>
 <template v-if="ou.isCats"><TicketCategories /></template>

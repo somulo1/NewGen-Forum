@@ -22,7 +22,7 @@ export function buildCalendar(ctx) {
   const weeks = Math.ceil((offset + dim) / 7);
   const monthShift = (d) => { let y = cy, m = cmn + d; if (m < 1) { m = 12; y--; } if (m > 12) { m = 1; y++; } return y + '-' + (m < 10 ? '0' : '') + m; };
   const chipStyleC = (c) => 'display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:2px 6px;border-radius:5px;font-size:10px;font-weight:600;background:' + c + '26;color:' + c;
-  const joinEvent = (e) => this.startCall(e.type === 'Standup' ? 'voice' : 'video', e.title, e.title.split(' ').map((x) => x[0]).join('').slice(0, 2).toUpperCase(), typeColor[e.type], e.people);
+  const joinEvent = (e) => this.startCall(e.type === 'Standup' ? 'voice' : 'video', e.title, e.title.split(' ').map((x) => x[0]).join('').slice(0, 2).toUpperCase(), typeColor[e.type], e.people, null, null, e.by && e.by !== 'Samwel Okoth Omulo' ? 'in' : 'out');
   const cal = {
     monthLabel: new Date(firstISO + 'T12:00:00+03:00').toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'Africa/Nairobi' }),
     prevMonth: () => this.setState({ calMonth: monthShift(-1) }), nextMonth: () => this.setState({ calMonth: monthShift(1) }),

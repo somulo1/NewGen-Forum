@@ -27,7 +27,7 @@
 <strong style="font-size: 16px">{{ cal.selLabel }}</strong>
 <template v-if="cal.noAgenda"><span style="font-size: 13px; color: #9DB0A6">Nothing planned. Use + New to add something.</span></template>
 <template v-for="(ag, ag__i) in cal.agenda" :key="ag__i">
-<div :style="`padding: 12px; border-radius: 12px; background: #121B17; border-left: 3px solid ${ag.color}; display: flex; flex-direction: column; gap: 6px`">
+<div :style="`padding: 12px; border-radius: 12px; background: #121B17; border: 1px solid ${ag.color}; display: flex; flex-direction: column; gap: 6px`">
 <div style="display: flex; gap: 8px; align-items: center"><span style="font-family: 'Space Grotesk', sans-serif; font-size: 13px; color: #C9D6CF">{{ ag.time }}</span><span :style="ag.typeStyle">{{ ag.type }}</span></div>
 <strong style="font-size: 14px; font-weight: 600">{{ ag.title }}</strong>
 <template v-if="ag.hasSub"><span style="font-size: 12px; color: #9DB0A6">{{ ag.sub }}</span></template>

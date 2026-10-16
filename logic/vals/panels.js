@@ -23,7 +23,7 @@ export function valsPanels(ctx) {
     selectMode: s.dragging ? 'none' : 'auto',
     startDrag: (e) => this.startDrag(e),
     resizeKey: (e) => {
-      if (e.key === 'ArrowLeft') this.setState({ pw: Math.min(640, this.state.pw + 20) });
+      if (e.key === 'ArrowLeft') this.setState({ pw: Math.min(this.panelMax(), this.state.pw + 20) });
       if (e.key === 'ArrowRight') this.setState({ pw: Math.max(320, this.state.pw - 20) });
     },
     isDocked: s.mode === 'docked',

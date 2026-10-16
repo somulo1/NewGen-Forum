@@ -6,7 +6,6 @@
 <div style="display: flex; flex-wrap: wrap; gap: 8px">
 <button @click="newMeeting" style="height: 40px; padding: 0 18px; border-radius: 20px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">Schedule a meeting</button>
 <button @click="newStandup" style="height: 40px; padding: 0 18px; border-radius: 20px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; font-weight: 600; cursor: pointer">Schedule a standup</button>
-<button @click="startInstant" style="height: 40px; padding: 0 18px; border-radius: 20px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; font-weight: 600; cursor: pointer">Start now</button>
 </div>
 <DataTable :t="meetingsTable" />
 <template v-for="(s, s__i) in emptyList" :key="s__i">

@@ -11,6 +11,7 @@ function seedCallLog() {
 export function callsState() {
   return {
     callLog: seedCallLog(),
+    callOff: {}, ouItem: null, ticketFrom: null, ouRecs: {}, ouThr: null,
     call: null, callMode: 'docked', mic: true, cam: true, sharing: false, hand: false, rec: false, callPanel: null, callDraft: '',
     callMsgs: [{ who: 'Grace Njeri', text: 'Joining from the Coast branch. Can everyone hear me?' }, { who: 'Brian Kiprop', text: 'Loud and clear.' }],
     ticketOpen: null, escOpen: false, esc: { type: '', id: '', cat: '', person: '', why: '' }, tcomment: '', tagOpen: false, ntOpen: false, nt: { title: '', cat: 'Network & Wi-Fi', prio: 'Medium', desc: '', files: [], toType: '', toName: '' }, unitCats: {}, catEdit: null, catWork: null, catDraft: { name: '', tat: '4', prio: 'Medium', err: '' },
