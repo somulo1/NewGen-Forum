@@ -1,8 +1,11 @@
 // Values and handlers the templates read through hubBindings: panels.
 export function valsPanels(ctx) {
-  const { dmPerson, dmStatusCol, forums, isDM, panelStyle, s, set } = ctx;
+  const { chatCtl, chatGate, dmPerson, dmPriv, dmStatusCol, forums, incomingView, isDM, panelStyle, pollView, s, set } = ctx;
   return {
     panelStyle,
+    chatCtl, chatGate, composerOff: !chatGate.allowed, composerNote: chatGate.reason, dmPriv, incomingView, pollView,
+    panelTab: s.panelTab, isPanelChat: s.panelTab !== 'polls', isPanelPolls: s.panelTab === 'polls',
+    goPanelChat: set({ panelTab: 'chat' }), goPanelPolls: set({ panelTab: 'polls' }),
     gripStyle: 'display:block;width:4px;height:44px;border-radius:2px;background:' + (s.dragging ? '#B8F36B' : '#3F524A'),
     selectMode: s.dragging ? 'none' : 'auto',
     startDrag: (e) => this.startDrag(e),

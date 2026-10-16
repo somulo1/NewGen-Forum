@@ -2,11 +2,8 @@
 <template><template v-if="showProjectList">
 <div style="width: 100%; display: flex; flex-direction: column; gap: 18px">
 <div style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px">
-<div style="flex: 1 1 300px"><h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; letter-spacing: -0.02em">Projects</h1><p style="margin: 4px 0 0; color: #9DB0A6">Every project's goal, progress, milestones and risks in one place.</p></div>
-<div style="display: flex; flex-wrap: wrap; gap: 8px">
-<template v-if="canMilestones"><button @click="newMilestone" style="height: 40px; padding: 0 18px; border-radius: 20px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; font-weight: 600; cursor: pointer">New milestone</button></template>
+<div style="flex: 1 1 300px"><h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; letter-spacing: -0.02em">Projects</h1><p style="margin: 4px 0 0; color: #9DB0A6">Every project's goal, progress, milestones and sprints in one place.</p></div>
 <template v-if="canCreateProject"><button @click="requestProject" style="height: 40px; padding: 0 18px; border-radius: 20px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">New project</button></template>
-</div>
 </div>
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px">
 <template v-for="(ps, ps__i) in projStats" :key="ps__i">
@@ -34,7 +31,7 @@
 <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; font-size: 12px">
 <div style="display: flex; flex-direction: column; gap: 2px"><span style="color: #9DB0A6">Next milestone</span><strong style="font-weight: 600">{{ pr.nextMilestone }}</strong></div>
 <div style="display: flex; flex-direction: column; gap: 2px"><span style="color: #9DB0A6">Due</span><strong style="font-weight: 600">{{ pr.dueLabel }}</strong></div>
-<div style="display: flex; flex-direction: column; gap: 2px"><span style="color: #9DB0A6">Open risks</span><strong :style="`font-weight: 600; color: ${pr.riskColor}`">{{ pr.riskCount }}</strong></div>
+<div style="display: flex; flex-direction: column; gap: 2px"><span style="color: #9DB0A6">Sprint</span><strong style="font-weight: 600">{{ pr.sprintLabel }}</strong></div>
 </div>
 <div style="display: flex; align-items: center; gap: 10px">
 <div style="display: flex">
@@ -57,46 +54,44 @@
 <span :style="`width: 60px; height: 60px; flex: none; border-radius: 16px; background: ${pj.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 20px`">{{ pj.initials }}</span>
 <div style="flex: 1 1 280px; min-width: 0; display: flex; flex-direction: column; gap: 4px">
 <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center"><h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 26px; letter-spacing: -0.02em">{{ pj.name }}</h1><span :style="pj.statusStyle">{{ pj.status }}</span></div>
-<span style="font-size: 13px; color: #9DB0A6">{{ pj.code }} · Led by {{ pj.owner }} · {{ pj.startLabel }} → {{ pj.dueLabel }} · {{ pj.sync }}</span>
+<span style="font-size: 13px; color: #9DB0A6">{{ pj.code }} · Led by {{ pj.owner }} · {{ pj.startLabel }} → {{ pj.dueLabel }}</span>
 </div>
-<div style="display: flex; gap: 8px; flex-wrap: wrap">
-<template v-if="has.sessions"><button @click="pj.call" style="height: 40px; padding: 0 16px; border-radius: 20px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; font-weight: 600; cursor: pointer">Start standup</button></template>
-<button style="height: 40px; padding: 0 16px; border-radius: 20px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">Share status update</button>
+<template v-if="has.sessions">
+<div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center">
+<template v-if="pj.standup.isLive"><span style="font-size: 12px; font-weight: 600; color: #FF9B8A">● LIVE · {{ pj.standup.label }}</span><button @click="pj.standup.join" style="height: 40px; padding: 0 18px; border-radius: 20px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">Join standup</button></template>
+<template v-if="pj.standup.isUpcoming"><span style="height: 40px; padding: 0 14px; border-radius: 20px; border: 1px solid #2A3832; display: flex; align-items: center; font-size: 13px; color: #C9D6CF">Standup · {{ pj.standup.label }}</span><button @click="pj.standup.cancel" style="height: 40px; padding: 0 14px; border-radius: 20px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer">Cancel</button></template>
+<template v-if="pj.standup.isNone"><button @click="pj.standup.openForm" style="height: 40px; padding: 0 18px; border-radius: 20px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; font-weight: 600; cursor: pointer">Schedule standup</button></template>
 </div>
+</template>
 </div>
+
+<template v-if="pj.standup.formOpen">
+<form novalidate @submit.prevent="pj.standup.form.submit" aria-label="Schedule standup" style="padding: 16px; border-radius: 14px; background: #121B17; border: 1px solid #B8F36B; display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end">
+<strong style="flex: 1 1 100%; font-size: 14px">Schedule a standup for the whole team</strong>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #9DB0A6">Date<input type="date" :value="pj.standup.form.date" :min="pj.standup.form.min" @input="pj.standup.form.onDate" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid #2A3832; background: #16201C; color: #E8EFEA; font-size: 14px"></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #9DB0A6">Start time<input type="time" :value="pj.standup.form.start" @input="pj.standup.form.onStart" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid #2A3832; background: #16201C; color: #E8EFEA; font-size: 14px"></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #9DB0A6">Repeats<select :value="pj.standup.form.repeat" @change="pj.standup.form.onRepeat" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid #2A3832; background: #16201C; color: #E8EFEA; font-size: 14px"><option value="None">Once</option><option value="Weekdays">Weekdays</option><option value="Weekly">Weekly</option></select></label>
+<div style="display: flex; gap: 8px"><button type="submit" style="height: 40px; padding: 0 20px; border-radius: 20px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">Schedule</button><button type="button" @click="pj.standup.form.close" style="height: 40px; padding: 0 18px; border-radius: 20px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer">Cancel</button></div>
+<template v-if="pj.standup.form.hasErr"><span role="alert" style="flex: 1 1 100%; font-size: 13px; color: #FF9B8A">{{ pj.standup.form.err }}</span></template>
+<span style="flex: 1 1 100%; font-size: 12px; color: #9DB0A6">The standup lasts 15 minutes and is added to everyone's calendar. When the start time is reached, this page shows "Join standup".</span>
+</form>
+</template>
 
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px">
 <div style="padding: 16px; border-radius: 16px; background: #16201C; border: 1px solid #24322C; display: flex; flex-direction: column; gap: 8px"><span style="font-size: 12px; color: #9DB0A6">Overall progress</span><span style="font-family: 'Space Grotesk', sans-serif; font-size: 30px; font-weight: 700">{{ pj.progress }}%</span><div style="height: 6px; border-radius: 3px; background: #22302A; overflow: hidden"><div :style="pj.barStyle"></div></div></div>
-<div style="padding: 16px; border-radius: 16px; background: #16201C; border: 1px solid #24322C; display: flex; flex-direction: column; gap: 8px"><span style="font-size: 12px; color: #9DB0A6">Tasks done</span><span style="font-family: 'Space Grotesk', sans-serif; font-size: 30px; font-weight: 700">{{ pj.doneCount }}<span style="font-size: 16px; color: #9DB0A6"> / {{ pj.taskCount }}</span></span><span style="font-size: 12px; color: #9DB0A6">{{ pj.inFlight }} in progress or review</span></div>
-<div style="padding: 16px; border-radius: 16px; background: #16201C; border: 1px solid #24322C; display: flex; flex-direction: column; gap: 8px"><span style="font-size: 12px; color: #9DB0A6">Time left</span><span style="font-family: 'Space Grotesk', sans-serif; font-size: 30px; font-weight: 700">{{ pj.daysLeft }}<span style="font-size: 16px; color: #9DB0A6"> days</span></span><span style="font-size: 12px; color: #9DB0A6">{{ pj.timeUsed }}% of the timeline used</span></div>
-<div style="padding: 16px; border-radius: 16px; background: #16201C; border: 1px solid #24322C; display: flex; flex-direction: column; gap: 8px"><span style="font-size: 12px; color: #9DB0A6">Budget used</span><span :style="`font-family: 'Space Grotesk', sans-serif; font-size: 30px; font-weight: 700; color: ${pj.budgetColor}`">{{ pj.budget }}%</span><span style="font-size: 12px; color: #9DB0A6">{{ pj.budgetNote }}</span></div>
+<div style="padding: 16px; border-radius: 16px; background: #16201C; border: 1px solid #24322C; display: flex; flex-direction: column; gap: 8px"><span style="font-size: 12px; color: #9DB0A6">Tasks done</span><span style="font-family: 'Space Grotesk', sans-serif; font-size: 30px; font-weight: 700">{{ pj.doneCount }}<span style="font-size: 16px; color: #9DB0A6"> / {{ pj.taskCount }}</span></span></div>
+<div style="padding: 16px; border-radius: 16px; background: #16201C; border: 1px solid #24322C; display: flex; flex-direction: column; gap: 8px"><span style="font-size: 12px; color: #9DB0A6">Milestones reached</span><span style="font-family: 'Space Grotesk', sans-serif; font-size: 30px; font-weight: 700">{{ pj.msDone }}<span style="font-size: 16px; color: #9DB0A6"> / {{ pj.msCount }}</span></span></div>
+<div style="padding: 16px; border-radius: 16px; background: #16201C; border: 1px solid #24322C; display: flex; flex-direction: column; gap: 8px"><span style="font-size: 12px; color: #9DB0A6">Time left</span><span style="font-family: 'Space Grotesk', sans-serif; font-size: 30px; font-weight: 700">{{ pj.daysLeft }}<span style="font-size: 16px; color: #9DB0A6"> days</span></span></div>
 </div>
 
-<div style="padding: 18px 20px; border-radius: 18px; background: #16201C; border: 1px solid #24322C; display: flex; flex-direction: column; gap: 16px">
-<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px"><div style="display: flex; flex-direction: column; gap: 2px"><strong style="font-size: 15px">Milestones</strong><span style="font-size: 12px; color: #9DB0A6">{{ pj.msDone }} of {{ pj.msCount }} reached. Progress comes from the tasks under each objective.</span></div>
-<template v-if="pj.canMilestones"><button @click="pj.addMilestone" style="height: 36px; padding: 0 16px; border-radius: 18px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; font-weight: 600; cursor: pointer; font-size: 13px">Add milestone</button></template></div>
-<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px">
-<template v-for="(ms, ms__i) in pj.milestones" :key="ms__i">
-<article :style="ms.cardStyle">
-<div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px"><strong style="flex: 1 1 140px; font-size: 14px">{{ ms.name }}</strong><span :style="`font-size: 12px; font-weight: 600; color: ${ms.color}`">{{ ms.stateLabel }}</span></div>
-<span style="font-size: 12px; color: #9DB0A6">Due {{ ms.dateLabel }} · {{ ms.countLabel }}</span>
-<div style="display: flex; align-items: center; gap: 8px"><div style="flex: 1; height: 8px; border-radius: 4px; background: #22302A; overflow: hidden"><div :style="ms.barStyle"></div></div><strong style="font-size: 12px; min-width: 34px; text-align: right">{{ ms.progress }}%</strong></div>
-<div style="display: flex; flex-direction: column; gap: 8px">
-<span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #9DB0A6">Objectives</span>
-<template v-for="(ob, ob__i) in ms.objectives" :key="ob__i">
-<div style="display: flex; flex-direction: column; gap: 4px"><div style="display: flex; justify-content: space-between; gap: 8px; font-size: 13px"><span>{{ ob.title }}</span><span style="color: #9DB0A6; white-space: nowrap">{{ ob.label }}</span></div><div style="height: 5px; border-radius: 3px; background: #22302A; overflow: hidden"><div :style="ob.barStyle"></div></div></div>
-</template>
-<template v-if="ms.canAddObj"><label style="display: flex; gap: 6px"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">New objective for {{ ms.name }}</span><input type="text" :value="ms.objDraft" @input="ms.onObjDraft" @keydown="ms.objKey" placeholder="Add an objective (Enter)" style="flex: 1; min-width: 0; box-sizing: border-box; height: 34px; padding: 0 10px; border-radius: 9px; border: 1px solid #2A3832; background: #16201C; color: #E8EFEA; font-size: 13px"><button type="button" @click="ms.addObj" style="height: 34px; padding: 0 12px; border-radius: 9px; border: 1px dashed #4A5C54; background: transparent; color: #E8EFEA; cursor: pointer; font-size: 12px">Add</button></label></template>
+<div style="padding: 16px 18px; border-radius: 18px; background: #16201C; border: 1px solid #24322C; display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px">
+<div role="tablist" style="display: flex; padding: 3px; border-radius: 12px; background: #121B17; border: 1px solid #24322C"><button role="tab" @click="pj.goMs" :style="`height: 34px; padding: 0 14px; border-radius: 9px; border: 0; cursor: pointer; font-size: 13px; font-weight: 600; ${pj.isMsTab ? 'background: #E8EFEA; color: #0F1714' : 'background: transparent; color: #C9D6CF'}`">Milestones ({{ pj.msCount }})</button><button role="tab" @click="pj.goSp" :style="`height: 34px; padding: 0 14px; border-radius: 9px; border: 0; cursor: pointer; font-size: 13px; font-weight: 600; ${pj.isSpTab ? 'background: #E8EFEA; color: #0F1714' : 'background: transparent; color: #C9D6CF'}`">Sprints ({{ pj.spCount }})</button></div>
+<span style="flex: 1 1 200px; font-size: 12px; color: #9DB0A6">Tasks sit in sprints, sprints belong to milestones, and progress rolls up automatically.</span>
+<template v-if="pj.canMilestones"><button @click="pj.addSprint" style="height: 36px; padding: 0 16px; border-radius: 18px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; font-weight: 600; cursor: pointer; font-size: 13px">Add sprint</button><button @click="pj.addMilestone" style="height: 36px; padding: 0 16px; border-radius: 18px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer; font-size: 13px">Add milestone</button></template>
 </div>
-<template v-if="ms.closed"><div style="padding: 10px 12px; border-radius: 10px; background: #1B2A1E; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; color: #B8F36B; font-weight: 600">{{ ms.closedLine }}</span><span style="font-size: 13px; line-height: 1.45; color: #C9D6CF">"{{ ms.closedComment }}"</span></div></template>
-<template v-if="ms.hasHint"><span style="font-size: 12px; color: #9DB0A6">{{ ms.closeHint }}</span></template>
-<div style="display: flex; gap: 8px; flex-wrap: wrap">
-<template v-if="ms.canClose"><button @click="ms.close" style="height: 36px; padding: 0 16px; border-radius: 18px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer; font-size: 13px">Mark as reached</button></template>
-<template v-if="ms.canReopen"><button @click="ms.reopen" style="height: 36px; padding: 0 16px; border-radius: 18px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; font-weight: 600; cursor: pointer; font-size: 13px">Reopen</button></template>
-</div>
-</article>
-</template>
-</div>
+<template v-if="pj.isMsTab"><DataTable :t="pj.msTable" /></template>
+<template v-if="pj.isSpTab"><DataTable :t="pj.spTable" /></template>
 </div>
 
 <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start">
@@ -110,13 +105,14 @@
 <strong style="font-size: 14px">New task</strong>
 <label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #9DB0A6">Title<input type="text" :value="pj.taskForm.title" @input="pj.taskForm.onTitle" placeholder="What needs to be done?" style="height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid #2A3832; background: #16201C; color: #E8EFEA; font-size: 14px"></label>
 <label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #9DB0A6">Description<textarea rows="3" :value="pj.taskForm.desc" @input="pj.taskForm.onDesc" placeholder="Add the details someone needs to do this task" style="padding: 10px 12px; border-radius: 10px; border: 1px solid #2A3832; background: #16201C; color: #E8EFEA; font-size: 14px; line-height: 1.45; resize: vertical"></textarea></label>
-<label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #9DB0A6">Objective<select :value="pj.taskForm.objective" @change="pj.taskForm.onObjective" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid #2A3832; background: #16201C; color: #E8EFEA; font-size: 14px"><option value="">Choose an objective…</option><template v-for="(oo, oo__i) in pj.taskForm.objOpts" :key="oo__i"><option :value="oo.v">{{ oo.l }}</option></template></select></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #9DB0A6">Objective<input type="text" :value="pj.taskForm.objective" @input="pj.taskForm.onObjective" placeholder="What should this task achieve?" style="height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid #2A3832; background: #16201C; color: #E8EFEA; font-size: 14px"></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #9DB0A6">Sprint<select :value="pj.taskForm.sprint" @change="pj.taskForm.onSprint" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid #2A3832; background: #16201C; color: #E8EFEA; font-size: 14px"><option value="">Choose a sprint…</option><template v-for="(so, so__i) in pj.taskForm.sprintOpts" :key="so__i"><option :value="so.v">{{ so.l }}</option></template></select></label>
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px">
 <label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #9DB0A6">Owner<select :value="pj.taskForm.owner" @change="pj.taskForm.onOwner" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid #2A3832; background: #16201C; color: #E8EFEA; font-size: 14px"><template v-for="(ow, ow__i) in pj.taskForm.ownerOpts" :key="ow__i"><option :value="ow.v">{{ ow.l }}</option></template></select></label>
 <label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #9DB0A6">Due date<input type="date" :value="pj.taskForm.due" :min="pj.taskForm.minDue" :max="pj.taskForm.maxDue" @input="pj.taskForm.onDue" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid #2A3832; background: #16201C; color: #E8EFEA; font-size: 14px"></label>
 </div>
-<div style="padding: 10px 12px; border-radius: 10px; background: #16201C; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; color: #C9D6CF">{{ pj.taskForm.planLine }}</span><template v-if="pj.taskForm.lateWarn"><span style="font-size: 12px; color: #FFB86B">{{ pj.taskForm.warnLine }}</span></template></div>
-<template v-if="pj.taskForm.noObjectives"><span role="alert" style="font-size: 13px; color: #FFB86B">No open milestone has an objective yet. Add a milestone or an objective first.</span></template>
+<div style="padding: 10px 12px; border-radius: 10px; background: #16201C"><span style="font-size: 12px; color: #C9D6CF">{{ pj.taskForm.planLine }}</span></div>
+<template v-if="pj.taskForm.noSprints"><div role="alert" style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: 13px; color: #FFB86B">No open sprint exists yet.<button type="button" @click="pj.taskForm.addSprint" style="height: 32px; padding: 0 14px; border-radius: 16px; border: 1px solid #FFB86B; background: transparent; color: #FFB86B; cursor: pointer">Add a sprint</button></div></template>
 <template v-if="pj.taskForm.hasErr"><span role="alert" style="font-size: 13px; color: #FF9B8A">{{ pj.taskForm.err }}</span></template>
 <div style="display: flex; gap: 8px"><button type="submit" style="height: 40px; padding: 0 20px; border-radius: 20px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">Create task</button><button type="button" @click="pj.taskForm.cancel" style="height: 40px; padding: 0 18px; border-radius: 20px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer">Cancel</button></div>
 </form>
@@ -143,27 +139,15 @@
 </div>
 </div>
 
-<aside aria-label="Project overview" style="flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+<aside aria-label="Project overview" style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
 <div style="padding: 18px; border-radius: 18px; background: #16201C; border: 1px solid #24322C; display: flex; flex-direction: column; gap: 10px">
 <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #9DB0A6">Why this project</span>
 <p style="margin: 0; font-size: 14px; line-height: 1.55">{{ pj.goal }}</p>
 <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #9DB0A6; margin-top: 6px">Team · {{ pj.teamCount }}</span>
 <div style="max-height: 200px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 4px">
-<template v-for="(tm, tm__i) in pj.team" :key="tm__i"><div style="display: flex; gap: 10px; align-items: center"><span aria-hidden="true" :style="`width: 30px; height: 30px; border-radius: 50%; background: ${tm.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11px`">{{ tm.initials }}</span><span style="font-size: 14px; flex: 1">{{ tm.name }}</span><span style="font-size: 12px; color: #9DB0A6">{{ tm.load }} tasks</span></div></template>
+<template v-for="(tm, tm__i) in pj.team" :key="tm__i"><div style="display: flex; gap: 10px; align-items: center"><span aria-hidden="true" :style="`width: 30px; height: 30px; border-radius: 50%; background: ${tm.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11px`">{{ tm.initials }}</span><span style="font-size: 14px; flex: 1">{{ tm.name }}</span><span style="font-size: 12px; color: #9DB0A6">{{ tm.load }} open</span></div></template>
 </div>
 </div>
-
-<div style="padding: 18px; border-radius: 18px; background: #16201C; border: 1px solid #24322C; display: flex; flex-direction: column; gap: 10px">
-<span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #9DB0A6">Risks &amp; issues</span>
-<template v-for="(rk, rk__i) in pj.risks" :key="rk__i"><div style="display: flex; gap: 10px; align-items: flex-start; padding: 10px; border-radius: 10px; background: #121B17"><span :style="rk.style">{{ rk.level }}</span><span style="font-size: 13px; line-height: 1.45">{{ rk.text }}</span></div></template>
-</div>
-
-<div style="padding: 18px; border-radius: 18px; background: #16201C; border: 1px solid #24322C; display: flex; flex-direction: column; gap: 10px">
-<span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #9DB0A6">Linked tickets</span>
-<template v-if="pj.noTickets"><span style="font-size: 13px; color: #9DB0A6">No tickets linked yet.</span></template>
-<template v-for="(lt, lt__i) in pj.linked" :key="lt__i"><div style="display: flex; gap: 10px; align-items: center"><div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><strong style="font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ lt.id }} · {{ lt.title }}</strong><span style="font-size: 12px; color: #9DB0A6">{{ lt.statusLabel }} · <span :style="`color: ${lt.slaColor}`">{{ lt.slaLabel }}</span></span></div><button @click="lt.open" style="height: 32px; padding: 0 12px; border-radius: 16px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer; font-size: 12px; font-weight: 600">View</button></div></template>
-</div>
-
 <div style="padding: 18px; border-radius: 18px; background: #16201C; border: 1px solid #24322C; display: flex; flex-direction: column; gap: 10px">
 <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #9DB0A6">Recent activity</span>
 <div style="max-height: 230px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 4px">
@@ -181,6 +165,6 @@ import { hubBindings } from '~/composables/useHub';
 
 export default {
   name: 'ProjectsSection',
-  ...hubBindings(["canCreateProject","canMilestones","closeProject","has","newMilestone","pj","projStats","projects","requestProject","showProjectList","showProjectView"])
+  ...hubBindings(["canCreateProject","closeProject","has","pj","projStats","projects","requestProject","showProjectList","showProjectView"])
 };
 </script>

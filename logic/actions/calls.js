@@ -19,6 +19,7 @@ export const callsActions = {
 
   startDmCall(kind, name, initials, color) {
     if (this.callBusy()) return;
+    if ((this.state.dmPrivacy[name] || {}).blocked) { this.notify('You blocked ' + name + '. Unblock them to call.', '#FFB86B'); return; }
     this.openDm(name);
     this.startCall(kind, 'Private call with ' + name, initials, color, [name], 'dm', name);
   },

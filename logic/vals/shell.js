@@ -27,8 +27,8 @@ export function valsShell(ctx) {
       return items.map((t) => ({ ...t, hasDot: !!t.dot, dot: t.dot || 0, style: st(t.on) }));
     })(),
     startInstant: () => this.startCall('video', 'Instant meeting', 'S', '#F49AC1', []),
-    voiceCall: isDM ? () => this.startCall('voice', 'Private call with ' + curDm.with, dmView.initials, dmView.color, [curDm.with], 'dm', curDm.with) : () => this.startCall('voice', cur.name, cur.initials, cur.color, [], 'forum', cur.id),
-    videoCall: isDM ? () => this.startCall('video', 'Private call with ' + curDm.with, dmView.initials, dmView.color, [curDm.with], 'dm', curDm.with) : () => this.startCall('video', cur.name, cur.initials, cur.color, [], 'forum', cur.id),
+    voiceCall: isDM ? () => this.startDmCall('voice', curDm.with, dmView.initials, dmView.color) : () => this.startCall('voice', cur.name, cur.initials, cur.color, [], 'forum', cur.id),
+    videoCall: isDM ? () => this.startDmCall('video', curDm.with, dmView.initials, dmView.color) : () => this.startCall('video', cur.name, cur.initials, cur.color, [], 'forum', cur.id),
     endCall: () => this.endCall(),
     showMeetingFull, showMeetingDock, showPanelCall, showCallMini, callMiniStyle, restoreCall,
     callToFull: set({ callMode: 'full' }), callToDock: set({ callMode: 'docked' }), callToMin: set({ callMode: 'min' }),

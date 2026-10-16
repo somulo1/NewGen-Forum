@@ -102,5 +102,5 @@ export function buildCalendar(ctx) {
       C.a([{ label: 'Join', kind: 'primary', run: () => joinEvent(e) }, { label: 'Cancel', kind: 'danger', run: () => { this.setState((x) => ({ events: x.events.filter((y) => y.id !== e.id) })); this.notify('"' + e.title + '" cancelled. Participants were told.', '#7CC4FF'); } }])
     ] })) };
   const meetingsSummary = meetingEvents.length + ' meeting' + (meetingEvents.length === 1 ? '' : 's') + ' scheduled · ' + meetingEvents.filter((e) => e.people.length > 0).length + ' with participants';
-  return { cal, calItems, ev, meetingsSummary, meetingsTable, openEv, titleOf };
+  return { cal, calItems, ev, joinEvent, meetingsSummary, meetingsTable, occurs, openEv, titleOf };
 }

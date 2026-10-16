@@ -149,7 +149,7 @@ export function buildHomeWidgets(ctx) {
   }));
   const gallery = Object.keys(catalog).filter((id) => id !== 'performance' || has.structure).map((id) => {
     const added = ids.indexOf(id) !== -1;
-    return { ...catalog[id], btnLabel: added ? 'Added' : 'Add to home',
+    return { ...catalog[id], added, btnLabel: added ? 'Added' : 'Add to home',
       openSettings: () => this.setState({ settingsFor: id }),
       btnStyle: 'flex:1;height:38px;border-radius:10px;font-weight:600;cursor:' + (added ? 'default' : 'pointer') + ';' + (added ? 'border:1px solid #2A3832;background:transparent;color:#9DB0A6' : 'border:0;background:#B8F36B;color:#0F1714'),
       add: () => { if (!added) this.setState((st) => ({ widgets: st.widgets.concat(id) })); } };

@@ -1,15 +1,13 @@
-import { defaultDue, milestoneTimeline, sprintList, sprintOf, taskContext, todayIso as isoToday, validateMilestone, validateTask } from '~/logic/projects.js';
+import { defaultTaskDue, milestoneTimeline, nextSprintName, sprintDefaults, sprintTimeline, taskContext, todayIso as isoToday, validateMilestone, validateSprint, validateTask } from '~/logic/projects.js';
 
-// renderVals step: projects. Receives the names built by earlier steps and returns the ones later steps need.
+// renderVals step: projects. Project > milestone > sprint > task. Progress is always calculated from the tasks.
 export function buildProjects(ctx) {
-  const { badge, can, has, ini, pColor, s, set, tickets } = ctx;
-  // ---- Projects ----
+  const { badge, can, has, ini, pColor, s, set } = ctx;
   const nowMs = Date.now();
   const dateOf = (d) => new Date(d + 'T00:00:00+03:00').getTime();
   const shortDate = (d) => new Date(d + 'T00:00:00+03:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
   const longDate = (d) => new Date(d + 'T00:00:00+03:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
   const statusColor = { 'On track': '#B8F36B', 'At risk': '#FFB86B', 'Off track': '#FF9B8A' };
-  const levelColor = { High: '#FF9B8A', Medium: '#FFB86B', Low: '#9DB0A6' };
   const colNames = [['To do', '#9DB0A6'], ['In progress', '#7CC4FF'], ['Review', '#FFB86B'], ['Done', '#B8F36B']];
   const dayStart = new Date(new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Nairobi' }) + 'T00:00:00+03:00').getTime();
   const taskInfo = (t) => {
@@ -27,22 +25,22 @@ export function buildProjects(ctx) {
   const today = isoToday(nowMs);
   const canMs = can('projects', 'Manage milestones');
   const canEditT = can('projects', 'Edit tasks');
+  const initialsOf = (n) => n.split(' ').map((x) => x[0]).join('').slice(0, 2);
   const projCalc = (p) => {
     const total = p.tasks.length, done = p.tasks.filter((t) => t.col === 3).length;
     const progress = total ? Math.round((done / total) * 100) : 0;
-    const sc = statusColor[p.status] || '#9DB0A6';
     const next = milestoneTimeline(p, today).find((m) => m.status !== 'done');
-    return { total, done, progress, sc, next };
+    const cur = sprintTimeline(p, today).find((sp) => sp.start <= today && today <= sp.end);
+    return { total, done, progress, sc: statusColor[p.status] || '#9DB0A6', next, cur };
   };
   const projects = s.projects.map((p) => {
     const c = projCalc(p);
-    return { ...p, initials: p.name.split(' ').map((x) => x[0]).join('').slice(0, 2), progress: c.progress,
-      statusStyle: badge(c.sc), statusColor: c.sc,
+    return { ...p, initials: initialsOf(p.name), progress: c.progress, statusStyle: badge(c.sc), statusColor: c.sc,
       barStyle: 'height:100%;width:' + Math.max(3, c.progress) + '%;background:' + c.sc + ';border-radius:4px',
       nextMilestone: c.next ? c.next.name : 'All done', dueLabel: longDate(p.due), dueShort: shortDate(p.due),
-      riskCount: p.risks.length, riskColor: p.risks.some((r) => r.level === 'High') ? '#FF9B8A' : '#FFB86B',
+      sprintLabel: c.cur ? c.cur.name : 'No sprint now',
       team: p.team.slice(0, 4).map((n) => ({ name: n, initials: ini(n), color: pColor[n] || '#9DB0A6' })), teamSize: p.team.length,
-      open: () => this.setState({ section: 'projects', projectOpen: p.id, ticketOpen: null, newTask: '' }) };
+      open: () => this.setState({ section: 'projects', projectOpen: p.id, ticketOpen: null, taskForm: null }) };
   });
   const projStats = [
     { label: 'Active projects', n: projects.length, color: '#E8EFEA' },
@@ -52,70 +50,47 @@ export function buildProjects(ctx) {
   ];
   const cur_p = s.projects.find((p) => p.id === s.projectOpen);
   let pj = {};
+  let tools = {};
   if (cur_p) {
     const c = projCalc(cur_p);
     const pid = cur_p.id;
-    const startMs = dateOf(cur_p.start), dueMs = dateOf(cur_p.due);
+    const dueMs = dateOf(cur_p.due);
     const daysLeft = Math.max(0, Math.ceil((dueMs - nowMs) / 86400000));
-    const timeUsed = Math.min(100, Math.max(0, Math.round(((nowMs - startMs) / (dueMs - startMs)) * 100)));
-    const openTask = (ti) => this.setState({ taskOpen: { pid: pid, ti: ti } });
-    const msColor = { done: '#B8F36B', ready: '#B8F36B', late: '#FF9B8A', next: '#FFB86B', upcoming: '#9DB0A6' };
-    const msLabel = { done: 'Reached', ready: 'Ready to close', late: 'Late', next: 'Next up', upcoming: 'Upcoming' };
     const tl = milestoneTimeline(cur_p, today);
-    const curSprint = sprintOf(cur_p, today);
-    const sprintSel = s.sprintFilter === 'all' ? 'all' : Number(s.sprintFilter);
-    const pctBar = (pc, c) => 'height:100%;width:' + (pc > 0 ? Math.max(3, pc) : 0) + '%;background:' + c + ';border-radius:3px';
-    const addObjective = (mid) => {
-      const title = (this.state.objDraft[mid] || '').trim();
-      if (!title) return;
-      const ms = cur_p.milestones.find((m) => m.id === mid);
-      this.setState((st) => ({ objDraft: { ...st.objDraft, [mid]: '' }, projects: st.projects.map((p) => (p.id === pid ? { ...p, objectives: p.objectives.concat([{ id: pid + '-o' + Date.now(), title: title, milestone: mid }]), activity: [{ text: 'You added objective "' + title + '" to milestone "' + ms.name + '"', time: 'Just now' }].concat(p.activity) } : p)) }));
-    };
+    const spl = sprintTimeline(cur_p, today);
+    const openSprints = spl.filter((sp) => !sp.milestoneClosed);
+    const sprintSel = s.sprintFilter;
+    const openTask = (ti) => this.setState({ taskOpen: { pid: pid, ti: ti } });
     const openMsClose = (m) => this.setState({ msDialog: { mode: 'close', pid: pid, mid: m.id, comment: '', err: '' } });
     const openMsReopen = (m) => this.setState({ msDialog: { mode: 'reopen', pid: pid, mid: m.id, comment: '', err: '' } });
-    const openTaskForm = () => {
-      const firstOpen = tl.find((m) => !m.closed && m.objectives.length);
-      const obj = firstOpen ? firstOpen.objectives[0].id : '';
-      this.setState({ taskForm: { title: '', desc: '', objective: obj, owner: cur_p.owner, due: defaultDue(cur_p, firstOpen, today), dueTouched: false, err: '' } });
+    const openSprint = (milestone) => {
+      const d = sprintDefaults(cur_p, milestone);
+      this.setState({ msDialog: { mode: 'sprint', pid: pid, lockProject: true, milestone: milestone || '', name: nextSprintName(cur_p), start: d.start, end: d.end, err: '' } });
     };
+    const openTaskForm = (sprintId) => {
+      const pick = openSprints.find((sp) => sp.id === sprintId) || openSprints.find((sp) => sp.status === 'current') || openSprints.find((sp) => sp.status !== 'done') || openSprints[0];
+      this.setState({ taskForm: { title: '', desc: '', objective: '', sprint: pick ? pick.id : '', owner: cur_p.owner, due: pick ? defaultTaskDue(pick, today) : '', dueTouched: false, err: '' } });
+    };
+    tools = { tl, spl, openMsClose, openMsReopen, openSprint, openTaskForm, longDate, shortDate };
     pj = {
-      ...cur_p, initials: cur_p.name.split(' ').map((x) => x[0]).join('').slice(0, 2),
+      ...cur_p, initials: initialsOf(cur_p.name),
       statusStyle: badge(c.sc), progress: c.progress, doneCount: c.done, taskCount: c.total,
-      inFlight: cur_p.tasks.filter((t) => t.col === 1 || t.col === 2).length,
       barStyle: 'height:100%;width:' + Math.max(3, c.progress) + '%;background:' + c.sc + ';border-radius:3px',
-      daysLeft, timeUsed, startLabel: longDate(cur_p.start), dueLabel: longDate(cur_p.due),
-      budgetColor: cur_p.budget > timeUsed + 10 ? '#FF9B8A' : '#E8EFEA',
-      budgetNote: cur_p.budget > timeUsed + 10 ? 'Spending ahead of the timeline' : 'In line with the timeline',
-      msCount: tl.length, msDone: tl.filter((m) => m.closed).length,
-      canMilestones: canMs, addMilestone: () => this.setState({ msDialog: { mode: 'new', pid: pid, lockProject: true, name: '', date: '', desc: '', err: '' } }),
-      milestones: tl.map((m) => {
-        const key = m.ready ? 'ready' : m.status;
-        const c = msColor[key];
-        return { id: m.id, name: m.name, desc: m.desc, color: c, stateLabel: msLabel[key], dateLabel: longDate(m.iso), progress: m.progress,
-          countLabel: m.total ? m.done + ' of ' + m.total + ' tasks done' : 'No tasks yet',
-          barStyle: pctBar(m.progress, c),
-          cardStyle: 'padding:14px;border-radius:14px;background:#121B17;border:1px solid ' + (m.ready ? '#B8F36B' : m.status === 'late' ? '#6A3A34' : '#24322C') + ';display:flex;flex-direction:column;gap:12px',
-          objectives: m.objectives.map((o) => ({ id: o.id, title: o.title, label: o.total ? o.done + ' / ' + o.total + ' tasks' : 'No tasks yet', progress: o.progress, barStyle: pctBar(o.progress, o.progress === 100 ? '#B8F36B' : '#7CC4FF') })),
-          noObjectives: m.objectives.length === 0,
-          closed: m.closed, closedLine: m.closed ? 'Reached ' + longDate(m.closedOn) + ' by ' + m.closedBy : '', closedComment: m.closedComment,
-          canClose: canMs && m.ready, canReopen: canMs && m.closed,
-          closeHint: m.closed || m.ready ? '' : m.total ? m.openTasks + (m.openTasks === 1 ? ' task is' : ' tasks are') + ' still open. Finish them to close this milestone.' : 'Add objectives and tasks to track progress toward this milestone.',
-          hasHint: !m.closed && !m.ready,
-          close: () => openMsClose(m), reopen: () => openMsReopen(m),
-          objDraft: s.objDraft[m.id] || '', onObjDraft: (e) => this.setState((st) => ({ objDraft: { ...st.objDraft, [m.id]: e.target.value } })),
-          objKey: (e) => { if (e.key === 'Enter') addObjective(m.id); }, addObj: () => addObjective(m.id),
-          canAddObj: canMs && !m.closed,
-          history: m.history.slice().reverse().map((h) => ({ text: h.action + ' by ' + h.who + ' · ' + longDate(h.when), comment: h.comment })) };
-      }),
-      sprintOpts: [{ v: 'all', l: 'All sprints' }].concat(sprintList(cur_p).map((sp) => ({ v: String(sp.n), l: sp.label + ' · ' + shortDate(sp.start) + ' – ' + shortDate(sp.end) + (sp.n === curSprint.n ? ' (current)' : '') }))),
-      sprintValue: s.sprintFilter, setSprint: (e) => this.setState({ sprintFilter: e.target.value }),
-      canNewTask: canEditT, openTaskForm,
+      daysLeft, startLabel: longDate(cur_p.start), dueLabel: longDate(cur_p.due),
+      msCount: tl.length, msDone: tl.filter((m) => m.closed).length, spCount: spl.length,
+      canMilestones: canMs, tab: s.projTab, isMsTab: s.projTab === 'milestones', isSpTab: s.projTab === 'sprints',
+      goMs: set({ projTab: 'milestones' }), goSp: set({ projTab: 'sprints' }),
+      addMilestone: () => this.setState({ msDialog: { mode: 'new', pid: pid, lockProject: true, name: '', date: '', desc: '', err: '' } }),
+      addSprint: () => openSprint(''),
+      sprintOpts: [{ v: 'all', l: 'All sprints' }].concat(spl.map((sp) => ({ v: sp.id, l: sp.name + ' · ' + shortDate(sp.start) + ' – ' + shortDate(sp.end) + (sp.status === 'current' ? ' (current)' : '') }))),
+      sprintValue: sprintSel, setSprint: (e) => this.setState({ sprintFilter: e.target.value }),
+      canNewTask: canEditT, openTaskForm: () => openTaskForm(''),
       columns: colNames.map(([name, color], ci) => {
-        const tasks = cur_p.tasks.map((t, ti) => ({ t, ti })).filter((x) => x.t.col === ci && (sprintSel === 'all' || sprintOf(cur_p, x.t.due).n === sprintSel)).map(({ t, ti }) => {
+        const tasks = cur_p.tasks.map((t, ti) => ({ t, ti })).filter((x) => x.t.col === ci && (sprintSel === 'all' || x.t.sprint === sprintSel)).map(({ t, ti }) => {
           const inf = taskInfo(t);
-          const tcx = taskContext(cur_p, t, today);
+          const tcx = taskContext(cur_p, t);
           return {
-            ctxLabel: 'S' + tcx.sprint.n + (tcx.milestone ? ' · ' + tcx.milestone.name : ''), ctxTitle: tcx.sprint.label + (tcx.objective ? ' · ' + tcx.objective.title : ''),
+            ctxLabel: tcx.sprint ? tcx.sprint.name + (tcx.milestone ? ' · ' + tcx.milestone.name : '') : 'No sprint', ctxTitle: t.objective ? 'Objective: ' + t.objective : 'No objective written',
             title: t.title, primary: t.primary, secondary: t.secondary, initials: ini(t.primary), color: pColor[t.primary] || '#9DB0A6',
             hasSecondary: !!t.secondary, secInitials: t.secondary ? ini(t.secondary) : '', secColor: pColor[t.secondary] || '#9DB0A6',
             dueLabel: inf.label, dueStyle: tBadge(inf.color),
@@ -129,53 +104,44 @@ export function buildProjects(ctx) {
         return { name, color, tasks, count: tasks.length };
       }),
       teamCount: cur_p.team.length,
-      team: cur_p.team.map((n) => ({ name: n, initials: ini(n), color: pColor[n] || '#9DB0A6', load: cur_p.tasks.filter((t) => (t.primary === n || t.secondary === n) && t.col < 3).length })),
-      risks: cur_p.risks.map((r) => ({ ...r, style: 'flex:none;' + badge(levelColor[r.level]) })),
-      linked: cur_p.tickets.map((id) => tickets.find((t) => t.id === id)).filter(Boolean).map((t) => ({ id: t.id, title: t.title, statusLabel: t.statusLabel, slaLabel: t.slaLabel, slaColor: t._c.color, open: () => this.setState({ section: 'tickets', ticketOpen: t.id, projectOpen: null }) })),
-      noTickets: cur_p.tickets.length === 0,
-      call: () => this.startCall('video', cur_p.name + ' standup', cur_p.name.split(' ').map((x) => x[0]).join('').slice(0, 2), cur_p.color)
+      team: cur_p.team.map((n) => ({ name: n, initials: ini(n), color: pColor[n] || '#9DB0A6', load: cur_p.tasks.filter((t) => (t.primary === n || t.secondary === n) && t.col < 3).length }))
     };
+
+    // ---- New task: title, description, objective (typed) and the sprint it belongs to ----
+    let tform = { open: false };
+    if (s.taskForm) {
+      const f = s.taskForm;
+      const sp = openSprints.find((x) => x.id === f.sprint) || null;
+      const setF = (k) => (e) => {
+        const v = e.target.value;
+        this.setState((st) => {
+          const nf = { ...st.taskForm, [k]: v, err: '' };
+          if (k === 'due') nf.dueTouched = true;
+          if (k === 'sprint') { const nsp = openSprints.find((x) => x.id === v); if (nsp && !nf.dueTouched) nf.due = defaultTaskDue(nsp, today); }
+          return { taskForm: nf };
+        });
+      };
+      tform = { open: true, title: f.title, desc: f.desc, objective: f.objective, sprint: f.sprint, owner: f.owner, due: f.due, err: f.err, hasErr: !!f.err,
+        sprintOpts: openSprints.map((x) => ({ v: x.id, l: x.name + ' · ' + x.milestoneName + ' · ' + shortDate(x.start) + ' – ' + shortDate(x.end) })), noSprints: openSprints.length === 0,
+        ownerOpts: cur_p.team.map((n) => ({ v: n, l: n })), minDue: sp ? sp.start : '', maxDue: sp ? sp.end : '',
+        onTitle: setF('title'), onDesc: setF('desc'), onObjective: setF('objective'), onSprint: setF('sprint'), onOwner: setF('owner'), onDue: setF('due'),
+        planLine: sp ? 'Tracked automatically: ' + sp.name + ' (' + sp.done + ' of ' + sp.total + ' done) › milestone "' + sp.milestoneName + '" › ' + cur_p.name : 'Pick a sprint to see where this task is tracked.',
+        cancel: set({ taskForm: null }),
+        addSprint: () => openSprint(''),
+        submit: () => {
+          const err = validateTask(cur_p, f);
+          if (err) { this.setState({ taskForm: { ...f, err } }); return; }
+          const title = f.title.trim();
+          this.setState((st) => ({ taskForm: null, projects: st.projects.map((p) => (p.id === pid ? { ...p, tasks: p.tasks.concat([{ title: title, desc: f.desc.trim(), objective: f.objective.trim(), sprint: f.sprint, col: 0, primary: f.owner || p.owner, secondary: '', start: today, due: f.due, links: [] }]), activity: [{ text: 'You created "' + title + '" in ' + sp.name + ' (' + sp.milestoneName + ')', time: 'Just now' }].concat(p.activity) } : p)) }));
+          this.notify('Task "' + title + '" added to ' + sp.name + '. It now counts toward "' + sp.milestoneName + '".', '#B8F36B');
+        } };
+    }
+    pj.taskForm = tform;
+  } else {
+    pj.taskForm = { open: false };
   }
 
-  // ---- New task form: title, description and objective. Milestone and sprint follow automatically. ----
-  let tform = { open: false };
-  if (cur_p && s.taskForm) {
-    const f = s.taskForm;
-    const tlNow = milestoneTimeline(cur_p, today);
-    const objOpts = [];
-    tlNow.filter((m) => !m.closed).forEach((m) => m.objectives.forEach((o) => objOpts.push({ v: o.id, l: m.name + ' › ' + o.title })));
-    const obj = cur_p.objectives.find((o) => o.id === f.objective);
-    const ms = obj ? cur_p.milestones.find((m) => m.id === obj.milestone) : null;
-    const sp = f.due ? sprintOf(cur_p, f.due) : null;
-    const setF = (k) => (e) => {
-      const v = e.target.value;
-      this.setState((st) => {
-        const nf = { ...st.taskForm, [k]: v, err: '' };
-        if (k === 'due') nf.dueTouched = true;
-        if (k === 'objective' && !nf.dueTouched) {
-          const o2 = cur_p.objectives.find((o) => o.id === v);
-          nf.due = defaultDue(cur_p, o2 ? cur_p.milestones.find((m) => m.id === o2.milestone) : null, today);
-        }
-        return { taskForm: nf };
-      });
-    };
-    tform = { open: true, title: f.title, desc: f.desc, objective: f.objective, owner: f.owner, due: f.due, err: f.err, hasErr: !!f.err,
-      objOpts, noObjectives: objOpts.length === 0, ownerOpts: cur_p.team.map((n) => ({ v: n, l: n })), minDue: cur_p.start, maxDue: cur_p.due,
-      onTitle: setF('title'), onDesc: setF('desc'), onObjective: setF('objective'), onOwner: setF('owner'), onDue: setF('due'),
-      planLine: ms && sp ? 'Counts toward milestone "' + ms.name + '" (due ' + shortDate(ms.iso) + ') · objective "' + obj.title + '" · ' + sp.label + ' (' + shortDate(sp.start) + ' – ' + shortDate(sp.end) + ')' : 'Pick an objective to see where this task fits.',
-      lateWarn: !!(ms && f.due && f.due > ms.iso), warnLine: ms ? 'This is due after the milestone date, so the milestone will be late.' : '',
-      cancel: set({ taskForm: null }),
-      submit: () => {
-        const err = validateTask(cur_p, f);
-        if (err) { this.setState({ taskForm: { ...f, err } }); return; }
-        const title = f.title.trim();
-        this.setState((st) => ({ taskForm: null, projects: st.projects.map((p) => (p.id === cur_p.id ? { ...p, tasks: p.tasks.concat([{ title: title, desc: f.desc.trim(), objective: f.objective, col: 0, primary: f.owner || p.owner, secondary: '', start: today, due: f.due, links: [] }]), activity: [{ text: 'You created "' + title + '" under "' + obj.title + '" (' + ms.name + ', ' + sp.label + ')', time: 'Just now' }].concat(p.activity) } : p)) }));
-        this.notify('Task "' + title + '" added to ' + sp.label + ' and counted toward "' + ms.name + '".', '#B8F36B');
-      } };
-  }
-  pj.taskForm = tform;
-
-  // ---- Milestone dialog: new milestone, close with comment, reopen with comment ----
+  // ---- Milestone / sprint dialog: new milestone, new sprint, close or reopen a milestone with a comment ----
   let msd = { open: false };
   const md = s.msDialog;
   if (md) {
@@ -184,17 +150,25 @@ export function buildProjects(ctx) {
     const setM = (k) => (e) => { const v = e.target.value; this.setState((st) => ({ msDialog: { ...st.msDialog, [k]: v, err: '' } })); };
     const fail = (err) => this.setState((st) => ({ msDialog: { ...st.msDialog, err } }));
     const logMs = (p, text) => ({ ...p, activity: [{ text, time: 'Just now' }].concat(p.activity) });
+    const openMilestones = mproj ? mproj.milestones.filter((m) => !m.closed).sort((a, b) => (a.iso < b.iso ? -1 : 1)) : [];
     const submit = () => {
       const d = this.state.msDialog;
       if (d.mode === 'new') {
         const err = validateMilestone(mproj, { name: d.name || '', date: d.date || '' });
         if (err) { fail(err); return; }
-        const mid = mproj.id + '-m' + Date.now();
         const name = d.name.trim();
         this.setState((st) => ({ msDialog: null, projects: st.projects.map((p) => (p.id === mproj.id ? logMs({ ...p,
-          milestones: p.milestones.concat([{ id: mid, name: name, iso: d.date, desc: (d.desc || '').trim(), closed: false, closedOn: '', closedBy: '', closedComment: '', history: [] }]),
-          objectives: p.objectives.concat([{ id: mproj.id + '-o' + Date.now(), title: name + ' deliverables', milestone: mid }]) }, 'You added milestone "' + name + '" due ' + shortDate(d.date)) : p)) }));
-        this.notify('Milestone "' + name + '" added to ' + mproj.name + '. Add tasks under its objective to track progress.', '#B8F36B');
+          milestones: p.milestones.concat([{ id: mproj.id + '-m' + Date.now(), name: name, iso: d.date, desc: (d.desc || '').trim(), closed: false, closedOn: '', closedBy: '', closedComment: '', history: [] }]) }, 'You added milestone "' + name + '" due ' + shortDate(d.date)) : p)) }));
+        this.notify('Milestone "' + name + '" added to ' + mproj.name + '. Add sprints under it, then tasks in those sprints.', '#B8F36B');
+        return;
+      }
+      if (d.mode === 'sprint') {
+        const err = validateSprint(mproj, { milestone: d.milestone, name: d.name || '', start: d.start || '', end: d.end || '' });
+        if (err) { fail(err); return; }
+        const ms = mproj.milestones.find((m) => m.id === d.milestone);
+        const name = d.name.trim();
+        this.setState((st) => ({ msDialog: null, projects: st.projects.map((p) => (p.id === mproj.id ? logMs({ ...p, sprints: p.sprints.concat([{ id: mproj.id + '-s' + Date.now(), name: name, start: d.start, end: d.end, milestone: ms.id }]) }, 'You added ' + name + ' to milestone "' + ms.name + '" (' + shortDate(d.start) + ' – ' + shortDate(d.end) + ')') : p)) }));
+        this.notify(name + ' added under "' + ms.name + '". Tasks in it count toward that milestone.', '#B8F36B');
         return;
       }
       const comment = (d.comment || '').trim();
@@ -209,20 +183,23 @@ export function buildProjects(ctx) {
         this.notify('Milestone "' + mtl.name + '" reopened.', '#FFB86B');
       }
     };
-    msd = { open: true, mode: md.mode, isNew: md.mode === 'new', isClose: md.mode === 'close', isReopen: md.mode === 'reopen',
-      title: md.mode === 'new' ? 'New milestone' : md.mode === 'close' ? 'Mark milestone as reached' : 'Reopen milestone',
-      submitLabel: md.mode === 'new' ? 'Create milestone' : md.mode === 'close' ? 'Mark as reached' : 'Reopen milestone',
-      pid: md.pid || '', projectOpts: s.projects.map((p) => ({ v: p.id, l: p.name })), lockProject: !!md.lockProject, projectName: mproj ? mproj.name : '',
+    const titles = { new: 'New milestone', sprint: 'New sprint', close: 'Mark milestone as reached', reopen: 'Reopen milestone' };
+    const labels = { new: 'Create milestone', sprint: 'Create sprint', close: 'Mark as reached', reopen: 'Reopen milestone' };
+    msd = { open: true, mode: md.mode, isNew: md.mode === 'new', isSprint: md.mode === 'sprint', isClose: md.mode === 'close', isReopen: md.mode === 'reopen',
+      title: titles[md.mode], submitLabel: labels[md.mode], projectName: mproj ? mproj.name : '',
       name: md.name || '', date: md.date || '', desc: md.desc || '', comment: md.comment || '', err: md.err || '', hasErr: !!md.err,
-      minDate: mproj ? mproj.start : '', maxDate: mproj ? mproj.due : '',
-      rangeNote: mproj ? 'Must fall between ' + shortDate(mproj.start) + ' and ' + shortDate(mproj.due) + ' (the project dates).' : 'Choose a project first.',
+      milestone: md.milestone || '', milestoneOpts: openMilestones.map((m) => ({ v: m.id, l: m.name + ' · due ' + shortDate(m.iso) })),
+      start: md.start || '', end: md.end || '', minDate: mproj ? mproj.start : '', maxDate: mproj ? mproj.due : '',
+      rangeNote: mproj ? 'Must fall between ' + shortDate(mproj.start) + ' and ' + shortDate(mproj.due) + ' (the project dates).' : '',
       msName: mtl ? mtl.name : '', msSummary: mtl ? (mtl.total ? mtl.done + ' of ' + mtl.total + ' tasks done · ' + mtl.progress + '%' : 'No tasks yet') : '',
       commentLabel: md.mode === 'close' ? 'What was achieved? (required)' : 'Why is it being reopened? (required)',
-      onProject: (e) => { const v = e.target.value; this.setState((st) => ({ msDialog: { ...st.msDialog, pid: v, err: '' } })); },
-      onName: setM('name'), onDate: setM('date'), onDesc: setM('desc'), onComment: setM('comment'),
+      onName: setM('name'), onDate: setM('date'), onDesc: setM('desc'), onComment: setM('comment'), onStart: setM('start'), onEnd: setM('end'),
+      onMilestone: (e) => {
+        const v = e.target.value; const d = sprintDefaults(mproj, v);
+        this.setState((st) => ({ msDialog: { ...st.msDialog, milestone: v, start: d.start, end: d.end, err: '' } }));
+      },
       cancel: set({ msDialog: null }), submit };
   }
-  const newMilestone = () => this.setState({ msDialog: { mode: 'new', pid: '', name: '', date: '', desc: '', err: '' } });
 
   // ---- Task detail ----
   let td = {};
@@ -234,19 +211,23 @@ export function buildProjects(ctx) {
     const updT = (fnT) => this.setState((st) => ({ projects: st.projects.map((p) => (p.id === tp.id ? { ...p, tasks: p.tasks.map((x, j) => (j === to.ti ? fnT(x) : x)) } : p)) }));
     const rk = tp.id + ':' + to.ti;
     const extraRem = s.taskReminders[rk] || [];
-    const tcx = taskContext(tp, tt, today);
-    const tlT = milestoneTimeline(tp, today);
-    const objOptsT = [];
-    tlT.forEach((m) => m.objectives.forEach((o) => { if (!m.closed || o.id === tt.objective) objOptsT.push({ v: o.id, l: m.name + ' › ' + o.title }); }));
+    const tcx = taskContext(tp, tt);
+    const spT = sprintTimeline(tp, today).filter((sp) => !sp.milestoneClosed || sp.id === tt.sprint);
     td = {
-      project: tp.name, pcolor: tp.color, pinitials: tp.name.split(' ').map((x) => x[0]).join('').slice(0, 2),
+      project: tp.name, pcolor: tp.color, pinitials: initialsOf(tp.name),
       title: tt.title, desc: tt.desc || 'No description yet.',
-      canEdit: canEditT, objectiveId: tt.objective, objOpts: objOptsT, objectiveName: tcx.objective ? tcx.objective.title : 'None',
-      setObjective: (e) => { const v = e.target.value; updT((x) => ({ ...x, objective: v })); },
+      canEdit: canEditT, objective: tt.objective, setObjective: (e) => { const v = e.target.value.trim(); updT((x) => ({ ...x, objective: v })); },
+      sprintId: tt.sprint, sprintOpts: spT.map((sp) => ({ v: sp.id, l: sp.name + ' · ' + sp.milestoneName + ' · ' + shortDate(sp.start) + ' – ' + shortDate(sp.end) })),
+      setSprint: (e) => {
+        const sp = tp.sprints.find((x) => x.id === e.target.value);
+        if (!sp) return;
+        updT((x) => ({ ...x, sprint: sp.id, due: x.due < sp.start ? sp.start : x.due > sp.end ? sp.end : x.due }));
+      },
       milestoneName: tcx.milestone ? tcx.milestone.name : 'None', milestoneDue: tcx.milestone ? longDate(tcx.milestone.iso) : '',
       milestoneState: tcx.milestone ? (tcx.milestone.closed ? 'Reached' : tcx.milestone.iso < today ? 'Late' : 'Open') : '',
-      sprintLabel: tcx.sprint.label, sprintDates: shortDate(tcx.sprint.start) + ' – ' + shortDate(tcx.sprint.end), sprintCurrent: tcx.sprint.n === tcx.currentSprint.n,
-      dueISO: tt.due, minDue: tt.start, setDue: (e) => { const v = e.target.value; if (v) updT((x) => ({ ...x, due: v })); },
+      sprintDates: tcx.sprint ? shortDate(tcx.sprint.start) + ' – ' + shortDate(tcx.sprint.end) : '',
+      dueISO: tt.due, minDue: tcx.sprint ? tcx.sprint.start : tt.start, maxDue: tcx.sprint ? tcx.sprint.end : '',
+      setDue: (e) => { const v = e.target.value; if (v) updT((x) => ({ ...x, due: v })); },
       col: colNames[tt.col][0], colStyle: 'height:36px;padding:0 14px;border-radius:18px;display:flex;align-items:center;font-size:13px;font-weight:700;background:' + colNames[tt.col][1] + '22;color:' + colNames[tt.col][1],
       canBack: canMoveT && tt.col > 0, prevCol: tt.col > 0 ? colNames[tt.col - 1][0] : '', back: () => this.moveTask(tp.id, to.ti, -1),
       canFwd: canMoveT && tt.col < 3, nextCol: tt.col < 3 ? colNames[tt.col + 1][0] : '', fwd: () => this.moveTask(tp.id, to.ti, 1),
@@ -274,5 +255,5 @@ export function buildProjects(ctx) {
     const inf = taskInfo(t);
     if (inf.overdue) taskNotifs.push({ text: 'Task "' + t.title + '" (' + p.name + ') is ' + inf.overDays + ' overdue. Reminded ' + t.primary + (t.secondary ? ' and ' + t.secondary : '') + '.', color: '#FF9B8A', time: 'Today', ticket: null, task: { pid: p.id, ti: i } });
   }));
-  return { canMs, cur_p, msd, newMilestone, nowMs, pj, projStats, projects, taskNotifs, td, tt };
+  return { canEditT, canMs, cur_p, msd, nowMs, pj, projStats, projects, projTools: tools, taskNotifs, td, today, tt };
 }
