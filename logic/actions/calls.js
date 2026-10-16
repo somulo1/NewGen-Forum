@@ -13,7 +13,7 @@ export const callsActions = {
     clearInterval(this._ct);
     this._ct = setInterval(() => this.forceUpdate(), 1000);
     const ns = { call: { mode: mode, title: title, initials: initials, color: color, start: Date.now(), people: people || null, context: context || null, ref: ref || null }, callMode: 'docked', personOpen: null, mic: true, cam: mode === 'video', sharing: false, hand: false, rec: false, callPanel: null, menu: false };
-    if ((context === 'dm' || context === 'forum') && this.state.mode !== 'docked' && this.state.mode !== 'full') ns.mode = 'docked';
+    if ((context === 'dm' || context === 'forum') && this.state.mode !== 'docked' && this.state.mode !== 'full' && this.state.mode !== 'page') ns.mode = 'docked';
     this.setState(ns);
   },
 

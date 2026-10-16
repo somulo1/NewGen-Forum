@@ -1,6 +1,6 @@
 // renderVals step: org. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildOrg(ctx) {
-  const { C, badge, cur_t, fmtDay, has, isoAdd, projects, roleDefs, s, tagNames, tatText, tickets, todayISO, ts } = ctx;
+  const { C, badge, can, cur_t, fmtDay, has, isoAdd, projects, roleDefs, s, tagNames, tatText, tickets, todayISO, ts } = ctx;
   // =============== Organization structure ===============
   const O = this.org;
   const typeName = { sectors: 'Sector', branches: 'Branch', units: 'Unit', departments: 'Department' };
@@ -63,7 +63,7 @@ export function buildOrg(ctx) {
       const dest = escType === 'desk' ? 'the ticket team' : typeName[escType] + ' ' + escRec.name;
       const why = (this.state.esc.why || '').trim();
       this.updTicket(cur_t.id, (t) => Object.assign({}, t, {
-        escalated: true, escalatedTo: (escType === 'desk' ? 'Ticket team' : typeName[escType] + ': ' + escRec.name) + ' · ' + escCat,
+        to: escType === 'desk' ? { type: 'desk', name: 'Ticket desk' } : { type: escType, name: escRec.name }, escalated: true, escalatedTo: (escType === 'desk' ? 'Ticket team' : typeName[escType] + ': ' + escRec.name) + ' · ' + escCat,
         dept: escType === 'departments' ? escRec.name : t.dept, cat: escCat, handler: escPerson, handlerSince: 'Just now',
         assignees: t.assignees.indexOf(escPerson) === -1 ? t.assignees.concat([escPerson]) : t.assignees, step: Math.max(1, Math.min(t.step, 2)), hold: false,
         activity: this.act(t, { text: 'Escalated to ' + dest + ' (' + escCat + '), assigned to ' + escPerson + (why ? '. Reason: ' + why : '') })
@@ -98,10 +98,12 @@ export function buildOrg(ctx) {
       return { id: 'TK-' + (500 + (seedOf(r.id + 't') % 400) + i), date: isoAdd(todayISO, -Math.floor(rnd() * 30)), dir: dirn, title: pick(['Printer not working', 'Cannot log in to email', 'Slow network', 'Request new monitor', 'Report not loading', 'Password reset', 'Update contact list', 'Phone line down']), cp: pick(cps),
         status: dirn === 'Sent' ? pick(['Solved on time', 'In progress', 'Assigned']) : (ok ? 'Solved on time' : pick(['Solved late', 'Overdue', 'In progress'])), ok: ok, real: null };
     });
-    if (type === 'departments') {
-      const real = tickets.filter((t) => t.dept === r.name || t.fromDept === r.name).map((t) => {
-        const dirn = t.escalated && t.dept === r.name ? 'Escalated' : t.dept === r.name ? 'Received' : 'Sent';
-        return { id: t.id, date: t.createdAt, dir: dirn, title: t.title, cp: dirn === 'Sent' ? t.dept : t.fromDept, status: t.slaLabel === 'Overdue' ? 'Overdue' : t.statusLabel, ok: t._c.sla !== 'Overdue' && t._c.sla !== 'Solved late', real: t };
+    {
+      // Real tickets: received by this unit, or (for departments) sent from it.
+      const recvHere = (t) => t.to.type === type && t.to.name === r.name;
+      const real = tickets.filter((t) => recvHere(t) || (type === 'departments' && t.fromDept === r.name)).map((t) => {
+        const dirn = recvHere(t) ? (t.escalated ? 'Escalated' : 'Received') : 'Sent';
+        return { id: t.id, date: t.createdAt, dir: dirn, title: t.title, cp: dirn === 'Sent' ? t.to.name : t.fromDept, status: t.slaLabel === 'Overdue' ? 'Overdue' : t.statusLabel, ok: t._c.sla !== 'Overdue' && t._c.sla !== 'Solved late', real: t };
       });
       tks = real.concat(tks);
     }
@@ -134,7 +136,7 @@ export function buildOrg(ctx) {
   const allUnits = levels.reduce((acc, t) => acc.concat(O[t].map((r) => ({ type: t, r: r }))), []);
   const unitPerf = {};
   allUnits.forEach((u) => { unitPerf[u.type + ':' + u.r.id] = unitData(u.type, u.r); });
-  const myUnits = ['departments', 'branches', 'sectors', 'units'].filter((t) => has[t]).map((t) => {
+  const myUnits = ['departments', 'branches', 'sectors', 'units'].filter((t) => has[t] && can(t, 'View dashboard')).map((t) => {
     const r = recOf(t, O.mine[t]);
     const key = t + ':' + r.id;
     const on = s.section === 'orgunit' && s.ou === key;
@@ -150,9 +152,9 @@ export function buildOrg(ctx) {
     return ty + 's go to ' + (to.length ? to.join(', ') : 'nowhere yet') + '. Sent by ' + roleNameOf(r.sender) + '. ' + (r.approver === 'none' ? 'No approval.' : 'Approved by ' + roleNameOf(r.approver) + '.');
   };
   let ou = {}, ouTable = { id: 'none', cols: [], rows: [] };
-  const ouTab = (s.ouTab === 'tks' && !has.tickets) || (s.ouTab === 'projects' && !has.projects) ? 'comms' : s.ouTab;
+  const ouTab = ((s.ouTab === 'tks' || s.ouTab === 'cats') && !has.tickets) || (s.ouTab === 'projects' && !has.projects) ? 'comms' : s.ouTab;
   const ouParts = s.ou ? s.ou.split(':') : null;
-  const ouRec = ouParts && has[ouParts[0]] ? recOf(ouParts[0], ouParts[1]) : null;
+  const ouRec = ouParts && has[ouParts[0]] && can(ouParts[0], 'View dashboard') ? recOf(ouParts[0], ouParts[1]) : null;
   if (ouRec) {
     const t = ouParts[0], key = s.ou, D = unitPerf[key] || unitData(t, ouRec), tg = targetOf(key);
     const mem = membersOf(t, ouRec.name);
@@ -176,10 +178,11 @@ export function buildOrg(ctx) {
         { label: 'Tickets', parts: [{ n: cnt(D.tks, 'Received'), l: 'Received', color: '#7CC4FF' }, { n: cnt(D.tks, 'Sent'), l: 'Sent', color: '#C9B6FF' }, { n: cnt(D.tks, 'Escalated'), l: 'Escalated', color: '#FF9B8A' }] },
         { label: 'Projects', parts: [{ n: ps.length, l: 'Active', color: '#E8EFEA' }, { n: ps.filter((p) => p.status !== 'On track').length, l: 'Need attention', color: '#FFB86B' }] }
       ],
+      isCats: ouTab === 'cats',
       target: tg, setTarget: (e) => { const v = Math.max(50, Math.min(100, Number(e.target.value) || 95)); this.setState((x) => ({ targets: { ...x.targets, [key]: v } })); },
       perf: D.perf, perfColor: perfColor(D.perf, tg), perfNote: D.perf >= tg ? 'Target met' : (tg - D.perf) + ' points below target',
       breakdown: [mk('Communications acknowledged on time', D.pc, D.comms.filter((x) => x.dir !== 'Sent').length + ' received'), mk('Business requests resolved on time', D.pr, D.reqs.filter((x) => x.dir !== 'Sent').length + ' received'), mk('Tickets resolved on time', D.pt, D.tks.filter((x) => x.dir !== 'Sent').length + ' received')],
-      tabs: [['comms', 'Communications', D.comms.length], ['reqs', 'Business requests', D.reqs.length], ['tks', 'Tickets', D.tks.length], ['projects', 'Projects', ps.length]].map(([k, l, n]) => ({ label: l, count: n, go: () => this.setState({ ouTab: k }),
+      tabs: [['comms', 'Communications', D.comms.length], ['reqs', 'Business requests', D.reqs.length], ['tks', 'Tickets', D.tks.length], ['cats', 'Ticket categories', (s.unitCats[t + ':' + ouRec.name] || []).length], ['projects', 'Projects', ps.length]].map(([k, l, n]) => ({ label: l, count: n, go: () => this.setState({ ouTab: k }),
         style: 'min-height:44px;padding:0 16px;border:0;background:transparent;cursor:pointer;font-size:14px;white-space:nowrap;font-family:inherit;border-bottom:2px solid ' + (ouTab === k ? '#B8F36B' : 'transparent') + ';color:' + (ouTab === k ? '#E8EFEA' : '#9DB0A6') + ';font-weight:' + (ouTab === k ? '600' : '500') }))
     };
     const ouOff = (l) => (/Ticket/.test(l) && !has.tickets) || (/Project/.test(l) && !has.projects);

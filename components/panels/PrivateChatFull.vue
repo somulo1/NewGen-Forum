@@ -1,7 +1,7 @@
-<!-- Private chat in full screen -->
-<template><template v-if="isFullDm">
-<section aria-label="Private chat full screen" style="position: fixed; inset: 0; z-index: 40; background: #0F1714; display: flex; flex-direction: column; overflow: hidden">
-<CallScreen variant="full" />
+<!-- Private chat, full screen or fitted to the page (beside the sidebar) -->
+<template><template v-if="shown">
+<section :aria-label="fit === 'page' ? 'Private chat fit to page' : 'Private chat full screen'" :class="fit === 'page' ? 'hub-fitpage' : ''" :style="rootStyle">
+<CallScreen variant="full" :fit="fit" />
 <template v-if="!showPanelCall">
 <div style="flex: none; border-bottom: 1px solid #24322C; background: #0F1714">
 <div style="max-width: 900px; margin: 0 auto; padding: 14px clamp(16px, 3vw, 32px); display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
@@ -10,6 +10,8 @@
 <button :aria-expanded="dmPriv.open" @click="dmPriv.toggleOpen" :style="`height: 38px; padding: 0 14px; border-radius: 19px; border: 1px solid ${dmPriv.anyOn ? '#FFB86B' : '#2A3832'}; background: ${dmPriv.open ? '#2C3D34' : 'transparent'}; color: ${dmPriv.anyOn ? '#FFB86B' : '#E8EFEA'}; cursor: pointer`">Privacy</button>
 <button @click="voiceCall" style="height: 38px; padding: 0 14px; border-radius: 19px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">Voice call</button>
 <button @click="videoCall" style="height: 38px; padding: 0 14px; border-radius: 19px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer">Video call</button>
+<template v-if="fit === 'page'"><button @click="toFull" style="height: 38px; padding: 0 14px; border-radius: 19px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer">Full screen</button></template>
+<template v-if="fit !== 'page'"><button @click="toPage" style="height: 38px; padding: 0 14px; border-radius: 19px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer">Fit to page</button></template>
 <button @click="toDocked" style="height: 38px; padding: 0 14px; border-radius: 19px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer">Side panel</button>
 <button @click="toMin" style="height: 38px; padding: 0 14px; border-radius: 19px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer">Minimize</button>
 <button aria-label="Close chat" @click="toClosed" style="width: 38px; height: 38px; border-radius: 50%; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
@@ -57,6 +59,16 @@ import CallScreen from '../overlays/CallScreen.vue';
 export default {
   name: 'PrivateChatFull',
   components: { CallScreen },
-  ...hubBindings(["attachForum","composerNote","composerOff","cur","dmPriv","emojiForumOpen","emojisForum","fKey","fdraft","showPanelCall","isFullDm","onFDraft","sendForum","toClosed","toDocked","toMin","toggleEmojiForum","videoCall","voiceCall"])
+  props: { fit: { type: String, default: 'screen' } },
+  computed: {
+    ...hubBindings(["attachForum","composerNote","composerOff","cur","dmPriv","emojiForumOpen","emojisForum","fKey","fdraft","isFullDm","isPageDm","onFDraft","sendForum","showPanelCall","toClosed","toDocked","toFull","toMin","toPage","toggleEmojiForum","videoCall","voiceCall"]).computed,
+    shown() { return this.fit === 'page' ? !!this.isPageDm : !!this.isFullDm; },
+    rootStyle() {
+      const base = 'background: #0F1714; display: flex; flex-direction: column; overflow: hidden; box-sizing: border-box;';
+      return this.fit === 'page'
+        ? base + ' position: absolute; inset: 12px; z-index: 30; border-radius: 22px; border: 1px solid #2A3832; box-shadow: 0 12px 36px rgba(0,0,0,0.35)'
+        : base + ' position: fixed; inset: 0; z-index: 40';
+    }
+  }
 };
 </script>

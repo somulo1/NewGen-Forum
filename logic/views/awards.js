@@ -11,6 +11,8 @@ export function buildAwards(ctx) {
     stripBase.push({ name: n, initials: isMe ? 'S' : pp.initials, color: pp.color, award: a.type, when: fmtDay(a.date), photo: isMe ? s.profile.photo : '', hasPhoto: isMe && !!s.profile.photo, noPhoto: !(isMe && s.profile.photo), open: () => openPersonName(n) });
   }));
   const awardStrip = {
+    hidden: s.hiddenWidgets.indexOf('awards') !== -1, hideLabel: s.hiddenWidgets.indexOf('awards') !== -1 ? 'Show' : 'Hide',
+    toggleHide: () => this.setState((st) => ({ hiddenWidgets: st.hiddenWidgets.indexOf('awards') !== -1 ? st.hiddenWidgets.filter((x) => x !== 'awards') : st.hiddenWidgets.concat(['awards']) })),
     title: 'Performance awards', sub: stripBase.length + ' people recognised recently · tap anyone to see their profile',
     items: stripBase.length ? stripBase.concat(stripBase) : [],
     empty: stripBase.length === 0,

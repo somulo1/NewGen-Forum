@@ -26,7 +26,7 @@ export const messagingActions = {
       let conv = st.dms.find((d) => d.with === name);
       const dms = conv ? st.dms.map((d) => (d.id === conv.id ? { ...d, unread: 0 } : d)) : [{ id: 'dm-' + Date.now(), with: name, unread: 0, msgs: [] }].concat(st.dms);
       if (!conv) conv = dms[0];
-      return { dms: dms, dmId: conv.id, panelKind: 'dm', mode: st.mode === 'full' ? 'full' : 'docked', menu: false, personOpen: null, newDmOpen: false, dmq: '', fdraft: '' };
+      return { dms: dms, dmId: conv.id, panelKind: 'dm', mode: st.mode === 'full' || st.mode === 'page' ? st.mode : 'docked', menu: false, personOpen: null, newDmOpen: false, dmq: '', fdraft: '' };
     });
   },
 

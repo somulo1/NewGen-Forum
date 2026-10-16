@@ -26,6 +26,7 @@ input,textarea{font-family:inherit}
 .hub-main{padding:16px 14px 150px !important}
 .hub-dock{position:fixed !important;inset:0 !important;width:auto !important;max-width:none !important;margin:0 !important;border-radius:0 !important;border:0 !important;z-index:58;flex:none !important}
 .hub-grip{display:none !important}
+.hub-fitpage{inset:0 0 64px 0 !important;border-radius:0 !important;border:0 !important}
 .hub-tabbar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:57;height:64px;padding-bottom:env(safe-area-inset-bottom);background:#121B17;border-top:1px solid #24322C}
 .hub-bubble{bottom:84px !important;right:14px !important}
 .hub-toast{bottom:84px !important;left:12px !important;right:12px !important;max-width:none !important}

@@ -6,6 +6,7 @@ export function valsAccess(ctx) {
     canRoles: can('roles', 'View roles'),
     canSeeAdmin: can('security', 'View alerts') || can('security', 'View logs') || can('roles', 'View roles'),
     canCustomize: can('home', 'Customize home'),
+    canWidgetsPage: can('home', 'Open widgets page'), canManageWidgets: can('home', 'Add & remove widgets'),
     canRaise: can('tickets', 'Raise'),
     canCreateProject: can('projects', 'Create project'),
     canPostWall: can('wall', 'Post'), cannotPostWall: !can('wall', 'Post'),

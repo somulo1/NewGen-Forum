@@ -1,16 +1,17 @@
 // renderVals step: nav. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildNav(ctx) {
-  const { has, s, set } = ctx;
+  const { can, has, s, set } = ctx;
   const navBase ='display:flex;align-items:center;gap:12px;width:100%;min-height:44px;padding:0 12px;border:0;border-radius:10px;cursor:pointer;text-align:left;font-size:14px;';
-  const sections = ['home', 'profile', 'feed', 'meetings', 'projects', 'approvals', 'security', 'roles', 'calendar', 'comms', 'structure', 'orgunit', 'tickets', 'files', 'share', 'people', 'widgets'];
+  const sections = ['home', 'profile', 'feed', 'meetings', 'projects', 'approvals', 'security', 'roles', 'calendar', 'comms', 'structure', 'orgunit', 'tickets', 'files', 'share', 'people', 'widgets', 'ticketdesk'];
   const nav = {}, go = {}, show = {};
   const secNeeds = { meetings: 'sessions', projects: 'projects', calendar: 'calendar', comms: 'comms', structure: 'structure', orgunit: 'structure', tickets: 'tickets', files: 'files', share: 'secureshare' };
-  const secOk = (k) => !secNeeds[k] || !!has[secNeeds[k]];
+  const ticketDeskOk = !!has.tickets && !has.structure && (can('tickets', 'Solve') || can('tickets', 'Assign & hand over'));
+  const secOk = (k) => (k === 'ticketdesk' ? ticketDeskOk : k === 'widgets' ? can('home', 'Open widgets page') : !secNeeds[k] || !!has[secNeeds[k]]);
   const curSec = secOk(s.section) ? s.section : 'home';
   sections.forEach((k) => {
     const on = curSec === k;
     nav[k] = navBase + (on ? 'background:#22302A;color:#E8EFEA;font-weight:600' : 'background:transparent;color:#C9D6CF');
-    go[k] = () => this.setState((x) => ({ callMode: x.callMode === 'full' ? 'docked' : x.callMode, section: k, ticketOpen: null, projectOpen: null, folder: null, notifOpen: false, statusMenu: false }));
+    go[k] = () => this.setState((x) => ({ callMode: x.callMode === 'full' ? 'docked' : x.callMode, mode: x.mode === 'page' ? 'docked' : x.mode, section: k, ticketOpen: null, projectOpen: null, folder: null, notifOpen: false, statusMenu: false }));
     show[k] = on;
   });
   const tabs = ['discussions', 'polls', 'sessions', 'members', 'files', 'about'];
@@ -21,5 +22,5 @@ export function buildNav(ctx) {
     tabTo[k] = set({ tab: k });
     ftab[k] = on && (k !== 'sessions' || has.sessions);
   });
-  return { curSec, ftab, go, nav, show, tab, tabTo };
+  return { curSec, ftab, go, nav, show, tab, tabTo, ticketDeskOk };
 }

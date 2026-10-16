@@ -2,10 +2,10 @@
 <template><template v-if="showTicketList">
 <div style="width: 100%; display: flex; flex-direction: column; gap: 16px">
 <div style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px">
-<div style="flex: 1 1 300px"><h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; letter-spacing: -0.02em">Tickets</h1><p style="margin: 4px 0 0; color: #9DB0A6">Raise, track and solve requests within their turnaround time.</p></div>
+<div style="flex: 1 1 300px"><h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; letter-spacing: -0.02em">My tickets</h1><p style="margin: 4px 0 0; color: #9DB0A6">Tickets you raised. Follow each one until it is solved.</p></div>
 <template v-if="canRaise"><button @click="toggleNewTicket" style="height: 40px; padding: 0 18px; border-radius: 20px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">New ticket</button></template>
 <div style="flex: 1 1 100%; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px">
-<template v-for="(ts, ts__i) in ticketStats" :key="ts__i">
+<template v-for="(ts, ts__i) in myTicketStats" :key="ts__i">
 <div style="padding: 14px 16px; border-radius: 14px; background: #16201C; border: 1px solid #24322C; display: flex; flex-direction: column; gap: 2px"><span :style="`font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 700; color: ${ts.color}`">{{ ts.n }}</span><span style="font-size: 13px; color: #C9D6CF">{{ ts.label }}</span></div>
 </template>
 </div>
@@ -14,8 +14,12 @@
 <strong style="font-size: 16px">Raise a new ticket</strong>
 <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C9D6CF">What's the issue?<input type="text" :value="nt.title" @input="ntSetTitle" placeholder="e.g. Printer on 3rd floor not printing" style="height: 42px; padding: 0 12px; border-radius: 10px; border: 1px solid #2A3832; background: #121B17; color: #E8EFEA; font-size: 14px"></label>
 <div style="display: flex; flex-direction: column; gap: 6px"><span style="font-size: 13px; color: #C9D6CF">Category (sets the TAT)</span><div style="display: flex; flex-wrap: wrap; gap: 8px"><template v-for="(nc, nc__i) in ntCats" :key="nc__i"><button @click="nc.pick" :style="nc.style">{{ nc.label }}</button></template></div></div>
-<template v-if="has.departments"><div style="display: flex; flex-direction: column; gap: 6px"><span style="font-size: 13px; color: #C9D6CF">Send to department</span><div style="display: flex; flex-wrap: wrap; gap: 8px"><template v-for="(nd, nd__i) in ntDepts" :key="nd__i"><button @click="nd.pick" :style="nd.style">{{ nd.label }}</button></template></div></div></template>
-<div style="display: flex; flex-direction: column; gap: 6px"><span style="font-size: 13px; color: #C9D6CF">Priority</span><div style="display: flex; flex-wrap: wrap; gap: 8px"><template v-for="(np, np__i) in ntPrios" :key="np__i"><button @click="np.pick" :style="np.style">{{ np.label }}</button></template></div></div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<template v-if="ntTargets.multiple"><div style="display: flex; flex-direction: column; gap: 6px"><span style="font-size: 13px; color: #C9D6CF">Send to a</span><div style="display: flex; flex-wrap: wrap; gap: 8px"><template v-for="(tt, tt__i) in ntTargets.types" :key="tt__i"><button type="button" @click="tt.pick" :style="tt.style">{{ tt.label }}</button></template></div></div></template>
+<template v-if="ntTargets.hasLevels"><div style="display: flex; flex-direction: column; gap: 6px"><span style="font-size: 13px; color: #C9D6CF">{{ ntTargets.recsLabel }}</span><div style="display: flex; flex-wrap: wrap; gap: 8px"><template v-for="(nd, nd__i) in ntTargets.recs" :key="nd__i"><button type="button" @click="nd.pick" :style="nd.style">{{ nd.label }}</button></template></div></div></template>
+<span style="font-size: 12px; color: #9DB0A6">{{ ntTargets.summary }}</span>
+</div>
+<div v-if="!ntCatSel.custom" style="display: flex; flex-direction: column; gap: 6px"><span style="font-size: 13px; color: #C9D6CF">Priority</span><div style="display: flex; flex-wrap: wrap; gap: 8px"><template v-for="(np, np__i) in ntPrios" :key="np__i"><button @click="np.pick" :style="np.style">{{ np.label }}</button></template></div></div>
 <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C9D6CF">Details<textarea rows="3" :value="nt.desc" @input="ntSetDesc" placeholder="Describe what happened and where" style="padding: 10px 12px; border-radius: 10px; border: 1px solid #2A3832; background: #121B17; color: #E8EFEA; font-size: 14px; resize: vertical"></textarea></label>
 <div style="display: flex; gap: 8px; justify-content: flex-end"><button @click="toggleNewTicket" style="height: 40px; padding: 0 16px; border-radius: 10px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer">Cancel</button><button @click="createTicket" :style="ntBtnStyle">Raise ticket</button></div>
 </div>
@@ -28,16 +32,6 @@
 <button style="padding: 6px 12px; border-radius: 16px; background: transparent; border: 1px dashed #4A5C54; color: #C9D6CF; font-size: 13px; cursor: pointer">+ Connect Asana, ClickUp…</button>
 </div>
 <DataTable :t="ticketsTable" />
-<div style="display: none">
-<table style="width: 100%; min-width: 720px; border-collapse: collapse; font-size: 14px">
-<thead><tr style="text-align: left; color: #9DB0A6; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em"><th style="padding: 12px 16px">ID</th><th style="padding: 12px 16px">Title</th><th style="padding: 12px 16px">Category</th><th style="padding: 12px 16px">Priority</th><th style="padding: 12px 16px">Status</th><th style="padding: 12px 16px">TAT</th><th style="padding: 12px 16px">Handling</th><th style="padding: 12px 16px"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Open</span></th></tr></thead>
-<tbody>
-<template v-for="(t, t__i) in tickets" :key="t__i">
-<tr style="border-top: 1px solid #24322C"><td style="padding: 14px 16px; color: #9DB0A6; font-family: 'Space Grotesk', sans-serif; white-space: nowrap">{{ t.id }}</td><td style="padding: 8px 10px"><button @click="t.open" style="min-height: 40px; padding: 0 6px; border: 0; background: transparent; color: #E8EFEA; font-size: 14px; font-weight: 600; text-align: left; cursor: pointer; text-decoration: underline; text-decoration-color: #3F524A; text-underline-offset: 4px">{{ t.title }}</button></td><td style="padding: 14px 16px; color: #C9D6CF">{{ t.cat }}</td><td style="padding: 14px 16px"><span :style="t.prioStyle">{{ t.prio }}</span></td><td style="padding: 14px 16px; white-space: nowrap">{{ t.statusLabel }}</td><td style="padding: 14px 16px; white-space: nowrap"><span :style="t.slaBadgeStyle">{{ t.slaLabel }}</span><div style="font-size: 11px; color: #9DB0A6; margin-top: 4px">{{ t.remainingLabel }}</div></td><td style="padding: 14px 16px; white-space: nowrap">{{ t.handlerLabel }}</td><td style="padding: 8px 16px 8px 0"><button @click="t.open" :aria-label="`View ${t.id}`" style="height: 34px; padding: 0 14px; border-radius: 17px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer; font-size: 13px; font-weight: 600">View</button></td></tr>
-</template>
-</tbody>
-</table>
-</div>
 </div>
 </template>
 
@@ -174,6 +168,6 @@ import { hubBindings } from '~/composables/useHub';
 
 export default {
   name: 'TicketsSection',
-  ...hubBindings(["attachTicket","canRaise","closeTicket","createTicket","esc","handover","has","nt","ntBtnStyle","ntCats","ntDepts","ntOpen","ntPrios","ntSetDesc","ntSetTitle","onTComment","postTComment","showTicketList","showTicketView","tagOpen","tagPeople","tcomment","ticketStats","tickets","ticketsTable","tk","toggleNewTicket","toggleTag"])
+  ...hubBindings(["attachTicket","canRaise","closeTicket","createTicket","esc","handover","has","nt","ntBtnStyle","ntCatSel","ntCats","ntTargets","ntOpen","ntPrios","ntSetDesc","ntSetTitle","onTComment","postTComment","showTicketList","showTicketView","tagOpen","tagPeople","tcomment","myTicketStats","ticketStats","tickets","ticketsTable","tk","toggleNewTicket","toggleTag"])
 };
 </script>

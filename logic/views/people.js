@@ -22,7 +22,7 @@ export function buildPeople(ctx) {
     hasFilters: s.pdept !== 'All' || s.ploc !== 'All' || s.pAvail || !!q,
     clear: set({ pdept: 'All', ploc: 'All', pAvail: false, pq: '', ppage: 0 }),
     depts: [{ name: 'All departments', n: inLoc.length, key: 'All' }].concat(deptNames.map((d) => ({ name: d, key: d, n: inLoc.filter((p) => p.dept === d).length }))).map((d) => ({ ...d, style: facetStyle(s.pdept === d.key), pick: () => this.setState({ pdept: d.key, ppage: 0 }) })),
-    locs: ['All', 'Head Office', 'North Branch', 'Coast Branch', 'West Branch'].map((l) => ({ name: l === 'All' ? 'All locations' : l, style: chipS(s.ploc === l), pick: () => this.setState({ ploc: l, ppage: 0 }) })),
+    locs: ['All'].concat(has.branches ? this.org.branches.map((b) => b.name) : []).map((l) => ({ name: l === 'All' ? 'All locations' : l, style: chipS(s.ploc === l), pick: () => this.setState({ ploc: l, ppage: 0 }) })),
     isGrid: s.pview === 'grid', isList: s.pview === 'list', gridBtn: segS(s.pview === 'grid'), listBtn: segS(s.pview === 'list'),
     setGrid: set({ pview: 'grid' }), setList: set({ pview: 'list' }),
     none: results.length === 0,
@@ -35,7 +35,7 @@ export function buildPeople(ctx) {
   const po = s.personOpen !== null && s.personOpen !== undefined ? this.dir[s.personOpen] : null;
   const skillsByDept = { 'IT Operations': ['Networking', 'Windows server', 'Help desk'], 'Software Development': ['Laravel', 'Vue', 'Testing'], 'Finance': ['Reporting', 'Excel', 'Budgeting'], 'Risk & Compliance': ['Audit', 'Policy', 'Controls'], 'Sales': ['Negotiation', 'CRM'], 'HR': ['Recruiting', 'Onboarding'], 'Customer Care': ['Customer service', 'Complaints handling'], 'Marketing': ['Content', 'Social media'], 'Operations': ['Process improvement'], 'Logistics': ['Fleet', 'Scheduling'], 'Legal': ['Contracts', 'Compliance'] };
   const psn = po ? { ...po, statusColor: statusCol[po.status], cover: po.color + '55', manager: 'Head of ' + po.dept, hubRole: /Lead|Supervisor|Manager/.test(po.title) ? 'Head of department' : 'Staff',
-    email: '[' + po.name.toLowerCase().replace(' ', '.') + '@company.com]', skills: (skillsByDept[po.dept] || ['Teamwork']).map((x) => ({ name: x })),
+    email: po.email || '[' + po.name.toLowerCase().replace(' ', '.') + '@company.com]', skills: (skillsByDept[po.dept] || ['Teamwork']).map((x) => ({ name: x })),
     message: () => this.openDm(po.name),
     awards: has.awards ? s.awardList.filter((a) => a.status === 'Approved' && a.people.indexOf(po.name) !== -1).map((a) => ({ type: a.type, when: new Date(a.date + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }), citation: a.citation })) : [],
     hasAwards: has.awards && s.awardList.some((a) => a.status === 'Approved' && a.people.indexOf(po.name) !== -1),
