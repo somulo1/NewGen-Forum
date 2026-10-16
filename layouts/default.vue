@@ -14,7 +14,9 @@
 <div style="flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; align-items: stretch">
 <div style="position: relative; flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; align-items: stretch">
 <main class="hub-main" style="flex: 1 1 auto; min-width: 0; overflow-y: auto; box-sizing: border-box; padding: 24px clamp(16px, 3vw, 40px) 120px">
-<slot />
+<ErrorPage v-if="fatal" code="500" @leave="clearFatal" />
+<ErrorPage v-else-if="denied" :code="denied.reason === 'off' ? '404' : '403'" :section="denied.label" :reason="denied.reason" />
+<slot v-else />
 </main>
 <CallScreen variant="main" />
 <ForumFull fit="page" />
@@ -69,7 +71,7 @@ import { hubBindings, useHubShell } from '~/composables/useHub';
 
 export default {
   name: 'DefaultLayout',
-  ...hubBindings(["selectMode","themeClass","themeFilter"]),
-  setup() { useHubShell(); }
+  ...hubBindings(["denied","selectMode","themeClass","themeFilter"]),
+  setup() { useHubShell(); const fatal = useState('hubFatal', () => null); return { fatal, clearFatal: () => { fatal.value = null; } }; }
 };
 </script>

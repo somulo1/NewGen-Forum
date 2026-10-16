@@ -1,5 +1,4 @@
-<script setup>
-// Unknown URLs go back to Home.
-await navigateTo('/', { replace: true });
-</script>
-<template><div /></template>
+<!-- Any address that matches no page. The 404 page then returns the user to where they were. -->
+<template>
+  <ErrorPage code="404" />
+</template>

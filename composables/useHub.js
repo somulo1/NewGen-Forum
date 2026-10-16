@@ -37,7 +37,9 @@ export function useHubShell() {
   const start = sectionFor(route.path);
   if (logic.state.section !== start) logic.setState({ section: start });
 
+  const known = (p) => Object.keys(sectionRoutes).some((k) => sectionRoutes[k] === p);
   watch(() => route.path, (p) => {
+    if (!known(p)) return;
     const s = sectionFor(p);
     if (logic.state.section !== s) logic.setState({ section: s, ticketOpen: null, projectOpen: null, folder: null, navOpen: false });
   });
