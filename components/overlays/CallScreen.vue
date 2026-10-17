@@ -29,7 +29,7 @@
 </div>
 <div style="display: flex; gap: 10px; overflow-x: auto">
 <template v-for="(tl, tl__i) in call.tiles" :key="tl__i">
-<div :style="tl.stripStyle"><span :style="`width: 40px; height: 40px; border-radius: 50%; background: ${tl.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px`">{{ tl.initials }}</span><span style="position: absolute; left: 8px; bottom: 6px; font-size: 11px">{{ tl.name }}</span></div>
+<div :style="tl.stripStyle"><UserAvatar :name="tl.name" :initials="tl.initials" :color="tl.color" :size="40" :font-size="14"/><span style="position: absolute; left: 8px; bottom: 6px; font-size: 11px">{{ tl.name }}</span></div>
 </template>
 </div>
 </template>
@@ -37,7 +37,7 @@
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(var(--cs-tile, 260px), 1fr)); gap: 12px; align-content: start">
 <template v-for="(tl, tl__i) in call.tiles" :key="tl__i">
 <div class="cs-tile" :style="tl.style">
-<template v-if="tl.camOff"><span :style="`width: 76px; height: 76px; border-radius: 50%; background: ${tl.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 26px`">{{ tl.initials }}</span></template>
+<template v-if="tl.camOff"><UserAvatar :name="tl.name" :initials="tl.initials" :color="tl.color" :size="76" :font-size="26"/></template>
 <template v-if="tl.camOn"><div :style="`position: absolute; inset: 0; background: ${tl.camBg}; display: flex; align-items: flex-end; justify-content: center`"><span :style="`width: 46%; aspect-ratio: 1 / 1.1; border-radius: 50% 50% 18% 18%; background: ${tl.color}; opacity: 0.55`"></span></div></template>
 <span style="position: absolute; left: 10px; bottom: 10px; height: 28px; padding: 0 10px; border-radius: 14px; background: rgba(10,16,13,0.75); font-size: 12px; display: flex; align-items: center; gap: 6px">{{ tl.name }}<template v-if="tl.muted"><svg aria-label="Muted" role="img" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#FF9B8A" stroke-width="2" stroke-linecap="round"><path d="M9 9v2a3 3 0 0 0 5 2.2M15 10V5a3 3 0 0 0-6 0M5 11a7 7 0 0 0 11.5 5.3M19 11a7 7 0 0 1-.5 2.5M12 18v3M3 3l18 18"></path></svg></template></span>
 <template v-if="tl.hand"><span style="position: absolute; top: 10px; left: 10px; height: 28px; padding: 0 10px; border-radius: 14px; background: #FFD66B; color: #0F1714; font-size: 12px; font-weight: 700; display: flex; align-items: center">Hand raised</span></template>
@@ -55,7 +55,7 @@
 <div style="display: flex; flex-wrap: wrap; gap: 36px; justify-content: center">
 <template v-for="(tl, tl__i) in call.tiles" :key="tl__i">
 <div style="display: flex; flex-direction: column; align-items: center; gap: 10px">
-<span class="cs-voice" :style="tl.voiceStyle">{{ tl.initials }}</span>
+<UserAvatar class="cs-voice" :name="tl.name" :initials="tl.initials" :color="tl.color" :size="104" :font-size="34" :style="tl.voiceStyle"/>
 <span style="font-size: 14px; display: flex; align-items: center; gap: 6px">{{ tl.name }}<template v-if="tl.muted"><svg aria-label="Muted" role="img" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#FF9B8A" stroke-width="2" stroke-linecap="round"><path d="M9 9v2a3 3 0 0 0 5 2.2M15 10V5a3 3 0 0 0-6 0M5 11a7 7 0 0 0 11.5 5.3M19 11a7 7 0 0 1-.5 2.5M12 18v3M3 3l18 18"></path></svg></template></span>
 <template v-if="tl.hand"><span style="font-size: 11px; font-weight: 700; color: #FFD66B">Hand raised</span></template>
 <template v-if="tl.mod"><ModControls :tile="tl"/></template>
@@ -71,7 +71,7 @@
 <div style="flex: none; display: flex; align-items: center; padding: 14px 16px; border-bottom: 1px solid #24322C"><strong style="flex: 1">{{ call.panelTitle }}</strong><button aria-label="Close panel" @click="closeCallPanel" style="width: 34px; height: 34px; border-radius: 50%; border: 0; background: transparent; color: #E8EFEA; cursor: pointer; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></div>
 <template v-if="call.showPeople">
 <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px">
-<template v-for="(tl, tl__i) in call.tiles" :key="tl__i"><div style="display: flex; gap: 10px; align-items: center"><span :style="`width: 34px; height: 34px; border-radius: 50%; background: ${tl.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px`">{{ tl.initials }}</span><span style="flex: 1; font-size: 14px">{{ tl.name }}</span><template v-if="tl.mod"><ModControls :tile="tl"/></template><span style="font-size: 12px; color: #9DB0A6">{{ tl.stateLabel }}</span></div></template>
+<template v-for="(tl, tl__i) in call.tiles" :key="tl__i"><div style="display: flex; gap: 10px; align-items: center"><UserAvatar :name="tl.name" :initials="tl.initials" :color="tl.color" :size="34" :font-size="12"/><span style="flex: 1; font-size: 14px">{{ tl.name }}</span><template v-if="tl.mod"><ModControls :tile="tl"/></template><span style="font-size: 12px; color: #9DB0A6">{{ tl.stateLabel }}</span></div></template>
 <button style="margin-top: 6px; height: 38px; border-radius: 10px; border: 1px dashed #4A5C54; background: transparent; color: #E8EFEA; cursor: pointer">Invite people</button>
 </div>
 </template>

@@ -27,7 +27,7 @@
 <div class="hub-marquee" :style="awardStrip.trackStyle">
 <template v-for="(ap, ap__i) in awardStrip.items" :key="ap__i">
 <button @click="ap.open" :aria-label="`Open ${ap.name}'s profile, ${ap.award}`" style="flex: none; width: 190px; padding: 14px 12px; border-radius: 16px; background: #24220F; border: 1px solid #4A4426; color: #F3EBC8; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; font-family: inherit">
-<span style="width: 76px; height: 76px; border-radius: 50%; padding: 3px; background: #FFD66B; box-sizing: border-box; display: flex"><span :style="`flex: 1; border-radius: 50%; background: ${ap.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 24px; overflow: hidden`"><template v-if="ap.hasPhoto"><img :src="ap.photo" alt="" style="width: 100%; height: 100%; object-fit: cover"></template><template v-if="ap.noPhoto">{{ ap.initials }}</template></span></span>
+<span style="width: 76px; height: 76px; border-radius: 50%; padding: 3px; background: #FFD66B; box-sizing: border-box; display: flex"><UserAvatar :name="ap.name" :initials="ap.initials" :color="ap.color" :size="70" :font-size="24"/></span>
 <strong style="font-size: 14px">{{ ap.name }}</strong>
 <span style="font-size: 12px; font-weight: 700; color: #FFD66B">{{ ap.award }}</span>
 <span style="font-size: 11px; color: #C9BE8F">{{ ap.when }}</span>
@@ -96,7 +96,7 @@
 <div style="display: flex; flex-direction: column; gap: 10px">
 <template v-for="(b, b__i) in w.items" :key="b__i">
 <div style="display: flex; gap: 10px; align-items: center">
-<span aria-hidden="true" :style="`width: 38px; height: 38px; flex: none; border-radius: 50%; background: ${b.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px`">{{ b.initials }}</span>
+<UserAvatar :name="b.name" :initials="b.initials" :color="b.color" :size="38" :font-size="13"/>
 <div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><strong style="font-size: 14px; font-weight: 600">{{ b.name }}</strong><span style="font-size: 12px; color: #9DB0A6">{{ b.what }}</span></div>
 <button @click="b.wish" :style="b.wishStyle">{{ b.wishLabel }}</button>
 </div>
@@ -134,7 +134,7 @@
 <div style="display: flex; flex-direction: column; gap: 10px">
 <template v-for="(j, j__i) in w.items" :key="j__i">
 <div style="display: flex; gap: 10px; align-items: center">
-<span aria-hidden="true" :style="`width: 38px; height: 38px; flex: none; border-radius: 50%; background: ${j.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px`">{{ j.initials }}</span>
+<UserAvatar :name="j.name" :initials="j.initials" :color="j.color" :size="38" :font-size="13"/>
 <div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><strong style="font-size: 14px; font-weight: 600">{{ j.name }}</strong><span style="font-size: 12px; color: #9DB0A6">{{ j.role }}</span></div>
 <button style="height: 32px; padding: 0 12px; border-radius: 16px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer; font-size: 12px">Say hi</button>
 </div>
@@ -180,7 +180,7 @@
 <div style="display: flex; flex-direction: column; gap: 10px">
 <template v-for="(wp, wp__i) in w.items" :key="wp__i">
 <div style="display: flex; gap: 10px; padding: 10px; border-radius: 12px; background: #121B17">
-<span aria-hidden="true" :style="`width: 34px; height: 34px; flex: none; border-radius: 50%; background: ${wp.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px`">{{ wp.initials }}</span>
+<UserAvatar :name="wp.author" :initials="wp.initials" :color="wp.color" :size="34"/>
 <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px"><strong style="font-size: 13px">{{ wp.author }}</strong><span style="font-size: 13px; line-height: 1.4; color: #C9D6CF">{{ wp.text }}</span><span style="font-size: 11px; color: #9DB0A6">{{ wp.likes }} likes</span></div>
 </div>
 </template>
@@ -192,7 +192,7 @@
 <div style="display: flex; flex-direction: column; gap: 6px">
 <template v-for="(dm, dm__i) in w.items" :key="dm__i">
 <button @click="dm.open" style="display: flex; align-items: center; gap: 10px; min-height: 50px; padding: 4px 10px; border-radius: 10px; border: 1px solid #24322C; background: #121B17; color: #E8EFEA; cursor: pointer; text-align: left">
-<span :style="`width: 34px; height: 34px; flex: none; border-radius: 50%; background: ${dm.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px`">{{ dm.initials }}</span>
+<UserAvatar :name="dm.name" :initials="dm.initials" :color="dm.color" :size="34"/>
 <span style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 14px; font-weight: 600">{{ dm.name }}</span><span style="font-size: 12px; color: #9DB0A6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ dm.last }}</span></span>
 <template v-if="dm.hasUnread"><span style="min-width: 20px; height: 20px; padding: 0 6px; box-sizing: border-box; border-radius: 10px; background: #C9B6FF; color: #0F1714; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center">{{ dm.unread }}</span></template>
 </button>
@@ -218,7 +218,7 @@
 <div style="display: flex; flex-direction: column; gap: 8px">
 <template v-for="(pp, pp__i) in w.items" :key="pp__i">
 <div style="display: flex; gap: 10px; align-items: center">
-<span aria-hidden="true" :style="`position: relative; width: 34px; height: 34px; flex: none; border-radius: 50%; background: ${pp.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px`">{{ pp.initials }}<span style="position: absolute; right: -1px; bottom: -1px; width: 10px; height: 10px; border-radius: 50%; background: #B8F36B; border: 2px solid #16201C"></span></span>
+<span style="position: relative; flex: none"><UserAvatar :name="pp.name" :initials="pp.initials" :color="pp.color" :size="34"/><span style="position: absolute; right: -1px; bottom: -1px; width: 10px; height: 10px; border-radius: 50%; background: #B8F36B; border: 2px solid #16201C"></span></span>
 <div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><strong style="font-size: 14px; font-weight: 600">{{ pp.name }}</strong><span style="font-size: 12px; color: #9DB0A6">{{ pp.role }}</span></div>
 </div>
 </template>

@@ -5,7 +5,7 @@
 <button class="hub-grip" aria-label="Drag to resize panel. Arrow keys also resize." @pointerdown="startDrag" @keydown="resizeKey" style="position: absolute; left: 0; top: 0; bottom: 0; width: 14px; padding: 0; border: 0; background: transparent; cursor: ew-resize; z-index: 40; touch-action: none; display: flex; align-items: center; justify-content: center"><span :style="gripStyle"></span></button>
 <template v-if="!showPanelCall">
 <div class="hub-panel-header" style="display: flex; align-items: center; gap: 10px; padding: 14px 14px 12px 20px; border-bottom: 1px solid #24322C">
-<span :style="`width: 34px; height: 34px; border-radius: 10px; background: ${cur.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 13px`">{{ cur.initials }}</span>
+<UserAvatar :name="cur.name" :initials="cur.initials" :color="cur.color" :size="34" :font-size="13" radius="10px"/>
 <div class="hub-panel-name" style="flex: 1; min-width: 0; display: flex; flex-direction: column"><strong style="font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ cur.name }}</strong><span style="font-size: 12px; color: #9DB0A6"><span :style="`color: ${cur.dotColor}`">●</span> {{ cur.subline }}</span></div>
 <div class="hub-panel-actions" style="display: flex; align-items: center; gap: 2px; flex: none">
 <template v-if="isDM"><button aria-label="Privacy and blocking" :aria-expanded="dmPriv.open" @click="dmPriv.toggleOpen" :style="`width: 36px; height: 36px; border-radius: 9px; border: 0; background: ${dmPriv.open ? '#2C3D34' : 'transparent'}; color: ${dmPriv.anyOn ? '#FFB86B' : '#C9D6CF'}; cursor: pointer; display: flex; align-items: center; justify-content: center`"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"></path></svg></button></template>
@@ -25,7 +25,7 @@
 <div style="display: flex; gap: 8px; padding: 10px 14px; border-bottom: 1px solid #24322C; overflow-x: auto">
 <template v-for="(f, f__i) in panelChips" :key="f__i">
 <span style="position: relative; flex: none; width: 36px; height: 36px">
-<button :aria-label="`${f.name}${f.hasUnread ? `, ${f.unread} unread messages` : ''}`" :title="f.name" @click="f.open" :style="f.chipStyle">{{ f.initials }}</button>
+<button :aria-label="`${f.name}${f.hasUnread ? `, ${f.unread} unread messages` : ''}`" :title="f.name" @click="f.open" :style="f.chipStyle"><UserAvatar v-if="isDM" :name="f.name" :initials="f.initials" :color="f.color" :size="32" :font-size="12"/><template v-else>{{ f.initials }}</template></button>
 <span v-if="f.hasUnread" :style="f.unreadStyle">{{ f.unread > 99 ? '99+' : f.unread }}</span>
 </span>
 </template>
@@ -41,7 +41,7 @@
 <span style="align-self: center; font-size: 11px; color: #9DB0A6; padding: 4px 10px; border-radius: 10px; background: #1A2520">Today</span>
 <template v-for="(u, u__i) in cur.chat" :key="u__i">
 <div :style="u.rowStyle + ';touch-action:pan-y'" @pointerdown="u.startHold" @pointerup="u.stopHold" @pointerleave="u.stopHold" @pointercancel="u.stopHold" @contextmenu="u.openActions">
-<div aria-hidden="true" :style="`width: 32px; height: 32px; flex: none; border-radius: 50%; background: ${u.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px`">{{ u.initials }}</div>
+<UserAvatar :name="u.who" :initials="u.initials" :color="u.color" :size="32"/>
 <div :style="u.bubbleStyle">
 <div style="display: flex; gap: 8px; align-items: baseline"><strong style="font-size: 13px">{{ u.who }}</strong><span style="font-size: 11px; color: #9DB0A6">{{ u.time }}</span><button type="button" @click.stop="u.openActions($event)" aria-label="Message options" style="margin-left: auto; width: 26px; height: 24px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: #9DB0A6; cursor: pointer">⋯</button><template v-if="u.reply"><button type="button" @click="u.reply" aria-label="Reply to this message" style="height: 22px; padding: 0 8px; border: 0; border-radius: 11px; background: transparent; color: #9DB0A6; cursor: pointer; font-size: 11px">↩ Reply</button></template></div>
 <template v-if="u.hasReply"><div style="margin: 4px 0 0; padding: 4px 8px; border-left: 3px solid #B8F36B; border-radius: 4px; background: rgba(0,0,0,.2); font-size: 12px; color: #9DB0A6; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap"><strong style="color: #C9D6CF">{{ u.replyWho }}</strong> {{ u.replySnippet }}</div></template>

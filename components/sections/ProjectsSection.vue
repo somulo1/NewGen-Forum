@@ -35,7 +35,7 @@
 </div>
 <div style="display: flex; align-items: center; gap: 10px">
 <div style="display: flex">
-<template v-for="(tm, tm__i) in pr.team" :key="tm__i"><span aria-hidden="true" :style="`width: 30px; height: 30px; margin-right: -8px; border-radius: 50%; border: 2px solid #16201C; background: ${tm.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 10px`">{{ tm.initials }}</span></template>
+<template v-for="(tm, tm__i) in pr.team" :key="tm__i"><UserAvatar :name="tm.name" :initials="tm.initials" :color="tm.color" :size="30" :font-size="10" border="2px solid #16201C" style="margin-right: -8px"/></template>
 </div>
 <span style="font-size: 12px; color: #9DB0A6; margin-left: 8px">{{ pr.teamSize }} people · {{ pr.sync }}</span>
 <button @click="pr.open" style="margin-left: auto; height: 38px; padding: 0 18px; border-radius: 19px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">View</button>
@@ -126,8 +126,8 @@
 <button @click="tk2.open" style="padding: 0; border: 0; background: transparent; color: #E8EFEA; text-align: left; cursor: pointer; font-size: 13px; font-weight: 500; line-height: 1.35">{{ tk2.title }}</button>
 <div style="display: flex; flex-wrap: wrap; gap: 4px"><span :style="tk2.dueStyle">{{ tk2.dueLabel }}</span><span :title="tk2.ctxTitle" style="padding: 2px 7px; border-radius: 6px; background: #1B2A33; color: #7CC4FF; font-size: 10px; font-weight: 600">{{ tk2.ctxLabel }}</span><template v-if="tk2.hasLinks"><span style="padding: 2px 7px; border-radius: 6px; background: #22302A; color: #C9D6CF; font-size: 10px; font-weight: 600">{{ tk2.linkLabel }}</span></template></div>
 <div style="display: flex; align-items: center; gap: 4px">
-<span :title="`Primary owner: ${tk2.primary}`" :style="`width: 24px; height: 24px; flex: none; border-radius: 50%; background: ${tk2.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 9px`">{{ tk2.initials }}</span>
-<template v-if="tk2.hasSecondary"><span :title="`Secondary owner: ${tk2.secondary}`" :style="`width: 18px; height: 18px; flex: none; margin-left: -8px; border-radius: 50%; border: 2px solid #1D2A25; background: ${tk2.secColor}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 7px`">{{ tk2.secInitials }}</span></template>
+<UserAvatar :name="tk2.primary" :initials="tk2.initials" :color="tk2.color" :size="24" :font-size="9" :aria-label="`Primary owner: ${tk2.primary}`"/>
+<template v-if="tk2.hasSecondary"><UserAvatar :name="tk2.secondary" :initials="tk2.secInitials" :color="tk2.secColor" :size="18" :font-size="7" border="2px solid #1D2A25" :aria-label="`Secondary owner: ${tk2.secondary}`" style="margin-left: -8px"/></template>
 <span style="flex: 1"></span>
 <template v-if="tk2.canBack"><button :aria-label="tk2.backLabel" :title="tk2.backLabel" @click="tk2.back" style="width: 28px; height: 28px; border-radius: 8px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"></path></svg></button></template>
 <template v-if="tk2.canMove"><button :aria-label="tk2.moveLabel" :title="tk2.moveLabel" @click="tk2.move" style="width: 28px; height: 28px; border-radius: 8px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg></button></template>
@@ -145,7 +145,7 @@
 <p style="margin: 0; font-size: 14px; line-height: 1.55">{{ pj.goal }}</p>
 <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #9DB0A6; margin-top: 6px">Team · {{ pj.teamCount }}</span>
 <div style="max-height: 200px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 4px">
-<template v-for="(tm, tm__i) in pj.team" :key="tm__i"><div style="display: flex; gap: 10px; align-items: center"><span aria-hidden="true" :style="`width: 30px; height: 30px; border-radius: 50%; background: ${tm.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11px`">{{ tm.initials }}</span><span style="font-size: 14px; flex: 1">{{ tm.name }}</span><span style="font-size: 12px; color: #9DB0A6">{{ tm.load }} open</span></div></template>
+<template v-for="(tm, tm__i) in pj.team" :key="tm__i"><div style="display: flex; gap: 10px; align-items: center"><UserAvatar :name="tm.name" :initials="tm.initials" :color="tm.color" :size="30" :font-size="11"/><span style="font-size: 14px; flex: 1">{{ tm.name }}</span><span style="font-size: 12px; color: #9DB0A6">{{ tm.load }} open</span></div></template>
 </div>
 </div>
 <div style="padding: 18px; border-radius: 18px; background: #16201C; border: 1px solid #24322C; display: flex; flex-direction: column; gap: 10px">

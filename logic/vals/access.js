@@ -34,7 +34,20 @@ export function valsAccess(ctx) {
     onNewSkill: (e) => this.setState({ newSkill: e.target.value }),
     newSkillKey: (e) => { if (e.key === 'Enter') addSkill(); },
     addSkill,
-    onPhoto: (e) => { const f = (e.target.files || [])[0]; e.target.value = ''; if (f) setPf({ photo: URL.createObjectURL(f) }); },
+    onPhoto: (e) => {
+      const f = (e.target.files || [])[0];
+      e.target.value = '';
+      if (!f) return;
+      if (!f.type.startsWith('image/')) { this.notify('Choose an image file for your profile photo.', '#FF9B8A'); return; }
+      if (f.size > 5 * 1024 * 1024) { this.notify('Profile photos must be 5 MB or smaller.', '#FF9B8A'); return; }
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result !== 'string') { this.notify('The profile photo could not be read.', '#FF9B8A'); return; }
+        setPf({ photo: reader.result });
+      };
+      reader.onerror = () => this.notify('The profile photo could not be read.', '#FF9B8A');
+      reader.readAsDataURL(f);
+    },
     has, cal, ev, evOpen: s.evOpen,
     awardsOn, awardStrip, aw, awOpen: s.awOpen, openAward: set({ awOpen: true }),
     newEvent: () => openEv('Personal'), newMeeting: () => openEv('Meeting')

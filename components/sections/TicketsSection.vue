@@ -60,7 +60,7 @@
 <strong style="font-size: 15px">Activity</strong>
 <template v-for="(ac, ac__i) in tk.activity" :key="ac__i">
 <div style="display: flex; gap: 10px">
-<span aria-hidden="true" :style="`width: 34px; height: 34px; flex: none; border-radius: 50%; background: ${ac.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px`">{{ ac.initials }}</span>
+<UserAvatar :name="ac.who" :initials="ac.initials" :color="ac.color" :size="34" :font-size="12"/>
 <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px">
 <div style="display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap"><strong style="font-size: 13px">{{ ac.who }}</strong><span style="font-size: 11px; color: #9DB0A6">{{ ac.time }}</span></div>
 <template v-if="ac.isEvent"><span v-html="ac.htmlText" style="font-size: 13px; color: #C9D6CF; overflow-wrap: anywhere"></span></template>
@@ -101,7 +101,7 @@
 <div style="padding: 18px; border-radius: 16px; background: #16201C; border: 1px solid #24322C; display: flex; flex-direction: column; gap: 12px">
 <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #9DB0A6">Currently handling</span>
 <template v-if="tk.hasHandler">
-<div style="display: flex; gap: 10px; align-items: center"><span aria-hidden="true" :style="`width: 42px; height: 42px; border-radius: 50%; background: ${tk.handlerColor}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700`">{{ tk.handlerInitials }}</span><div style="display: flex; flex-direction: column"><strong style="font-size: 15px">{{ tk.handler }}</strong><span style="font-size: 12px; color: #9DB0A6">Since {{ tk.handlerSince }}</span></div></div>
+<div style="display: flex; gap: 10px; align-items: center"><UserAvatar :name="tk.handler" :initials="tk.handlerInitials" :color="tk.handlerColor" :size="42"/><div style="display: flex; flex-direction: column"><strong style="font-size: 15px">{{ tk.handler }}</strong><span style="font-size: 12px; color: #9DB0A6">Since {{ tk.handlerSince }}</span></div></div>
 </template>
 <template v-if="tk.noHandler"><span style="font-size: 14px; color: #FFB86B">Not assigned yet</span></template>
 <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C9D6CF">{{ tk.handoverLabel }}
@@ -116,7 +116,7 @@
 <option value="Kevin Mutua">Kevin Mutua · Sales</option>
 </select></label>
 <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #9DB0A6; margin-top: 4px">Everyone assigned</span>
-<div style="display: flex; flex-wrap: wrap; gap: 6px"><template v-for="(as, as__i) in tk.assignees" :key="as__i"><span style="height: 30px; padding: 0 10px 0 4px; border-radius: 15px; background: #121B17; border: 1px solid #2A3832; display: flex; align-items: center; gap: 6px; font-size: 12px"><span :style="`width: 22px; height: 22px; border-radius: 50%; background: ${as.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 9px`">{{ as.initials }}</span>{{ as.name }}</span></template></div>
+<div style="display: flex; flex-wrap: wrap; gap: 6px"><template v-for="(as, as__i) in tk.assignees" :key="as__i"><span style="height: 30px; padding: 0 10px 0 4px; border-radius: 15px; background: #121B17; border: 1px solid #2A3832; display: flex; align-items: center; gap: 6px; font-size: 12px"><UserAvatar :name="as.name" :initials="as.initials" :color="as.color" :size="22" :font-size="9"/>{{ as.name }}</span></template></div>
 <span style="font-size: 12px; color: #9DB0A6">Raised by {{ tk.raisedBy }}</span>
 </div>
 
