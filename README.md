@@ -219,6 +219,9 @@ npm run dev
 # Build for production
 npm run build
 
+# Run the production server
+npm start
+
 # Generate static site
 npm run generate
 ```
@@ -240,8 +243,19 @@ Features:
 npm run build
 
 # Preview production build
-npm preview
+npm run preview
 ```
+
+### Render Deployment
+
+Configure the Render web service with:
+
+- **Build Command:** `npm install && npm run build`
+- **Start Command:** `npm start`
+
+Do not use `npm run dev` as the service start command. The production script runs
+Nuxt's Nitro server, which listens on Render's assigned port and network
+interface.
 
 ## 🎯 Key Features
 
