@@ -106,6 +106,14 @@ export function buildHomeWidgets(ctx) {
   const ids = s.widgets;
   const isHidden = (id) => s.hiddenWidgets.indexOf(id) !== -1;
   const toggleHide = (id) => () => this.setState((st) => ({ hiddenWidgets: st.hiddenWidgets.indexOf(id) !== -1 ? st.hiddenWidgets.filter((x) => x !== id) : st.hiddenWidgets.concat([id]) }));
+  const removeWidget = (id) => this.setState((st) => {
+    const patch = { widgets: st.widgets.filter((x) => x !== id) };
+    if (id === 'projects') Object.assign(patch, {
+      section: st.section === 'projects' ? 'home' : st.section,
+      projectOpen: null, projectForm: null, taskForm: null, taskOpen: null, msDialog: null
+    });
+    return patch;
+  });
   const widgets = ids.filter((x) => x !== 'awards' && (s.customize || !isHidden(x))).map((id, i) => ({
     hidden: isHidden(id), hideLabel: isHidden(id) ? 'Show' : 'Hide', toggleHide: toggleHide(id),
     ...catalog[id],
@@ -142,7 +150,7 @@ export function buildHomeWidgets(ctx) {
     makeShare: () => this.setState({ section: 'share' }),
     resetShare: () => this.setState({ section: 'share' }),
     cardStyle: 'break-inside:avoid;margin:0 0 16px;box-sizing:border-box;width:100%;padding:18px;border-radius:18px;background:#16201C;display:flex;flex-direction:column;gap:14px;border:' + (s.customize ? '1px dashed #4A5C54' : '1px solid #24322C'),
-    remove: () => this.setState((st) => ({ widgets: st.widgets.filter((x) => x !== id) })),
+    remove: () => removeWidget(id),
     moveUp: () => this.setState((st) => {
       const w = st.widgets.slice(); const k = w.indexOf(id);
       if (k > 0) { const tmp = w[k - 1]; w[k - 1] = w[k]; w[k] = tmp; }
@@ -151,7 +159,7 @@ export function buildHomeWidgets(ctx) {
   }));
   const gallery = Object.keys(catalog).filter((id) => id !== 'performance' || has.structure).map((id) => {
     const added = ids.indexOf(id) !== -1;
-    return { ...catalog[id], added, hidden: added && isHidden(id), hideLabel: isHidden(id) ? 'Show on Home' : 'Hide on Home', toggleHide: toggleHide(id), remove: () => this.setState((st) => ({ widgets: st.widgets.filter((x) => x !== id) })), btnLabel: added ? 'Added' : 'Add to home',
+    return { ...catalog[id], added, hidden: added && isHidden(id), hideLabel: isHidden(id) ? 'Show on Home' : 'Hide on Home', toggleHide: toggleHide(id), remove: () => removeWidget(id), btnLabel: added ? 'Added' : 'Add to home',
       openSettings: () => this.setState({ settingsFor: id }),
       btnStyle: 'flex:1;height:38px;border-radius:10px;font-weight:600;cursor:' + (added ? 'default' : 'pointer') + ';' + (added ? 'border:1px solid #2A3832;background:transparent;color:#9DB0A6' : 'border:0;background:#B8F36B;color:#0F1714'),
       add: () => { if (!added) this.setState((st) => ({ widgets: st.widgets.concat(id) })); } };

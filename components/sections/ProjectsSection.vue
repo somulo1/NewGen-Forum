@@ -3,8 +3,45 @@
 <div style="width: 100%; display: flex; flex-direction: column; gap: 18px">
 <div style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px">
 <div style="flex: 1 1 300px"><h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; letter-spacing: -0.02em">Projects</h1><p style="margin: 4px 0 0; color: #9DB0A6">Every project's goal, progress, milestones and sprints in one place.</p></div>
-<template v-if="canCreateProject"><button @click="requestProject" style="height: 40px; padding: 0 18px; border-radius: 20px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">New project</button></template>
+<template v-if="canCreateProject"><button @click="openProjectForm" style="height: 40px; padding: 0 18px; border-radius: 20px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">New project</button></template>
 </div>
+<template v-if="projectForm.open">
+<form novalidate @submit.prevent="projectForm.submit" aria-label="Create project" style="padding: 18px; border-radius: 16px; background: #16201C; border: 1px solid #B8F36B; display: flex; flex-direction: column; gap: 12px">
+<strong style="font-size: 16px">Create a project</strong>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #9DB0A6">Project name<input type="text" :value="projectForm.name" @input="projectForm.onName" placeholder="e.g. Customer self-service portal" style="height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid #2A3832; background: #121B17; color: #E8EFEA; font-size: 14px"></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #9DB0A6">Goal<textarea rows="3" :value="projectForm.goal" @input="projectForm.onGoal" placeholder="What outcome should this project deliver?" style="padding: 10px 12px; border-radius: 10px; border: 1px solid #2A3832; background: #121B17; color: #E8EFEA; font-size: 14px; line-height: 1.45; resize: vertical"></textarea></label>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px">
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #9DB0A6">Project owner<select :value="projectForm.owner" @change="projectForm.onOwner" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid #2A3832; background: #121B17; color: #E8EFEA; font-size: 14px"><template v-for="(o, o__i) in projectForm.owners" :key="o__i"><option :value="o.v">{{ o.l }}</option></template></select></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #9DB0A6">Estimated budget<input type="number" min="0" :value="projectForm.budget" @input="projectForm.onBudget" placeholder="Optional" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid #2A3832; background: #121B17; color: #E8EFEA; font-size: 14px"></label>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<label for="project-team-search" style="font-size: 12px; color: #9DB0A6">Project team</label>
+<input id="project-team-search" type="search" :value="projectForm.teamQuery" @input="projectForm.onTeamQuery" placeholder="Search people by name…" style="height: 40px; box-sizing: border-box; padding: 0 12px; border-radius: 10px; border: 1px solid #2A3832; background: #121B17; color: #E8EFEA; font-size: 14px">
+<div v-if="projectForm.team.length" style="display: flex; flex-wrap: wrap; gap: 6px">
+<span v-for="member in projectForm.selectedTeam" :key="member.name" style="display: flex; align-items: center; gap: 6px; min-height: 30px; padding: 2px 6px; border-radius: 16px; background: #22302A; color: #E8EFEA; font-size: 12px">
+<UserAvatar :name="member.name" :initials="member.initials" :color="member.color" :size="22" :font-size="8"/>
+{{ member.name }}
+<button v-if="member.removable" type="button" :aria-label="`Remove ${member.name} from project team`" @click="projectForm.removeTeamMember(member.name)" style="padding: 0 4px; border: 0; background: transparent; color: #C9D6CF; cursor: pointer; font-size: 16px">×</button>
+</span>
+</div>
+<div style="max-height: 180px; overflow-y: auto; border: 1px solid #2A3832; border-radius: 10px; background: #121B17">
+<label v-for="member in projectForm.teamResults" :key="member.name" style="display: flex; align-items: center; gap: 9px; min-height: 40px; padding: 0 10px; border-bottom: 1px solid #1D2A25; cursor: pointer; font-size: 13px">
+<input type="checkbox" :checked="member.selected" @change="member.toggle" style="accent-color: #B8F36B">
+<UserAvatar :name="member.name" :initials="member.initials" :color="member.color" :size="26" :font-size="9"/>
+{{ member.name }}
+</label>
+<span v-if="!projectForm.teamResults.length" style="display: block; padding: 12px; color: #9DB0A6; font-size: 13px">No people match that search.</span>
+</div>
+<span style="font-size: 11px; color: #9DB0A6">Select multiple people. The project owner is always included.</span>
+</div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px">
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #9DB0A6">Start date<input type="date" :value="projectForm.start" @input="projectForm.onStart" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid #2A3832; background: #121B17; color: #E8EFEA; font-size: 14px"></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #9DB0A6">Due date<input type="date" :value="projectForm.due" :min="projectForm.start" @input="projectForm.onDue" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid #2A3832; background: #121B17; color: #E8EFEA; font-size: 14px"></label>
+</div>
+<span v-if="projectForm.err" role="alert" style="font-size: 13px; color: #FF9B8A">{{ projectForm.err }}</span>
+<div style="display: flex; flex-wrap: wrap; gap: 8px"><button type="submit" style="height: 40px; padding: 0 20px; border-radius: 20px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">Submit project</button><button type="button" @click="projectForm.cancel" style="height: 40px; padding: 0 18px; border-radius: 20px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer">Cancel</button></div>
+</form>
+</template>
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px">
 <template v-for="(ps, ps__i) in projStats" :key="ps__i">
 <div style="padding: 14px 16px; border-radius: 14px; background: #16201C; border: 1px solid #24322C; display: flex; flex-direction: column; gap: 2px"><span :style="`font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 700; color: ${ps.color}`">{{ ps.n }}</span><span style="font-size: 13px; color: #C9D6CF">{{ ps.label }}</span></div>
@@ -121,6 +158,7 @@
 <template v-for="(col, col__i) in pj.columns" :key="col__i">
 <div style="min-width: 170px; padding: 10px; border-radius: 14px; background: #121B17; display: flex; flex-direction: column; gap: 8px">
 <div style="display: flex; align-items: center; gap: 8px; padding: 2px 4px 4px"><span :style="`width: 8px; height: 8px; border-radius: 50%; background: ${col.color}`"></span><strong style="font-size: 13px; flex: 1">{{ col.name }}</strong><span style="font-size: 12px; color: #9DB0A6">{{ col.count }}</span></div>
+<div class="hub-task-column-scroll" tabindex="0" :aria-label="`${col.name} tasks`" :style="`display:flex;flex-direction:column;gap:8px;max-height:${col.count >= 5 ? '480px' : 'none'};overflow-y:${col.count >= 5 ? 'auto' : 'visible'};overscroll-behavior:contain`">
 <template v-for="(tk2, tk2__i) in col.tasks" :key="tk2__i">
 <div :style="tk2.cardStyle">
 <button @click="tk2.open" style="padding: 0; border: 0; background: transparent; color: #E8EFEA; text-align: left; cursor: pointer; font-size: 13px; font-weight: 500; line-height: 1.35">{{ tk2.title }}</button>
@@ -134,6 +172,7 @@
 </div>
 </div>
 </template>
+</div>
 </div>
 </template>
 </div>
@@ -165,6 +204,6 @@ import { hubBindings } from '~/composables/useHub';
 
 export default {
   name: 'ProjectsSection',
-  ...hubBindings(["canCreateProject","closeProject","has","pj","projStats","projects","requestProject","showProjectList","showProjectView"])
+  ...hubBindings(["canCreateProject","closeProject","has","openProjectForm","pj","projectForm","projStats","projects","showProjectList","showProjectView"])
 };
 </script>

@@ -1,6 +1,6 @@
 <!-- Widget settings drawer -->
 <template><template v-if="settingsOpen">
-<div class="hub-overlay" style="position: fixed; inset: 0; z-index: 65; background: rgba(5,10,8,0.6); display: flex; justify-content: flex-end">
+<div class="hub-overlay hub-right-drawer" style="position: fixed; inset: 0; z-index: 65; background: rgba(5,10,8,0.6); display: flex; justify-content: flex-end">
 <div role="dialog" aria-label="Widget settings" style="width: 540px; max-width: 100%; height: 100%; background: #16201C; border-left: 1px solid #2A3832; box-shadow: -20px 0 50px rgba(0,0,0,0.4); display: flex; flex-direction: column">
 <div style="flex: none; display: flex; align-items: center; gap: 12px; padding: 18px 20px; border-bottom: 1px solid #24322C">
 <span :style="`width: 12px; height: 12px; border-radius: 50%; background: ${sw.tint}`"></span>

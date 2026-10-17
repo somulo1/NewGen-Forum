@@ -55,7 +55,7 @@ export function buildForums(ctx) {
     }
   });
   const cur = forumsData.find((f) => f.id === s.forum) || forumsData[0];
-  const openMode = s.mode === 'full' || s.mode === 'page' ? s.mode : 'docked';
+  const openMode = this.isMobileViewport() ? 'page' : s.mode === 'full' || s.mode === 'page' ? s.mode : 'docked';
   const forums = forumsData.map((f) => {
     const active = f.id === cur.id && s.mode !== 'closed';
     const unread = s.forumRead && s.forumRead[f.id] ? 0 : f.unread;

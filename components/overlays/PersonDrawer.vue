@@ -1,6 +1,6 @@
 <!-- Person profile drawer -->
 <template><template v-if="personOpen">
-<div class="hub-overlay" style="position: fixed; inset: 0; z-index: 64; background: rgba(5,10,8,0.55); display: flex; justify-content: flex-end">
+<div class="hub-overlay hub-right-drawer" style="position: fixed; inset: 0; z-index: 64; background: rgba(5,10,8,0.55); display: flex; justify-content: flex-end">
 <div role="dialog" :aria-label="psn.name" style="width: 420px; max-width: 100%; height: 100%; overflow-y: auto; background: #16201C; border-left: 1px solid #2A3832; display: flex; flex-direction: column">
 <div :style="`position: relative; height: 110px; flex: none; background: ${psn.cover}`"><button aria-label="Close" @click="closePerson" style="position: absolute; top: 12px; right: 12px; width: 38px; height: 38px; border-radius: 50%; border: 0; background: rgba(10,16,13,0.6); color: #E8EFEA; cursor: pointer; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></div>
 <div style="padding: 0 22px 22px; margin-top: -42px; display: flex; flex-direction: column; gap: 14px">

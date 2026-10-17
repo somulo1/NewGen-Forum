@@ -24,6 +24,11 @@ input:not([type=checkbox]):not([type=radio]):not([type=range]):focus,textarea:fo
 .hub-rightcol{max-width:60%}
 .hub-rightcol > .hub-dock{flex:1 1 0 !important;min-height:0 !important;max-width:none !important}
 .hub-dock{container:hub-dock-panel / inline-size}
+.hub-task-column-scroll{scrollbar-width:thin;scrollbar-color:#3F524A #121B17}
+.hub-task-column-scroll::-webkit-scrollbar{display:block;width:8px}
+.hub-task-column-scroll::-webkit-scrollbar-track{background:#121B17;border-radius:4px}
+.hub-task-column-scroll::-webkit-scrollbar-thumb{background:#3F524A;border-radius:4px}
+.hub-right-drawer{top:65px !important}
 @container hub-dock-panel (max-width: 700px){
 .hub-panel-header{flex-wrap:wrap !important}
 .hub-panel-header > .hub-panel-name{flex:1 1 calc(100% - 54px) !important}
@@ -42,6 +47,7 @@ input:not([type=checkbox]):not([type=radio]):not([type=range]):focus,textarea:fo
 .hub-navback{position:fixed;inset:64px 0 64px 0;z-index:61;background:rgba(5,10,8,.6);border:0;padding:0}
 .hub-main{padding:16px 14px 150px !important}
 .hub-dock{position:fixed !important;inset:64px 0 64px 0 !important;width:auto !important;max-width:none !important;margin:0 !important;border-radius:0 !important;border:0 !important;z-index:58;flex:none !important}
+.hub-right-drawer{top:64px !important}
 .hub-grip{display:none !important}
 .hub-overlay{inset:64px 0 64px 0 !important}
 .hub-screen{inset:64px 0 64px 0 !important;border-radius:0 !important;border:0 !important}
