@@ -18,10 +18,17 @@ select{font-family:inherit}
 @media (prefers-reduced-motion: reduce){.hub-marquee{animation:none !important}}
 button{font-family:inherit}
 input,textarea{font-family:inherit}
+input:not([type=checkbox]):not([type=radio]):not([type=range]):focus,textarea:focus,select:focus{outline:1px solid rgba(184,243,107,.55);outline-offset:0;border-color:rgba(184,243,107,.7) !important}
 .hub-m{display:none !important}
 .hub-tabbar{display:none}
 .hub-rightcol{max-width:60%}
 .hub-rightcol > .hub-dock{flex:1 1 0 !important;min-height:0 !important;max-width:none !important}
+.hub-dock{container:hub-dock-panel / inline-size}
+@container hub-dock-panel (max-width: 700px){
+.hub-panel-header{flex-wrap:wrap !important}
+.hub-panel-header > .hub-panel-name{flex:1 1 calc(100% - 54px) !important}
+.hub-panel-actions{order:2;flex:1 0 100% !important;flex-wrap:wrap;justify-content:flex-end}
+}
 /* Right-hand panels start level with the page's first card (main has 24px top padding). */
 @media (min-width: 901px){.hub-rightcol{padding-top:12px;box-sizing:border-box}}
 @media (max-width: 900px){

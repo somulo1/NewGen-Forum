@@ -54,7 +54,7 @@ export function valsHome(ctx) {
     },
     draft: s.draft,
     onDraft: (e) => this.setState({ draft: e.target.value }),
-    onPost: () => {
+    onPost: (postBg) => {
       const t = this.state.draft.trim();
       const media = this.state.wfiles;
       const wp = this.state.wpoll;
@@ -62,7 +62,8 @@ export function valsHome(ctx) {
       if (wp && (opts.length < 2 || !t)) { this.notify('A poll needs a question and at least two options.', '#FFB86B'); return; }
       if (!t && !media.length) return;
       const pollData = wp ? { opts: opts.map((label, i) => ({ id: 'o' + i, label, votes: 0 })) } : undefined;
-      this.setState({ draft: '', wfiles: [], emojiW: false, wpoll: null, posts: [{ id: Date.now(), author: 'Sam', initials: 'S', color: '#F49AC1', meta: this.state.wallAudience + ' · Just now', text: t, likes: 0, extra: 0, shares: 0, comments: [], media: media, pollData }, ...this.state.posts] });
+      this.setState({ draft: '', wfiles: [], emojiW: false, wpoll: null, posts: [{ id: Date.now(), author: 'Sam', initials: 'S', color: '#F49AC1', meta: this.state.wallAudience + ' · Just now', text: t, postBg: postBg || undefined, likes: 0, extra: 0, shares: 0, comments: [], media: media, pollData }, ...this.state.posts] });
+      return true;
     },
     postBtnStyle: 'height:38px;padding:0 22px;border-radius:19px;border:0;font-weight:600;cursor:' + (canPost ? 'pointer' : 'default') + ';background:' + (canPost ? '#B8F36B' : '#2A3832') + ';color:' + (canPost ? '#0F1714' : '#9DB0A6')
   };
