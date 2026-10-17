@@ -17,7 +17,7 @@
 <video v-else-if="m.mediaIsVideo" :src="m.mediaUrl" muted playsinline preload="metadata" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover"></video>
 <span aria-hidden="true" style="position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(0,0,0,.18), rgba(0,0,0,0) 35%, rgba(0,0,0,.7))"></span>
 <span style="position: relative; display: flex; flex-direction: column; justify-content: space-between; height: 100%; padding: 10px; box-sizing: border-box; min-width: 0">
-<span style="display: flex; align-items: center; justify-content: space-between; gap: 4px"><span :style="`width: 34px; height: 34px; flex: none; border-radius: 50%; border: 3px solid #B8F36B; background: ${m.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px`">{{ m.initials }}</span><span v-if="m.mediaIsVideo" aria-label="Video" style="font-size: 11px; padding: 2px 6px; border-radius: 8px; background: rgba(0,0,0,.55)">▶</span></span>
+<span style="display: flex; align-items: center; justify-content: space-between; gap: 4px"><UserAvatar :name="m.owner" :initials="m.initials" :color="m.color" :size="34" :font-size="12" border="3px solid #B8F36B"/><span v-if="m.mediaIsVideo" aria-label="Video" style="font-size: 11px; padding: 2px 6px; border-radius: 8px; background: rgba(0,0,0,.55)">▶</span></span>
 <span style="display: flex; flex-direction: column; gap: 4px; min-width: 0">
 <span style="font-size: 13px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; word-break: break-word; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden">{{ m.caption }}</span>
 <span v-if="m.likeCount + m.loveCount" style="font-size: 11px; opacity: .9; display: flex; align-items: center; gap: 4px"><svg aria-hidden="true" width="11" height="11" viewBox="0 0 24 24" fill="#FF6B81" stroke="#FF6B81" stroke-width="2" stroke-linejoin="round"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"></path></svg>{{ m.likeCount + m.loveCount }}</span>
@@ -40,7 +40,7 @@
 
 <div v-if="!momentForm.open" style="padding: 16px; border-radius: 16px; background: #16201C; border: 1px solid #24322C; display: flex; flex-direction: column; gap: 12px">
 <div style="display: flex; gap: 12px; align-items: flex-start">
-<div aria-hidden="true" style="width: 42px; height: 42px; flex: none; border-radius: 50%; background: #C2185B; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 600">S</div>
+<UserAvatar name="Sam" initials="S" color="#C2185B" :size="42" text-color="#fff" aria-label="Your profile photo"/>
 <RichTextInput style="flex: 1; min-width: 0" :model-value="draft" @update:model-value="onDraftValue" placeholder="What's on your mind, Sam?" aria-label="Write a post" :rows="3" :input-style="`color: ${postBg ? '#FFFFFF' : '#E8EFEA'}; font-size: 15px`"/>
 </div>
 <div role="group" aria-label="Post background color" style="display: flex; flex-wrap: wrap; align-items: center; gap: 7px; padding-left: 54px">
@@ -82,7 +82,7 @@
 <template v-for="(p, p__i) in posts" :key="p__i">
 <article style="border-radius: 16px; background: #16201C; border: 1px solid #24322C; display: flex; flex-direction: column; overflow: hidden">
 <div style="display: flex; gap: 12px; align-items: center; padding: 16px 16px 0">
-<div aria-hidden="true" :style="`width: 42px; height: 42px; border-radius: 50%; background: ${p.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700`">{{ p.initials }}</div>
+<UserAvatar :name="p.author" :initials="p.initials" :color="p.color" :size="42"/>
 <div style="flex: 1; display: flex; flex-direction: column"><strong style="font-size: 15px">{{ p.author }}<template v-if="p.saved"> <span style="font-size: 11px; color: #B8F36B; font-weight: 500">· Saved</span></template></strong><span style="font-size: 12px; color: #9DB0A6">{{ p.meta }}</span></div>
 <div style="position: relative"><button aria-label="Post options" aria-haspopup="menu" :aria-expanded="p.menuOpen" @click="p.toggleMenu" style="width: 36px; height: 36px; border-radius: 50%; border: 0; background: transparent; color: #9DB0A6; cursor: pointer; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="19" cy="12" r="1.8"></circle></svg></button>
 <template v-if="p.menuOpen"><div role="menu" aria-label="Post options" style="position: absolute; right: 0; top: 40px; z-index: 5; min-width: 170px; padding: 6px; border-radius: 12px; background: #1D2A25; border: 1px solid #34453D; box-shadow: 0 14px 30px rgba(0,0,0,0.45); display: flex; flex-direction: column"><template v-for="(mi, mi__i) in p.menuItems" :key="mi__i"><button role="menuitem" @click="mi.run" :style="`height: 38px; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; text-align: left; cursor: pointer; font-size: 14px; color: ${mi.danger ? '#FF9B8A' : '#E8EFEA'}`">{{ mi.label }}</button></template></div></template></div>
@@ -119,7 +119,7 @@
 <div style="margin: 10px 12px 0; padding: 12px; border-radius: 12px; background: #1A2520; border: 1px solid #2A3832; display: flex; flex-direction: column; gap: 10px">
 <span style="font-size: 13px; color: #C9D6CF">Share this post to a forum</span>
 <div style="display: flex; flex-wrap: wrap; gap: 8px">
-<template v-for="(t, t__i) in p.shareTargets" :key="t__i"><button @click="t.pick" style="height: 36px; padding: 0 12px 0 6px; border-radius: 18px; border: 1px solid #2A3832; background: #121B17; color: #E8EFEA; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 13px"><span :style="`width: 24px; height: 24px; border-radius: 7px; background: ${t.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 10px`">{{ t.initials }}</span>{{ t.name }}</button></template>
+<template v-for="(t, t__i) in p.shareTargets" :key="t__i"><button @click="t.pick" style="height: 36px; padding: 0 12px 0 6px; border-radius: 18px; border: 1px solid #2A3832; background: #121B17; color: #E8EFEA; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 13px"><UserAvatar :name="t.name" :initials="t.initials" :color="t.color" :size="24" radius="7px" :font-size="10"/>{{ t.name }}</button></template>
 <button @click="p.copyLink" style="height: 36px; padding: 0 14px; border-radius: 18px; border: 1px dashed #4A5C54; background: transparent; color: #E8EFEA; cursor: pointer; font-size: 13px">Copy link</button>
 </div>
 <span style="font-size: 13px; color: #C9D6CF; margin-top: 4px">Share outside Hub</span>
@@ -143,7 +143,7 @@
 <template v-for="n in p.commentTree" :key="n.key"><CommentNode :node="n"/></template>
 </div>
 <div v-if="!p.replyingAny" style="display: flex; gap: 8px; align-items: center; padding: 8px 16px 14px; border-top: 1px solid #24322C">
-<div aria-hidden="true" style="width: 32px; height: 32px; flex: none; border-radius: 50%; background: #C2185B; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 12px">S</div>
+<UserAvatar name="Sam" initials="S" color="#C2185B" :size="32" aria-label="Your profile photo"/>
 <CommentBox style="flex: 1" placeholder="Write a comment…" @send="p.addComment"/>
 </div>
 </div>
@@ -162,7 +162,7 @@
 <strong style="font-size: 15px">Online now</strong>
 <template v-for="(m, m__i) in onlineList" :key="m__i">
 <button @click="m.open" :aria-label="`View ${m.name}`" style="display: flex; gap: 10px; align-items: center; padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; text-align: left; font-family: inherit">
-<span :style="`position: relative; width: 34px; height: 34px; flex: none; border-radius: 50%; background: ${m.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px`">{{ m.initials }}<span style="position: absolute; right: -1px; bottom: -1px; width: 10px; height: 10px; border-radius: 50%; background: #B8F36B; border: 2px solid #16201C"></span></span>
+<span style="position: relative; width: 34px; height: 34px; flex: none"><UserAvatar :name="m.owner" :initials="m.initials" :color="m.color" :size="34" :font-size="12"/><span style="position: absolute; right: -1px; bottom: -1px; width: 10px; height: 10px; border-radius: 50%; background: #B8F36B; border: 2px solid #16201C"></span></span>
 <span style="font-size: 14px">{{ m.name }}</span>
 </button>
 </template>

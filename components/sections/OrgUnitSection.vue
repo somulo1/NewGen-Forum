@@ -19,7 +19,7 @@
 <div style="padding: 18px; border-radius: 16px; background: #16201C; border: 1px solid #24322C; display: flex; flex-direction: column; gap: 14px">
 <strong style="font-size: 15px">Activity</strong>
 <template v-for="(ac, ac__i) in ou.detail.activity" :key="ac__i">
-<div style="display: flex; gap: 10px; min-width: 0"><span aria-hidden="true" :style="`width: 32px; height: 32px; flex: none; border-radius: 50%; background: ${ac.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11px`">{{ ac.initials }}</span>
+<div style="display: flex; gap: 10px; min-width: 0"><UserAvatar :name="ac.who" :initials="ac.initials" :color="ac.color" :size="32" :font-size="11"/>
 <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px"><div style="display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline"><strong style="font-size: 13px">{{ ac.who }}</strong><span style="font-size: 12px; color: #9DB0A6">{{ ac.time }}</span></div>
 <template v-if="ac.isEvent"><span style="font-size: 13px; color: #C9D6CF">{{ ac.text }}</span></template>
 <template v-if="ac.isComment"><div style="padding: 8px 12px; border-radius: 4px 12px 12px 12px; background: #1F2C26; font-size: 14px; line-height: 1.45; overflow-wrap: anywhere">{{ ac.text }}</div></template></div></div>
