@@ -127,6 +127,17 @@
 <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 4px"><button style="height: 38px; border-radius: 10px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer; font-size: 13px">Copy email</button><button @click="shareProfile" style="height: 38px; border-radius: 10px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer; font-size: 13px">Share card</button></div>
 </div>
 
+<section v-if="!me.isOther" aria-label="Change password" style="padding: 18px; border-radius: 18px; background: #16201C; border: 1px solid #24322C; display: flex; flex-direction: column; gap: 12px">
+<div><strong style="font-size: 15px">Change password</strong><p style="margin: 4px 0 0; font-size: 12px; color: #9DB0A6">Choose a new password for your account.</p></div>
+<form @submit.prevent="changePassword" style="display: flex; flex-direction: column; gap: 10px">
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #9DB0A6">Current password<input v-model="currentPassword" type="password" autocomplete="current-password" required style="height: 38px; padding: 0 12px; border-radius: 10px; border: 1px solid #2A3832; background: #121B17; color: #E8EFEA; font-size: 14px"></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #9DB0A6">New password<input v-model="newPassword" type="password" autocomplete="new-password" minlength="8" required style="height: 38px; padding: 0 12px; border-radius: 10px; border: 1px solid #2A3832; background: #121B17; color: #E8EFEA; font-size: 14px"></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #9DB0A6">Confirm new password<input v-model="confirmPassword" type="password" autocomplete="new-password" minlength="8" required style="height: 38px; padding: 0 12px; border-radius: 10px; border: 1px solid #2A3832; background: #121B17; color: #E8EFEA; font-size: 14px"></label>
+<p v-if="passwordMessage" :role="passwordError ? 'alert' : 'status'" :style="`margin: 0; font-size: 13px; color: ${passwordError ? '#FF9B8A' : '#B8F36B'}`">{{ passwordMessage }}</p>
+<button type="submit" :disabled="passwordBusy" style="height: 40px; border-radius: 20px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">{{ passwordBusy ? 'Updating…' : 'Update password' }}</button>
+</form>
+</section>
+
 <div style="padding: 18px; border-radius: 18px; background: #16201C; border: 1px solid #24322C; display: flex; flex-direction: column; gap: 10px">
 <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #9DB0A6">Availability</span>
 <div style="display: flex; align-items: baseline; gap: 10px"><span style="font-family: 'Space Grotesk', sans-serif; font-size: 30px; font-weight: 600">{{ me.localTime }}</span><span style="font-size: 13px; color: #9DB0A6">local time</span></div>
@@ -169,6 +180,56 @@ import { hubBindings } from '~/composables/useHub';
 
 export default {
   name: 'ProfileSection',
-  ...hubBindings(["addSkill","cancelProfile","me","newSkillKey","onBio","onNewSkill","onPhone","onPhoto","profileBack","saveProfile","shareProfile","show","startEditProfile","toggleStatusMenu"])
+  ...hubBindings(["addSkill","cancelProfile","me","newSkillKey","onBio","onNewSkill","onPhone","onPhoto","profileBack","saveProfile","shareProfile","show","startEditProfile","toggleStatusMenu"]),
+  data() {
+    return { currentPassword: '', newPassword: '', confirmPassword: '', passwordMessage: '', passwordError: false, passwordBusy: false };
+  },
+  methods: {
+    async changePassword() {
+      this.passwordMessage = '';
+      this.passwordError = false;
+      if (this.newPassword.length < 8) {
+        this.passwordError = true;
+        this.passwordMessage = 'Use a password of at least 8 characters.';
+        return;
+      }
+      if (this.newPassword !== this.confirmPassword) {
+        this.passwordError = true;
+        this.passwordMessage = 'The new passwords do not match.';
+        return;
+      }
+      const session = useAuth().user();
+      const email = session && session.email;
+      if (!email) {
+        this.passwordError = true;
+        this.passwordMessage = 'Sign in to change your password.';
+        return;
+      }
+      this.passwordBusy = true;
+      try {
+        const accounts = useAccounts();
+        if (!accounts.get(email)) {
+          this.passwordError = true;
+          this.passwordMessage = 'No local account exists for this sign-in. Contact your administrator.';
+          return;
+        }
+        if (!await accounts.verifyPassword(email, this.currentPassword)) {
+          this.passwordError = true;
+          this.passwordMessage = 'Your current password is incorrect.';
+          return;
+        }
+        await accounts.setPassword(email, this.newPassword);
+        this.currentPassword = '';
+        this.newPassword = '';
+        this.confirmPassword = '';
+        this.passwordMessage = 'Password updated successfully.';
+      } catch (error) {
+        this.passwordError = true;
+        this.passwordMessage = 'Could not update your password. ' + (error instanceof Error ? error.message : String(error));
+      } finally {
+        this.passwordBusy = false;
+      }
+    }
+  }
 };
 </script>

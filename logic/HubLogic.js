@@ -24,6 +24,7 @@ import { callsActions } from '~/logic/actions/calls.js';
 import { uiActions } from '~/logic/actions/ui.js';
 import { forumActions } from '~/logic/actions/forums.js';
 import { onboardingActions } from '~/logic/actions/onboarding.js';
+import { peopleAdminActions } from '~/logic/actions/peopleAdmin.js';
 import { ticketCatActions } from '~/logic/actions/ticketCats.js';
 import { buildAccess } from '~/logic/views/access.js';
 import { buildForums } from '~/logic/views/forums.js';
@@ -101,7 +102,7 @@ export class HubLogic extends DCLogic {
   }
 }
 
-Object.assign(HubLogic.prototype, messagingActions, projectsActions, callsActions, uiActions, forumActions, onboardingActions, ticketCatActions);
+Object.assign(HubLogic.prototype, messagingActions, projectsActions, callsActions, uiActions, forumActions, onboardingActions, peopleAdminActions, ticketCatActions);
 
 const VIEW_STEPS = [buildAccess, buildReporting, buildForums, buildNav, buildWall, buildTickets, buildForumExtras, buildProjects, buildPeople, buildOnboarding, buildSecurity, buildRoles, buildTableHelpers, buildProjectTables, buildCalendar, buildProjectStandup, buildOrg, buildCatMgr, buildComms, buildAdminTables, buildReportingTab, buildSettings, buildAwards, buildHomeWidgets, buildProfile, buildWidgetSettings, buildCallState];
 const VAL_PARTS = [valsAccess, valsPages, valsProjects, valsTickets, valsShell, valsHome, valsWall, valsPanels];

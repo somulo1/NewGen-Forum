@@ -22,11 +22,30 @@ export function buildAdminTables(ctx) {
   const deskCats = Array.from(new Set(deskTickets.map((t) => t.cat))).map((c) => { const list = deskTickets.filter((t) => t.cat === c); return { name: c, total: list.length, open: list.filter((t) => t.step < 3).length, overdue: list.filter((t) => t._c.sla === 'Overdue').length }; }).sort((a, b) => b.open - a.open);
   const statusColP = { 'Available': '#B8F36B', 'In a meeting': '#FFB86B', 'Focusing': '#7CC4FF', 'Away': '#9DB0A6' };
   const peopleTable = { id: 'people', pageSize: 15, minWidth: '880px',
-    cols: [{ label: 'Person', filter: 'text' }].concat(has.departments ? [{ label: 'Department', filter: 'select' }] : []).concat(has.sectors ? [{ label: 'Sector', filter: 'select' }] : []).concat(has.branches ? [{ label: 'Branch', filter: 'select' }] : []).concat(has.units ? [{ label: 'Unit', filter: 'select' }] : []).concat([{ label: 'Status', filter: 'select' }, { label: '', align: 'right' }]),
-    rows: this.dir.map((p) => ({ cells: [C.p(p.name, { sub: p.title, dot: statusColP[p.status], fv: p.name })].concat(has.departments ? [C.t(p.dept)] : []).concat(has.sectors ? [C.t(p.sector)] : []).concat(has.branches ? [C.t(p.loc)] : []).concat(has.units ? [C.t(p.unit || '—', { fv: p.unit || 'No unit' })] : []).concat([
+    cols: [{ label: 'Person', filter: 'text' }].concat(has.departments ? [{ label: 'Department', filter: 'select' }] : []).concat(has.sectors ? [{ label: 'Sector', filter: 'select' }] : []).concat(has.branches ? [{ label: 'Branch', filter: 'select' }] : []).concat(has.units ? [{ label: 'Unit', filter: 'select' }] : []).concat([{ label: 'Status', filter: 'select' }, { label: 'Account', filter: 'select' }, { label: '', align: 'right' }]),
+    rows: this.dir.filter((p) => !(s.peopleAdmin[p.id] || {}).deleted).map((p) => {
+      const admin = s.peopleAdmin[p.id] || { active: true, blocked: false };
+      return { cells: [C.p(p.name, { sub: p.title, dot: statusColP[p.status], fv: p.name })].concat(has.departments ? [C.t(p.dept)] : []).concat(has.sectors ? [C.t(p.sector)] : []).concat(has.branches ? [C.t(p.loc)] : []).concat(has.units ? [C.t(p.unit || '—', { fv: p.unit || 'No unit' })] : []).concat([
       C.b(p.status, statusColP[p.status]),
-      C.a((has.chat ? [{ label: 'Message', run: () => this.openDm(p.name) }, { label: 'Call', run: () => this.startDmCall('voice', p.name, p.initials, p.color) }] : []).concat([{ label: 'Profile', kind: 'primary', run: () => this.setState({ personOpen: p.id }) }]).concat(can('people', 'Edit profiles') ? [{ label: 'Edit', run: () => this.openEditPerson(p.id) }] : []))]) })) };
-  const peopleSummary = this.dir.length + ' people' + (has.departments ? ' in ' + O.departments.length + ' departments' : '') + (has.branches ? ' across ' + O.branches.length + ' branches' : '') + ' · ' + this.dir.filter((p) => p.status === 'Available').length + ' available now';
+      C.b(admin.blocked ? 'Blocked' : admin.active ? 'Active' : 'Inactive', admin.blocked ? '#FF9B8A' : admin.active ? '#B8F36B' : '#9DB0A6'),
+      C.a((has.chat ? [{ label: 'Message', run: () => this.openDm(p.name) }, { label: 'Call', run: () => this.startDmCall('voice', p.name, p.initials, p.color) }] : []).concat([{ label: 'Profile', kind: 'primary', run: () => this.setState({ personOpen: p.id }) }]).concat(can('people', 'Edit profiles') ? [{ label: 'Edit', run: () => this.openEditPerson(p.id) }, { label: 'Action', run: () => this.setState({ userActionOpen: p.id, userResetTemp: '' }) }] : []))]) };
+    }) };
+  const peopleSummary = this.dir.filter((p) => !(s.peopleAdmin[p.id] || {}).deleted).length + ' people' + (has.departments ? ' in ' + O.departments.length + ' departments' : '') + (has.branches ? ' across ' + O.branches.length + ' branches' : '') + ' · ' + this.dir.filter((p) => p.status === 'Available' && (s.peopleAdmin[p.id] || { active: true }).active && !(s.peopleAdmin[p.id] || {}).deleted).length + ' available now';
+  const actionPerson = s.userActionOpen === null ? null : this.dir.find((p) => p.id === s.userActionOpen);
+  const actionAdmin = actionPerson && (s.peopleAdmin[actionPerson.id] || { active: true, blocked: false, deleted: false });
+  const userActions = {
+    open: !!(actionPerson && can('people', 'Edit profiles')),
+    name: actionPerson ? actionPerson.name : '',
+    email: actionPerson ? actionPerson.email : '',
+    active: !!(actionAdmin && actionAdmin.active),
+    blocked: !!(actionAdmin && actionAdmin.blocked),
+    tempPassword: s.userResetTemp,
+    activate: () => actionPerson && this.togglePersonActive(actionPerson.id),
+    toggleBlocked: () => actionPerson && this.togglePersonBlocked(actionPerson.id),
+    remove: () => actionPerson && this.deletePerson(actionPerson.id),
+    resetPassword: () => actionPerson && this.resetPersonPassword(actionPerson.id),
+    close: () => this.setState({ userActionOpen: null, userResetTemp: '' })
+  };
   const isoFromAgo = (m) => new Date(nowMs - m * 60000).toLocaleDateString('en-CA', tz9);
   const logsTable = { id: 'logs', pageSize: 12, minWidth: '1120px', emptyText: 'No log entries match.',
     cols: [{ label: 'When', filter: 'date' }, { label: 'User', filter: 'text' }, { label: 'Action', filter: 'text' }, { label: 'Module', filter: 'select' }, { label: 'IP · Location', filter: 'text' }, { label: 'Result', filter: 'select' }, { label: 'Flag', filter: 'select' }, { label: '', align: 'right' }],
@@ -123,5 +142,5 @@ export function buildAdminTables(ctx) {
     recs: ntRecs.map((r) => ({ label: r.name, pick: () => this.setState((x) => ({ nt: { ...x.nt, toType: ntType, toName: r.name } })), style: chip(ntName === r.name) })),
     recsLabel: ntType === 'desk' ? '' : 'Send to ' + LEVEL_LABEL[ntType].toLowerCase(),
     summary: ntType === 'desk' ? 'This organization has no departments, units, branches or sectors, so tickets go to the ticket desk.' : 'It will show on the ' + LEVEL_LABEL[ntType].toLowerCase() + ' dashboard of ' + ntName + '.' };
-  return { ntCats, ntCatSel, deskCats, deskTable, addToRole, alertsTable, approvalsTable, flowsTable, logsTable, membersTable, ntTargets, peopleSummary, peopleTable, rightsHint, rightsTable, roleBar, rolesTable, rolesTabs, rolesView, rulesTable, setRoleSel, ticketsTable };
+  return { ntCats, ntCatSel, deskCats, deskTable, addToRole, alertsTable, approvalsTable, flowsTable, logsTable, membersTable, ntTargets, peopleSummary, peopleTable, userActions, rightsHint, rightsTable, roleBar, rolesTable, rolesTabs, rolesView, rulesTable, setRoleSel, ticketsTable };
 }

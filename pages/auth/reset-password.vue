@@ -81,7 +81,15 @@ const setNew = async () => {
   if (strict && code.value.trim() !== st.otp2) { if (st.otp2Tries >= 5) { reset('Try again.'); return; } err.value = 'Incorrect code.'; save(); return; }
   if (strict && rules.value.some((r) => !r[1])) { err.value = 'Password does not meet the rules.'; return; }
   if (strict && pw.value !== pw2.value) { err.value = 'Passwords do not match.'; return; }
-  busy.value = true; await accounts.setPassword(st.email, pw.value); busy.value = false;
+  busy.value = true;
+  try {
+    await accounts.setPassword(st.email, pw.value);
+  } catch (error) {
+    err.value = 'Could not reset your password. ' + (error instanceof Error ? error.message : String(error));
+    busy.value = false;
+    return;
+  }
+  busy.value = false;
   try { sessionStorage.removeItem(KEY); } catch (e) { /* nothing to clear */ }
   navigateTo('/login?reset=1');
 };

@@ -16,7 +16,8 @@ export function seedDirectory() {
     const sec = br ? this.org.sectors.find((x) => x.id === br.sector) : null;
     const us = br ? this.org.units.filter((u) => u.branch === br.id) : [];
     const unit = us.length ? (i % (us.length + 1) === us.length ? '' : us[i % (us.length + 1)].name) : '';
-    this.dir.push({ id: i, name: first + ' ' + last, initials: first[0] + last[0], dept: d[0], title: d[1][i % d[1].length], loc: loc, sector: sec ? sec.name : '', unit: unit, color: cols[i % cols.length], status: sts[(i * 3) % sts.length] });
+    const name = first + ' ' + last;
+    this.dir.push({ id: i, name, email: name.toLowerCase().replace(/ /g, '.') + '.' + (i + 1) + '@company.com', initials: first[0] + last[0], dept: d[0], title: d[1][i % d[1].length], loc: loc, sector: sec ? sec.name : '', unit: unit, color: cols[i % cols.length], status: sts[(i * 3) % sts.length] });
   }
 
   // Named colleagues are part of the directory too
@@ -25,6 +26,6 @@ export function seedDirectory() {
     ['Mercy Wambui', 'Finance', 'Accountant', 'Head Office', '#FFB86B'], ['John Kamau', 'Logistics', 'Driver', 'West Branch', '#7CC4FF'], ['Lilian Chebet', 'Marketing', 'Marketing Officer', 'Head Office', '#F49AC1']].forEach(([name, dept, title, loc, color]) => {
     const br = this.org.branches.find((b) => b.name === loc);
     const sec = br ? this.org.sectors.find((x) => x.id === br.sector) : null;
-    this.dir.push({ id: this.dir.length, name: name, initials: name.split(' ').map((x) => x[0]).join(''), dept: dept, title: title, loc: loc, sector: sec ? sec.name : '', unit: '', color: color, status: 'Available' });
+    this.dir.push({ id: this.dir.length, name: name, email: name.toLowerCase().replace(/ /g, '.') + '.' + (this.dir.length + 1) + '@company.com', initials: name.split(' ').map((x) => x[0]).join(''), dept: dept, title: title, loc: loc, sector: sec ? sec.name : '', unit: '', color: color, status: 'Available' });
   });
 }
