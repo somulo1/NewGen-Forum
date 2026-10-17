@@ -34,7 +34,7 @@ export function buildProfile(ctx) {
   const withKind = (arr) => arr.map((a) => ({ ...a, kind: kindOf[a.tag] || 'Activity' }));
   const meOwn = {
     isOther: false, initials: 'S', color: '#C2185B', aboutTitle: 'About me', forumsTitle: 'My forums', reportsTo: reportOf('Samwel Okoth Omulo').display,
-    name: 'Samwel Okoth Omulo', role: 'Cybersecurity & Technology Risk Officer', dept: 'Risk & Compliance',
+    name: 'Samwel Okoth Omulo', email: '[you@company.com]', role: 'Cybersecurity & Technology Risk Officer', dept: 'Risk & Compliance',
     status: curStatus.label, statusColor: curStatus.color, statusNote: curStatus.note, statusMenu: s.statusMenu,
     statuses: statusDefs.map((x) => ({ ...x, pick: () => this.setState((st) => ({ statusMenu: false, profile: { ...st.profile, status: x.label } })) })),
     photo: pf.photo, hasPhoto: !!pf.photo, noPhoto: !pf.photo,

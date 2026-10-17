@@ -1,4 +1,14 @@
 // Initial state: admin.
+function readPeopleAdmin() {
+  if (typeof localStorage === 'undefined') return {};
+  try {
+    return JSON.parse(localStorage.getItem('hub-people-admin') || '{}');
+  } catch (error) {
+    console.warn('Could not load saved people account statuses.', error);
+    return {};
+  }
+}
+
 export function adminState() {
   return {
     orgOpen: false, ou: null, ouTab: 'comms', targets: {}, rolesTab: 'roles', memberRoles: {}, reportsTo: {}, personRights: {}, personReports: {}, reportsPerson: {}, reportPDraft: null, reportDraft: null,
@@ -9,7 +19,7 @@ export function adminState() {
       sectors: { Memo: { on: true, to: ['own', 'branches', 'departments'], sender: 'sector', approver: 'none' }, Announcement: { on: true, to: ['own', 'wall'], sender: 'sector', approver: 'admin' } },
       units: { Memo: { on: true, to: ['own'], sender: 'unit', approver: 'branch' }, Announcement: { on: false, to: ['own'], sender: 'unit', approver: 'branch' } }
     },
-    pq: '', pdept: 'All', ploc: 'All', pAvail: false, pview: 'grid', ppage: 0, personOpen: null, taskOpen: null, taskReminders: {},
+    pq: '', pdept: 'All', ploc: 'All', pAvail: false, pview: 'grid', ppage: 0, personOpen: null, userActionOpen: null, userResetTemp: '', peopleAdmin: readPeopleAdmin(), taskOpen: null, taskReminders: {},
     secTab: 'alerts', alertSt: { 'AL-112': 'Investigating' }, openOnly: true, lq: '', lmod: 'All', lres: 'All', lflag: false, lshow: 25,
     rulesOn: { r1: true, r2: true, r3: true, r4: true, r5: true, r6: true, r7: false }, ruleSev: {}, extraLogs: [],
     profileOf: null, roleSel: 'staff', roleTab: 'rights', rightsOv: {}, pendingRights: {}, actingRole: 'admin', apTab: 'waiting',
