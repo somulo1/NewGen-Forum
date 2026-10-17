@@ -1,4 +1,5 @@
 import { dmSamples, forumSamples } from '~/logic/samples.js';
+import { richTextHtml } from '~/logic/richText.js';
 // renderVals step: forums. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildForums(ctx) {
   const { s } = ctx;
@@ -74,13 +75,36 @@ export function buildForums(ctx) {
   this._replyKey = replyKey;
   const replyFn = (who, m) => () => this.setState({ replyTo: { key: replyKey, who, snippet: snip(m) } });
   const quote = (m) => ({ hasReply: !!m.replyTo, replyWho: m.replyTo ? m.replyTo.who : '', replySnippet: m.replyTo ? m.replyTo.snippet : '' });
-  const norm = (u) => ({ replies: 0, ...u, hasText: !!u.text, hasFile: !!u.file, fileList: [].concat(u.file || []), ...quote(u), hasShared: !!u.shared, sid: u.shared ? u.shared.sid : '', reply: replyFn(u.who === 'Sam' ? 'You' : u.who, u) });
-  const addedHere = (s.added[cur.id] || []).map(norm);
-  const baseMsgs = cur.updates.concat(forumSamples()).map(norm);
+  const fingerprint = (message) => encodeURIComponent([message.who || '', message.time || '', message.text || '', [].concat(message.file || []).map((file) => file.name || '').join(',')].join('|'));
+  const norm = (u, id) => ({ replies: 0, ...u, id: u.id || id, source: u, htmlText: richTextHtml(u.text), hasText: !!u.text, hasFile: !!u.file, fileList: [].concat(u.file || []), ...quote(u), hasShared: !!u.shared, sid: u.shared ? u.shared.sid : '', reply: replyFn(u.who === 'Sam' ? 'You' : u.who, u) });
+  const addedSource = s.added[cur.id] || [];
+  const addedHere = addedSource.map((message) => norm(message, 'forum-' + cur.id + '-added-' + fingerprint(message)));
+  const baseMsgs = cur.updates.concat(forumSamples()).map((message, index) => norm(message, 'forum-' + cur.id + '-sample-' + index));
+  const messageActions = (message, key, deleteForEveryone) => ({
+    messageKey: key,
+    menuOpen: s.messageMenu === key,
+    startHold: (event) => {
+      if (event.pointerType === 'mouse' && event.button !== 0) return;
+      clearTimeout(this._messageHoldTimer);
+      this._messageHoldTimer = setTimeout(() => this.setState({ messageMenu: key }), 550);
+    },
+    stopHold: () => clearTimeout(this._messageHoldTimer),
+    openActions: (event) => { event.preventDefault(); this.setState({ messageMenu: key }); },
+    closeActions: () => this.setState({ messageMenu: null }),
+    deleteForMe: () => this.setState((st) => ({ hiddenChatMessages: { ...st.hiddenChatMessages, [key]: true }, messageMenu: null })),
+    deleteForEveryone: deleteForEveryone ? () => { deleteForEveryone(); this.setState({ messageMenu: null }); } : null
+  });
   const fStyle = (m) => (m.who === 'Sam' || m.who === 'You'
     ? { ...m, who: 'You', mine: true, rowStyle: 'display:flex;gap:10px;flex-direction:row-reverse', bubbleStyle: 'max-width:78%;min-width:0;padding:10px 14px;border-radius:14px 4px 14px 14px;background:#2C3D34' }
     : { ...m, mine: false, rowStyle: 'display:flex;gap:10px', bubbleStyle: 'flex:1;min-width:0;padding:10px 12px;border-radius:4px 12px 12px 12px;background:#1A2520' });
-  const forumView = { ...cur, chat: baseMsgs.slice().reverse().concat(addedHere).map(fStyle), topics: addedHere.slice().reverse().concat(baseMsgs), subline: cur.online + ' online · live updates', dotColor: '#B8F36B' };
+  const forumMessages = baseMsgs.slice().reverse().concat(addedHere).map((message) => {
+    const key = 'forum:' + cur.id + ':' + message.id;
+    const source = message.source;
+    const canDeleteForEveryone = message.mine && addedSource.includes(source);
+    const actions = messageActions(message, key, canDeleteForEveryone ? () => this.setState((st) => ({ added: { ...st.added, [cur.id]: (st.added[cur.id] || []).filter((item) => item !== source) } })) : null);
+    return { ...fStyle(message), ...actions };
+  }).filter((message) => !s.hiddenChatMessages[message.messageKey]);
+  const forumView = { ...cur, chat: forumMessages, topics: forumMessages, subline: cur.online + ' online · live updates', dotColor: '#B8F36B' };
   // Private messages (share the forum panel)
   const dmStatusCol = { 'Available': '#B8F36B', 'In a meeting': '#FFB86B', 'Focusing': '#7CC4FF', 'Away': '#9DB0A6' };
   const dmPerson = (n) => this.dir.find((d) => d.name === n) || { name: n, initials: n.split(' ').map((x) => x[0]).join(''), color: '#C9B6FF', status: 'Available', title: '' };
@@ -89,14 +113,80 @@ export function buildForums(ctx) {
   let dmView = null;
   if (curDm) {
     const pr = dmPerson(curDm.with);
+    const secureShares = s.secureShares.filter((share) => share.recipient === curDm.with).map((share) => {
+      const now = Date.now();
+      const expired = !share.openedAt && now >= share.expiresAt;
+      const showingSecret = !!share.openedAt && !share.consumed && now < share.revealUntil;
+      return {
+        ...share, expired, showingSecret, unavailable: expired || !!share.openedAt, passwordValue: s.secureSharePasswords[share.id] || '',
+        onPassword: (e) => this.setState((st) => ({ secureSharePasswords: { ...st.secureSharePasswords, [share.id]: e.target.value } })),
+        unlock: () => {
+          const current = this.state.secureShares.find((item) => item.id === share.id);
+          if (!current || current.consumed || current.openedAt || Date.now() >= current.expiresAt) {
+            this.notify('This secure share has expired or has already been opened.', '#FFB86B');
+            return;
+          }
+          if ((this.state.secureSharePasswords[share.id] || '') !== current.password) {
+            this.notify('That link password is not correct.', '#FF9B8A');
+            return;
+          }
+          const revealUntil = Date.now() + 10000;
+          this.setState((st) => ({ secureShares: st.secureShares.map((item) => item.id === share.id ? { ...item, openedAt: Date.now(), revealUntil } : item), secureSharePasswords: { ...st.secureSharePasswords, [share.id]: '' } }));
+          this.notify('Secure share opened. Its contents will disappear in 10 seconds.', '#B8F36B');
+          setTimeout(() => this.setState((st) => ({ secureShares: st.secureShares.map((item) => item.id === share.id ? { ...item, consumed: true, revealUntil: 0 } : item) })), 10000);
+        }
+      };
+    });
+    const sharesById = Object.fromEntries(secureShares.map((share) => [share.id, share]));
+    const dmMessages = dmSamples(curDm.with).concat(curDm.msgs).map((m, index) => {
+      const mine = m.from === 'me';
+      const who = mine ? 'You' : m.from;
+      const pp = mine ? { initials: 'S', color: '#C2185B' } : dmPerson(m.from);
+      const key = 'dm:' + curDm.id + ':' + (m.id || 'legacy-' + fingerprint({ who: m.from, ...m }));
+      const actions = messageActions(m, key, mine ? () => {
+        if (curDm.msgs.includes(m)) {
+          this.setState((st) => ({
+            dms: st.dms.map((dm) => dm.id === curDm.id ? { ...dm, msgs: dm.msgs.filter((item) => item !== m) } : dm),
+            secureShares: m.secureShareId ? st.secureShares.filter((share) => share.id !== m.secureShareId) : st.secureShares
+          }));
+        } else {
+          this.setState((st) => ({ removedChatMessages: { ...st.removedChatMessages, [key]: true } }));
+        }
+      } : null);
+      return {
+        id: key, who, initials: pp.initials, color: pp.color, time: m.time, text: m.text || '', htmlText: richTextHtml(m.text),
+        hasText: !!m.text, hasFile: !!m.file, fileList: [].concat(m.file || []), ...quote(m), reply: replyFn(who, m),
+        replies: 0, mine, secureShare: sharesById[m.secureShareId] || null, hasSecureShare: !!sharesById[m.secureShareId],
+        rowStyle: 'display:flex;gap:10px;' + (mine ? 'flex-direction:row-reverse' : ''),
+        bubbleStyle: 'max-width:78%;min-width:0;padding:10px 14px;border-radius:' + (mine ? '14px 4px 14px 14px;background:#2C3D34' : '4px 14px 14px 14px;background:#1A2520'),
+        ...actions
+      };
+    }).filter((message) => !s.hiddenChatMessages[message.messageKey] && !s.removedChatMessages[message.messageKey]);
     dmView = { id: curDm.id, name: curDm.with, initials: pr.initials, color: pr.color, online: '', about: pr.title, subline: (pr.status || 'Available') + ' · private chat', dotColor: dmStatusCol[pr.status] || '#B8F36B', title: pr.title,
-      chat: dmSamples(curDm.with).concat(curDm.msgs).map((m) => { const mine = m.from === 'me'; const who = mine ? 'You' : m.from; const pp = mine ? { initials: 'S', color: '#C2185B' } : dmPerson(m.from);
-        return { who: who, initials: pp.initials, color: pp.color, time: m.time, text: m.text || '', hasText: !!m.text, hasFile: !!m.file, fileList: [].concat(m.file || []), ...quote(m), reply: replyFn(who, m), replies: 0, mine: mine,
-          rowStyle: 'display:flex;gap:10px;' + (mine ? 'flex-direction:row-reverse' : ''), bubbleStyle: 'max-width:78%;min-width:0;padding:10px 14px;border-radius:' + (mine ? '14px 4px 14px 14px;background:#2C3D34' : '4px 14px 14px 14px;background:#1A2520') }; }),
-      topics: [] };
+      chat: dmMessages, topics: [] };
   }
   const curView = isDM ? dmView : forumView;
+  const fileKindColor = { PDF: '#FF9B8A', DOC: '#7CC4FF', DOCX: '#7CC4FF', XLS: '#B8F36B', XLSX: '#B8F36B', PPT: '#FFB86B', PPTX: '#FFB86B', ZIP: '#C9B6FF', RAR: '#C9B6FF', '7Z': '#C9B6FF', IMG: '#F49AC1', VIDEO: '#6EE7C8' };
+  const fileFolders = curView.chat.flatMap((message, messageIndex) => {
+    if (!message.fileList.length) return [];
+    const attachedFiles = message.fileList.map((file) => {
+      const extension = (file.name || '').split('.').pop().toUpperCase();
+      const kind = file.isImg ? 'IMG' : file.isVideo ? 'VIDEO' : ({ PNG: 'IMG', JPG: 'IMG', JPEG: 'IMG', GIF: 'IMG', SVG: 'IMG', WEBP: 'IMG', MP4: 'VIDEO', WEBM: 'VIDEO', MOV: 'VIDEO' })[extension] || extension || 'FILE';
+      const previewKind = kind === 'IMG' ? 'image' : kind === 'VIDEO' ? 'video' : kind === 'PDF' ? 'pdf' : ['XLS', 'XLSX', 'CSV'].includes(kind) ? 'sheet' : ['PPT', 'PPTX'].includes(kind) ? 'slides' : ['ZIP', 'RAR', '7Z'].includes(kind) ? 'archive' : ['DOC', 'DOCX', 'TXT'].includes(kind) ? 'document' : 'file';
+      return { ...file, kind, previewKind, color: fileKindColor[kind] || '#9DB0A6' };
+    });
+    return [{
+      id: curView.id + ':' + messageIndex,
+      name: message.text || 'Shared files',
+      by: message.who,
+      time: message.time,
+      files: attachedFiles,
+      count: attachedFiles.length,
+      samples: attachedFiles.slice(0, 3).map((file, index) => ({ kind: file.kind, color: file.color, height: [88, 76, 82][index] }))
+    }];
+  });
+  const selectedChatFolder = fileFolders.find((folder) => folder.id === s.chatFileFolder) || null;
   this._chatKey = (isDM ? curDm.id : cur.id) + ':' + curView.chat.length;
   const wfiles = s.wfiles.map((w) => ({ ...w, notImg: !w.isImg, remove: () => this.setState((st) => ({ wfiles: st.wfiles.filter((x) => x.id !== w.id) })) }));
-  return { cur, curDm, curView, dmPerson, dmStatusCol, dmView, forums, forumsData, isDM, wfiles };
+  return { cur, curDm, curView, dmPerson, dmStatusCol, dmView, fileFolders, forums, forumsData, isDM, selectedChatFolder, wfiles };
 }

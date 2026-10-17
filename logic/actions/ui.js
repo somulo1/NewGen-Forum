@@ -51,9 +51,10 @@ export const uiActions = {
   componentDidUpdate() { this.scrollChat(); },
 
   scrollChat() {
-    if (this.chatEl && this._scrolledKey !== this._chatKey) {
+    if (this.chatEl && (this._scrolledKey !== this._chatKey || this._scrolledEl !== this.chatEl)) {
       this.chatEl.scrollTop = this.chatEl.scrollHeight;
       this._scrolledKey = this._chatKey;
+      this._scrolledEl = this.chatEl;
     }
   },
 

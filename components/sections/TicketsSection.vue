@@ -20,7 +20,7 @@
 <span style="font-size: 12px; color: #9DB0A6">{{ ntTargets.summary }}</span>
 </div>
 <div v-if="!ntCatSel.custom" style="display: flex; flex-direction: column; gap: 6px"><span style="font-size: 13px; color: #C9D6CF">Priority</span><div style="display: flex; flex-wrap: wrap; gap: 8px"><template v-for="(np, np__i) in ntPrios" :key="np__i"><button @click="np.pick" :style="np.style">{{ np.label }}</button></template></div></div>
-<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C9D6CF">Details<textarea rows="3" :value="nt.desc" @input="ntSetDesc" placeholder="Describe what happened and where" style="padding: 10px 12px; border-radius: 10px; border: 1px solid #2A3832; background: #121B17; color: #E8EFEA; font-size: 14px; resize: vertical"></textarea></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C9D6CF">Details<RichTextInput :model-value="nt.desc" @update:model-value="ntSetDesc" placeholder="Describe what happened and where" aria-label="Ticket details" :rows="4" input-style="font-size: 14px"/></label>
 <div style="display: flex; flex-direction: column; gap: 8px"><span style="font-size: 13px; color: #C9D6CF">Evidence <span style="color: #9DB0A6">(images or documents, optional)</span></span>
 <label style="position: relative; align-self: flex-start; height: 38px; padding: 0 14px; border-radius: 10px; border: 1px dashed #3A4A42; color: #E8EFEA; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 13px"><input type="file" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.ppt,.pptx" aria-label="Upload evidence" @change="ntAttach" style="position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer">Upload evidence</label>
 <template v-for="(nf, nf__i) in nt.files" :key="nf__i"><div style="display: flex; align-items: center; gap: 8px"><FileChip :name="nf.name" :meta="nf.meta" :url="nf.url" :is-img="nf.isImg" style="flex: 1"/><button type="button" :aria-label="`Remove ${nf.name}`" @click="() => ntRemoveFile(nf__i)" style="width: 32px; height: 32px; border-radius: 50%; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer">×</button></div></template></div>
@@ -54,7 +54,7 @@
 
 <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start">
 <div style="flex: 999 1 460px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
-<div style="padding: 18px; border-radius: 16px; background: #16201C; border: 1px solid #24322C; display: flex; flex-direction: column; gap: 8px"><strong style="font-size: 15px">Description</strong><p style="margin: 0; font-size: 14px; line-height: 1.6; color: #C9D6CF">{{ tk.desc }}</p></div>
+<div style="padding: 18px; border-radius: 16px; background: #16201C; border: 1px solid #24322C; display: flex; flex-direction: column; gap: 8px"><strong style="font-size: 15px">Description</strong><p v-html="tk.descHtml" style="margin: 0; font-size: 14px; line-height: 1.6; color: #C9D6CF; overflow-wrap: anywhere"></p></div>
 
 <div style="padding: 18px; border-radius: 16px; background: #16201C; border: 1px solid #24322C; display: flex; flex-direction: column; gap: 14px">
 <strong style="font-size: 15px">Activity</strong>
@@ -63,8 +63,8 @@
 <span aria-hidden="true" :style="`width: 34px; height: 34px; flex: none; border-radius: 50%; background: ${ac.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px`">{{ ac.initials }}</span>
 <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px">
 <div style="display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap"><strong style="font-size: 13px">{{ ac.who }}</strong><span style="font-size: 11px; color: #9DB0A6">{{ ac.time }}</span></div>
-<template v-if="ac.isEvent"><span style="font-size: 13px; color: #C9D6CF">{{ ac.text }}</span></template>
-<template v-if="ac.isComment"><div style="padding: 10px 12px; border-radius: 4px 14px 14px 14px; background: #1F2C26; font-size: 14px; line-height: 1.5; white-space: pre-line">{{ ac.text }}</div></template>
+<template v-if="ac.isEvent"><span v-html="ac.htmlText" style="font-size: 13px; color: #C9D6CF; overflow-wrap: anywhere"></span></template>
+<template v-if="ac.isComment"><div v-html="ac.htmlText" style="padding: 10px 12px; border-radius: 4px 14px 14px 14px; background: #1F2C26; font-size: 14px; line-height: 1.5; white-space: pre-line; overflow-wrap: anywhere"></div></template>
 <template v-if="ac.isFile"><FileChip :name="ac.text" :meta="ac.meta" :url="ac.url" :is-img="ac.isImg"/></template>
 </div>
 </div>
@@ -76,7 +76,7 @@
 <div style="display: flex; flex-wrap: wrap; gap: 6px; align-items: center"><span style="font-size: 12px; color: #9DB0A6">Tag:</span><template v-for="(tp, tp__i) in tagPeople" :key="tp__i"><button @click="tp.tag" style="height: 32px; padding: 0 12px; border-radius: 16px; border: 1px solid #2A3832; background: #121B17; color: #E8EFEA; cursor: pointer; font-size: 13px">@{{ tp.name }}</button></template></div>
 </template>
 <template v-if="!tk.closed">
-<label><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Comment</span><textarea rows="3" :value="tcomment" @input="onTComment" placeholder="Write a comment. Use Tag to mention someone and notify them." style="width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 12px; border: 1px solid #2A3832; background: #121B17; color: #E8EFEA; font-size: 14px; resize: vertical"></textarea></label>
+<label style="display: flex; flex-direction: column; gap: 5px"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Comment</span><RichTextInput :model-value="tcomment" @update:model-value="onTCommentValue" placeholder="Write a comment. Use Tag to mention someone." aria-label="Ticket comment" :rows="3" input-style="font-size: 14px"/></label>
 <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center">
 <label style="position: relative; height: 38px; padding: 0 12px; border-radius: 10px; border: 1px solid #2A3832; color: #E8EFEA; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 13px"><input type="file" multiple="" aria-label="Attach files to ticket" @change="attachTicket" style="position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11.5l-8.2 8.2a5 5 0 0 1-7.1-7.1L13.2 4a3.4 3.4 0 0 1 4.8 4.8l-8.5 8.5a1.8 1.8 0 0 1-2.5-2.5L14.8 7"></path></svg>Attach file</label>
 <EmojiButton :size="38" shape="10px" @pick="pickEmojiTicket"/>
@@ -152,7 +152,7 @@
 <select :value="esc.personValue" @change="esc.onPerson" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid #2A3832; background: #121B17; color: #E8EFEA; font-size: 14px"><option value="">Choose a person…</option><template v-for="(ep, ep__i) in esc.people" :key="ep__i"><option :value="ep.name">{{ ep.name }} · {{ ep.title }}</option></template></select></label>
 <template v-if="esc.noPeople"><span style="font-size: 12px; color: #FFB86B">Nobody is assigned to this category there yet.</span></template>
 </template>
-<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C9D6CF">Reason (optional)<textarea rows="2" :value="esc.why" @input="esc.onWhy" placeholder="Why is this being escalated?" style="padding: 8px 10px; border-radius: 10px; border: 1px solid #2A3832; background: #121B17; color: #E8EFEA; font-size: 14px; resize: vertical"></textarea></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C9D6CF">Reason (optional)<RichTextInput :model-value="esc.why" @update:model-value="esc.onWhy" placeholder="Why is this being escalated?" aria-label="Escalation reason" :rows="2"/></label>
 <button @click="esc.submit" :style="esc.btnStyle">Escalate</button>
 <span style="font-size: 12px; color: #9DB0A6">The ticket moves to the chosen person, takes the new category's TAT, and the change is logged in the activity.</span>
 </template>
@@ -169,6 +169,6 @@ import { hubBindings } from '~/composables/useHub';
 
 export default {
   name: 'TicketsSection',
-  ...hubBindings(["ticketBackLabel","pickEmojiTicket","attachTicket","canRaise","closeTicket","createTicket","esc","handover","has","nt","ntBtnStyle","ntCatSel","ntCats","ntTargets","ntOpen","ntPrios","ntSetDesc","ntAttach","ntRemoveFile","ntSetTitle","onTComment","postTComment","showTicketList","showTicketView","tagOpen","tagPeople","tcomment","myTicketStats","ticketStats","tickets","ticketsTable","tk","toggleNewTicket","toggleTag"])
+  ...hubBindings(["ticketBackLabel","pickEmojiTicket","attachTicket","canRaise","closeTicket","createTicket","esc","handover","has","nt","ntBtnStyle","ntCatSel","ntCats","ntTargets","ntOpen","ntPrios","ntSetDesc","ntAttach","ntRemoveFile","ntSetTitle","onTCommentValue","postTComment","showTicketList","showTicketView","tagOpen","tagPeople","tcomment","myTicketStats","ticketStats","tickets","ticketsTable","tk","toggleNewTicket","toggleTag"])
 };
 </script>

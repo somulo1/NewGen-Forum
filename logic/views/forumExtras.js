@@ -1,4 +1,5 @@
 import { FORUM_ROLES, MY_FORUM_ROLE, MY_NAME, agoLabel, chatAllowed, defaultPolicy, policySummary, pollCount, pollTotal } from '~/logic/polls.js';
+import { richTextHtml } from '~/logic/richText.js';
 
 // renderVals step: forumExtras. Polls, forum chat rules and private-chat privacy for whatever is open in the chat panel.
 export function buildForumExtras(ctx) {
@@ -34,14 +35,14 @@ export function buildForumExtras(ctx) {
   // ---- Polls in the open forum ----
   const forumPolls = isDM ? [] : s.polls.filter((p) => p.forum === fid).sort((a, b) => b.at - a.at);
   const pf = s.pollForm;
-  const setOpt = (i) => (e) => { const v = e.target.value; this.setState((st) => ({ pollForm: { ...st.pollForm, err: '', options: st.pollForm.options.map((o, j) => (j === i ? v : o)) } })); };
+  const setOpt = (i) => (e) => { const v = typeof e === 'string' ? e : e.target.value; this.setState((st) => ({ pollForm: { ...st.pollForm, err: '', options: st.pollForm.options.map((o, j) => (j === i ? v : o)) } })); };
   const pollView = { count: forumPolls.length, noPolls: forumPolls.length === 0, canCreate: chatGate.allowed, createHint: chatGate.allowed ? '' : chatGate.reason,
     openForm: () => this.setState({ pollForm: { forum: fid, question: '', options: ['', ''], err: '', members: cur.members } }),
     // The poll button next to attach and emoji: jump to the Polls view with the new-poll form open.
     compose: () => this.setState({ tab: 'polls', panelTab: 'polls', pollForm: { forum: fid, question: '', options: ['', ''], err: '', members: cur.members } }),
     form: pf ? { open: true, question: pf.question, err: pf.err, hasErr: !!pf.err, canAdd: pf.options.length < 6,
-      onQuestion: (e) => { const v = e.target.value; this.setState((st) => ({ pollForm: { ...st.pollForm, question: v, err: '' } })); },
-      options: pf.options.map((v, i) => ({ value: v, placeholder: 'Option ' + (i + 1), onInput: setOpt(i), canRemove: pf.options.length > 2,
+      onQuestion: (e) => { const v = typeof e === 'string' ? e : e.target.value; this.setState((st) => ({ pollForm: { ...st.pollForm, question: v, err: '' } })); },
+      options: pf.options.map((v, i) => ({ value: v, html: richTextHtml(v), placeholder: 'Option ' + (i + 1), onInput: setOpt(i), onValue: (value) => this.setState((st) => ({ pollForm: { ...st.pollForm, err: '', options: st.pollForm.options.map((option, index) => index === i ? value : option) } })), canRemove: pf.options.length > 2,
         remove: () => this.setState((st) => ({ pollForm: { ...st.pollForm, options: st.pollForm.options.filter((x, j) => j !== i) } })) })),
       addOption: () => this.setState((st) => ({ pollForm: { ...st.pollForm, options: st.pollForm.options.concat(['']) } })),
       submit: () => this.createPoll(), cancel: set({ pollForm: null }) } : { open: false },
@@ -49,13 +50,13 @@ export function buildForumExtras(ctx) {
       const total = pollTotal(p);
       const blockedMe = p.blocked.indexOf(MY_NAME) !== -1;
       const open = !p.locked && !blockedMe;
-      return { id: p.id, question: p.question, by: p.by, when: agoLabel(p.at, nowMs), locked: p.locked,
+      return { id: p.id, question: p.question, questionHtml: richTextHtml(p.question), by: p.by, when: agoLabel(p.at, nowMs), locked: p.locked,
         statusLabel: p.locked ? 'Voting blocked' : 'Live', statusColor: p.locked ? '#FFB86B' : '#B8F36B',
         totalLabel: total + (total === 1 ? ' vote' : ' votes') + ' · ' + p.members + ' members',
         note: blockedMe ? 'You are blocked from voting on this poll.' : p.locked ? 'Voting is blocked. These results are final.' : p.myVote ? 'You voted. Tap it again to take it back, or tap another option to change.' : 'Tap an option to vote. Results update live.',
         options: p.options.map((o) => {
           const c = pollCount(p, o), pct = total ? Math.round((c / total) * 100) : 0, mine = p.myVote === o.id;
-          return { id: o.id, label: o.label, count: c, pct, mine, canVote: open,
+          return { id: o.id, label: o.label, labelHtml: richTextHtml(o.label), count: c, pct, mine, canVote: open,
             rowStyle: 'position:relative;display:flex;flex-direction:column;gap:6px;width:100%;padding:10px 12px;border-radius:10px;text-align:left;font-family:inherit;color:#E8EFEA;background:#121B17;border:1px solid ' + (mine ? '#B8F36B' : '#24322C') + ';cursor:' + (open ? 'pointer' : 'default') + ';opacity:' + (open || mine ? '1' : '0.85'),
             barStyle: 'height:100%;width:' + pct + '%;background:' + (mine ? '#B8F36B' : '#3F524A') + ';border-radius:3px;transition:width .6s ease',
             vote: () => this.votePoll(p.id, o.id) };

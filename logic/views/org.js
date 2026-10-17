@@ -56,7 +56,7 @@ export function buildOrg(ctx) {
     hasCat: !!escCat, people: escPpl.map((p) => ({ name: p.name, title: p.title })), personValue: escPerson,
     noPeople: !!escCat && escPpl.length === 0,
     onPerson: (e) => setEsc({ person: e.target.value }),
-    why: ES.why, onWhy: (e) => setEsc({ why: e.target.value }),
+    why: ES.why, onWhy: (e) => setEsc({ why: typeof e === 'string' ? e : e.target.value }),
     btnStyle: 'height:42px;border-radius:10px;border:0;font-weight:600;cursor:pointer;font-size:14px;' + (escReady ? 'background:#FF9B8A;color:#0F1714' : 'background:#2A3832;color:#9DB0A6'),
     submit: () => {
       if (!cur_t || !escReady) { this.notify('Pick where to escalate, the category and the person.', '#FFB86B'); return; }

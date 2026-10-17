@@ -172,15 +172,8 @@
 </template>
 
 <template v-if="w.t.secureshare">
-<template v-if="w.shareMade">
-<div style="padding: 12px; border-radius: 12px; border: 1px solid #B8F36B; background: #1A2520; display: flex; flex-direction: column; gap: 6px"><code style="font-size: 13px; color: #D4FA9E; overflow: hidden; text-overflow: ellipsis">hub.[yourdomain]/s/7Kq2-xR9p</code><span style="font-size: 12px; color: #9DB0A6">Self-destructs on first open.</span></div>
-<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px"><button style="height: 38px; border-radius: 10px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">Copy link</button><button @click="w.resetShare" style="height: 38px; border-radius: 10px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer">New link</button></div>
-</template>
-<template v-if="w.shareIdle">
-<label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #C9D6CF">Secret<input type="text" placeholder="Password, API key…" style="height: 38px; padding: 0 12px; border-radius: 10px; border: 1px solid #2A3832; background: #121B17; color: #E8EFEA"></label>
-<label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #C9D6CF">Link password<input type="password" placeholder="Share it separately" style="height: 38px; padding: 0 12px; border-radius: 10px; border: 1px solid #2A3832; background: #121B17; color: #E8EFEA"></label>
-<button @click="w.makeShare" style="height: 40px; border-radius: 10px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">Create one-time link</button>
-</template>
+<span style="font-size: 13px; line-height: 1.45; color: #C9D6CF">Send a password-protected one-time secret to a colleague or copy a share link.</span>
+<button @click="w.makeShare" style="height: 40px; border-radius: 10px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">Open Secure Share</button>
 </template>
 
 <template v-if="w.t.wall">
@@ -365,6 +358,6 @@ import { hubBindings } from '~/composables/useHub';
 
 export default {
   name: 'HomeSection',
-  ...hubBindings(["awardStrip","awardsOn","canCustomize","canWidgetsPage","customizeBtnStyle","customizeLabel","customizing","noWidgets","openAward","openGallery","show","toggleCustomize","toggleNewDm","widgets"])
+  ...hubBindings(["awardStrip","awardsOn","canCustomize","canWidgetsPage","customizeBtnStyle","customizeLabel","customizing","noWidgets","openAward","openGallery","secureShare","show","toggleCustomize","toggleNewDm","widgets"])
 };
 </script>

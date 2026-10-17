@@ -48,7 +48,23 @@ export function useHubShell() {
     if (route.path !== r) router.push(r);
   });
 
-  onMounted(() => { if (logic.componentDidMount) logic.componentDidMount(); });
+  const openInAppSecureShare = (event) => {
+    if (!(event.target instanceof Element)) return;
+    const anchor = event.target.closest('a[href]');
+    if (!anchor) return;
+    const target = new URL(anchor.href, window.location.origin);
+    if (target.origin !== window.location.origin || !/^\/s\/[^/]+\/?$/.test(target.pathname)) return;
+    event.preventDefault();
+    router.push(target.pathname + target.search + target.hash);
+  };
+
+  onMounted(() => {
+    if (logic.componentDidMount) logic.componentDidMount();
+    document.addEventListener('click', openInAppSecureShare, true);
+  });
   watch(vals, () => { if (logic.componentDidUpdate) logic.componentDidUpdate(); }, { flush: 'post' });
-  onBeforeUnmount(() => { if (logic.componentWillUnmount) logic.componentWillUnmount(); });
+  onBeforeUnmount(() => {
+    document.removeEventListener('click', openInAppSecureShare, true);
+    if (logic.componentWillUnmount) logic.componentWillUnmount();
+  });
 }

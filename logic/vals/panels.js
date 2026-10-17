@@ -4,8 +4,8 @@ export function valsPanels(ctx) {
   return {
     panelStyle,
     chatCtl, chatGate, composerOff: !chatGate.allowed, composerNote: chatGate.reason, dmPriv, incomingView, pollView,
-    panelTab: s.panelTab, isPanelChat: s.panelTab !== 'polls' && s.panelTab !== 'calls', isPanelPolls: s.panelTab === 'polls', isPanelCalls: s.panelTab === 'calls',
-    goPanelChat: set({ panelTab: 'chat' }), goPanelPolls: set({ panelTab: 'polls' }), goPanelCalls: set({ panelTab: 'calls' }),
+    panelTab: s.panelTab, isPanelChat: s.panelTab === 'chat', isPanelPolls: s.panelTab === 'polls', isPanelCalls: s.panelTab === 'calls', isPanelFiles: s.panelTab === 'files',
+    goPanelChat: set({ panelTab: 'chat' }), goPanelPolls: set({ panelTab: 'polls' }), goPanelCalls: set({ panelTab: 'calls' }), goPanelFiles: set({ panelTab: 'files' }),
     callHistory: (() => {
       const { cur, curDm, dmView } = ctx;
       const mine = (e) => (isDM ? e.ctx === 'dm' && curDm && e.ref === curDm.with : e.ctx === 'forum' && cur && e.ref === cur.id);

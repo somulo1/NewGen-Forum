@@ -1,4 +1,5 @@
 import { recipientOf, recipientLabel } from '~/logic/ticketRouting.js';
+import { richTextHtml } from '~/logic/richText.js';
 
 // renderVals step: tickets. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildTickets(ctx) {
@@ -84,6 +85,7 @@ export function buildTickets(ctx) {
     const pauses = [ts.pause.weekends && 'weekends', ts.pause.holidays && 'public holidays', ts.pause.offhours && ('outside ' + ts.start + '–' + ts.end), ts.pause.onhold && 'on-hold time', ts.pause.awaiting && 'waiting for the requester'].filter(Boolean);
     tk = {
       ...cur_t,
+      descHtml: richTextHtml(cur_t.desc),
       prioStyle: prio(cur_t.prio),
       slaLabel: c.sla, slaColor: c.color, slaBadgeStyle: badge(c.color), remainingLabel: c.remainingLabel, paused: c.paused,
       slaBarStyle: 'height:100%;width:' + Math.max(4, c.pct) + '%;background:' + c.color + ';border-radius:4px',
@@ -106,7 +108,7 @@ export function buildTickets(ctx) {
           labelStyle: 'font-weight:' + (now ? '700' : '500') + ';color:' + (done || now ? '#E8EFEA' : '#9DB0A6')
         };
       }),
-      activity: cur_t.activity.map((a) => ({ ...a, initials: ini(a.who), color: pColor[a.who] || '#9DB0A6', isEvent: a.kind === 'event', isComment: a.kind === 'comment', isFile: a.kind === 'file', isImg: !!a.isImg, url: a.url || '', meta: a.meta || '' }))
+      activity: cur_t.activity.map((a) => ({ ...a, htmlText: richTextHtml(a.text), initials: ini(a.who), color: pColor[a.who] || '#9DB0A6', isEvent: a.kind === 'event', isComment: a.kind === 'comment', isFile: a.kind === 'file', isImg: !!a.isImg, url: a.url || '', meta: a.meta || '' }))
     };
   }
   const tagNames = ['Brian Kiprop', 'David Otieno', 'Amina Wanjiru', 'Grace Njeri', 'Faith Achieng', 'Kevin Mutua'];

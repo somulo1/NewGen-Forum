@@ -84,7 +84,7 @@ export const forumActions = {
       this.setState((st) => {
         const open = st.panelKind === 'dm' && st.dms.find((d) => d.id === st.dmId && d.with === name) && st.mode !== 'closed' && st.mode !== 'min';
         const exists = st.dms.some((d) => d.with === name);
-        const msg = { from: name, text: 'Hi Sam, do you have a minute?', time: 'Just now' };
+        const msg = { id: crypto.randomUUID(), from: name, text: 'Hi Sam, do you have a minute?', time: 'Just now' };
         const dms = exists ? st.dms.map((d) => (d.with === name ? { ...d, unread: open ? 0 : d.unread + 1, msgs: d.msgs.concat([msg]) } : d)) : [{ id: 'dm-' + Date.now(), with: name, unread: 1, msgs: [msg] }].concat(st.dms);
         return { dms };
       });
