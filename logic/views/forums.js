@@ -57,12 +57,15 @@ export function buildForums(ctx) {
   const openMode = s.mode === 'full' || s.mode === 'page' ? s.mode : 'docked';
   const forums = forumsData.map((f) => {
     const active = f.id === cur.id && s.mode !== 'closed';
+    const unread = s.forumRead && s.forumRead[f.id] ? 0 : f.unread;
     return {
       ...f,
-      hasUnread: f.unread > 0,
-      open: () => this.setState({ forum: f.id, panelKind: 'forum', mode: openMode, menu: false, tab: 'discussions', invite: false }),
+      unread,
+      hasUnread: unread > 0,
+      open: () => this.setState((st) => ({ forumRead: { ...st.forumRead, [f.id]: true }, forum: f.id, panelKind: 'forum', mode: openMode, menu: false, tab: 'discussions', invite: false })),
       rowStyle: 'display:flex;align-items:center;gap:10px;width:100%;min-height:44px;padding:4px 10px;border:0;border-radius:10px;cursor:pointer;text-align:left;font-size:14px;color:#E8EFEA;background:' + (active ? '#22302A' : 'transparent'),
-      chipStyle: 'flex:none;width:36px;height:36px;border-radius:10px;cursor:pointer;font-family:Space Grotesk,sans-serif;font-weight:700;font-size:12px;color:#0F1714;background:' + f.color + ';border:2px solid ' + (f.id === cur.id ? '#E8EFEA' : 'transparent') + ';opacity:' + (f.id === cur.id ? '1' : '0.65')
+      chipStyle: 'flex:none;width:36px;height:36px;border-radius:10px;cursor:pointer;font-family:Space Grotesk,sans-serif;font-weight:700;font-size:12px;color:#0F1714;background:' + f.color + ';border:2px solid ' + (f.id === cur.id ? '#E8EFEA' : 'transparent') + ';opacity:' + (f.id === cur.id ? '1' : '0.65'),
+      unreadStyle: 'position:absolute;top:-5px;right:-6px;min-width:17px;height:17px;padding:0 4px;box-sizing:border-box;border-radius:9px;background:#B8F36B;color:#0F1714;font:700 10px sans-serif;display:flex;align-items:center;justify-content:center;pointer-events:none'
     };
   });
   const snip = (m) => { const x = m.text || (m.file ? [].concat(m.file)[0].name : ''); return x.length > 90 ? x.slice(0, 90) + '…' : x; };
