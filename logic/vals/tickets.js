@@ -26,6 +26,7 @@ export function valsTickets(ctx) {
     ticketBackLabel: s.ticketFrom ? '‹ Back to ' + s.ticketFrom.label : 'All tickets',
     esc, tcomment: s.tcomment, tagOpen: s.tagOpen,
     onTComment: (e) => this.setState({ tcomment: e.target.value }),
+    onTCommentValue: (value) => this.setState({ tcomment: value }),
     toggleTag: () => this.setState((st) => ({ tagOpen: !st.tagOpen })),
     postTComment: () => {
       const text = this.state.tcomment.trim();
@@ -53,7 +54,7 @@ export function valsTickets(ctx) {
     ntSetTitle: (e) => { const v = e.target.value; this.setState((st) => ({ nt: { ...st.nt, title: v } })); },
     ntAttach: (e) => { const list = this.capFiles((this.state.nt.files || []).length, Array.from(e.target.files || [])).map((f) => this.fileInfo(f)); e.target.value = ''; this.setState((st) => ({ nt: { ...st.nt, files: (st.nt.files || []).concat(list) } })); },
     ntRemoveFile: (i) => this.setState((st) => ({ nt: { ...st.nt, files: (st.nt.files || []).filter((_, k) => k !== i) } })),
-    ntSetDesc: (e) => { const v = e.target.value; this.setState((st) => ({ nt: { ...st.nt, desc: v } })); },
+    ntSetDesc: (e) => { const v = typeof e === 'string' ? e : e.target.value; this.setState((st) => ({ nt: { ...st.nt, desc: v } })); },
     ntBtnStyle: 'height:40px;padding:0 20px;border-radius:10px;border:0;font-weight:600;cursor:pointer;' + (s.nt.title.trim() ? 'background:#B8F36B;color:#0F1714' : 'background:#2A3832;color:#9DB0A6'),
     createTicket: () => {
       const nt = this.state.nt;

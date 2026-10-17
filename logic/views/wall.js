@@ -1,4 +1,5 @@
 import { shareUrl } from '~/logic/shareOut.js';
+import { richTextHtml } from '~/logic/richText.js';
 // renderVals step: wall. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildWall(ctx) {
   const { can, flowById, forumsData, makeRequest, openPersonName, s } = ctx;
@@ -28,7 +29,7 @@ export function buildWall(ctx) {
   const buildComments = (p, list, path) => list.map((c, i) => {
     const here = path.concat([i]);
     const key = p.id + ':' + here.join('.');
-    return { key, who: c.who, initials: c.initials, color: c.color, text: c.text, time: c.time || '', depth: path.length, replying: s.replyFor === key,
+    return { key, who: c.who, initials: c.initials, color: c.color, text: c.text, htmlText: richTextHtml(c.text), time: c.time || '', depth: path.length, replying: s.replyFor === key,
       startReply: () => this.setState({ replyFor: key }), cancel: () => this.setState({ replyFor: null }),
       send: (text) => this.setState((st) => ({ replyFor: null, posts: st.posts.map((q) => (q.id === p.id ? { ...q, comments: addAt(q.comments || [], here, text) } : q)) })),
       replies: buildComments(p, c.replies || [], here) };
@@ -46,7 +47,7 @@ export function buildWall(ctx) {
     const closeMenu = { postMenu: null };
     const userPoll = userPollOf(p);
     return {
-      ...p,
+      ...p, htmlText: richTextHtml(p.text),
       menuOpen: s.postMenu === p.id,
       toggleMenu: () => this.setState((st) => ({ postMenu: st.postMenu === p.id ? null : p.id })),
       menuItems: [

@@ -9,9 +9,9 @@
 
 <template v-if="pollView.form.open">
 <form novalidate @submit.prevent="pollView.form.submit" aria-label="New poll" style="padding: 14px; border-radius: 14px; background: #121B17; border: 1px solid #B8F36B; display: flex; flex-direction: column; gap: 10px">
-<label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #9DB0A6">Question<input type="text" :value="pollView.form.question" @input="pollView.form.onQuestion" placeholder="What do you want to ask?" style="height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid #2A3832; background: #16201C; color: #E8EFEA; font-size: 14px"></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #9DB0A6">Question<RichTextInput :model-value="pollView.form.question" @update:model-value="pollView.form.onQuestion" placeholder="What do you want to ask?" aria-label="Poll question" :rows="2"/></label>
 <template v-for="(op, op__i) in pollView.form.options" :key="op__i">
-<div style="display: flex; gap: 6px"><input type="text" :aria-label="op.placeholder" :value="op.value" @input="op.onInput" :placeholder="op.placeholder" style="flex: 1; min-width: 0; height: 38px; padding: 0 12px; border-radius: 10px; border: 1px solid #2A3832; background: #16201C; color: #E8EFEA; font-size: 14px"><template v-if="op.canRemove"><button type="button" :aria-label="`Remove ${op.placeholder}`" @click="op.remove" style="width: 38px; height: 38px; border-radius: 10px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer">✕</button></template></div>
+<div style="display: flex; gap: 6px; align-items: flex-start"><RichTextInput style="flex: 1; min-width: 0" :model-value="op.value" @update:model-value="op.onValue" :aria-label="op.placeholder" :placeholder="op.placeholder" :rows="1"/><template v-if="op.canRemove"><button type="button" :aria-label="`Remove ${op.placeholder}`" @click="op.remove" style="width: 38px; height: 38px; border-radius: 10px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer">✕</button></template></div>
 </template>
 <template v-if="pollView.form.canAdd"><button type="button" @click="pollView.form.addOption" style="align-self: flex-start; height: 32px; padding: 0 14px; border-radius: 16px; border: 1px dashed #4A5C54; background: transparent; color: #E8EFEA; cursor: pointer; font-size: 12px">Add option</button></template>
 <template v-if="pollView.form.hasErr"><span role="alert" style="font-size: 13px; color: #FF9B8A">{{ pollView.form.err }}</span></template>
@@ -24,7 +24,7 @@
 <template v-for="(pl, pl__i) in pollView.polls" :key="pl.id">
 <article :aria-label="pl.question" style="padding: 14px; border-radius: 14px; background: #16201C; border: 1px solid #24322C; display: flex; flex-direction: column; gap: 10px">
 <div style="display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px">
-<div style="flex: 1 1 160px; min-width: 0; display: flex; flex-direction: column; gap: 2px"><strong style="font-size: 15px; line-height: 1.35">{{ pl.question }}</strong><span style="font-size: 12px; color: #9DB0A6">{{ pl.by }} · {{ pl.when }}</span></div>
+<div style="flex: 1 1 160px; min-width: 0; display: flex; flex-direction: column; gap: 2px"><strong v-html="pl.questionHtml" style="font-size: 15px; line-height: 1.35"></strong><span style="font-size: 12px; color: #9DB0A6">{{ pl.by }} · {{ pl.when }}</span></div>
 <span :style="`height: 24px; padding: 0 10px; border-radius: 12px; font-size: 11px; font-weight: 700; display: flex; align-items: center; background: ${pl.statusColor}22; color: ${pl.statusColor}`">{{ pl.statusLabel }}</span>
 <template v-if="pl.canControl"><button :aria-label="`Poll controls for ${pl.question}`" aria-haspopup="menu" @click="pl.toggleMenu" style="width: 30px; height: 30px; border-radius: 8px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer">⋯</button></template>
 </div>
@@ -40,7 +40,7 @@
 <div style="display: flex; flex-direction: column; gap: 8px">
 <template v-for="(op, op__i) in pl.options" :key="op.id">
 <button :disabled="!op.canVote" :aria-pressed="op.mine" @click="op.vote" :style="op.rowStyle">
-<span style="display: flex; align-items: center; gap: 8px; font-size: 14px"><span style="flex: 1; text-align: left">{{ op.label }}<template v-if="op.mine"> ✓</template></span><span style="font-size: 12px; color: #C9D6CF">{{ op.count }} · {{ op.pct }}%</span></span>
+<span style="display: flex; align-items: center; gap: 8px; font-size: 14px"><span v-html="op.labelHtml" style="flex: 1; text-align: left"></span><template v-if="op.mine"> ✓</template><span style="font-size: 12px; color: #C9D6CF">{{ op.count }} · {{ op.pct }}%</span></span>
 <span style="display: block; height: 6px; border-radius: 3px; background: #22302A; overflow: hidden"><span :style="op.barStyle" style="display: block"></span></span>
 </button>
 </template>
