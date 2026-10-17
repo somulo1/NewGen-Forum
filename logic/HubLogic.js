@@ -90,6 +90,11 @@ export class HubLogic extends DCLogic {
       } else if (patch.section !== undefined && patch.profileOf === undefined) {
         patch.profileOf = null;
       }
+      if (patch.section !== undefined && patch.section !== this.state.section &&
+          this.isMobileViewport() && ['dm', 'forum'].includes(this.state.panelKind) &&
+          !['closed', 'min'].includes(this.state.mode)) {
+        patch.mode = 'min';
+      }
     }
     super.setState(patch, done);
   }

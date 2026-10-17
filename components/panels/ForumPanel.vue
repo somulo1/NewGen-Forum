@@ -4,7 +4,7 @@
 <CallScreen variant="panel" />
 <button class="hub-grip" aria-label="Drag to resize panel. Arrow keys also resize." @pointerdown="startDrag" @keydown="resizeKey" style="position: absolute; left: 0; top: 0; bottom: 0; width: 14px; padding: 0; border: 0; background: transparent; cursor: ew-resize; z-index: 40; touch-action: none; display: flex; align-items: center; justify-content: center"><span :style="gripStyle"></span></button>
 <template v-if="!showPanelCall">
-<div class="hub-panel-header" style="display: flex; align-items: center; gap: 10px; padding: 14px 14px 12px 20px; border-bottom: 1px solid #24322C">
+<div class="hub-panel-header" style="position: relative; display: flex; align-items: center; gap: 10px; padding: 14px 58px 12px 20px; border-bottom: 1px solid #24322C">
 <UserAvatar :name="cur.name" :initials="cur.initials" :color="cur.color" :size="34" :font-size="13" radius="10px"/>
 <div class="hub-panel-name" style="flex: 1; min-width: 0; display: flex; flex-direction: column"><strong style="font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ cur.name }}</strong><span style="font-size: 12px; color: #9DB0A6"><span :style="`color: ${cur.dotColor}`">●</span> {{ cur.subline }}</span></div>
 <div class="hub-panel-actions" style="display: flex; align-items: center; gap: 2px; flex: none">
@@ -19,8 +19,8 @@
 </div></template>
 </div>
 <button aria-label="Minimize forum" @click="toMin" style="width: 36px; height: 36px; border-radius: 9px; border: 0; background: transparent; color: #C9D6CF; cursor: pointer; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 18h14"></path></svg></button>
-<button aria-label="Close forum panel" @click="toClosed" style="width: 36px; height: 36px; border-radius: 9px; border: 0; background: transparent; color: #C9D6CF; cursor: pointer; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
 </div>
+<button :aria-label="isDM ? 'Close chat panel' : 'Close forum panel'" :title="isDM ? 'Close chat' : 'Close forum'" @click="toClosed" style="position: absolute; top: 10px; right: 10px; z-index: 41; width: 38px; height: 38px; padding: 0; border-radius: 50%; border: 1px solid #2A3832; background: #16201C; color: #E8EFEA; cursor: pointer; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
 </div>
 <div style="display: flex; gap: 8px; padding: 10px 14px; border-bottom: 1px solid #24322C; overflow-x: auto">
 <template v-for="(f, f__i) in panelChips" :key="f__i">

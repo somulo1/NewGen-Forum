@@ -37,17 +37,22 @@
 </div>
 </section>
 </template>
+<div style="padding: 16px; border: 1px solid #2A3832; border-radius: 20px; background: #121B17">
 <div style="columns: 300px; column-gap: 16px">
 <template v-for="(w, w__i) in widgets" :key="w__i">
 <section :aria-label="w.title" :style="w.cardStyle + (w.hidden ? ';opacity: 0.5' : '')">
-<div style="display: flex; align-items: center; gap: 10px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px">
+<div style="flex: 1 1 100%; min-width: 0; display: flex; align-items: center; gap: 10px">
 <span :style="`width: 10px; height: 10px; flex: none; border-radius: 50%; background: ${w.tint}`"></span>
-<div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><strong style="font-size: 15px">{{ w.title }}</strong><span style="font-size: 12px; color: #9DB0A6">{{ w.sub }}</span></div>
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><strong style="font-size: 15px; line-height: 1.3; overflow-wrap: anywhere">{{ w.title }}</strong><span style="font-size: 12px; color: #9DB0A6; line-height: 1.4; overflow-wrap: anywhere">{{ w.sub }}</span></div>
+</div>
 <template v-if="w.customizing">
+<div style="flex: 1 1 100%; min-width: 0; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px">
 <button :aria-label="`${w.hideLabel} ${w.title}`" @click="w.toggleHide" style="height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer; font-size: 13px">{{ w.hideLabel }}</button>
 <button :aria-label="`Settings for ${w.title}`" @click="w.openSettings" style="height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 12px"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3.5"></circle><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"></path></svg>Settings</button>
 <button :aria-label="`Move ${w.title} earlier`" @click="w.moveUp" style="width: 32px; height: 32px; border-radius: 8px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"></path></svg></button>
 <button :aria-label="`Remove ${w.title}`" @click="w.remove" style="width: 32px; height: 32px; border-radius: 8px; border: 1px solid #5A3A36; background: transparent; color: #FF9B8A; cursor: pointer; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+</div>
 </template>
 </div>
 
@@ -345,9 +350,7 @@
 </template>
 </section>
 </template>
-<template v-if="customizing">
-<button v-if="canWidgetsPage" @click="openGallery" style="width: 100%; break-inside: avoid; margin: 0 0 16px; min-height: 160px; border-radius: 18px; border: 2px dashed #3F524A; background: transparent; color: #C9D6CF; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; font-size: 14px"><svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>Add a widget</button>
-</template>
+</div>
 </div>
 </div>
 </template>

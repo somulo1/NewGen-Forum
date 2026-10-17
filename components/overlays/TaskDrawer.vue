@@ -1,6 +1,6 @@
 <!-- Project task drawer -->
 <template><template v-if="taskOpen">
-<div class="hub-overlay" style="position: fixed; inset: 0; z-index: 64; background: rgba(5,10,8,0.55); display: flex; justify-content: flex-end">
+<div class="hub-overlay hub-right-drawer" style="position: fixed; inset: 0; z-index: 64; background: rgba(5,10,8,0.55); display: flex; justify-content: flex-end">
 <div role="dialog" aria-label="Task details" style="width: 520px; max-width: 100%; height: 100%; background: #16201C; border-left: 1px solid #2A3832; display: flex; flex-direction: column">
 <div style="flex: none; display: flex; align-items: center; gap: 12px; padding: 16px 20px; border-bottom: 1px solid #24322C">
 <span :style="`width: 34px; height: 34px; border-radius: 10px; background: ${td.pcolor}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 12px`">{{ td.pinitials }}</span>

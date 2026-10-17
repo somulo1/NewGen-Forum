@@ -1,4 +1,4 @@
-import { defaultTaskDue, milestoneTimeline, nextSprintName, sprintDefaults, sprintTimeline, taskContext, todayIso as isoToday, validateMilestone, validateSprint, validateTask } from '~/logic/projects.js';
+import { addDaysIso, defaultTaskDue, milestoneTimeline, nextSprintName, normalizeProject, sprintDefaults, sprintTimeline, taskContext, todayIso as isoToday, validateMilestone, validateSprint, validateTask } from '~/logic/projects.js';
 
 // renderVals step: projects. Project > milestone > sprint > task. Progress is always calculated from the tasks.
 export function buildProjects(ctx) {
@@ -26,6 +26,80 @@ export function buildProjects(ctx) {
   const canMs = can('projects', 'Manage milestones');
   const canEditT = can('projects', 'Edit tasks');
   const initialsOf = (n) => n.split(' ').map((x) => x[0]).join('').slice(0, 2);
+  const openProjectForm = () => {
+    if (!has.projects || !can('projects', 'Create project')) return;
+    const start = today;
+    this.setState({ projectForm: { name: '', goal: '', owner: 'Samwel Okoth Omulo', team: ['Samwel Okoth Omulo'], teamQuery: '', start, due: addDaysIso(start, 29), budget: '', err: '' } });
+  };
+  let projectForm = { open: false };
+  if (s.projectForm && has.projects && can('projects', 'Create project')) {
+    const f = s.projectForm;
+    const ownerOptions = [{ name: 'Samwel Okoth Omulo', color: '#C2185B' }].concat(this.dir.map((p) => ({ name: p.name, color: p.color })))
+      .filter((p, i, all) => all.findIndex((other) => other.name === p.name) === i);
+    const owners = ownerOptions.map((p) => ({ v: p.name, l: p.name }));
+    const setField = (key) => (e) => {
+      const value = key === 'team' ? Array.from(e.target.selectedOptions, (option) => option.value) : e.target.value;
+      this.setState((st) => {
+        const next = { ...st.projectForm, [key]: value, err: '' };
+        if (key === 'owner' && !next.team.includes(value)) next.team = next.team.concat([value]);
+        return { projectForm: next };
+      });
+    };
+    projectForm = {
+      open: true, ...f, owners,
+      selectedTeam: f.team.map((name) => {
+        const member = ownerOptions.find((p) => p.name === name) || { color: '#9DB0A6' };
+        return { name, initials: ini(name), color: member.color, removable: name !== f.owner };
+      }),
+      teamResults: ownerOptions.filter((p) => p.name.toLowerCase().includes((f.teamQuery || '').trim().toLowerCase())).slice(0, 40)
+        .map((p) => ({ name: p.name, initials: ini(p.name), color: p.color, selected: f.team.includes(p.name), toggle: () => this.setState((st) => {
+          const team = st.projectForm.team.includes(p.name) ? st.projectForm.team.filter((n) => n !== p.name) : st.projectForm.team.concat([p.name]);
+          return { projectForm: { ...st.projectForm, team, err: '' } };
+        }) })),
+      onName: setField('name'), onGoal: setField('goal'), onOwner: setField('owner'),
+      onTeamQuery: setField('teamQuery'), onStart: setField('start'), onDue: setField('due'),
+      removeTeamMember: (name) => this.setState((st) => ({ projectForm: { ...st.projectForm, team: st.projectForm.team.filter((n) => n !== name), err: '' } })),
+      onBudget: setField('budget'), cancel: () => this.setState({ projectForm: null }),
+      submit: () => {
+        const name = f.name.trim(), goal = f.goal.trim();
+        const budget = f.budget === '' ? 0 : Number(f.budget);
+        let err = '';
+        if (!name) err = 'Enter a project name.';
+        else if (s.projects.some((p) => p.name.trim().toLowerCase() === name.toLowerCase())) err = 'A project with that name already exists.';
+        else if (!goal) err = 'Describe the project goal.';
+        else if (!f.owner) err = 'Choose a project owner.';
+        else if (!f.start || !f.due || f.due < f.start) err = 'Choose a due date on or after the start date.';
+        else if (!Number.isFinite(budget) || budget < 0) err = 'Enter a valid non-negative budget.';
+        if (err) { this.setState({ projectForm: { ...f, err } }); return; }
+
+        const id = 'project-' + Date.now();
+        const usedCodes = new Set(s.projects.map((p) => p.code));
+        let codeNumber = Math.max(0, ...s.projects.map((p) => Number((p.code.match(/\d+/) || [0])[0])).filter(Number.isFinite)) + 1;
+        let code = 'PRJ-' + String(codeNumber).padStart(2, '0');
+        while (usedCodes.has(code)) { codeNumber++; code = 'PRJ-' + String(codeNumber).padStart(2, '0'); }
+        const owner = ownerOptions.find((p) => p.name === f.owner) || { color: '#9DB0A6' };
+        const project = normalizeProject({
+          id, name, code, color: owner.color, owner: f.owner,
+          team: Array.from(new Set([f.owner, ...f.team])),
+          status: 'On track', goal, start: f.start, due: f.due, budget, sync: 'Not synced',
+          tickets: [], milestones: [{ id: id + '-m1', name: 'Project delivery', iso: f.due }],
+          sprints: [], tasks: [],
+          activity: [{ text: 'Project created by Samwel Okoth Omulo', time: 'Just now' }]
+        });
+        const flow = this._flowById ? this._flowById('f2') : null;
+        this.setState({ projectForm: null });
+        if (flow && flow.levels > 0 && this._makeRequest) {
+          this._makeRequest('f2', 'New project: ' + name, {
+            kind: 'project', project,
+            note: 'Goal: ' + goal + ' · Owner: ' + f.owner + ' · Dates: ' + f.start + ' to ' + f.due + ' · Budget: ' + budget
+          });
+        } else {
+          this.setState((st) => ({ projects: [project].concat(st.projects) }));
+          this.notify('Project "' + name + '" created.', '#B8F36B');
+        }
+      }
+    };
+  }
   const projCalc = (p) => {
     const total = p.tasks.length, done = p.tasks.filter((t) => t.col === 3).length;
     const progress = total ? Math.round((done / total) * 100) : 0;
@@ -48,7 +122,7 @@ export function buildProjects(ctx) {
     { label: 'At risk', n: projects.filter((p) => p.status === 'At risk').length, color: '#FFB86B' },
     { label: 'Off track', n: projects.filter((p) => p.status === 'Off track').length, color: '#FF9B8A' }
   ];
-  const cur_p = s.projects.find((p) => p.id === s.projectOpen);
+  const cur_p = has.projects ? s.projects.find((p) => p.id === s.projectOpen) : null;
   let pj = {};
   let tools = {};
   if (cur_p) {
@@ -204,7 +278,7 @@ export function buildProjects(ctx) {
   // ---- Task detail ----
   let td = {};
   const to = s.taskOpen;
-  const tp = to && s.projects.find((p) => p.id === to.pid);
+  const tp = has.projects && to && s.projects.find((p) => p.id === to.pid);
   const tt = tp && tp.tasks[to.ti];
   if (tt) {
     const inf = taskInfo(tt);
@@ -255,5 +329,6 @@ export function buildProjects(ctx) {
     const inf = taskInfo(t);
     if (inf.overdue) taskNotifs.push({ text: 'Task "' + t.title + '" (' + p.name + ') is ' + inf.overDays + ' overdue. Reminded ' + t.primary + (t.secondary ? ' and ' + t.secondary : '') + '.', color: '#FF9B8A', time: 'Today', ticket: null, task: { pid: p.id, ti: i } });
   }));
-  return { canEditT, canMs, cur_p, msd, nowMs, pj, projStats, projects, projTools: tools, taskNotifs, td, today, tt };
+  if (!has.projects) msd.open = false;
+  return { canEditT, canMs, cur_p, msd, nowMs, openProjectForm, projectForm, pj, projStats, projects, projTools: tools, taskNotifs, td, today, tt };
 }

@@ -54,6 +54,12 @@ export function buildRoles(ctx) {
       } else {
         this.setState((st) => {
           const out = { requests: st.requests.map((x) => (x.id === rq.id ? { ...x, history: hist, status: 'Approved' } : x)) };
+          if (rq.kind === 'project' && rq.project && st.widgets.includes('projects')) {
+            out.projects = [rq.project].concat(st.projects.filter((p) => p.id !== rq.project.id));
+            out.section = 'projects';
+            out.projectOpen = rq.project.id;
+            out.projectForm = null;
+          }
           if (rq.kind === 'rights') { out.rightsOv = { ...st.rightsOv, [rq.key]: rq.val }; out.pendingRights = Object.fromEntries(Object.entries(st.pendingRights).filter(([k]) => k !== rq.key)); }
           if (rq.kind === 'award') {
             const a = st.awardList.find((x) => x.id === rq.awardId);
@@ -83,7 +89,8 @@ export function buildRoles(ctx) {
           if (a) (a.forums || []).forEach((fid) => this.addForumMsg(fid, 'Award: ' + a.type + ' · Congratulations ' + a.people.map((n) => '@' + n).join(', ') + '!' + (a.poster ? ' (poster attached)' : ''), a.poster ? { name: 'Award poster.png', meta: 'Image', url: a.poster, isImg: true } : undefined));
         }
         if (rq.kind === 'personEdit') this.applyPersonEdit(rq.changes);
-        this.notify(rq.id + ' fully approved: ' + rq.title + (rq.kind === 'award' ? '. Everyone awarded was tagged and notified.' : '.'), '#B8F36B');
+        const projectReady = rq.kind === 'project' && this.state.projects.some((p) => rq.project && p.id === rq.project.id);
+        this.notify(rq.id + ' fully approved: ' + rq.title + (rq.kind === 'award' ? '. Everyone awarded was tagged and notified.' : projectReady ? '. The project is now open in Projects.' : rq.kind === 'project' ? '. Projects is disabled, so it was not added.' : '.'), '#B8F36B');
       }
     };
     return { ...rq, modName: modInfo[f.mod] ? modInfo[f.mod][0] : '', steps, statusLabel: pending ? 'Level ' + rq.level + ' of ' + L : rq.status, statusStyle: badge(stC),
