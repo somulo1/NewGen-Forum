@@ -250,12 +250,13 @@ npm run preview
 
 Configure the Render web service with:
 
-- **Build Command:** `npm install && npm run build`
+- **Build Command:** `npm ci && npm run build`
 - **Start Command:** `npm start`
 
 Do not use `npm run dev` as the service start command. The production script runs
 Nuxt's Nitro server, which listens on Render's assigned port and network
-interface.
+interface. Clear Render's build cache before the first deployment with the
+locked dependencies to remove any stale Nuxt installation.
 
 ## 🎯 Key Features
 
