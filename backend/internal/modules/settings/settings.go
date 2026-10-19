@@ -143,6 +143,9 @@ func (m *Module) SetSecurity(ctx context.Context, p *tenant.Principal, in orgset
 	if r := in.Retention; r != "3" && r != "6" && r != "12" && r != "24" && r != "60" {
 		return httpx.Bad("Choose how long to keep records from the list.")
 	}
+	if v := in.MaxVideoMB; v != "5" && v != "10" && v != "25" && v != "50" && v != "100" {
+		return httpx.Bad("Choose a video size limit from the list.")
+	}
 	if len(in.Domains) > 500 {
 		return httpx.Bad("Too many domains.")
 	}
