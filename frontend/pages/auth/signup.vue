@@ -10,6 +10,7 @@ const questionList = SECURITY_QUESTIONS;
 const qs = ref([SECURITY_QUESTIONS[0], SECURITY_QUESTIONS[1], SECURITY_QUESTIONS[2]]);
 const ans = ref(['', '', '']);
 const err = ref('');
+const busy = ref(false);
 const submit = async () => {
   err.value = '';
   const e = email.value.trim();
@@ -19,9 +20,16 @@ const submit = async () => {
     if (new Set(qs.value).size < 3) { err.value = 'Choose three different security questions.'; return; }
     if (ans.value.some((a) => a.trim().length < 2)) { err.value = 'Answer all three security questions.'; return; }
   }
-  await useAccounts().create(name.value.trim(), e, password.value, qs.value.map((q, i) => ({ q, a: ans.value[i] })));
-  useAuth().signIn(name.value.trim(), e);
-  navigateTo('/');
+  busy.value = true;
+  try {
+    await useBackend().signup(name.value, e, password.value, qs.value.map((q, i) => ({ question: q, answer: ans.value[i] })));
+    await useAuth().signIn(e, password.value);
+    await navigateTo('/');
+  } catch (x) {
+    err.value = x instanceof Error ? x.message : 'Could not create your account.';
+  } finally {
+    busy.value = false;
+  }
 };
 </script>
 <template>
@@ -42,7 +50,7 @@ const submit = async () => {
       </template>
     </fieldset>
     <span v-if="err" role="alert" style="color: #C0392B; font-size: 13px">{{ err }}</span>
-    <button type="submit" style="height: 46px; border-radius: 23px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 700; font-size: 15px; cursor: pointer">Create account</button>
+    <button type="submit" :disabled="busy" style="height: 46px; border-radius: 23px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 700; font-size: 15px; cursor: pointer">Create account</button>
     <span style="text-align: center; font-size: 12px; color: var(--k-6B7A72,#6B7A72)">By creating an account you accept the <NuxtLink to="/terms" target="_blank" style="color: #2F7A12">Terms</NuxtLink> and <NuxtLink to="/privacy" target="_blank" style="color: #2F7A12">Privacy Policy</NuxtLink>.</span>
     <span style="text-align: center; color: var(--k-55645C,#55645C)">Already have an account? <NuxtLink to="/login" style="color: #2F7A12; font-weight: 600">Sign in</NuxtLink></span>
   </form>

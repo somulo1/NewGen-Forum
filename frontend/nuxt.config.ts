@@ -5,7 +5,7 @@ export default defineNuxtConfig({
   devtools: { enabled: false },
   components: [{ path: '~/components', pathPrefix: false }],
   css: ['~/assets/hub.css', '~/assets/theme-light.css'],
-  runtimeConfig: { public: { apiBase: '' } }, // set NUXT_PUBLIC_API_BASE when the backend exists
+  runtimeConfig: { public: { apiBase: 'http://localhost:8080' } }, // override with NUXT_PUBLIC_API_BASE
   vue: { compilerOptions: { whitespace: 'preserve' } },
   app: {
     head: {

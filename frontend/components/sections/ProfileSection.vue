@@ -207,6 +207,14 @@ export default {
       }
       this.passwordBusy = true;
       try {
+        if (useBackend().signedIn()) {
+          await useBackend().post('/auth/password', { current_password: this.currentPassword, new_password: this.newPassword });
+          this.currentPassword = '';
+          this.newPassword = '';
+          this.confirmPassword = '';
+          this.passwordMessage = 'Password updated successfully.';
+          return;
+        }
         const accounts = useAccounts();
         if (!accounts.get(email)) {
           this.passwordError = true;

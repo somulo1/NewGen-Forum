@@ -1,18 +1,12 @@
-// Demo sign-in: no backend yet, so anything signs you in. The "session" is one entry in the browser's storage.
-const KEY = 'hub-auth';
-
+// Signed-in state comes from the backend session (see useBackend). user() keeps its old shape for existing callers.
 export const useAuth = () => {
-  const read = () => {
-    try { const v = localStorage.getItem(KEY); return v ? JSON.parse(v) : null; } catch (e) { return null; }
-  };
+  const be = useBackend();
   return {
-    user: read,
-    signIn(name: string, email: string) {
-      try { localStorage.setItem(KEY, JSON.stringify({ name: name || (email ? email.split('@')[0] : 'Sam'), email: email || '' })); } catch (e) { /* storage blocked: stay signed out */ }
-    },
+    user: () => { const s = be.session(); return s ? { name: s.name, email: s.email } : null; },
+    signIn: (email: string, password: string, totp = '') => be.login(email, password, totp),
     // A full reload also clears everything the app holds in memory.
-    signOut() {
-      try { localStorage.removeItem(KEY); } catch (e) { /* nothing to clear */ }
+    async signOut() {
+      await be.logout();
       window.location.assign('/login');
     }
   };
