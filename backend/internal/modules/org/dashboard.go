@@ -54,6 +54,7 @@ type ReqRow struct {
 	Status       string    `json:"status"`
 	OK           bool      `json:"ok"`
 	Counterparty string    `json:"cp"`
+	By           string    `json:"by"`
 	Level        int       `json:"level"`
 	Levels       int       `json:"levels"`
 	Approvers    []string  `json:"approvers"`
@@ -232,7 +233,8 @@ func (s *Service) Dashboard(ctx context.Context, p *tenant.Principal, id uuid.UU
 				}
 			} else {
 				r.Dir, r.Counterparty = "Received", dept
-				need := (inUnit + 1) / 2
+				// a unit has acknowledged a broadcast when a quarter of its people (at least one) have opened it
+				need := max(1, (inUnit+3)/4)
 				switch {
 				case onTime >= need && inUnit > 0:
 					r.Status, r.OK = "Acknowledged on time", true
@@ -256,7 +258,7 @@ func (s *Service) Dashboard(ctx context.Context, p *tenant.Principal, id uuid.UU
 			  exists (select 1 from hub.approval_steps s where s.request_id = r.id and s.approver in `+um+`),
 			  exists (select 1 from hub.people pe left join hub.person_roles pr on pr.person_id = pe.id left join hub.roles ro on ro.id = pr.role_id
 			     where pe.id in `+um+` and r.status = 'Pending' and (lower(pe.title) = lower(f.approvers[r.level]) or lower(coalesce(ro.name,'')) = lower(f.approvers[r.level]))),
-			  coalesce(dx.name, '')
+			  coalesce(dx.name, ''), rq.first_name || ' ' || rq.last_name
 			from hub.approval_requests r join hub.approval_flows f on f.key = r.flow_key
 			join hub.people rq on rq.id = r.requester left join hub.org_units dx on dx.id = rq.department_id
 			where r.created_at > $2 and r.status <> 'Cancelled'
@@ -276,7 +278,7 @@ func (s *Service) Dashboard(ctx context.Context, p *tenant.Principal, id uuid.UU
 			var decided *time.Time
 			var sent, decidedHere, waitingHere bool
 			var dept, status string
-			if err := rs.Scan(&r.ID, &seq, &enc, &r.Level, &status, &created, &decided, &r.Levels, &r.Approvers, &sent, &decidedHere, &waitingHere, &dept); err != nil {
+			if err := rs.Scan(&r.ID, &seq, &enc, &r.Level, &status, &created, &decided, &r.Levels, &r.Approvers, &sent, &decidedHere, &waitingHere, &dept, &r.By); err != nil {
 				rs.Close()
 				return err
 			}
@@ -447,4 +449,37 @@ func (s *Service) Dashboard(ctx context.Context, p *tenant.Principal, id uuid.UU
 	d.Perf = pct(okAll, nAll)
 	_ = strings.TrimSpace
 	return d, nil
+}
+
+type UnitPerf struct {
+	ID     uuid.UUID       `json:"id"`
+	Kind   string          `json:"kind"`
+	Perf   int             `json:"perf"`
+	Target int             `json:"target"`
+	Parts  map[string]Part `json:"parts"`
+}
+
+// Performance gives every unit the caller may open a one-line summary (for the org overview cards and widgets). Building
+// it reads each unit's records (capped at 200 units), so callers should cache the answer for a minute or so.
+func (s *Service) Performance(ctx context.Context, p *tenant.Principal) ([]UnitPerf, error) {
+	units, err := s.Structure(ctx, p)
+	if err != nil {
+		return nil, err
+	}
+	out := []UnitPerf{}
+	for i, u := range units {
+		if i >= 200 {
+			break
+		}
+		d, err := s.Dashboard(ctx, p, u.ID, 30)
+		var he *httpx.Error
+		if errors.As(err, &he) && he.Status == 403 {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, UnitPerf{ID: u.ID, Kind: u.Kind, Perf: d.Perf, Target: d.Target, Parts: d.Parts})
+	}
+	return out, nil
 }

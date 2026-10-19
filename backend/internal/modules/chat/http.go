@@ -327,6 +327,37 @@ func (s *Service) Private(r chi.Router) {
 		httpx.JSON(w, 200, map[string]any{"messages": m})
 		return nil
 	}))
+	// What changed since a point (new and removed messages), for keeping an open conversation current cheaply.
+	r.Get("/conversations/{id}/changes", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
+		p, err := tenant.MustOrg(r.Context())
+		if err != nil {
+			return err
+		}
+		id, err := cid(r)
+		if err != nil {
+			return err
+		}
+		q := r.URL.Query()
+		since, err := time.Parse(time.RFC3339Nano, q.Get("since"))
+		if err != nil {
+			return httpx.Bad("Bad sync marker.")
+		}
+		var after *uuid.UUID
+		if v := q.Get("after"); v != "" {
+			a, err := uuid.Parse(v)
+			if err != nil {
+				return httpx.Bad("Bad sync marker.")
+			}
+			after = &a
+		}
+		n, _ := strconv.Atoi(q.Get("limit"))
+		page, err := s.Changes(r.Context(), p, id, since, after, n)
+		if err != nil {
+			return err
+		}
+		httpx.JSON(w, 200, page)
+		return nil
+	}))
 	r.Delete("/conversations/{id}/messages/{mid}", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
 		p, err := tenant.MustOrg(r.Context())
 		if err != nil {

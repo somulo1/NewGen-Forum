@@ -166,6 +166,103 @@ func (s *Service) History(ctx context.Context, p *tenant.Principal, conv uuid.UU
 
 func itoa(n int) string { return strconv.Itoa(n) }
 
+// SyncPage is one page of Changes. When More is false the client stores Since (and an empty After) and asks with it next
+// time; when true it asks again at once with Since and After to read the rest.
+type SyncPage struct {
+	Messages []Message `json:"messages"`
+	More     bool      `json:"more"`
+	Since    time.Time `json:"next_since"`
+	After    string    `json:"next_after,omitempty"`
+}
+
+// syncOverlap is how far a finished catch-up steps back from "now". A message's created_at is set when its insert runs,
+// so a slow transaction can become visible a moment after a read that was already past that time. Reading the last
+// minute again (the client drops ids it already has) means such a message is picked up next time instead of lost.
+const syncOverlap = "60 seconds"
+
+// Changes lists what happened in a conversation from `since` on, oldest change first: messages stored since then and
+// messages removed since then (marked deleted, without their ciphertext). (since, after) is a position in that order;
+// a page holds at most `limit` rows. Clients use it to keep an open conversation current without re-reading its history.
+func (s *Service) Changes(ctx context.Context, p *tenant.Principal, conv uuid.UUID, since time.Time, after *uuid.UUID, limit int) (*SyncPage, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 100
+	}
+	page := &SyncPage{Messages: []Message{}}
+	err := s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
+		if _, _, _, _, err := s.lockConvNoLock(ctx, tx, p, conv); err != nil {
+			return err
+		}
+		var first int
+		if err := tx.QueryRow(ctx, `select first_epoch from hub.conversation_members where conversation_id=$1 and account_id=$2`, conv, p.Account).Scan(&first); err != nil {
+			return err
+		}
+		// the database clock decides "now", so app servers with drifting clocks agree
+		var floor time.Time
+		if err := tx.QueryRow(ctx, `select clock_timestamp() - interval '`+syncOverlap+`'`).Scan(&floor); err != nil {
+			return err
+		}
+		afterID := uuid.Nil
+		if after != nil {
+			afterID = *after
+		}
+		// two index-backed halves (stored since / removed since), merged and ordered by when each last changed
+		rs, err := tx.Query(ctx, `
+			with changed as (
+				select m.id, coalesce(m.deleted_at, m.created_at) as at
+				  from hub.messages m where m.org_id=$1 and m.conversation_id=$2 and m.created_at >= $3 and m.epoch >= $4
+				union
+				select m.id, m.deleted_at as at
+				  from hub.messages m where m.org_id=$1 and m.conversation_id=$2 and m.deleted_at >= $3 and m.epoch >= $4
+			), ranked as (
+				select id, max(at) as at from changed group by id
+			)
+			select m.id, m.sender_account, m.sender_person, m.sender_device, coalesce(pe.first_name || ' ' || pe.last_name, ''), m.epoch, m.ciphertext, m.content_type, m.reply_to, m.created_at, m.deleted_at is not null, r.at
+			  from ranked r join hub.messages m on m.org_id=$1 and m.id=r.id
+			  left join hub.people pe on pe.id = m.sender_person
+			 where (r.at, r.id) > ($3::timestamptz, $5::uuid)
+			 order by r.at, r.id
+			 limit `+itoa(limit+1), p.Org, conv, since, first, afterID)
+		if err != nil {
+			return err
+		}
+		defer rs.Close()
+		var lastAt time.Time
+		for rs.Next() {
+			m := Message{Conversation: conv}
+			var ct []byte
+			var at time.Time
+			if err := rs.Scan(&m.ID, &m.SenderAccount, &m.SenderPerson, &m.SenderDevice, &m.SenderName, &m.Epoch, &ct, &m.Type, &m.ReplyTo, &m.CreatedAt, &m.Deleted, &at); err != nil {
+				return err
+			}
+			if len(page.Messages) == limit {
+				page.More = true
+				break
+			}
+			if !m.Deleted {
+				m.Envelope = base64.StdEncoding.EncodeToString(ct)
+			}
+			page.Messages = append(page.Messages, m)
+			lastAt = at
+		}
+		if err := rs.Err(); err != nil {
+			return err
+		}
+		switch {
+		case page.More:
+			page.Since, page.After = lastAt, page.Messages[len(page.Messages)-1].ID.String()
+		case floor.After(since):
+			page.Since = floor
+		default:
+			page.Since = since
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return page, nil
+}
+
 // Delete removes a message for everyone. The author can always do it; moderators need the Moderate right. The ciphertext
 // is erased, and the removal is recorded in the audit log.
 func (s *Service) Delete(ctx context.Context, p *tenant.Principal, conv, id uuid.UUID) error {

@@ -122,4 +122,16 @@ func (s *Service) Private(r chi.Router) {
 		w.WriteHeader(204)
 		return nil
 	}))
+	r.Get("/org/performance", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
+		p, err := tenant.MustOrg(r.Context())
+		if err != nil {
+			return err
+		}
+		l, err := s.Performance(r.Context(), p)
+		if err != nil {
+			return err
+		}
+		httpx.JSON(w, 200, map[string]any{"units": l})
+		return nil
+	}))
 }
