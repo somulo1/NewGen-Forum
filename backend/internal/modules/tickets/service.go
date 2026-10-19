@@ -405,6 +405,11 @@ type Action struct {
 	Assignees []uuid.UUID `json:"assignees,omitempty"`
 	Step      *int        `json:"step,omitempty"`
 	Priority  string      `json:"priority,omitempty"`
+	// escalate: where it goes (a desk, sector, branch, unit or department), who takes it there, and why
+	ToType string     `json:"to_type,omitempty"`
+	ToRef  *uuid.UUID `json:"to_ref,omitempty"`
+	Person *uuid.UUID `json:"person,omitempty"`
+	Why    string     `json:"why,omitempty"`
 	// At backdates the change (history loading only; not settable over HTTP).
 	At *time.Time `json:"-"`
 }
@@ -516,12 +521,58 @@ func (s *Service) Act(ctx context.Context, p *tenant.Principal, id uuid.UUID, a 
 			if err := need("Assign & hand over"); err != nil {
 				return err
 			}
-			if cur.Escalated {
+			if cur.Escalated && a.ToType == "" {
 				return httpx.Err(409, "already_escalated", "This ticket was already escalated.")
 			}
+			a.Why = strings.TrimSpace(a.Why)
+			if len(a.Why) > 300 {
+				return httpx.Bad("Keep the reason under 300 characters.")
+			}
 			set, text = "escalated=true", "Escalated to "+cfg.Escalate
-			if err := s.notifyEscalation(ctx, tx, &nb, p.Org, cur, cfg); err != nil {
-				return err
+			if a.ToType == "" && a.Person == nil {
+				if err := s.notifyEscalation(ctx, tx, &nb, p.Org, cur, cfg); err != nil {
+					return err
+				}
+				break
+			}
+			dest := "the ticket desk"
+			if a.ToType != "" {
+				if a.ToType == "desk" {
+					args = append(args, "desk", (*uuid.UUID)(nil))
+				} else {
+					if a.ToRef == nil {
+						return httpx.Bad("Choose where to escalate it.")
+					}
+					var name string
+					if err := tx.QueryRow(ctx, `select name from hub.org_units where id=$1 and kind=$2`, *a.ToRef, a.ToType).Scan(&name); err != nil {
+						return httpx.Bad("That " + a.ToType + " does not exist.")
+					}
+					dest = "the " + a.ToType + " " + name
+					args = append(args, a.ToType, a.ToRef)
+				}
+				set += fmt.Sprintf(", to_type=$%d, to_ref=$%d", len(args)-1, len(args))
+			}
+			if a.Person != nil {
+				var name string
+				if err := tx.QueryRow(ctx, `select first_name || ' ' || last_name from hub.people p where id=$1 and status='active' and exists (select 1 from hub.conversation_members m where m.conversation_id=$2 and m.account_id=p.account_id and m.left_at is null)`, *a.Person, id).Scan(&name); err != nil {
+					return httpx.Bad("That person cannot take this ticket: they are not part of its conversation. Add them first.")
+				}
+				args = append(args, *a.Person)
+				set += fmt.Sprintf(", handler=$%d, handler_since=now(), step=greatest(step,1)", len(args))
+				dest += " (" + name + ")"
+				if _, err := tx.Exec(ctx, `insert into hub.ticket_assignees (org_id, ticket_id, person_id) values ($1,$2,$3) on conflict do nothing`, p.Org, id, *a.Person); err != nil {
+					return err
+				}
+				if err := s.A.Sign.Seal(ctx, tx, "ticket_assignees", "ticket_id=$1", id); err != nil {
+					return err
+				}
+				if err := nb.Add(ctx, tx, p.Org, *a.Person, "ticket", cur.Ref+" was escalated to you.", "#FF9B8A", cur.Ref); err != nil {
+					return err
+				}
+			}
+			text = "Escalated to " + dest
+			if a.Why != "" {
+				text += ": " + a.Why
 			}
 		case "priority":
 			if err := need("Assign & hand over"); err != nil {
