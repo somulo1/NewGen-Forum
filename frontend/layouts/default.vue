@@ -49,7 +49,6 @@
 
 <OnboardDialog />
 
-<StructureDialog />
 
 <WidgetSettingsDrawer />
 

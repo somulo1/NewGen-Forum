@@ -1,4 +1,5 @@
 import { DCLogic } from '~/utils/dcLogic.js';
+import { stopRing, stopRingback } from '~/logic/tones.js';
 import { coreState } from '~/logic/state/core.js';
 import { awardsState } from '~/logic/state/awards.js';
 import { calendarState } from '~/logic/state/calendar.js';
@@ -100,12 +101,19 @@ export class HubLogic extends DCLogic {
       }
     }
     super.setState(patch, done);
+    // A ringtone only plays while a call is incoming and not yet answered; a ringback only until the call connects.
+    if (patch && ('incoming' in patch || 'call' in patch)) {
+      const st = this.state;
+      if (!st.incoming || st.call) stopRing();
+      if (st.call && st.call.connected) stopRingback();
+    }
   }
   renderVals() {
     const ctx = {};
-    for (const step of VIEW_STEPS) Object.assign(ctx, step.call(this, ctx));
+    const prof = this._prof;   // development: { stepName: ms } filled in when set
+    for (const step of VIEW_STEPS) { const t0 = prof ? performance.now() : 0; Object.assign(ctx, step.call(this, ctx)); if (prof) prof[step.name] = (prof[step.name] || 0) + performance.now() - t0; }
     const out = {};
-    for (const part of VAL_PARTS) Object.assign(out, part.call(this, ctx));
+    for (const part of VAL_PARTS) { const t0 = prof ? performance.now() : 0; Object.assign(out, part.call(this, ctx)); if (prof) prof[part.name] = (prof[part.name] || 0) + performance.now() - t0; }
     return out;
   }
 }

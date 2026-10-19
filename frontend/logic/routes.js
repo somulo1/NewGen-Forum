@@ -10,6 +10,7 @@ export const sectionRoutes = {
   "structure": "/structure",
   "orgunit": "/org",
   "people": "/people",
+  "orgedit": "/org-structure",
   "security": "/security",
   "roles": "/roles",
   "projects": "/projects",

@@ -2,6 +2,7 @@
 // A note can be shared with a person or a forum, read only or editable. Shares are live links: receivers find the note under Files,
 // and if the sender stops sharing (or removes the Notes widget from Home) they lose access until it is shared / added again.
 import { noteText as plain, notesConnected, isMine, permLabel } from '~/logic/noteText.js';
+import * as notesW from '~/logic/server/widgets/notes.js';
 
 export function buildNotes(ctx) {
   const { s, forumsData } = ctx;
@@ -26,36 +27,35 @@ export function buildNotes(ctx) {
 
   // ---- Sharing ----
   const forumName = (id) => (forumsData.find((f) => f.id === id) || { name: id }).name;
-  const shareLabel = (sh) => (sh.kind === 'forum' ? forumName(sh.to) + ' (forum Files)' : sh.toName);
+  const shareLabel = (sh) => (sh.kind === 'forum' ? (sh.toName || forumName(sh.to)) + ' (forum Files)' : sh.toName);
   const addShare = (note, sh) => this.setState((st) => ({ notes: st.notes.map((x) => (x.id === note.id ? { ...x, shares: (x.shares || []).concat([sh]) } : x)) }));
   const stopShare = (note, sh) => {
+    if (this.srv) { notesW.stopShare(this, this.srv, note, sh.id).then(() => flash('Stopped sharing with ' + shareLabel(sh) + '.')).catch((e) => flash(e.message || 'Could not stop sharing.')); return; }
     this.setState((st) => ({
       notes: st.notes.map((x) => (x.id === note.id ? { ...x, shares: (x.shares || []).filter((y) => y.id !== sh.id) } : x)),
       added: sh.kind === 'forum' ? { ...st.added, [sh.to]: (st.added[sh.to] || []).filter((m) => ![].concat(m.file || []).some((f) => f.shareId === sh.id)) } : st.added
     }));
     flash('Stopped sharing with ' + shareLabel(sh) + '.');
   };
-  const setPerm = (note, sh, perm) => this.setState((st) => ({ notes: st.notes.map((x) => (x.id === note.id ? { ...x, shares: (x.shares || []).map((y) => (y.id === sh.id ? { ...y, perm } : y)) } : x)) }));
+  const setPerm = (note, sh, perm) => this.srv ? notesW.setPerm(this, this.srv, note, sh.id, perm).catch((e) => flash(e.message || 'Could not change access.')) : this.setState((st) => ({ notes: st.notes.map((x) => (x.id === note.id ? { ...x, shares: (x.shares || []).map((y) => (y.id === sh.id ? { ...y, perm } : y)) } : x)) }));
   const sp = s.noteShare;
   const people = this.dir.map((p) => p.name).filter((n) => n !== 'Sam').sort();
   const sendShare = (note) => {
     const perm = sp.perm || 'view';
-    const id = 'sh' + Date.now();
     if (sp.kind === 'forum') {
       const f = forumsData.find((x) => x.id === sp.to);
       if (!f) { set({ noteShare: { ...sp, err: 'Choose a forum.' } }); return; }
       if ((note.shares || []).some((x) => x.kind === 'forum' && x.to === f.id)) { set({ noteShare: { ...sp, err: 'Already shared with ' + f.name + '.' } }); return; }
-      addShare(note, { id, kind: 'forum', to: f.id, toName: f.name, perm, at: Date.now() });
-      this.addForumMsg(f.id, '', [{ name: (note.title || 'Untitled') + '.note', meta: 'Note · ' + permLabel(perm), noteId: note.id, shareId: id }]);
-      flash('Sent to ' + f.name + '. It is in the forum Files tab.');
     } else {
       const name = (sp.to || '').trim();
       if (!people.includes(name)) { set({ noteShare: { ...sp, err: 'Pick a person from the list.' } }); return; }
-      if ((note.shares || []).some((x) => x.kind === 'person' && x.to === name)) { set({ noteShare: { ...sp, err: 'Already shared with ' + name + '.' } }); return; }
-      addShare(note, { id, kind: 'person', to: name, toName: name, perm, at: Date.now() });
-      flash('Shared with ' + name + '. They will find it under Files.');
+      if ((note.shares || []).some((x) => x.kind === 'person' && x.toName === name)) { set({ noteShare: { ...sp, err: 'Already shared with ' + name + '.' } }); return; }
     }
-    set({ noteShare: { ...sp, to: '', err: '' } });
+    if (!this.srv) { set({ noteShare: { ...sp, err: 'Sign in to share notes.' } }); return; }
+    set({ noteShare: { ...sp, busy: true, err: '' } });
+    notesW.share(this, this.srv, note, { kind: sp.kind, to: sp.to, perm })
+      .then(() => { flash(sp.kind === 'forum' ? 'Sent to the forum. It is in its Files tab.' : 'Shared with ' + sp.to + '. They will find it under Files.'); set({ noteShare: { ...sp, to: '', err: '', busy: false } }); })
+      .catch((e) => set({ noteShare: { ...sp, busy: false, err: e.message || 'Could not share the note.' } }));
   };
 
   // ---- Editor ----
@@ -79,11 +79,11 @@ export function buildNotes(ctx) {
       const title = (ed.title || '').trim() || firstLine(ed.body).slice(0, 40);
       const book = incoming ? cur0.book : ed.book;
       if (ed.id) this.setState((st) => ({ notes: st.notes.map((x) => (x.id === ed.id ? { ...x, title, body: ed.body, book, updated: Date.now() } : x)), noteEdit: { ...ed, title, orig: { title, body: ed.body, book }, err: '' } }));
-      else { const id = 'n' + Date.now(); this.setState((st) => ({ notes: [{ id, book: ed.book, title, body: ed.body, updated: Date.now(), pinned: false }].concat(st.notes), noteEdit: { id, book: ed.book, title, body: ed.body, orig: { title, body: ed.body, book: ed.book }, err: '' } })); }
+      else { const id = this.srv ? notesW.newId() : 'n' + Date.now(); this.setState((st) => ({ notes: [{ id, book: ed.book, title, body: ed.body, updated: Date.now(), pinned: false }].concat(st.notes), noteEdit: { id, book: ed.book, title, body: ed.body, orig: { title, body: ed.body, book: ed.book }, err: '' } })); }
       flash(incoming ? 'Saved. ' + cur0.owner + ' will see your changes.' : 'Saved.');
     },
     remove: ed.id && !incoming ? () => { this.setState((st) => ({ notes: st.notes.filter((x) => x.id !== ed.id), added: Object.fromEntries(Object.entries(st.added).map(([k, v]) => [k, v.filter((m) => ![].concat(m.file || []).some((f) => f.noteId === ed.id))])), noteEdit: null })); flash('Note deleted.'); } : null,
-    disconnect: incoming ? () => { this.setState((st) => ({ notes: st.notes.filter((x) => x.id !== ed.id), noteEdit: null })); flash('Removed from your files. ' + cur0.owner + ' has to share it again.'); } : null,
+    disconnect: incoming ? () => { if (this.srv) { notesW.leave(this, this.srv, cur0).then(() => { set({ noteEdit: null }); flash('Removed from your files. ' + cur0.owner + ' has to share it again.'); }).catch((e) => flash(e.message || 'Could not remove it.')); return; } this.setState((st) => ({ notes: st.notes.filter((x) => x.id !== ed.id), noteEdit: null })); flash('Removed from your files. ' + cur0.owner + ' has to share it again.'); } : null,
     canShare: !!cur0 && !incoming,
     share: { open: !!sp && !!cur0 && !incoming, toggle: () => set({ noteShare: sp ? null : { kind: 'person', to: '', perm: 'view', err: '' } }),
       isPerson: !!sp && sp.kind === 'person', isForum: !!sp && sp.kind === 'forum', to: sp ? sp.to : '', perm: sp ? sp.perm : 'view', err: sp ? sp.err || '' : '', hasErr: !!(sp && sp.err),
@@ -96,19 +96,19 @@ export function buildNotes(ctx) {
   // ---- Files page: notes shared with me, and notes I share ----
   const noteCard = (n, extra) => ({ id: n.id, title: n.title || 'Untitled', preview: plain(n.body).split('\n').filter((l) => l.trim()).slice(0, 5).join('\n'), when: when(n.updated), color: '#FFD66B',
     open: () => (connected ? set({ section: 'notes', noteBook: null, noteEdit: editOf(n) }) : this.notify('Notes is disconnected. Add the My notes widget to Home to open notes.', '#FFB86B')), ...extra });
-  const sharedIn = sorted(s.notes.filter((n) => !isMine(n) && (n.shares || []).some((x) => x.to === 'Sam'))).map((n) => noteCard(n, { by: n.owner, access: n.access, accessLabel: permLabel(n.access), canEdit: n.access === 'edit',
-    remove: () => { this.setState((st) => ({ notes: st.notes.filter((x) => x.id !== n.id), noteEdit: st.noteEdit && st.noteEdit.id === n.id ? null : st.noteEdit })); flash('Removed from your files. ' + n.owner + ' has to share it again.'); } }));
+  const sharedIn = sorted(s.notes.filter((n) => !isMine(n))).map((n) => noteCard(n, { by: n.owner, access: n.access, accessLabel: permLabel(n.access), canEdit: n.access === 'edit',
+    remove: () => { if (this.srv) { notesW.leave(this, this.srv, n).then(() => flash('Removed from your files. ' + n.owner + ' has to share it again.')).catch((e) => flash(e.message || 'Could not remove it.')); return; } this.setState((st) => ({ notes: st.notes.filter((x) => x.id !== n.id), noteEdit: st.noteEdit && st.noteEdit.id === n.id ? null : st.noteEdit })); flash('Removed from your files. ' + n.owner + ' has to share it again.'); } }));
   const sharedOut = mine.flatMap((n) => (n.shares || []).map((sh) => noteCard(n, { shareId: sh.id, to: shareLabel(sh), accessLabel: permLabel(sh.perm), live: connected, stop: () => stopShare(n, sh) })));
   const sharedNotes = { in: sharedIn, out: sharedOut, hasIn: sharedIn.length > 0, hasOut: sharedOut.length > 0, connected, disconnected: !connected };
 
   const notesPage = { books, inBook: !!cur, book: cur ? { id: cur.id, name: cur.name, color: cur.color, count: inBook.length } : null, notes: inBook, hasNotes: inBook.length > 0, q: s.noteQ, onQ: (e) => set({ noteQ: e.target.value }), searching: !cur && !!q, matches: allMatches,
-    back: () => set({ noteBook: null, noteQ: '' }), newNote: () => set({ noteShare: null, noteEdit: { id: '', book: cur ? cur.id : s.noteBooks[0].id, title: '', body: '', orig: { title: '', body: '', book: '' }, err: '' } }),
+    back: () => set({ noteBook: null, noteQ: '' }), newNote: () => set({ noteShare: null, noteEdit: { id: '', book: cur ? cur.id : (s.noteBooks[0] || {}).id || '', title: '', body: '', orig: { title: '', body: '', book: '' }, err: '' } }),
     newBook: { open: s.noteNewBook !== null, name: s.noteNewBook || '', toggle: () => set({ noteNewBook: s.noteNewBook === null ? '' : null }), onName: (e) => set({ noteNewBook: e.target.value }),
-      create: () => { const n = (s.noteNewBook || '').trim(); if (!n) return; const colors = ['#FFD66B', '#7CC4FF', '#C9B6FF', '#6EE7C8', '#F49AC1', '#FFB86B']; this.setState((st) => ({ noteBooks: st.noteBooks.concat([{ id: 'nb' + Date.now(), name: n, color: colors[st.noteBooks.length % colors.length] }]), noteNewBook: null })); flash('Notebook created.'); } },
+      create: () => { const n = (s.noteNewBook || '').trim(); if (!n) return; const colors = ['#FFD66B', '#7CC4FF', '#C9B6FF', '#6EE7C8', '#F49AC1', '#FFB86B']; this.setState((st) => ({ noteBooks: st.noteBooks.concat([{ id: this.srv ? notesW.newId() : 'nb' + Date.now(), name: n, color: colors[st.noteBooks.length % colors.length] }]), noteNewBook: null })); flash('Notebook created.'); } },
     editor, flash: s.noteFlash, hasFlash: !!s.noteFlash, total: mine.length };
   // Home widget: a quick note with a Save button that files it under Quick notes.
   const noteWidget = { text: s.note, canSave: !!(s.note || '').trim(), recent: sorted(mine).slice(0, 3).map((n) => ({ id: n.id, title: n.title || firstLine(n.body), when: when(n.updated), color: bookOf(n.book).color, open: () => set({ section: 'notes', noteBook: n.book, noteEdit: editOf(n) }) })),
-    save: () => { const body = (s.note || '').trim(); if (!body) return; this.setState((st) => ({ notes: [{ id: 'n' + Date.now(), book: 'nb1', title: firstLine(body).slice(0, 40), body, updated: Date.now(), pinned: false }].concat(st.notes), note: '' })); flash('Saved to Quick notes.'); },
+    save: () => { const body = (s.note || '').trim(); if (!body) return; this.setState((st) => ({ notes: [{ id: this.srv ? notesW.newId() : 'n' + Date.now(), book: this.srv ? notesW.quickBook(this) : 'nb1', title: firstLine(body).slice(0, 40), body, updated: Date.now(), pinned: false }].concat(st.notes), note: '' })); flash('Saved to Quick notes.'); },
     openAll: () => set({ section: 'notes', noteBook: null, noteQ: '' }), flash: s.noteFlash, count: mine.length };
   return { notesPage, noteWidget, sharedNotes };
 }

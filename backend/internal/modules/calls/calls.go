@@ -337,6 +337,7 @@ func (m *Module) Consume(ctx context.Context) {
 				tag, err := tx.Exec(ctx, `update hub.calls set status='active', answered_at=coalesce(answered_at,$2), `+integrity.Bump+` where id=$1 and status in ('ringing','active') and (status='ringing' and host <> $3 or answered_at is null and host <> $3)`, call, e.At, person)
 				if err == nil && tag.RowsAffected() == 1 {
 					err = m.A.Sign.Seal(ctx, tx, "calls", "id=$1", call)
+					defer m.tell(org, call, "call.answered", person)
 				}
 				return err
 			case "left":
@@ -346,11 +347,37 @@ func (m *Module) Consume(ctx context.Context) {
 				tag, err := tx.Exec(ctx, `update hub.calls set status = case when answered_at is null then 'missed' else 'ended' end, ended_at=coalesce(ended_at,$2), `+integrity.Bump+` where id=$1 and status in ('ringing','active')`, call, e.At)
 				if err == nil && tag.RowsAffected() == 1 {
 					err = m.A.Sign.Seal(ctx, tx, "calls", "id=$1", call)
+					defer m.tell(org, call, "call.ended", person)
 				}
 				return err
 			}
 			return nil
 		})
+	}
+}
+
+// tell lets everyone on a call know it was answered or ended, so a phone that is still ringing (another tab, another device,
+// or the caller who hung up first) stops. It runs after the update commits.
+func (m *Module) tell(org, call uuid.UUID, typ string, by uuid.UUID) {
+	ctx := context.Background()
+	var accts []uuid.UUID
+	_ = m.A.DB.WithOrg(ctx, org, func(tx pgx.Tx) error {
+		rs, err := tx.Query(ctx, `select p.account_id from hub.call_participants cp join hub.people p on p.id = cp.person_id where cp.call_id=$1 and p.account_id is not null`, call)
+		if err != nil {
+			return err
+		}
+		defer rs.Close()
+		for rs.Next() {
+			var a uuid.UUID
+			if rs.Scan(&a) == nil {
+				accts = append(accts, a)
+			}
+		}
+		return rs.Err()
+	})
+	d, _ := json.Marshal(map[string]any{"call": call, "by": by})
+	for _, a := range accts {
+		m.A.Publish(ctx, realtime.Event{Type: typ, Channel: realtime.AcctChannel(a), Org: org.String(), Data: d})
 	}
 }
 

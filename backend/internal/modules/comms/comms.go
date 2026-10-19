@@ -343,18 +343,24 @@ type Award struct {
 	Date     string      `json:"date"`
 	Status   string      `json:"status"`
 	By       string      `json:"by"`
+	ByPerson uuid.UUID   `json:"by_person"`
+	// where it still has to be announced ("wall" or a forum's conversation id); only the nominator sees these
+	Targets []string `json:"targets,omitempty"`
 }
 
 func awardCtx(org, id uuid.UUID) crypto.Context {
 	return crypto.Context{Org: org.String(), Table: "awards", Column: "citation_enc", RowID: id.String()}
 }
 
-func (s *Service) Nominate(ctx context.Context, p *tenant.Principal, typ string, people []uuid.UUID, citation string) (*Award, *approvals.Request, error) {
-	return s.NominateOn(ctx, p, typ, people, citation, "")
+func (s *Service) Nominate(ctx context.Context, p *tenant.Principal, typ string, people []uuid.UUID, citation string, targets []string) (*Award, *approvals.Request, error) {
+	return s.NominateOn(ctx, p, typ, people, citation, "", targets)
 }
 
 // NominateOn is Nominate with a given award date (history loading); an empty date means today.
-func (s *Service) NominateOn(ctx context.Context, p *tenant.Principal, typ string, people []uuid.UUID, citation, onDate string) (*Award, *approvals.Request, error) {
+func (s *Service) NominateOn(ctx context.Context, p *tenant.Principal, typ string, people []uuid.UUID, citation, onDate string, targets []string) (*Award, *approvals.Request, error) {
+	if len(targets) > 20 {
+		return nil, nil, httpx.Bad("Choose up to 20 places to announce it.")
+	}
 	if typ == "" || len(typ) > 60 || len(people) == 0 || len(people) > 20 || len(citation) > 600 {
 		return nil, nil, httpx.Bad("Choose the award, who gets it (up to 20 people) and add a citation of up to 600 characters.")
 	}
@@ -384,6 +390,21 @@ func (s *Service) NominateOn(ctx context.Context, p *tenant.Principal, typ strin
 		if err := s.A.Sign.Seal(ctx, tx, "awards", "id=$1", id); err != nil {
 			return err
 		}
+		for _, t := range targets {
+			if t != "wall" {
+				if _, err := uuid.Parse(t); err != nil {
+					return httpx.Bad("That place to announce it is not valid.")
+				}
+			}
+			if _, err := tx.Exec(ctx, `insert into hub.award_posts (org_id, award_id, target) values ($1,$2,$3) on conflict do nothing`, p.Org, id, t); err != nil {
+				return err
+			}
+		}
+		if len(targets) > 0 {
+			if err := s.A.Sign.Seal(ctx, tx, "award_posts", "award_id=$1", id); err != nil {
+				return err
+			}
+		}
 		r, applied, err := s.Ap.Submit(ctx, tx, p, "f7", "award.grant", "Award: "+typ, "", map[string]any{"award": id})
 		if err != nil {
 			return err
@@ -412,9 +433,9 @@ func dedupe(ids []uuid.UUID) []uuid.UUID {
 func (s *Service) award(ctx context.Context, tx pgx.Tx, org uuid.UUID, dek []byte, id uuid.UUID) (*Award, error) {
 	a := &Award{}
 	var enc []byte
-	err := tx.QueryRow(ctx, `select a.id, a.ref, a.type, a.people, a.citation_enc, a.on_date::text, a.status, n.first_name || ' ' || n.last_name,
+	err := tx.QueryRow(ctx, `select a.id, a.ref, a.type, a.people, a.citation_enc, a.on_date::text, a.status, n.first_name || ' ' || n.last_name, a.nominated_by,
 		coalesce((select array_agg(p.first_name || ' ' || p.last_name order by p.first_name) from hub.people p where p.id = any(a.people)), '{}')
-		from hub.awards a join hub.people n on n.id = a.nominated_by where a.id=$1`, id).Scan(&a.ID, &a.Ref, &a.Type, &a.People, &enc, &a.Date, &a.Status, &a.By, &a.Names)
+		from hub.awards a join hub.people n on n.id = a.nominated_by where a.id=$1`, id).Scan(&a.ID, &a.Ref, &a.Type, &a.People, &enc, &a.Date, &a.Status, &a.By, &a.ByPerson, &a.Names)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, httpx.ErrNotFound
 	}
@@ -425,6 +446,51 @@ func (s *Service) award(ctx context.Context, tx pgx.Tx, org uuid.UUID, dek []byt
 		a.Citation = string(b)
 	}
 	return a, nil
+}
+
+// ClaimPost marks one place of an award as announced, once: it succeeds for the first caller and answers 409 after. Only the
+// nominator claims, and only after the award is approved.
+func (s *Service) ClaimPost(ctx context.Context, p *tenant.Principal, id uuid.UUID, target string) error {
+	return s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
+		var by uuid.UUID
+		var status string
+		if err := tx.QueryRow(ctx, `select nominated_by, status from hub.awards where id=$1`, id).Scan(&by, &status); errors.Is(err, pgx.ErrNoRows) {
+			return httpx.ErrNotFound
+		} else if err != nil {
+			return err
+		}
+		if by != p.Person {
+			return httpx.ErrForbidden
+		}
+		if status != "Approved" {
+			return httpx.Err(409, "not_approved", "The award has not been approved yet.")
+		}
+		tag, err := tx.Exec(ctx, `update hub.award_posts set claimed=true, `+integrity.Bump+` where award_id=$1 and target=$2 and not claimed`, id, target)
+		if err != nil {
+			return err
+		}
+		if tag.RowsAffected() == 0 {
+			return httpx.Err(409, "already_posted", "That is already announced.")
+		}
+		return s.A.Sign.Seal(ctx, tx, "award_posts", "award_id=$1 and target=$2", id, target)
+	})
+}
+
+// unposted lists the places a nominator's award still has to be announced.
+func (s *Service) unposted(ctx context.Context, tx pgx.Tx, id uuid.UUID) []string {
+	out := []string{}
+	rs, err := tx.Query(ctx, `select target from hub.award_posts where award_id=$1 and not claimed order by target`, id)
+	if err != nil {
+		return out
+	}
+	defer rs.Close()
+	for rs.Next() {
+		var t string
+		if rs.Scan(&t) == nil {
+			out = append(out, t)
+		}
+	}
+	return out
 }
 
 func (s *Service) applyAward(ctx context.Context, tx pgx.Tx, a approvals.Applied) error {
@@ -484,6 +550,9 @@ func (s *Service) Awards(ctx context.Context, p *tenant.Principal) ([]*Award, er
 			a, err := s.award(ctx, tx, p.Org, dek, id)
 			if err != nil {
 				return err
+			}
+			if a.ByPerson == p.Person && a.Status == "Approved" {
+				a.Targets = s.unposted(ctx, tx, id)
 			}
 			out = append(out, a)
 		}
@@ -572,15 +641,33 @@ func (s *Service) Private(r chi.Router) {
 			Type     string      `json:"type"`
 			People   []uuid.UUID `json:"people"`
 			Citation string      `json:"citation"`
+			Targets  []string    `json:"targets"`
 		}
 		if err := httpx.Decode(r, &in, 8<<10); err != nil {
 			return err
 		}
-		a, req, err := s.Nominate(r.Context(), p, in.Type, in.People, in.Citation)
+		a, req, err := s.Nominate(r.Context(), p, in.Type, in.People, in.Citation, in.Targets)
 		if err != nil {
 			return err
 		}
 		httpx.JSON(w, 201, map[string]any{"award": a, "approval": req})
+		return nil
+	}))
+	r.Post("/awards/{id}/claim", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
+		id, err := uuid.Parse(chi.URLParam(r, "id"))
+		if err != nil {
+			return httpx.ErrNotFound
+		}
+		var in struct {
+			Target string `json:"target"`
+		}
+		if err := httpx.Decode(r, &in, 1<<10); err != nil {
+			return err
+		}
+		if err := s.ClaimPost(r.Context(), p, id, in.Target); err != nil {
+			return err
+		}
+		w.WriteHeader(204)
 		return nil
 	}))
 	r.Get("/awards", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {

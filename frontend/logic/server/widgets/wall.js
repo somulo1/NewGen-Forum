@@ -101,7 +101,7 @@ const del = (srv, id) => srv.request('DELETE', `/conversations/${srv.wallId}/mes
 export async function post(logic, srv, p) {
   const media = [];
   for (const f of p.files || []) media.push(await files.upload(srv, srv.wallId, f));
-  await send(srv, 'post', { text: p.text, department: p.audience && p.audience !== 'Everyone' ? p.audience : (logic.state.meInfo || {}).dept || '', postBg: p.postBg || undefined, media: media.map(({ fileId, name, meta, type, isImg, isVideo, key }) => ({ fileId, name, meta, type, isImg, isVideo, key })), poll: p.poll ? p.poll.map((label, i) => ({ id: 'o' + i, label })) : undefined });
+  await send(srv, 'post', { text: p.text, department: p.audience && p.audience !== 'Everyone' ? p.audience : (logic.state.meInfo || {}).dept || '', postBg: p.postBg || undefined, media: media.map(({ fileId, name, meta, type, isImg, isVideo, key }) => ({ fileId, name, meta, type, isImg, isVideo, key })), poll: p.poll ? p.poll.map((label, i) => ({ id: 'o' + i, label })) : undefined, tags: p.tags || undefined, poster: p.poster || undefined });
   await load(logic, srv);
 }
 

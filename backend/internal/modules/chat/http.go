@@ -174,6 +174,31 @@ func (s *Service) Private(r chi.Router) {
 		w.WriteHeader(204)
 		return nil
 	}))
+	r.Patch("/conversations/{id}/members/{person}", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
+		p, err := tenant.MustOrg(r.Context())
+		if err != nil {
+			return err
+		}
+		id, err := cid(r)
+		if err != nil {
+			return err
+		}
+		person, err := uuid.Parse(chi.URLParam(r, "person"))
+		if err != nil {
+			return httpx.ErrNotFound
+		}
+		var in struct {
+			Role string `json:"role"`
+		}
+		if err := httpx.Decode(r, &in, 1<<10); err != nil {
+			return err
+		}
+		if err := s.SetMemberRole(r.Context(), p, id, person, in.Role); err != nil {
+			return err
+		}
+		w.WriteHeader(204)
+		return nil
+	}))
 	r.Get("/conversations/{id}/keys", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
 		p, err := tenant.MustOrg(r.Context())
 		if err != nil {

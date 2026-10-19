@@ -84,7 +84,51 @@ func (s *Service) Private(r chi.Router) {
 		httpx.JSON(w, 200, u)
 		return nil
 	}))
-	r.Get("/org/units/{id}/dashboard", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
+	// Puts a unit under another parent ({"parent_id": null} for the top level).
+	r.Post("/org/units/{id}/move", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
+		p, err := tenant.MustOrg(r.Context())
+		if err != nil {
+			return err
+		}
+		id, err := uuid.Parse(chi.URLParam(r, "id"))
+		if err != nil {
+			return httpx.ErrNotFound
+		}
+		var in struct {
+			Parent *uuid.UUID `json:"parent_id"`
+		}
+		if err := httpx.Decode(r, &in, 1<<10); err != nil {
+			return err
+		}
+		if err := s.MoveUnit(r.Context(), p, id, in.Parent); err != nil {
+			return err
+		}
+		w.WriteHeader(204)
+		return nil
+	}))
+	// Folds several units of one kind into another: {"into": id, "from": [ids]}.
+	r.Post("/org/units/merge", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
+		p, err := tenant.MustOrg(r.Context())
+		if err != nil {
+			return err
+		}
+		var in struct {
+			Into uuid.UUID   `json:"into"`
+			From []uuid.UUID `json:"from"`
+		}
+		if err := httpx.Decode(r, &in, 16<<10); err != nil {
+			return err
+		}
+		if len(in.From) > 100 {
+			return httpx.Bad("Merge at most 100 at a time.")
+		}
+		if err := s.MergeUnits(r.Context(), p, in.Into, in.From); err != nil {
+			return err
+		}
+		w.WriteHeader(204)
+		return nil
+	}))
+	r.Get("/org/units/{id}/dashboard",httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
 		p, err := tenant.MustOrg(r.Context())
 		if err != nil {
 			return err

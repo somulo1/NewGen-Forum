@@ -152,8 +152,8 @@ export function buildProjects(ctx) {
             hasLinks: t.links.length > 0, linkLabel: t.links.length + ' linked',
             cardStyle: 'padding:10px;border-radius:10px;background:var(--k-1D2A25,#1D2A25);border:1px solid ' + (inf.overdue ? '#FF9B8A' : '#2A3832') + ';display:flex;flex-direction:column;gap:8px',
             open: () => openTask(ti),
-            canMove: canMoveT && ci < 3, moveLabel: ci < 3 ? 'Move to ' + colNames[ci + 1][0] : '', move: () => this.moveTask(pid, ti, 1),
-            canBack: canMoveT && ci > 0, backLabel: ci > 0 ? 'Move back to ' + colNames[ci - 1][0] : '', back: () => this.moveTask(pid, ti, -1)
+            canMove: canMoveT && ci < 3, moveLabel: ci < 3 ? 'Move to ' + colNames[ci + 1][0] : '', move: () => this.askTaskMove(pid, ti, 1),
+            canBack: canMoveT && ci > 0, backLabel: ci > 0 ? 'Move back to ' + colNames[ci - 1][0] : '', back: () => this.askTaskMove(pid, ti, -1)
           };
         });
         return { name, color, tasks, count: tasks.length };
@@ -284,8 +284,14 @@ export function buildProjects(ctx) {
       dueISO: tt.due, minDue: tcx.sprint ? tcx.sprint.start : tt.start, maxDue: tcx.sprint ? tcx.sprint.end : '',
       setDue: (e) => { const v = e.target.value; if (v) updT((x) => ({ ...x, due: v })); },
       col: colNames[tt.col][0], colStyle: 'height:36px;padding:0 14px;border-radius:18px;display:flex;align-items:center;font-size:13px;font-weight:700;background:' + colNames[tt.col][1] + '22;color:' + colNames[tt.col][1],
-      canBack: canMoveT && tt.col > 0, prevCol: tt.col > 0 ? colNames[tt.col - 1][0] : '', back: () => this.moveTask(tp.id, to.ti, -1),
-      canFwd: canMoveT && tt.col < 3, nextCol: tt.col < 3 ? colNames[tt.col + 1][0] : '', fwd: () => this.moveTask(tp.id, to.ti, 1),
+      canBack: canMoveT && tt.col > 0, prevCol: tt.col > 0 ? colNames[tt.col - 1][0] : '', back: () => this.askTaskMove(tp.id, to.ti, -1),
+      canFwd: canMoveT && tt.col < 3, nextCol: tt.col < 3 ? colNames[tt.col + 1][0] : '', fwd: () => this.askTaskMove(tp.id, to.ti, 1),
+      history: (tt.history || []).slice().reverse().map((h) => ({ line: h.from + ' → ' + h.to, by: h.by, when: new Date(h.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }), comment: h.comment })), hasHistory: (tt.history || []).length > 0,
+      moving: !!(s.taskMove && s.taskMove.pid === tp.id && s.taskMove.ti === to.ti),
+      moveTitle: s.taskMove ? 'Move to ' + colNames[Math.max(0, Math.min(3, tt.col + s.taskMove.dir))][0] : '', moveBack: !!(s.taskMove && s.taskMove.dir < 0),
+      moveComment: s.taskMove ? s.taskMove.comment : '', moveErr: s.taskMove ? s.taskMove.err : '', hasMoveErr: !!(s.taskMove && s.taskMove.err),
+      onMoveComment: (e) => this.setState((st) => ({ taskMove: { ...st.taskMove, comment: e.target.value, err: '' } })),
+      confirmMove: () => this.confirmTaskMove(), cancelMove: () => this.setState({ taskMove: null }),
       overdue: inf.overdue, overDays: inf.overDays,
       reminderNote: 'An automatic reminder went to ' + tt.primary + (tt.secondary ? ' and ' + tt.secondary : '') + ' today.',
       remind: () => { this.setState((st) => ({ taskReminders: { ...st.taskReminders, [rk]: (st.taskReminders[rk] || []).concat(['You reminded ' + tt.primary + (tt.secondary ? ' and ' + tt.secondary : '') + ' just now']) } })); this.notify('Reminder sent to ' + tt.primary + (tt.secondary ? ' and ' + tt.secondary : '') + ' about "' + tt.title + '".', '#FFB86B'); },

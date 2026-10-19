@@ -57,14 +57,16 @@ type kindRule struct {
 }
 
 var kindRules = map[string]kindRule{
-	"dm":      {module: "chat", right: "Send private messages", pair: true},
-	"forum":   {module: "forums", right: "Create forum", named: true},
-	"wall":    {module: "wall", right: "Moderate posts", named: true},
-	"note":    {module: "home", right: "Customize home", selfOnly: true, oneOnly: true},
-	"ticket":  {module: "tickets", right: "Raise"},
-	"project": {module: "projects", right: "Create project", named: true},
-	"event":   {module: "calendar", right: "Add events"},
-	"folder":  {module: "files", right: "Upload", named: true},
+	"dm":    {module: "chat", right: "Send private messages", pair: true},
+	"forum": {module: "forums", right: "Create forum", named: true},
+	"wall":  {module: "wall", right: "Moderate posts", named: true},
+	"note":  {module: "home", right: "Customize home", selfOnly: true, oneOnly: true},
+	// a note shared with other people: the owner makes it and adds people (read only or able to edit)
+	"sharednote": {},
+	"ticket":     {module: "tickets", right: "Raise"},
+	"project":    {module: "projects", right: "Create project", named: true},
+	"event":      {module: "calendar", right: "Add events"},
+	"folder":     {module: "files", right: "Upload", named: true},
 }
 
 // MaxAudience bounds how many people one end-to-end encrypted audience can hold: every member's devices each need a wrapped
@@ -248,8 +250,10 @@ func (s *Service) Create(ctx context.Context, p *tenant.Principal, in CreateIn) 
 	var out *Conversation
 	existed := false
 	err = s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
-		if err := authz.Require(ctx, tx, p.Person, rule.module, rule.right); err != nil {
-			return err
+		if rule.module != "" {
+			if err := authz.Require(ctx, tx, p.Person, rule.module, rule.right); err != nil {
+				return err
+			}
 		}
 		people := append([]uuid.UUID{p.Person}, in.Members...)
 		if in.Audience != "" {

@@ -45,7 +45,7 @@ func TestUnitDashboardIsBuiltFromRealRecords(t *testing.T) {
 	if code, _ := e.Do("POST", "/tickets/"+conv+"/act", map[string]any{"do": "escalate", "to_type": "department", "to_ref": uuid.NewString()}, ownerU.Access); code != 400 {
 		t.Fatalf("escalated to a department that does not exist: %d", code)
 	}
-	e.MustDo(200, "POST", "/tickets/"+conv+"/act", map[string]any{"do": "escalate", "to_type": "department", "to_ref": dept, "person": amy.Person, "why": "Back to Finance"}, ownerU.Access)
+	e.MustDo(200, "POST", "/tickets/"+conv+"/act", map[string]any{"do": "escalate", "to_type": "department", "to_ref": dept, "person": o.Person, "why": "Back to Finance"}, ownerU.Access)
 
 	// an approval request waiting for someone who holds the level-1 approval right (Amy, through a personal grant) shows up as received by Finance
 	e.MustDo(204, "PUT", "/approvals/flows/f8", map[string]any{"levels": 0}, ownerU.Access)

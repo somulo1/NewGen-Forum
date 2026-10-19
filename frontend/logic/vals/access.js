@@ -16,7 +16,7 @@ export function valsAccess(ctx) {
     setActingRole: (e) => { const v = e.target.value; this.setState({ actingRole: v }); if (v !== s.myRole) this.notify('Previewing Hub as ' + (roleNames[v] || v) + '.', '#FFD66B'); },
     exitPreview: () => this.setState({ actingRole: this.state.myRole }),
     dir, personOpen: !!po, psn, closePerson: set({ personOpen: null }),
-    taskOpen: !!ctx.has.projects && !!tt, td, closeTask: set({ taskOpen: null }),
+    taskOpen: !!ctx.has.projects && !!tt, td, closeTask: set({ taskOpen: null, taskMove: null }),
     sec, secTab, hasOpenAlerts: openAlerts.length > 0, openAlertCount: String(openAlerts.length),
     roleList, roleSel, roleTab, flowsAll,
     rightsNeedApproval: !!(f8 && f8.levels > 0), rightsFlowLabel: f8 ? (f8.levels === 1 ? 'direct approval by ' + f8.approvers[0] : f8.levels + ' levels: ' + f8.approvers.slice(0, f8.levels).join(' → ')) : '',

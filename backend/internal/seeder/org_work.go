@@ -110,7 +110,7 @@ func (s *Seeder) seedComms(ctx context.Context) {
 			people = append(people, s.actor(n).Person)
 		}
 		nominator := s.byRole("hod")[0]
-		_, req, err := s.Com.NominateOn(ctx, s.principal(nominator), a.Type, people, a.Citation, a.Date)
+		_, req, err := s.Com.NominateOn(ctx, s.principal(nominator), a.Type, people, a.Citation, a.Date, nil)
 		s.must(err, "award "+a.Type)
 		if a.Status == "Approved" && req != nil {
 			s.approveAll(ctx, req)

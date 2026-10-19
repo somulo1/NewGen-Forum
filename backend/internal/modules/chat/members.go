@@ -43,7 +43,11 @@ func (s *Service) AddMembers(ctx context.Context, p *tenant.Principal, id uuid.U
 		if kind == "dm" || kind == "note" || kind == "wall" {
 			return httpx.Bad("People cannot be added to this kind of conversation by hand.")
 		}
-		if role != "owner" && role != "admin" {
+		if kind == "sharednote" {
+			if role != "owner" {
+				return httpx.ErrForbidden // only the owner of a shared note decides who it goes to
+			}
+		} else if role != "owner" && role != "admin" {
 			if err := authz.Require(ctx, tx, p.Person, "forums", "Invite members"); err != nil {
 				return err
 			}
@@ -118,7 +122,11 @@ func (s *Service) RemoveMember(ctx context.Context, p *tenant.Principal, id, per
 			return httpx.ErrNotFound
 		}
 		leaving = target
-		if target != p.Account && role != "owner" && role != "admin" {
+		if kind == "sharednote" {
+			if target != p.Account && role != "owner" {
+				return httpx.ErrForbidden // only the owner takes people off a shared note (anyone may leave)
+			}
+		} else if target != p.Account && role != "owner" && role != "admin" {
 			if err := authz.Require(ctx, tx, p.Person, "forums", "Moderate"); err != nil {
 				return err
 			}
@@ -420,4 +428,28 @@ func mayPost(ctx context.Context, tx pgx.Tx, conv, person uuid.UUID) error {
 		return deny
 	}
 	return nil
+}
+
+// SetMemberRole changes what someone can do in a shared note: "admin" can edit it, "member" can only read it.
+func (s *Service) SetMemberRole(ctx context.Context, p *tenant.Principal, id, person uuid.UUID, role string) error {
+	if role != "admin" && role != "member" {
+		return httpx.Bad("Choose can edit or read only.")
+	}
+	return s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
+		kind, _, mine, _, err := s.lockConv(ctx, tx, p, id)
+		if err != nil {
+			return err
+		}
+		if kind != "sharednote" || mine != "owner" {
+			return httpx.ErrForbidden
+		}
+		tag, err := tx.Exec(ctx, `update hub.conversation_members set role=$3, `+integrity.Bump+` where conversation_id=$1 and left_at is null and role <> 'owner' and account_id=(select account_id from hub.people where id=$2)`, id, person, role)
+		if err != nil {
+			return err
+		}
+		if tag.RowsAffected() == 0 {
+			return httpx.ErrNotFound
+		}
+		return s.A.Sign.Seal(ctx, tx, "conversation_members", "conversation_id=$1", id)
+	})
 }
