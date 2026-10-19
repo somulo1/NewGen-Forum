@@ -1,9 +1,13 @@
 // Package tones serves the sounds the apps play (message chime, ringing, call connected, hang up). They are stored as
 // parameters, not audio files, and every organization gets the same set.
+//
+// The set is production reference data, not demo data: tones.json is built into the binary and Install writes it into the
+// database every time the API starts, so a fresh deployment has every tone without running the demo seeder.
 package tones
 
 import (
 	"context"
+	_ "embed"
 	"encoding/json"
 	"net/http"
 
@@ -45,7 +49,40 @@ func (m *Module) List(ctx context.Context) ([]Tone, error) {
 	return out, err
 }
 
-// Put stores one tone (used by the seeder).
+//go:embed tones.json
+var builtIn []byte
+
+// BuiltIn is the tone set that ships with this release.
+func BuiltIn() ([]Tone, error) {
+	var list []Tone
+	err := json.Unmarshal(builtIn, &list)
+	return list, err
+}
+
+// Install stores the shipped tones (adding new ones, updating changed ones). It is idempotent and runs at API start-up.
+func (m *Module) Install(ctx context.Context) error {
+	list, err := BuiltIn()
+	if err != nil {
+		return err
+	}
+	return m.A.DB.Tx(ctx, func(tx pgx.Tx) error {
+		for _, t := range list {
+			var same bool
+			if err := tx.QueryRow(ctx, `select exists (select 1 from hub.tones where key=$1 and kind=$2 and description=$3 and params=$4::jsonb)`, t.Key, t.Kind, t.Description, string(t.Params)).Scan(&same); err != nil {
+				return err
+			}
+			if same {
+				continue
+			}
+			if err := m.Put(ctx, tx, t); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+// Put stores one tone.
 func (m *Module) Put(ctx context.Context, tx pgx.Tx, t Tone) error {
 	if _, err := tx.Exec(ctx, `insert into hub.tones (key, kind, description, params) values ($1,$2,$3,$4)
 		on conflict (key) do update set kind=excluded.kind, description=excluded.description, params=excluded.params, ver = hub.tones.ver + 1, mac = hub.pending_mac()`, t.Key, t.Kind, t.Description, t.Params); err != nil {

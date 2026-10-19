@@ -4,13 +4,11 @@ import (
 	"context"
 	"crypto/ed25519"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 
 	"hub/internal/e2ee"
 	"hub/internal/modules/auth"
@@ -18,23 +16,11 @@ import (
 	"hub/internal/modules/org"
 	"hub/internal/modules/people"
 	"hub/internal/modules/roles"
-	"hub/internal/modules/tones"
-	"hub/seed"
 )
 
+// seedTones makes sure the shipped tones are there (the API installs them on start-up too; they are not demo data).
 func (s *Seeder) seedTones(ctx context.Context) {
-	b, err := seed.FS.ReadFile("tones.json")
-	s.must(err, "tones file")
-	var list []tones.Tone
-	s.must(json.Unmarshal(b, &list), "tones json")
-	s.must(s.A.DB.Tx(ctx, func(tx pgx.Tx) error {
-		for _, t := range list {
-			if err := s.Tone.Put(ctx, tx, t); err != nil {
-				return err
-			}
-		}
-		return nil
-	}), "store tones")
+	s.must(s.Tone.Install(ctx), "store tones")
 }
 
 type orgData struct {

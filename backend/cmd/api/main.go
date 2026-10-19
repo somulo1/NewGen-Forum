@@ -15,6 +15,7 @@ import (
 	"hub/internal/mail"
 	"hub/internal/modules"
 	"hub/internal/modules/auth"
+	"hub/internal/modules/tones"
 	"hub/internal/server"
 )
 
@@ -35,6 +36,11 @@ func main() {
 	}
 	defer a.Close()
 	go a.Bus.Run(ctx, a.Hub.Deliver)
+	// the app's sounds are reference data every deployment needs, so they are installed here, not by the demo seeder
+	if err := tones.New(a).Install(ctx); err != nil {
+		slog.Error("install tones", "err", err)
+		os.Exit(1)
+	}
 
 	au := auth.New(a)
 	h := server.Router(server.Deps{App: a, Auth: au, Dev: dev, Modules: modules.All(a, au)})
