@@ -5,7 +5,7 @@ const code = props.error && props.error.statusCode === 404 ? '404' : props.error
 const leave = () => clearError();
 </script>
 <template>
-  <div style="min-height: 100vh; background: #0F1714; color: #E8EFEA; font-family: 'DM Sans', system-ui, sans-serif; display: flex; align-items: center; padding: 16px">
+  <div style="min-height: 100vh; background: var(--k-0F1714,#0F1714); color: var(--k-E8EFEA,#E8EFEA); font-family: 'DM Sans', system-ui, sans-serif; display: flex; align-items: center; padding: 16px">
     <ErrorPage :code="code" @leave="leave" />
   </div>
 </template>

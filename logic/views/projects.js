@@ -169,7 +169,7 @@ export function buildProjects(ctx) {
             hasSecondary: !!t.secondary, secInitials: t.secondary ? ini(t.secondary) : '', secColor: pColor[t.secondary] || '#9DB0A6',
             dueLabel: inf.label, dueStyle: tBadge(inf.color),
             hasLinks: t.links.length > 0, linkLabel: t.links.length + ' linked',
-            cardStyle: 'padding:10px;border-radius:10px;background:#1D2A25;border:1px solid ' + (inf.overdue ? '#FF9B8A' : '#2A3832') + ';display:flex;flex-direction:column;gap:8px',
+            cardStyle: 'padding:10px;border-radius:10px;background:var(--k-1D2A25,#1D2A25);border:1px solid ' + (inf.overdue ? '#FF9B8A' : '#2A3832') + ';display:flex;flex-direction:column;gap:8px',
             open: () => openTask(ti),
             canMove: canMoveT && ci < 3, moveLabel: ci < 3 ? 'Move to ' + colNames[ci + 1][0] : '', move: () => this.moveTask(pid, ti, 1),
             canBack: canMoveT && ci > 0, backLabel: ci > 0 ? 'Move back to ' + colNames[ci - 1][0] : '', back: () => this.moveTask(pid, ti, -1)

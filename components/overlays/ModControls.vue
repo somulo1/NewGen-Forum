@@ -14,6 +14,6 @@
 export default {
   name: 'ModControls',
   props: { tile: { type: Object, required: true } },
-  methods: { btn(on) { return `width: 28px; height: 28px; border-radius: 50%; border: 0; display: flex; align-items: center; justify-content: center; background: ${on ? 'rgba(10,16,13,0.8)' : 'rgba(255,155,138,0.22)'}; color: ${on ? '#E8EFEA' : '#FF9B8A'}; cursor: ${on ? 'pointer' : 'not-allowed'}`; } }
+  methods: { btn(on) { return `width: 28px; height: 28px; border-radius: 50%; border: 0; display: flex; align-items: center; justify-content: center; background: ${on ? 'rgba(10,16,13,0.8)' : 'rgba(255,155,138,0.22)'}; color: ${on ? 'var(--k-E8EFEA,#E8EFEA)' : 'var(--k-FF9B8A,#FF9B8A)'}; cursor: ${on ? 'pointer' : 'not-allowed'}`; } }
 };
 </script>

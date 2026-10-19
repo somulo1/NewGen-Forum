@@ -94,9 +94,9 @@ const setNew = async () => {
   navigateTo('/login?reset=1');
 };
 
-const field = 'height: 44px; padding: 0 14px; border-radius: 12px; border: 1px solid #C9D6CF; background: #fff; color: #0F1714; font-size: 15px';
+const field = 'height: 44px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--k-C9D6CF,#C9D6CF); background: #fff; color: var(--k-0F1714,#0F1714); font-size: 15px';
 const primary = 'height: 46px; border-radius: 23px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 700; font-size: 15px; cursor: pointer';
-const label = 'display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #55645C';
+const label = 'display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--k-55645C,#55645C)';
 const head = "margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 26px; letter-spacing: -0.02em";
 const steps = ['1', '2', '3', '4', '5'];
 const stepNo = computed(() => ({ email: 0, otp: 1, quiz: 2, sent: 3, link: 4 })[st.stage]);
@@ -104,7 +104,7 @@ const stepNo = computed(() => ({ email: 0, otp: 1, quiz: 2, sent: 3, link: 4 })[
 <template>
   <div style="display: flex; flex-direction: column; gap: 14px">
     <ol aria-label="Progress" style="list-style: none; margin: 0; padding: 0; display: flex; gap: 6px">
-      <li v-for="(s, i) in steps" :key="s" :aria-current="i === stepNo ? 'step' : undefined" style="flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0"><span :style="`height: 4px; border-radius: 2px; background: ${i <= stepNo ? '#7BC51F' : '#DCE5DF'}`"></span><span :style="`font-size: 10px; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: ${i === stepNo ? '#0F1714' : '#8A988F'}; font-weight: ${i === stepNo ? 700 : 500}`">{{ s }}</span></li>
+      <li v-for="(s, i) in steps" :key="s" :aria-current="i === stepNo ? 'step' : undefined" style="flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0"><span :style="`height: 4px; border-radius: 2px; background: ${i <= stepNo ? '#7BC51F' : 'var(--k-DCE5DF,#DCE5DF)'}`"></span><span :style="`font-size: 10px; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: ${i === stepNo ? 'var(--k-0F1714,#0F1714)' : 'var(--k-8A988F,#8A988F)'}; font-weight: ${i === stepNo ? 700 : 500}`">{{ s }}</span></li>
     </ol>
     <div v-if="notice" role="status" style="padding: 10px 12px; border-radius: 10px; background: #EAF6DD; color: #2B5A0B; font-size: 13px">{{ notice }}</div>
 
@@ -121,7 +121,7 @@ const stepNo = computed(() => ({ email: 0, otp: 1, quiz: 2, sent: 3, link: 4 })[
       <span v-if="err" role="alert" style="color: #C0392B; font-size: 13px">{{ err }}</span>
       <button type="submit" :style="primary">Continue</button>
       <button type="button" :disabled="cool > 0" @click="resend" style="border: 0; background: transparent; color: #2F7A12; font-weight: 600; cursor: pointer; font-size: 14px">{{ cool > 0 ? 'Resend in ' + cool + 's' : 'Resend code' }}</button>
-      <button type="button" @click="reset()" style="border: 0; background: transparent; color: #55645C; cursor: pointer; font-size: 13px">Start over</button>
+      <button type="button" @click="reset()" style="border: 0; background: transparent; color: var(--k-55645C,#55645C); cursor: pointer; font-size: 13px">Start over</button>
     </form>
 
     <form v-else-if="st.stage === 'quiz'" novalidate aria-label="Security questions" @submit.prevent="checkQuiz" style="display: flex; flex-direction: column; gap: 14px">
@@ -133,7 +133,7 @@ const stepNo = computed(() => ({ email: 0, otp: 1, quiz: 2, sent: 3, link: 4 })[
 
     <div v-else-if="st.stage === 'sent'" role="status" style="display: flex; flex-direction: column; gap: 14px">
       <h1 :style="head">Check your email</h1>
-      <button type="button" @click="reset()" style="border: 0; background: transparent; color: #55645C; cursor: pointer; font-size: 13px">Start over</button>
+      <button type="button" @click="reset()" style="border: 0; background: transparent; color: var(--k-55645C,#55645C); cursor: pointer; font-size: 13px">Start over</button>
     </div>
 
     <form v-else-if="st.stage === 'link'" novalidate aria-label="Choose a new password" @submit.prevent="setNew" style="display: flex; flex-direction: column; gap: 14px">
@@ -141,19 +141,19 @@ const stepNo = computed(() => ({ email: 0, otp: 1, quiz: 2, sent: 3, link: 4 })[
       <label :style="label">Code<input v-model="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="••••••" aria-label="Code" :style="field + '; letter-spacing: 0.4em; text-align: center; font-size: 20px'"></label>
       <label :style="label">New password<span style="position: relative; display: block"><input v-model="pw" :type="showPw ? 'text' : 'password'" autocomplete="new-password" aria-label="New password" :style="field + '; width: 100%; box-sizing: border-box; padding-right: 64px'"><button type="button" @click="showPw = !showPw" :aria-label="showPw ? 'Hide password' : 'Show password'" style="position: absolute; right: 8px; top: 8px; height: 28px; padding: 0 8px; border: 0; background: transparent; color: #2F7A12; font-weight: 600; cursor: pointer">{{ showPw ? 'Hide' : 'Show' }}</button></span></label>
       <label :style="label">Confirm password<input v-model="pw2" :type="showPw ? 'text' : 'password'" autocomplete="new-password" aria-label="Confirm password" :style="field"></label>
-      <ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; font-size: 12px"><li v-for="r in rules" :key="r[0]" :style="`color: ${r[1] ? '#2B7A12' : '#8A988F'}`">{{ r[1] ? '✓' : '○' }} {{ r[0] }}</li></ul>
+      <ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; font-size: 12px"><li v-for="r in rules" :key="r[0]" :style="`color: ${r[1] ? '#2B7A12' : 'var(--k-8A988F,#8A988F)'}`">{{ r[1] ? '✓' : '○' }} {{ r[0] }}</li></ul>
       <span v-if="err" role="alert" style="color: #C0392B; font-size: 13px">{{ err }}</span>
       <button type="submit" :disabled="busy" :style="primary">Save new password</button>
     </form>
 
     <span style="text-align: center"><NuxtLink to="/login" style="color: #2F7A12; font-weight: 600">Sign in</NuxtLink></span>
 
-    <details style="border: 1px dashed #B7C6BD; border-radius: 12px; padding: 10px 12px; background: #FAFCFB" :open="st.mailbox.length > 0">
-      <summary style="cursor: pointer; font-size: 12px; color: #8A988F">Demo mailbox</summary>
+    <details style="border: 1px dashed var(--k-B7C6BD,#B7C6BD); border-radius: 12px; padding: 10px 12px; background: #FAFCFB" :open="st.mailbox.length > 0">
+      <summary style="cursor: pointer; font-size: 12px; color: var(--k-8A988F,#8A988F)">Demo mailbox</summary>
       <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px">
-        <div v-for="(m, i) in st.mailbox" :key="i" style="padding: 10px 12px; border-radius: 10px; background: #fff; border: 1px solid #DCE5DF; display: flex; flex-direction: column; gap: 4px; font-size: 12px">
-          <strong style="font-size: 13px; color: #0F1714">{{ m.subject }}</strong>
-          <span v-if="m.code" style="font-family: ui-monospace, monospace; font-size: 18px; letter-spacing: 0.3em; color: #0F1714">{{ m.code }}</span>
+        <div v-for="(m, i) in st.mailbox" :key="i" style="padding: 10px 12px; border-radius: 10px; background: #fff; border: 1px solid var(--k-DCE5DF,#DCE5DF); display: flex; flex-direction: column; gap: 4px; font-size: 12px">
+          <strong style="font-size: 13px; color: var(--k-0F1714,#0F1714)">{{ m.subject }}</strong>
+          <span v-if="m.code" style="font-family: ui-monospace, monospace; font-size: 18px; letter-spacing: 0.3em; color: var(--k-0F1714,#0F1714)">{{ m.code }}</span>
           <NuxtLink v-if="m.link" :to="m.link" style="color: #2F7A12; font-weight: 600">Reset password</NuxtLink>
         </div>
       </div>

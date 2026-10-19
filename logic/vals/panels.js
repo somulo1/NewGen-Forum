@@ -19,7 +19,7 @@ export function valsPanels(ctx) {
         callVoice: isDM && curDm ? () => this.startDmCall('voice', curDm.with, dmView.initials, dmView.color) : () => this.startCall('voice', cur.name, cur.initials, cur.color, [], 'forum', cur.id),
         callVideo: isDM && curDm ? () => this.startDmCall('video', curDm.with, dmView.initials, dmView.color) : () => this.startCall('video', cur.name, cur.initials, cur.color, [], 'forum', cur.id) };
     })(),
-    gripStyle: 'display:block;width:4px;height:44px;border-radius:2px;background:' + (s.dragging ? '#B8F36B' : '#3F524A'),
+    gripStyle: 'display:block;width:4px;height:44px;border-radius:2px;background:' + (s.dragging ? '#B8F36B' : 'var(--k-3F524A,#3F524A)'),
     selectMode: s.dragging ? 'none' : 'auto',
     startDrag: (e) => this.startDrag(e),
     resizeKey: (e) => {
@@ -35,7 +35,7 @@ export function valsPanels(ctx) {
     dmList: s.dms.map((d) => { const pr = dmPerson(d.with); const last = d.msgs[d.msgs.length - 1]; const on = isDM && d.id === s.dmId && s.mode !== 'closed';
       return { name: d.with, initials: pr.initials, color: pr.color, dot: dmStatusCol[pr.status] || '#B8F36B', unread: d.unread, hasUnread: d.unread > 0,
         last: last ? (last.from === 'me' ? 'You: ' : '') + (last.text || (last.file ? 'Sent a file' : '')) : 'Say hello', open: () => this.openDm(d.with),
-        style: 'display:flex;align-items:center;gap:10px;width:100%;min-height:50px;padding:4px 10px;border:0;border-radius:10px;cursor:pointer;text-align:left;font-family:inherit;color:#E8EFEA;background:' + (on ? '#22302A' : 'transparent') }; }),
+        style: 'display:flex;align-items:center;gap:10px;width:100%;min-height:50px;padding:4px 10px;border:0;border-radius:10px;cursor:pointer;text-align:left;font-family:inherit;color:var(--k-E8EFEA,#E8EFEA);background:' + (on ? 'var(--k-22302A,#22302A)' : 'transparent') }; }),
     dmsOpen: s.dmsOpen, toggleDms: () => this.setState((x) => ({ dmsOpen: !x.dmsOpen })),
     dmsChevron: 'transition:transform 0.2s;transform:rotate(' + (s.dmsOpen ? '0' : '-90') + 'deg)',
     dmUnreadLabel: (() => { const n = s.dms.reduce((a, d) => a + d.unread, 0); return n ? n + ' new' : String(s.dms.length); })(),

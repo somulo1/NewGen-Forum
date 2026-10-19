@@ -21,7 +21,7 @@ export function richTextHtml(value) {
         .replace(/\+\+([^+\n]+)\+\+/g, '<u>$1</u>')
         .replace(/\n/g, '<br>');
       const marker = '\u0000' + links.length + '\u0000';
-      links.push('<a href="' + href + '" target="_blank" rel="noopener noreferrer" style="color:#B8F36B;text-decoration:underline">' + labelHtml + '</a>');
+      links.push('<a href="' + href + '" target="_blank" rel="noopener noreferrer" style="color:var(--k-B8F36B,#B8F36B);text-decoration:underline">' + labelHtml + '</a>');
       return marker;
     } catch {
       return match;

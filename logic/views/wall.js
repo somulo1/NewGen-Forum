@@ -17,7 +17,7 @@ export function buildWall(ctx) {
       label: o.label + (mine ? '  ✓' : ''),
       pct: s.vote ? pct + '%' : '',
       vote: () => this.setState({ vote: o.id }),
-      style: 'display:flex;align-items:center;min-height:44px;padding:0 14px;border-radius:10px;cursor:pointer;font-size:14px;color:#E8EFEA;text-align:left;border:1px solid ' + (mine ? '#B8F36B' : '#2A3832') + ';background:' + (s.vote ? 'linear-gradient(90deg,#2C3D34 ' + pct + '%,#121B17 ' + pct + '%)' : '#121B17')
+      style: 'display:flex;align-items:center;min-height:44px;padding:0 14px;border-radius:10px;cursor:pointer;font-size:14px;color:var(--k-E8EFEA,#E8EFEA);text-align:left;border:1px solid ' + (mine ? '#B8F36B' : '#2A3832') + ';background:' + (s.vote ? 'linear-gradient(90deg,var(--k-2C3D34,#2C3D34) ' + pct + '%,#121B17 ' + pct + '%)' : 'var(--k-121B17,#121B17)')
     };
   });
   const TAGS = { CharityRun: ['charity'], NewJoiners: ['new team members', 'joiner', 'welcome'], TournamentNight: ['tournament'] };
@@ -38,7 +38,7 @@ export function buildWall(ctx) {
       const my = s.pollVotes[p.id];
       const tot = p.pollData.opts.reduce((n, o) => n + o.votes, 0) + (my ? 1 : 0);
       return { tot, list: p.pollData.opts.map((o) => { const v = o.votes + (my === o.id ? 1 : 0); return { label: o.label + (my === o.id ? '  ✓' : ''), pct: my ? Math.round((v / tot) * 100) + '%' : '', vote: () => this.setState((st) => ({ pollVotes: { ...st.pollVotes, [p.id]: o.id } })),
-        style: 'display:flex;align-items:center;min-height:44px;padding:0 14px;border-radius:10px;cursor:pointer;font-size:14px;color:#E8EFEA;text-align:left;border:1px solid ' + (my === o.id ? '#B8F36B' : '#2A3832') + ';background:#121B17' }; }) };
+        style: 'display:flex;align-items:center;min-height:44px;padding:0 14px;border-radius:10px;cursor:pointer;font-size:14px;color:var(--k-E8EFEA,#E8EFEA);text-align:left;border:1px solid ' + (my === o.id ? '#B8F36B' : '#2A3832') + ';background:var(--k-121B17,#121B17)' }; }) };
   })() : null);
   const posts = s.posts.filter((p) => !s.hiddenPosts[p.id] && tagHit(p)).map((p) => {
     const liked = !!s.liked[p.id];
@@ -144,13 +144,13 @@ export function buildWall(ctx) {
   const pollReady = !!(s.wpoll && s.wpoll.opts.filter((o) => o.trim()).length >= 2 && s.draft.trim());
   const canPost = s.draft.trim().length > 0 && (!s.wpoll || pollReady) || s.wfiles.length > 0;
   const pw = Math.min(s.pw, this.panelMax());
-  const panelStyle = 'position:relative;flex:0 0 ' + pw + 'px;width:' + pw + 'px;max-width:60%;min-height:0;box-sizing:border-box;margin:12px;border-radius:22px;border:1px solid #2A3832;background:#131D19;box-shadow:0 12px 36px rgba(0,0,0,0.35);display:flex;flex-direction:column;overflow:hidden';
+  const panelStyle = 'position:relative;flex:0 0 ' + pw + 'px;width:' + pw + 'px;max-width:60%;min-height:0;box-sizing:border-box;margin:12px;border-radius:22px;border:1px solid var(--k-2A3832,#2A3832);background:var(--k-131D19,#131D19);box-shadow:0 12px 36px rgba(0,0,0,0.35);display:flex;flex-direction:column;overflow:hidden';
   const sessions = [
     { title: 'IT daily standup', forum: 'IT Operations', initials: 'IT', color: '#B8F36B', when: 'Weekdays 9:15', live: false, btn: 'Remind me' },
     { title: 'Sprint review', forum: 'Product Builders', initials: 'PB', color: '#7CC4FF', when: 'Now', live: true, btn: 'Join now' },
     { title: 'Choir rehearsal (online)', forum: 'Choir & Worship', initials: 'CW', color: '#F49AC1', when: 'Thu 5:30pm', live: false, btn: 'RSVP' },
     { title: 'IT town hall', forum: 'IT Operations', initials: 'IT', color: '#B8F36B', when: 'Fri 10:00', live: false, btn: 'RSVP' }
-  ].map((x) => ({ ...x, join: x.live ? () => this.startCall('video', x.title, x.initials, x.color) : () => this.notify('RSVP sent for ' + x.title + ' (' + x.when + ').', '#7CC4FF'), btnStyle: 'height:40px;padding:0 18px;border-radius:20px;cursor:pointer;font-weight:600;' + (x.live ? 'border:0;background:#B8F36B;color:#0F1714' : 'border:1px solid #2A3832;background:transparent;color:#E8EFEA') }));
+  ].map((x) => ({ ...x, join: x.live ? () => this.startCall('video', x.title, x.initials, x.color) : () => this.notify('RSVP sent for ' + x.title + ' (' + x.when + ').', '#7CC4FF'), btnStyle: 'height:40px;padding:0 18px;border-radius:20px;cursor:pointer;font-weight:600;' + (x.live ? 'border:0;background:#B8F36B;color:#0F1714' : 'border:1px solid var(--k-2A3832,#2A3832);background:transparent;color:var(--k-E8EFEA,#E8EFEA)') }));
   const prio = (p) => {
     const c = { High: '#FF9B8A', Medium: '#FFB86B', Low: '#9DB0A6' }[p];
     return 'padding:3px 10px;border-radius:12px;font-size:12px;font-weight:600;border:1px solid ' + c + ';color:' + c;

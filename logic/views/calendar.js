@@ -37,7 +37,7 @@ export function buildCalendar(ctx) {
     weekdays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((l) => ({ l: l })),
     legend: [['Personal', 'My own'], ['Meeting', 'Meetings'], ['Standup', 'Standups'], ['Task', 'Tasks'], ['Event', 'Events'], ['Deadline', 'Project deadlines']].filter(([k]) => (k !== 'Deadline' || has.projects) && ((k !== 'Meeting' && k !== 'Standup') || has.sessions)).map(([k, l]) => ({ label: l, color: typeColor[k], on: !s.calHide[k],
       toggle: () => this.setState((x) => ({ calHide: { ...x.calHide, [k]: !x.calHide[k] } })),
-      style: 'height:32px;padding:0 12px;border-radius:16px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:6px;' + (s.calHide[k] ? 'border:1px dashed #3F524A;background:transparent;color:#9DB0A6' : 'border:1px solid #2A3832;background:#16201C;color:#E8EFEA') })),
+      style: 'height:32px;padding:0 12px;border-radius:16px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:6px;' + (s.calHide[k] ? 'border:1px dashed var(--k-3F524A,#3F524A);background:transparent;color:var(--k-9DB0A6,#9DB0A6)' : 'border:1px solid var(--k-2A3832,#2A3832);background:var(--k-16201C,#16201C);color:var(--k-E8EFEA,#E8EFEA)') })),
     days: Array.from({ length: weeks * 7 }, (_, i) => {
       const iso = isoAdd(firstISO, i - offset);
       const inMonth = iso.slice(0, 7) === s.calMonth;
@@ -45,15 +45,15 @@ export function buildCalendar(ctx) {
       const isSel = iso === s.calSel, isToday = iso === todayISO;
       return { n: Number(iso.slice(8, 10)), aria: fmtDay(iso) + ', ' + its.length + ' items',
         pick: () => this.setState({ calSel: iso }),
-        style: 'min-height:108px;padding:6px;border:0;border-right:1px solid #24322C;border-bottom:1px solid #24322C;display:flex;flex-direction:column;gap:3px;text-align:left;cursor:pointer;font-family:inherit;color:#E8EFEA;overflow:hidden;min-width:0;background:' + (isSel ? '#22302A' : inMonth ? '#16201C' : '#121B17') + ';' + (inMonth ? '' : 'opacity:0.5'),
-        numStyle: isToday ? 'align-self:flex-start;min-width:24px;height:24px;padding:0 6px;box-sizing:border-box;border-radius:12px;background:#B8F36B;color:#0F1714;font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center' : 'font-size:12px;font-weight:600;color:#C9D6CF;padding:2px 4px',
+        style: 'min-height:108px;padding:6px;border:0;border-right:1px solid var(--k-24322C,#24322C);border-bottom:1px solid var(--k-24322C,#24322C);display:flex;flex-direction:column;gap:3px;text-align:left;cursor:pointer;font-family:inherit;color:var(--k-E8EFEA,#E8EFEA);overflow:hidden;min-width:0;background:' + (isSel ? 'var(--k-22302A,#22302A)' : inMonth ? 'var(--k-16201C,#16201C)' : 'var(--k-121B17,#121B17)') + ';' + (inMonth ? '' : 'opacity:0.5'),
+        numStyle: isToday ? 'align-self:flex-start;min-width:24px;height:24px;padding:0 6px;box-sizing:border-box;border-radius:12px;background:#B8F36B;color:#0F1714;font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center' : 'font-size:12px;font-weight:600;color:var(--k-C9D6CF,#C9D6CF);padding:2px 4px',
         items: its.slice(0, 3).map((e) => ({ label: (e.start ? e.start + ' ' : '') + e.title, style: chipStyleC(typeColor[e.type]) + (ended(e, iso) ? ';text-decoration:line-through;opacity:0.55' : '') })),
         hasMore: its.length > 3, more: its.length - 3 };
     }),
     selLabel: (s.calSel === todayISO ? 'Today · ' : '') + fmtDay(s.calSel),
     agenda: itemsOn(s.calSel).map((e) => ({
       ended: ended(e, s.calSel), endedLabel: isClosed(e, s.calSel) ? 'Closed' : 'Ended',
-      cardStyle: 'padding:12px;border-radius:12px;background:#121B17;border:1px solid ' + typeColor[e.type] + ';display:flex;flex-direction:column;gap:6px;opacity:' + (ended(e, s.calSel) ? '0.65' : '1'),
+      cardStyle: 'padding:12px;border-radius:12px;background:var(--k-121B17,#121B17);border:1px solid ' + typeColor[e.type] + ';display:flex;flex-direction:column;gap:6px;opacity:' + (ended(e, s.calSel) ? '0.65' : '1'),
       title: e.type === 'Deadline' ? 'Due: ' + e.title : e.title, type: e.type === 'Deadline' ? 'Project deadline' : e.type, color: typeColor[e.type],
       typeStyle: 'padding:2px 8px;border-radius:8px;font-size:11px;font-weight:600;background:' + typeColor[e.type] + '22;color:' + typeColor[e.type],
       time: e.start ? e.start + (e.end ? '–' + e.end : '') : 'All day',
@@ -86,10 +86,10 @@ export function buildCalendar(ctx) {
     chosen: evS.people.map((n) => ({ ...personOf(n), remove: () => setEv({ people: evS.people.filter((x) => x !== n) }) })),
     matches: candidates.map((n) => { const on = evS.people.indexOf(n) !== -1; return { ...personOf(n), title: titleOf(n), on: on, mark: on ? 'Added' : '+ Add',
       toggle: () => setEv({ people: on ? evS.people.filter((x) => x !== n) : evS.people.concat([n]) }),
-      style: 'display:flex;align-items:center;gap:10px;width:100%;min-height:44px;padding:4px 10px;border:0;cursor:pointer;color:#E8EFEA;font-family:inherit;background:' + (on ? '#22302A' : 'transparent') }; }),
+      style: 'display:flex;align-items:center;gap:10px;width:100%;min-height:44px;padding:4px 10px;border:0;cursor:pointer;color:var(--k-E8EFEA,#E8EFEA);font-family:inherit;background:' + (on ? 'var(--k-22302A,#22302A)' : 'transparent') }; }),
     close: set({ evOpen: false }),
     saveLabel: evNeeds ? 'Schedule & send invites' : 'Add to calendar',
-    saveStyle: 'height:42px;padding:0 20px;border-radius:10px;border:0;font-weight:600;cursor:pointer;' + (evS.title.trim() ? 'background:#B8F36B;color:#0F1714' : 'background:#2A3832;color:#9DB0A6'),
+    saveStyle: 'height:42px;padding:0 20px;border-radius:10px;border:0;font-weight:600;cursor:pointer;' + (evS.title.trim() ? 'background:#B8F36B;color:#0F1714' : 'background:var(--k-2A3832,#2A3832);color:var(--k-9DB0A6,#9DB0A6)'),
     save: () => {
       const e = this.state.ev;
       if (!e.title.trim()) { this.notify('Give it a title first.', '#FFB86B'); return; }

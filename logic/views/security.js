@@ -122,7 +122,7 @@ export function buildSecurity(ctx) {
       const c = fl ? sevColor[ruleSev(r)] : '';
       return { ...l, time: l.ago === 0 ? 'Just now' : agoLabel(l.ago), flagged: fl, ruleName: r ? r.name : '', flagStyle: fl ? badge(c) : '',
         resColor: l.result === 'Success' ? '#C9D6CF' : l.result === 'Failed' ? '#FF9B8A' : '#FFB86B',
-        rowStyle: 'border-top:1px solid #24322C;' + (fl ? 'background:' + c + '12' : '') };
+        rowStyle: 'border-top:1px solid var(--k-24322C,#24322C);' + (fl ? 'background:' + c + '12' : '') };
     }),
     hasMore: logsF.length > s.lshow, more: () => this.setState((x) => ({ lshow: x.lshow + 25 })),
     rules: ruleDefs.map((r) => ({ ...r, on: ruleOn(r.id), sev: ruleSev(r), hits: allLogs.filter((l) => l.rule === r.id).length + ' matches today',

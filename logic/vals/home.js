@@ -57,7 +57,7 @@ export function valsHome(ctx) {
     customizing: s.customize,
     toggleCustomize: () => this.setState((st) => ({ customize: !st.customize })),
     customizeLabel: s.customize ? 'Done' : 'Customize',
-    customizeBtnStyle: 'height:40px;padding:0 18px;border-radius:20px;font-weight:600;cursor:pointer;' + (s.customize ? 'border:0;background:#E8EFEA;color:#0F1714' : 'border:1px solid #2A3832;background:transparent;color:#E8EFEA'),
+    customizeBtnStyle: 'height:40px;padding:0 18px;border-radius:20px;font-weight:600;cursor:pointer;' + (s.customize ? 'border:0;background:var(--k-E8EFEA,#E8EFEA);color:var(--k-0F1714,#0F1714)' : 'border:1px solid var(--k-2A3832,#2A3832);background:transparent;color:var(--k-E8EFEA,#E8EFEA)'),
     forums, cur: curView, nav, go, show, tab, tabTo, ftab, posts, sessions, tickets, files, fileFolders, selectedChatFolder, people, moments,
     openChatFolder: (folder) => this.setState({ chatFileFolder: folder.id }),
     closeChatFolder: () => this.setState({ chatFileFolder: null }),

@@ -13,7 +13,7 @@ export function buildNav(ctx) {
   const denied = secOk(s.section) ? null : { label: labels[s.section] || 'this page', reason: secNeeds[s.section] && !has[secNeeds[s.section]] || (s.section === 'ticketdesk' && (!has.tickets || has.structure)) ? 'off' : 'rights' };
   sections.forEach((k) => {
     const on = curSec === k;
-    nav[k] = navBase + (on ? 'background:#22302A;color:#E8EFEA;font-weight:600' : 'background:transparent;color:#C9D6CF');
+    nav[k] = navBase + (on ? 'background:var(--k-22302A,#22302A);color:var(--k-E8EFEA,#E8EFEA);font-weight:600' : 'background:transparent;color:var(--k-C9D6CF,#C9D6CF)');
     go[k] = () => this.setState((x) => ({ callMode: x.callMode === 'full' ? 'docked' : x.callMode, mode: x.mode === 'page' ? 'docked' : x.mode, section: k, ticketOpen: null, projectOpen: null, folder: null, notifOpen: false, statusMenu: false }));
     show[k] = on;
   });
@@ -21,7 +21,7 @@ export function buildNav(ctx) {
   const tab = {}, tabTo = {}, ftab = {};
   tabs.forEach((k) => {
     const on = s.tab === k;
-    tab[k] = 'min-height:44px;padding:0 16px;border:0;background:transparent;cursor:pointer;font-size:14px;white-space:nowrap;border-bottom:2px solid ' + (on ? '#B8F36B' : 'transparent') + ';color:' + (on ? '#E8EFEA' : '#9DB0A6') + ';font-weight:' + (on ? '600' : '500');
+    tab[k] = 'min-height:44px;padding:0 16px;border:0;background:transparent;cursor:pointer;font-size:14px;white-space:nowrap;border-bottom:2px solid ' + (on ? '#B8F36B' : 'transparent') + ';color:' + (on ? 'var(--k-E8EFEA,#E8EFEA)' : 'var(--k-9DB0A6,#9DB0A6)') + ';font-weight:' + (on ? '600' : '500');
     tabTo[k] = set({ tab: k });
     ftab[k] = on && (k !== 'sessions' || has.sessions);
   });

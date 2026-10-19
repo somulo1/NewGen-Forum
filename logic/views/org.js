@@ -47,7 +47,7 @@ export function buildOrg(ctx) {
   const esc = {
     open: s.escOpen, btnLabel: s.escOpen ? 'Cancel' : 'Escalate ticket', canEscalate: !!cur_t && cur_t.step < 3,
     toggle: () => this.setState((st) => ({ escOpen: !st.escOpen, esc: { type: '', id: '', cat: '', person: '', why: '' } })),
-    types: escTypes.map((t) => ({ label: escLabel(t), pick: () => setEsc({ type: t, id: '', cat: '', person: '' }), style: 'height:34px;padding:0 12px;border-radius:17px;cursor:pointer;font-size:13px;' + (t === escType ? 'border:1px solid #FF9B8A;background:#3A2420;color:#FFD3CA;font-weight:600' : 'border:1px solid #2A3832;background:#121B17;color:#C9D6CF') })),
+    types: escTypes.map((t) => ({ label: escLabel(t), pick: () => setEsc({ type: t, id: '', cat: '', person: '' }), style: 'height:34px;padding:0 12px;border-radius:17px;cursor:pointer;font-size:13px;' + (t === escType ? 'border:1px solid var(--k-FF9B8A,#FF9B8A);background:var(--k-3A2420,#3A2420);color:#FFD3CA;font-weight:600' : 'border:1px solid var(--k-2A3832,#2A3832);background:var(--k-121B17,#121B17);color:var(--k-C9D6CF,#C9D6CF)') })),
     typeLabel: escLabel(escType), showRec: escType !== 'desk',
     recs: escRecList.map((r) => ({ id: r.id, name: r.name })), recValue: escRec ? escRec.id : '',
     onRec: (e) => setEsc({ id: e.target.value, cat: '', person: '' }),
@@ -57,7 +57,7 @@ export function buildOrg(ctx) {
     noPeople: !!escCat && escPpl.length === 0,
     onPerson: (e) => setEsc({ person: e.target.value }),
     why: ES.why, onWhy: (e) => setEsc({ why: typeof e === 'string' ? e : e.target.value }),
-    btnStyle: 'height:42px;border-radius:10px;border:0;font-weight:600;cursor:pointer;font-size:14px;' + (escReady ? 'background:#FF9B8A;color:#0F1714' : 'background:#2A3832;color:#9DB0A6'),
+    btnStyle: 'height:42px;border-radius:10px;border:0;font-weight:600;cursor:pointer;font-size:14px;' + (escReady ? 'background:#FF9B8A;color:#0F1714' : 'background:var(--k-2A3832,#2A3832);color:var(--k-9DB0A6,#9DB0A6)'),
     submit: () => {
       if (!cur_t || !escReady) { this.notify('Pick where to escalate, the category and the person.', '#FFB86B'); return; }
       const dest = escType === 'desk' ? 'the ticket team' : typeName[escType] + ' ' + escRec.name;
@@ -128,10 +128,10 @@ export function buildOrg(ctx) {
   };
   if (has.structure) walk(null, null, 1);
   const org = {
-    chain: ['Organization'].concat(levels.filter((t) => t !== 'departments').map((t) => typeName[t] + (t === 'branches' ? 'es' : 's'))).map((l, i, a) => ({ label: l, arrow: i < a.length - 1, style: 'padding:6px 12px;border-radius:16px;background:#16201C;border:1px solid #2A3832;font-size:13px' })),
+    chain: ['Organization'].concat(levels.filter((t) => t !== 'departments').map((t) => typeName[t] + (t === 'branches' ? 'es' : 's'))).map((l, i, a) => ({ label: l, arrow: i < a.length - 1, style: 'padding:6px 12px;border-radius:16px;background:var(--k-16201C,#16201C);border:1px solid var(--k-2A3832,#2A3832);font-size:13px' })),
     deptNote: has.departments, deptNoteText: 'Departments sit under ' + (has.branches ? 'their branch' : has.sectors ? 'their sector' : 'the organization') + '.',
-    rows: orgRows.map((o, i) => ({ ...o, rowStyle: 'display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:12px 16px;' + (i ? 'border-top:1px solid #24322C' : 'background:#121B17'),
-      indent: 'width:' + (o.depth * 26) + 'px;flex:none;align-self:stretch;' + (o.depth ? 'border-right:2px solid #2A3832' : ''), badge: badge(o.color) }))
+    rows: orgRows.map((o, i) => ({ ...o, rowStyle: 'display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:12px 16px;' + (i ? 'border-top:1px solid var(--k-24322C,#24322C)' : 'background:var(--k-121B17,#121B17)'),
+      indent: 'width:' + (o.depth * 26) + 'px;flex:none;align-self:stretch;' + (o.depth ? 'border-right:2px solid var(--k-2A3832,#2A3832)' : ''), badge: badge(o.color) }))
   };
   const allUnits = levels.reduce((acc, t) => acc.concat(O[t].map((r) => ({ type: t, r: r }))), []);
   const unitPerf = {};
@@ -141,7 +141,7 @@ export function buildOrg(ctx) {
     const key = t + ':' + r.id;
     const on = s.section === 'orgunit' && s.ou === key;
     return { name: r.name, type: typeName[t], typeLower: typeName[t].toLowerCase(), short: shortOf(r.name), color: typeTint[t], key: key, perf: unitPerf[key].perf, open: openOu(t, r.id),
-      style: 'display:flex;align-items:center;gap:10px;width:100%;min-height:46px;padding:4px 10px;border:0;border-radius:10px;cursor:pointer;color:#E8EFEA;font-family:inherit;background:' + (on ? '#22302A' : 'transparent') };
+      style: 'display:flex;align-items:center;gap:10px;width:100%;min-height:46px;padding:4px 10px;border:0;border-radius:10px;cursor:pointer;color:var(--k-E8EFEA,#E8EFEA);font-family:inherit;background:' + (on ? 'var(--k-22302A,#22302A)' : 'transparent') };
   });
   const roleNameOf = (id) => (roleDefs.find((r) => r.id === id) || {}).name || id;
   const targetLabel = (lvl, k) => (k === 'own' ? 'its own ' + typeName[lvl].toLowerCase() : k === 'wall' ? 'the Community wall' : 'other ' + (typeName[k] + (k === 'branches' ? 'es' : 's')).toLowerCase());
@@ -165,7 +165,7 @@ export function buildOrg(ctx) {
     const deptProj = { 'IT Operations': ['network'], 'Software Development': ['mobile'], 'HR': ['onboard'], 'Risk & Compliance': ['audit'], 'Finance': ['audit'], 'Operations': ['network'], 'Customer Care': ['mobile'] };
     const pids = t === 'departments' ? (deptProj[ouRec.name] || []) : s.projects.filter((p, i) => (seedOf(ouRec.id) + i) % 2 === 0).map((p) => p.id);
     const ps = projects.filter((p) => pids.indexOf(p.id) !== -1);
-    const mk = (label, pc, detail) => ({ label: label, pct: pc, detail: detail, color: perfColor(pc, tg), bar: 'height:100%;width:' + pc + '%;background:' + perfColor(pc, tg) + ';border-radius:5px', marker: 'position:absolute;top:-3px;left:calc(' + tg + '% - 1px);width:2px;height:16px;background:#E8EFEA;border-radius:1px' });
+    const mk = (label, pc, detail) => ({ label: label, pct: pc, detail: detail, color: perfColor(pc, tg), bar: 'height:100%;width:' + pc + '%;background:' + perfColor(pc, tg) + ';border-radius:5px', marker: 'position:absolute;top:-3px;left:calc(' + tg + '% - 1px);width:2px;height:16px;background:var(--k-E8EFEA,#E8EFEA);border-radius:1px' });
     ou = {
       name: ouRec.name, type: typeName[t], short: shortOf(ouRec.name), color: typeTint[t], badge: badge(typeTint[t]), path: pathOf(t, ouRec),
       managerRole: mgrRole[t], manager: lead ? lead.name : 'Not set', members: mem.length,
@@ -183,7 +183,7 @@ export function buildOrg(ctx) {
       perf: D.perf, perfColor: perfColor(D.perf, tg), perfNote: D.perf >= tg ? 'Target met' : (tg - D.perf) + ' points below target',
       breakdown: [mk('Communications acknowledged on time', D.pc, D.comms.filter((x) => x.dir !== 'Sent').length + ' received'), mk('Business requests resolved on time', D.pr, D.reqs.filter((x) => x.dir !== 'Sent').length + ' received'), mk('Tickets resolved on time', D.pt, D.tks.filter((x) => x.dir !== 'Sent').length + ' received')],
       tabs: [['comms', 'Communications', D.comms.length], ['reqs', 'Business requests', D.reqs.length], ['tks', 'Tickets', D.tks.length], ['cats', 'Ticket categories', (s.unitCats[t + ':' + ouRec.name] || []).length], ['projects', 'Projects', ps.length]].map(([k, l, n]) => ({ label: l, count: n, go: () => this.setState({ ouTab: k, ouItem: null }),
-        style: 'min-height:44px;padding:0 16px;border:0;background:transparent;cursor:pointer;font-size:14px;white-space:nowrap;font-family:inherit;border-bottom:2px solid ' + (ouTab === k ? '#B8F36B' : 'transparent') + ';color:' + (ouTab === k ? '#E8EFEA' : '#9DB0A6') + ';font-weight:' + (ouTab === k ? '600' : '500') }))
+        style: 'min-height:44px;padding:0 16px;border:0;background:transparent;cursor:pointer;font-size:14px;white-space:nowrap;font-family:inherit;border-bottom:2px solid ' + (ouTab === k ? '#B8F36B' : 'transparent') + ';color:' + (ouTab === k ? 'var(--k-E8EFEA,#E8EFEA)' : 'var(--k-9DB0A6,#9DB0A6)') + ';font-weight:' + (ouTab === k ? '600' : '500') }))
     };
     // Small performance cards for the top card of the dashboard.
     const ouOff = (l) => (/Ticket/.test(l) && !has.tickets) || (/Project/.test(l) && !has.projects);
@@ -252,7 +252,7 @@ export function buildOrg(ctx) {
         const info = recInfo(isReq, c, it.key);
         const setRec = (step, text) => this.setState((st) => { const cur = st.ouRecs[info.rkey] || { step: info.base, activity: info.seedAct }; return { ouRecs: { ...st.ouRecs, [info.rkey]: { step, activity: cur.activity.concat([{ who: 'Sam', kind: 'event', text, time: 'Just now' }]) } } }; });
         const primary = 'height:42px;border-radius:10px;border:0;background:#B8F36B;color:#0F1714;font-weight:600;cursor:pointer;font-size:14px';
-        const secondary = 'height:42px;border-radius:10px;border:1px solid #2A3832;background:transparent;color:#E8EFEA;cursor:pointer;font-size:14px';
+        const secondary = 'height:42px;border-radius:10px;border:1px solid var(--k-2A3832,#2A3832);background:transparent;color:var(--k-E8EFEA,#E8EFEA);cursor:pointer;font-size:14px';
         const nm = info.names, actions = [];
         if (!info.closed) {
           const next = info.step + 1;
@@ -265,8 +265,8 @@ export function buildOrg(ctx) {
         ou.detail = { kind: isReq ? 'Business request' : c.type, ref: isReq ? c.ref : fmtDay(c.date), title: isReq ? c.subject : c.subject, badges: [{ text: c.dir, color: dirC[c.dir] }, { text: info.label, color: recColor(info) }],
           back: () => this.setState({ ouItem: null }), backLabel: '‹ ' + ouRec.name + ' dashboard', closed: info.closed,
           steps: nm.map((label, i) => { const done = i < info.step, now = i === info.step; return { label, num: done ? '✓' : String(i + 1), note: i === 0 ? fmtDay(c.date) : done ? 'Done' : now ? 'Now' : '',
-            barStyle: 'display:block;height:4px;border-radius:2px;background:' + (done || now ? '#B8F36B' : '#2A3832'),
-            dotStyle: 'width:22px;height:22px;flex:none;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;' + (done ? 'background:#B8F36B;color:#0F1714' : now ? 'border:2px solid #B8F36B;color:#B8F36B;box-sizing:border-box' : 'border:1px solid #3F5249;color:#9DB0A6;box-sizing:border-box'),
+            barStyle: 'display:block;height:4px;border-radius:2px;background:' + (done || now ? '#B8F36B' : 'var(--k-2A3832,#2A3832)'),
+            dotStyle: 'width:22px;height:22px;flex:none;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;' + (done ? 'background:#B8F36B;color:#0F1714' : now ? 'border:2px solid var(--k-B8F36B,#B8F36B);color:var(--k-B8F36B,#B8F36B);box-sizing:border-box' : 'border:1px solid var(--k-3F5249,#3F5249);color:var(--k-9DB0A6,#9DB0A6);box-sizing:border-box'),
             labelStyle: 'font-weight:' + (now ? '700' : '500') + ';color:' + (done || now ? '#E8EFEA' : '#9DB0A6') }; }),
           about: isReq ? 'Business request "' + c.subject + '" ' + (c.dir === 'Sent' ? 'sent from ' + ouRec.name + ' to ' + c.cp : 'received by ' + ouRec.name + ' from ' + c.cp) + '. It needs sign-off from ' + approver + '.' : c.type + ' "' + c.subject + '" ' + (c.dir === 'Sent' ? 'sent from ' + ouRec.name + ' to ' + c.cp + '.' : 'received by ' + ouRec.name + ' from ' + c.cp + '.'),
           activity: info.activity.map((a) => { const p = this.dir.find((d) => d.name === a.who); return { ...a, initials: a.who === 'Sam' ? 'S' : p ? p.initials : shortOf(a.who), color: a.who === 'Sam' ? '#F49AC1' : p ? p.color : '#9DB0A6', isEvent: a.kind === 'event', isComment: a.kind === 'comment' }; }),
@@ -281,6 +281,6 @@ export function buildOrg(ctx) {
   ['departments', 'units'].forEach((t) => { if (!has[t]) return; orgWidgetItems[t] = O[t].map((r) => { const k = t + ':' + r.id; const pf = unitPerf[k].perf; const pp = parentFor(t, r); return { name: r.name, sub: (pp ? recOf(pp[0], pp[1]).name + ' · ' : '') + membersOf(t, r.name).length + ' people', perf: pf, perfColor: perfColor(pf, targetOf(k)), open: openOu(t, r.id) }; }); });
   if (has.branches) orgWidgetItems.branches = O.branches.map((b) => ({ name: b.name, initials: shortOf(b.name), place: has.sectors ? recOf('sectors', b.sector).name + ' sector' : 'Branch', head: (membersOf('branches', b.name).find((p) => /Supervisor|Lead|Manager/.test(p.title)) || {}).name || 'Not set', staff: membersOf('branches', b.name).length, statusColor: '#B8F36B', statusLabel: unitPerf['branches:' + b.id].perf + '% on time', open: openOu('branches', b.id) }));
   if (has.sectors) orgWidgetItems.sectors = O.sectors.map((sc, i) => ({ name: sc.name, color: ['#FFB86B', '#7CC4FF', '#F49AC1'][i % 3], depts: (has.branches ? O.branches.filter((b) => b.sector === sc.id) : O.departments.filter((d) => d.sector === sc.id)).map((x) => x.name).join(' · '), staff: membersOf('sectors', sc.name).length, open: openOu('sectors', sc.id) }));
-  orgWidgetItems.performance = myUnits.map((u) => { const tg = targetOf(u.key); return { name: u.name, type: u.type, perf: u.perf, color: perfColor(u.perf, tg), open: u.open, bar: 'height:100%;width:' + u.perf + '%;background:' + perfColor(u.perf, tg) + ';border-radius:4px', marker: 'position:absolute;top:-3px;left:calc(' + tg + '% - 1px);width:2px;height:14px;background:#E8EFEA' }; });
+  orgWidgetItems.performance = myUnits.map((u) => { const tg = targetOf(u.key); return { name: u.name, type: u.type, perf: u.perf, color: perfColor(u.perf, tg), open: u.open, bar: 'height:100%;width:' + u.perf + '%;background:' + perfColor(u.perf, tg) + ';border-radius:4px', marker: 'position:absolute;top:-3px;left:calc(' + tg + '% - 1px);width:2px;height:14px;background:var(--k-E8EFEA,#E8EFEA)' }; });
   return { O, esc, myUnits, org, orgWidgetItems, ou, ouTable, recOf, roleNameOf, ruleSentence, typeName };
 }

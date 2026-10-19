@@ -1,15 +1,15 @@
 <!-- Files of one post, fitted to the card: one file fills it, several tile together like a collage. Click opens the viewer. -->
 <template>
-<div :style="framed ? 'display: flex; flex-direction: column; gap: 4px; min-width: 0; max-width: 100%; padding: 3px; border-radius: 14px; border: 1px solid #2A3832; background: #0F1714' : 'display: flex; flex-direction: column; gap: 6px; min-width: 0'">
+<div :style="framed ? 'display: flex; flex-direction: column; gap: 4px; min-width: 0; max-width: 100%; padding: 3px; border-radius: 14px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-0F1714,#0F1714)' : 'display: flex; flex-direction: column; gap: 6px; min-width: 0'">
 <template v-if="visual.length === 1">
-<button type="button" @click="open(visual[0])" :aria-label="`Open ${visual[0].name}`" style="position: relative; display: block; width: 100%; padding: 0; border: 0; background: #0F1714; cursor: zoom-in; overflow: hidden; border-radius: 12px">
+<button type="button" @click="open(visual[0])" :aria-label="`Open ${visual[0].name}`" style="position: relative; display: block; width: 100%; padding: 0; border: 0; background: var(--k-0F1714,#0F1714); cursor: zoom-in; overflow: hidden; border-radius: 12px">
 <img v-if="visual[0].isImg" :src="visual[0].url" :alt="visual[0].name" :style="`display: block; width: 100%; max-height: ${maxH}px; object-fit: contain`">
 <template v-else><video :src="visual[0].url" preload="metadata" muted playsinline :style="`display: block; width: 100%; max-height: ${maxH}px; background: #000`"></video><span class="mc-play" aria-hidden="true">▶</span></template>
 </button>
 </template>
 <div v-else-if="visual.length > 1" :style="gridStyle">
 <template v-for="(m, i) in visual" :key="i">
-<button type="button" @click="open(m)" :aria-label="`Open ${m.name}`" :style="`position: relative; padding: 0; border: 0; overflow: hidden; border-radius: 10px; background: #0F1714; cursor: zoom-in; min-width: 0; min-height: 0; ${cell(i)}`">
+<button type="button" @click="open(m)" :aria-label="`Open ${m.name}`" :style="`position: relative; padding: 0; border: 0; overflow: hidden; border-radius: 10px; background: var(--k-0F1714,#0F1714); cursor: zoom-in; min-width: 0; min-height: 0; ${cell(i)}`">
 <img v-if="m.isImg" :src="m.url" :alt="m.name" style="display: block; width: 100%; height: 100%; object-fit: cover">
 <template v-else><video :src="m.url" preload="metadata" muted playsinline style="display: block; width: 100%; height: 100%; object-fit: cover; background: #000"></video><span class="mc-play" aria-hidden="true">▶</span></template>
 </button>

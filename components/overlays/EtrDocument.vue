@@ -1,13 +1,13 @@
 <!-- ETR style tax invoice (A4) and receipt (80 mm roll) for subscription invoices. Print or save as PDF from the browser. -->
 <template><template v-if="d.open">
 <div class="hub-overlay" role="dialog" aria-modal="true" aria-label="Print invoice" style="position: fixed; inset: 0; z-index: 75; background: rgba(5,10,8,0.82); display: flex; flex-direction: column">
-<div style="flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 12px 16px; color: #E8EFEA">
+<div style="flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 12px 16px; color: var(--k-E8EFEA,#E8EFEA)">
 <strong style="flex: 1 1 160px; min-width: 0; font-size: 15px">{{ d.invoiceNo }}</strong>
 <div role="tablist" aria-label="Document type" style="display: flex; gap: 4px"><button role="tab" :aria-selected="d.kind === 'invoice'" @click="d.switchKind('invoice')" :style="tab(d.kind === 'invoice')">Tax invoice</button><button v-if="d.paid" role="tab" :aria-selected="d.kind === 'receipt'" @click="d.switchKind('receipt')" :style="tab(d.kind === 'receipt')">Receipt</button></div>
 <button @click="print" style="height: 38px; padding: 0 20px; border-radius: 19px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">Print / Save as PDF</button>
-<button aria-label="Close" @click="d.close" style="width: 38px; height: 38px; border-radius: 50%; border: 1px solid #3A4A42; background: transparent; color: #E8EFEA; cursor: pointer">✕</button>
+<button aria-label="Close" @click="d.close" style="width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--k-3A4A42,#3A4A42); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer">✕</button>
 </div>
-<p style="flex: none; margin: 0; padding: 0 16px 8px; font-size: 12px; color: #9DB0A6">Laid out like a KRA ETR document. The control unit numbers and signature are placeholders until an ETR or eTIMS device is connected to issue the real ones.</p>
+<p style="flex: none; margin: 0; padding: 0 16px 8px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Laid out like a KRA ETR document. The control unit numbers and signature are placeholders until an ETR or eTIMS device is connected to issue the real ones.</p>
 <div style="flex: 1; min-height: 0; overflow: auto; padding: 4px 16px 24px; display: flex; justify-content: center; align-items: flex-start">
 <div id="etr-paper" ref="paper" :class="d.kind === 'receipt' ? 'etr etr-receipt' : 'etr etr-invoice'">
 
@@ -82,7 +82,7 @@ export default {
   watch: { 'd.fiscal.verifyUrl': { immediate: true, handler(u) { this.makeQr(u); } } },
   methods: {
     money(n) { return Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); },
-    tab(on) { return `height: 36px; padding: 0 16px; border-radius: 18px; cursor: pointer; font-size: 13px; border: 1px solid ${on ? '#B8F36B' : '#3A4A42'}; background: ${on ? '#2C3D34' : 'transparent'}; color: #E8EFEA; font-weight: ${on ? 600 : 500}`; },
+    tab(on) { return `height: 36px; padding: 0 16px; border-radius: 18px; cursor: pointer; font-size: 13px; border: 1px solid ${on ? 'var(--k-B8F36B,#B8F36B)' : 'var(--k-3A4A42,#3A4A42)'}; background: ${on ? 'var(--k-2C3D34,#2C3D34)' : 'transparent'}; color: var(--k-E8EFEA,#E8EFEA); font-weight: ${on ? 600 : 500}`; },
     async makeQr(u) { if (!u) { this.qr = ''; return; } try { this.qr = await QRCode.toString(u, { type: 'svg', margin: 0, width: 120, errorCorrectionLevel: 'M' }); } catch (e) { this.qr = ''; } },
     // Prints only the paper: a copy goes into its own element and everything else is hidden while printing.
     print() {
