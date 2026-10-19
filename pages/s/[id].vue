@@ -2,10 +2,10 @@
 <section aria-label="Secure share link" style="width: 100%; min-height: 60vh; box-sizing: border-box; display: flex; align-items: center; justify-content: center; padding: 24px 12px">
 <div style="width: min(100%, 560px); display: flex; flex-direction: column; gap: 14px">
 <SecureInboxCard v-if="share" :share="share"/>
-<div v-else style="padding: 20px; border: 1px solid #2A3832; border-radius: 14px; background: #16201C; display: flex; flex-direction: column; gap: 8px">
+<div v-else style="padding: 20px; border: 1px solid var(--k-2A3832,#2A3832); border-radius: 14px; background: var(--k-16201C,#16201C); display: flex; flex-direction: column; gap: 8px">
 <strong style="font-size: 17px">Secure share unavailable</strong>
-<span role="status" style="color: #9DB0A6; line-height: 1.5">This link is invalid, expired, or is not available in this app session.</span>
-<NuxtLink to="/" style="align-self: flex-start; margin-top: 4px; color: #B8F36B">Return to Hub</NuxtLink>
+<span role="status" style="color: var(--k-9DB0A6,#9DB0A6); line-height: 1.5">This link is invalid, expired, or is not available in this app session.</span>
+<NuxtLink to="/" style="align-self: flex-start; margin-top: 4px; color: var(--k-B8F36B,#B8F36B)">Return to Hub</NuxtLink>
 </div>
 </div>
 </section>

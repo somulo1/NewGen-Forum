@@ -2,7 +2,7 @@
 export function buildProfile(ctx) {
   const { reportOf, fmtDay, forums, has, nav, projects, s, skillsByDept, ts } = ctx;
   // ---- My profile ----
-  nav.profileCard = 'margin-top:auto;display:flex;align-items:center;gap:10px;width:100%;min-height:58px;padding:8px 10px;border-radius:12px;cursor:pointer;color:#E8EFEA;font-family:inherit;border:1px solid ' + (s.section === 'profile' && !s.profileOf ? '#3F524A' : '#24322C') + ';background:' + (s.section === 'profile' && !s.profileOf ? '#22302A' : '#16201C');
+  nav.profileCard = 'margin-top:auto;display:flex;align-items:center;gap:10px;width:100%;min-height:58px;padding:8px 10px;border-radius:12px;cursor:pointer;color:var(--k-E8EFEA,#E8EFEA);font-family:inherit;border:1px solid ' + (s.section === 'profile' && !s.profileOf ? '#3F524A' : '#24322C') + ';background:' + (s.section === 'profile' && !s.profileOf ? 'var(--k-22302A,#22302A)' : 'var(--k-16201C,#16201C)');
   const pf = s.profile;
   const statusDefs = [
     { label: 'Available', color: '#B8F36B', note: 'Available for chats and calls' },

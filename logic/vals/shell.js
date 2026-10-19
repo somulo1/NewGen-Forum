@@ -35,7 +35,7 @@ export function valsShell(ctx) {
     showTabbar: true,
     tabbar: (() => {
       const unread = s.dms.reduce((a, d) => a + d.unread, 0);
-      const st = (on) => 'flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border:0;background:transparent;cursor:pointer;font-family:inherit;color:' + (on ? '#B8F36B' : '#9DB0A6') + ';font-weight:' + (on ? '600' : '500');
+      const st = (on) => 'flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border:0;background:transparent;cursor:pointer;font-family:inherit;color:' + (on ? 'var(--k-B8F36B,#B8F36B)' : 'var(--k-9DB0A6,#9DB0A6)') + ';font-weight:' + (on ? '600' : '500');
       const items = [
         { label: 'Home', icon: 'M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z', on: curSec === 'home', go: () => this.setState({ section: 'home', navOpen: false, ticketOpen: null, projectOpen: null }) },
         { label: 'Wall', icon: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c2.5 2.6 3.7 5.6 3.7 9s-1.2 6.4-3.7 9c-2.5-2.6-3.7-5.6-3.7-9S9.5 5.6 12 3z', on: curSec === 'feed', go: () => this.setState({ section: 'feed', navOpen: false }) }

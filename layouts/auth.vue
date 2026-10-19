@@ -6,10 +6,10 @@
         <span aria-hidden="true" style="width: 40px; height: 40px; border-radius: 12px; background: #B8F36B; color: #0F1714; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 20px">H</span>
         <span style="font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 22px">Hub</span>
       </div>
-      <main style="padding: clamp(22px, 5vw, 32px); border-radius: 24px; background: #FFFFFF; border: 1px solid #DCE5DF; box-shadow: 0 8px 30px rgba(15,23,20,0.08); display: flex; flex-direction: column; gap: 18px">
+      <main style="padding: clamp(22px, 5vw, 32px); border-radius: 24px; background: #FFFFFF; border: 1px solid var(--k-DCE5DF,#DCE5DF); box-shadow: 0 8px 30px rgba(15,23,20,0.08); display: flex; flex-direction: column; gap: 18px">
         <slot />
       </main>
-      <p style="margin: 0; text-align: center; font-size: 12px; color: #6B7A72"><NuxtLink to="/terms" target="_blank" style="color: inherit">Terms</NuxtLink> · <NuxtLink to="/privacy" target="_blank" style="color: inherit">Privacy</NuxtLink></p>
+      <p style="margin: 0; text-align: center; font-size: 12px; color: var(--k-6B7A72,#6B7A72)"><NuxtLink to="/terms" target="_blank" style="color: inherit">Terms</NuxtLink> · <NuxtLink to="/privacy" target="_blank" style="color: inherit">Privacy</NuxtLink></p>
     </div>
   </div>
 </template>

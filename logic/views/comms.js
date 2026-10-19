@@ -33,7 +33,7 @@ export function buildComms(ctx) {
     noStructure: !has.structure,
     needsApproval: cmNeedsApproval, approvalNote: ruleNeeds ? 'This needs approval by ' + roleNameOf(ruleObj.approver) + ' before it goes out.' : cmNeedsApproval ? 'Announcements need approval (' + (f1.levels === 1 ? 'direct' : f1.levels + ' levels') + ') before they go out.' : '',
     publishLabel: cmNeedsApproval ? 'Send for approval' : 'Publish',
-    publishStyle: 'height:42px;padding:0 20px;border-radius:10px;border:0;font-weight:600;cursor:pointer;' + (cmS.title.trim() ? 'background:#B8F36B;color:#0F1714' : 'background:#2A3832;color:#9DB0A6'),
+    publishStyle: 'height:42px;padding:0 20px;border-radius:10px;border:0;font-weight:600;cursor:pointer;' + (cmS.title.trim() ? 'background:#B8F36B;color:#0F1714' : 'background:var(--k-2A3832,#2A3832);color:var(--k-9DB0A6,#9DB0A6)'),
     close: set({ cmOpen: false }),
     publish: () => {
       const c = this.state.cmd;
@@ -57,7 +57,7 @@ export function buildComms(ctx) {
       else { if (fo) this.addForumMsg(fo.id, c.type + ': ' + item.title); this.notify(c.type + ' published to ' + to.join(', ') + '.', '#B8F36B'); }
     }
   };
-  const commNew = commTypes.map((t, i) => ({ label: 'New ' + t.toLowerCase(), run: () => openCm(t), style: 'height:40px;padding:0 16px;border-radius:20px;font-weight:600;cursor:pointer;' + (i === 0 ? 'border:0;background:#B8F36B;color:#0F1714' : 'border:1px solid #2A3832;background:transparent;color:#E8EFEA') }));
+  const commNew = commTypes.map((t, i) => ({ label: 'New ' + t.toLowerCase(), run: () => openCm(t), style: 'height:40px;padding:0 16px;border-radius:20px;font-weight:600;cursor:pointer;' + (i === 0 ? 'border:0;background:#B8F36B;color:#0F1714' : 'border:1px solid var(--k-2A3832,#2A3832);background:transparent;color:var(--k-E8EFEA,#E8EFEA)') }));
   const commsShown = s.comms.filter((c) => commTypes.indexOf(c.type) !== -1);
   const commsTable = { id: 'comms', pageSize: 10, minWidth: '1000px', emptyText: 'Nothing sent yet.',
     cols: [{ label: 'Type', filter: 'select' }, { label: 'Title', filter: 'text' }, { label: 'Sent to', filter: 'text' }, { label: 'From', filter: 'select' }, { label: 'Date', filter: 'date' }, { label: 'Status', filter: 'select' }, { label: 'Read' }, { label: '', align: 'right' }],

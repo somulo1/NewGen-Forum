@@ -5,7 +5,7 @@ export function buildRoles(ctx) {
   // ---- Roles page ----
   const memberSamples = { superadmin: ['Samwel Okoth Omulo', 'Brian Kiprop'], admin: ['Samwel Okoth Omulo', 'David Otieno', 'Grace Njeri'], hod: ['Grace Njeri', 'Amina Wanjiru', 'Kevin Mutua'], it: ['Brian Kiprop', 'David Otieno', 'John Kamau'], finance: ['Amina Wanjiru', 'Mercy Wambui'], staff: ['Faith Achieng', 'Kevin Mutua', 'Mercy Wambui', 'John Kamau', 'Lilian Chebet'], guest: ['External auditor'] };
   const roleSelDef = roleDefs.find((r) => r.id === s.roleSel) || roleDefs[5];
-  const roleList = roleDefs.map((r) => ({ ...r, pick: () => this.setState({ roleSel: r.id }), style: 'display:flex;align-items:center;gap:8px;width:100%;min-height:52px;padding:6px 12px;border-radius:10px;cursor:pointer;color:#E8EFEA;border:1px solid ' + (s.roleSel === r.id ? '#3F524A' : 'transparent') + ';background:' + (s.roleSel === r.id ? '#22302A' : 'transparent') }));
+  const roleList = roleDefs.map((r) => ({ ...r, pick: () => this.setState({ roleSel: r.id }), style: 'display:flex;align-items:center;gap:8px;width:100%;min-height:52px;padding:6px 12px;border-radius:10px;cursor:pointer;color:var(--k-E8EFEA,#E8EFEA);border:1px solid ' + (s.roleSel === r.id ? '#3F524A' : 'transparent') + ';background:' + (s.roleSel === r.id ? 'var(--k-22302A,#22302A)' : 'transparent') }));
   const roleSel = { ...roleSelDef,
     members: (memberSamples[roleSelDef.id] || []).map((n) => ({ name: n, initials: n === 'Samwel Okoth Omulo' ? 'S' : ini(n), color: pColor[n] || '#C9B6FF' })),
     modules: Object.keys(rightsDef).map((m) => {
@@ -36,7 +36,7 @@ export function buildRoles(ctx) {
       const c = done ? '#B8F36B' : rej ? '#FF9B8A' : curL ? '#FFB86B' : '#9DB0A6';
       return { n: done ? '✓' : String(lvl), who: f.approvers[i] || 'Approver', color: c,
         state: h ? h.decision + ' by ' + h.who + ' · ' + h.when : curL ? 'Waiting now' : 'Not reached yet',
-        bar: 'display:block;height:4px;border-radius:2px;background:' + (done ? '#B8F36B' : rej ? '#FF9B8A' : curL ? '#FFB86B' : '#2A3832'),
+        bar: 'display:block;height:4px;border-radius:2px;background:' + (done ? '#B8F36B' : rej ? '#FF9B8A' : curL ? '#FFB86B' : 'var(--k-2A3832,#2A3832)'),
         dot: 'width:22px;height:22px;flex:none;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;box-sizing:border-box;' + (done ? 'background:#B8F36B;color:#0F1714' : 'border:2px solid ' + c + ';color:' + c) };
     });
     const decide = (ok) => () => {

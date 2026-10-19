@@ -11,10 +11,10 @@ export function buildPeople(ctx) {
   const pages = Math.max(1, Math.ceil(results.length / PAGE));
   const pg = Math.min(s.ppage, pages - 1);
   const deptNames = Array.from(new Set(this.dir.map((p) => p.dept))).sort();
-  const facetStyle = (on) => 'display:flex;align-items:center;gap:8px;width:100%;min-height:36px;padding:0 10px;border-radius:8px;border:0;cursor:pointer;font-size:13px;' + (on ? 'background:#2C3D34;color:#E8EFEA;font-weight:600' : 'background:transparent;color:#C9D6CF');
-  const chipS = (on) => 'height:32px;padding:0 12px;border-radius:16px;cursor:pointer;font-size:12px;' + (on ? 'border:1px solid #B8F36B;background:#2C3D34;color:#E8EFEA;font-weight:600' : 'border:1px solid #2A3832;background:transparent;color:#C9D6CF');
-  const segS = (on) => 'height:34px;padding:0 14px;border-radius:9px;border:0;cursor:pointer;font-size:13px;font-weight:600;' + (on ? 'background:#E8EFEA;color:#0F1714' : 'background:transparent;color:#C9D6CF');
-  const pagerS = (dis) => 'height:38px;padding:0 16px;border-radius:19px;border:1px solid #2A3832;background:transparent;font-size:13px;cursor:' + (dis ? 'default;color:#4A5C54' : 'pointer;color:#E8EFEA');
+  const facetStyle = (on) => 'display:flex;align-items:center;gap:8px;width:100%;min-height:36px;padding:0 10px;border-radius:8px;border:0;cursor:pointer;font-size:13px;' + (on ? 'background:var(--k-2C3D34,#2C3D34);color:var(--k-E8EFEA,#E8EFEA);font-weight:600' : 'background:transparent;color:var(--k-C9D6CF,#C9D6CF)');
+  const chipS = (on) => 'height:32px;padding:0 12px;border-radius:16px;cursor:pointer;font-size:12px;' + (on ? 'border:1px solid var(--k-B8F36B,#B8F36B);background:var(--k-2C3D34,#2C3D34);color:var(--k-E8EFEA,#E8EFEA);font-weight:600' : 'border:1px solid var(--k-2A3832,#2A3832);background:transparent;color:var(--k-C9D6CF,#C9D6CF)');
+  const segS = (on) => 'height:34px;padding:0 14px;border-radius:9px;border:0;cursor:pointer;font-size:13px;font-weight:600;' + (on ? 'background:var(--k-E8EFEA,#E8EFEA);color:var(--k-0F1714,#0F1714)' : 'background:transparent;color:var(--k-C9D6CF,#C9D6CF)');
+  const pagerS = (dis) => 'height:38px;padding:0 16px;border-radius:19px;border:1px solid var(--k-2A3832,#2A3832);background:transparent;font-size:13px;cursor:' + (dis ? 'default;color:var(--k-4A5C54,#4A5C54)' : 'pointer;color:var(--k-E8EFEA,#E8EFEA)');
   const dir = {
     total: this.dir.length, deptCount: deptNames.length, onlineCount: this.dir.filter((p) => p.status === 'Available').length,
     q: s.pq, onQ: (e) => this.setState({ pq: e.target.value, ppage: 0 }),

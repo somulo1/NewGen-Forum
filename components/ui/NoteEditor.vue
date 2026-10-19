@@ -27,7 +27,7 @@
 <button type="button" class="nr-b" :class="{ on: on('subscript') }" title="Subscript" aria-label="Subscript" @click="run(c => c.toggleSubscript())">x<sub>2</sub></button>
 <button type="button" class="nr-b" :class="{ on: on('superscript') }" title="Superscript" aria-label="Superscript" @click="run(c => c.toggleSuperscript())">x<sup>2</sup></button>
 <label class="nr-b nr-col" title="Text colour"><span :style="`border-bottom: 3px solid ${attr('color') || '#3A3520'}`">A</span><input type="color" aria-label="Text colour" :value="hex(attr('color'), '#3A3520')" @input="run(c => c.setColor($event.target.value))"></label>
-<label class="nr-b nr-col" title="Highlight colour"><span :style="`border-bottom: 3px solid ${hl || '#FFE066'}`">ab</span><input type="color" aria-label="Highlight colour" :value="hex(hl, '#FFE066')" @input="run(c => c.setHighlight({ color: $event.target.value }))"></label>
+<label class="nr-b nr-col" title="Highlight colour"><span :style="`border-bottom: 3px solid ${hl || 'var(--k-FFE066,#FFE066)'}`">ab</span><input type="color" aria-label="Highlight colour" :value="hex(hl, '#FFE066')" @input="run(c => c.setHighlight({ color: $event.target.value }))"></label>
 <button type="button" class="nr-b" title="Clear formatting" aria-label="Clear formatting" @click="run(c => c.unsetAllMarks().clearNodes())">T<small>x</small></button>
 </div>
 <div class="nr-grp">
@@ -197,7 +197,7 @@ watch(() => props.modelValue, (v) => { const e = editor.value; if (e && v !== (e
 .nr-doc .ProseMirror hr { border: 0; border-top: 2px solid #E0D49C; margin: 1.2em 0; }
 .nr-doc .ProseMirror a { color: #1F6FB5; text-decoration: underline; cursor: pointer; }
 .nr-doc .ProseMirror code { background: #EFE7C6; padding: 1px 5px; border-radius: 4px; font-size: 0.9em; }
-.nr-doc .ProseMirror pre { background: #2A2716; color: #F3EBC8; padding: 12px 14px; border-radius: 8px; overflow-x: auto; margin: 0 0 0.8em; }
+.nr-doc .ProseMirror pre { background: #2A2716; color: var(--k-F3EBC8,#F3EBC8); padding: 12px 14px; border-radius: 8px; overflow-x: auto; margin: 0 0 0.8em; }
 .nr-doc .ProseMirror pre code { background: transparent; padding: 0; color: inherit; }
 .nr-doc .ProseMirror mark { border-radius: 2px; padding: 0 1px; }
 .nr-doc .ProseMirror img { max-width: 100%; height: auto; }

@@ -46,7 +46,7 @@ export function buildHomeWidgets(ctx) {
     chat: { title: 'Private messages', sub: 'One-to-one chats', tint: '#C9B6FF', desc: 'Private one-to-one chats with private voice and video calls. Opens in the same side panel, full screen or bubble as forums.' }
   };
   if (catalog.branches) catalog.branches.desc = 'Branches sit under their sector (if you use sectors) and hold units and departments. Turns on branch dashboards and the Branch manager role.';
-  const pillBtn = (on) => 'flex:none;height:30px;padding:0 12px;border-radius:15px;cursor:pointer;font-size:12px;font-weight:600;' + (on ? 'border:0;background:#2C3D34;color:#B8F36B' : 'border:1px solid #2A3832;background:transparent;color:#E8EFEA');
+  const pillBtn = (on) => 'flex:none;height:30px;padding:0 12px;border-radius:15px;cursor:pointer;font-size:12px;font-weight:600;' + (on ? 'border:0;background:var(--k-2C3D34,#2C3D34);color:var(--k-B8F36B,#B8F36B)' : 'border:1px solid var(--k-2A3832,#2A3832);background:transparent;color:var(--k-E8EFEA,#E8EFEA)');
   const tz = (zone) => { try { return new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: zone }); } catch (err) { return '--:--'; } };
   const tzDay = (zone) => { try { return new Date().toLocaleDateString('en-GB', { weekday: 'long', timeZone: zone }); } catch (err) { return ''; } };
   const hpollBase = [{ id: 'a', label: 'Hotel ballroom', base: 14 }, { id: 'b', label: 'Beach resort', base: 22 }, { id: 'c', label: 'Our own office rooftop', base: 9 }];
@@ -102,7 +102,7 @@ export function buildHomeWidgets(ctx) {
       const pct = Math.round((v / hTotal) * 100);
       const mine = s.hvote === o.id;
       return { label: o.label, pct: s.hvote ? pct + '%' : '', vote: () => this.setState({ hvote: o.id }),
-        style: 'display:flex;align-items:center;min-height:42px;padding:0 12px;border-radius:10px;cursor:pointer;font-size:13px;color:#E8EFEA;text-align:left;border:1px solid ' + (mine ? '#B8F36B' : '#2A3832') + ';background:' + (s.hvote ? 'linear-gradient(90deg,#2C3D34 ' + pct + '%,#121B17 ' + pct + '%)' : '#121B17') };
+        style: 'display:flex;align-items:center;min-height:42px;padding:0 12px;border-radius:10px;cursor:pointer;font-size:13px;color:var(--k-E8EFEA,#E8EFEA);text-align:left;border:1px solid ' + (mine ? '#B8F36B' : '#2A3832') + ';background:' + (s.hvote ? 'linear-gradient(90deg,var(--k-2C3D34,#2C3D34) ' + pct + '%,#121B17 ' + pct + '%)' : 'var(--k-121B17,#121B17)') };
     })
   };
   const daysLeft = Math.max(0, Math.ceil((new Date('2026-12-18T00:00:00+03:00') - new Date()) / 86400000));
@@ -152,7 +152,7 @@ export function buildHomeWidgets(ctx) {
     shareIdle: true,
     makeShare: () => this.setState({ section: 'share' }),
     resetShare: () => this.setState({ section: 'share' }),
-    cardStyle: 'break-inside:avoid;margin:0 0 16px;box-sizing:border-box;width:100%;padding:18px;border-radius:18px;background:#16201C;display:flex;flex-direction:column;gap:14px;border:' + (s.customize ? '1px dashed #4A5C54' : '1px solid #24322C'),
+    cardStyle: 'break-inside:avoid;margin:0 0 16px;box-sizing:border-box;width:100%;padding:18px;border-radius:18px;background:var(--k-16201C,#16201C);display:flex;flex-direction:column;gap:14px;border:' + (s.customize ? '1px dashed var(--k-4A5C54,#4A5C54)' : '1px solid var(--k-24322C,#24322C)'),
     remove: () => removeWidget(id),
     moveUp: () => this.setState((st) => {
       const w = st.widgets.slice(); const k = w.indexOf(id);
@@ -164,7 +164,7 @@ export function buildHomeWidgets(ctx) {
     const added = ids.indexOf(id) !== -1;
     return { ...catalog[id], added, hidden: added && isHidden(id), hideLabel: isHidden(id) ? 'Show on Home' : 'Hide on Home', toggleHide: toggleHide(id), remove: () => removeWidget(id), btnLabel: added ? 'Added' : 'Add to home',
       openSettings: () => this.setState({ settingsFor: id }),
-      btnStyle: 'flex:1;height:38px;border-radius:10px;font-weight:600;cursor:' + (added ? 'default' : 'pointer') + ';' + (added ? 'border:1px solid #2A3832;background:transparent;color:#9DB0A6' : 'border:0;background:#B8F36B;color:#0F1714'),
+      btnStyle: 'flex:1;height:38px;border-radius:10px;font-weight:600;cursor:' + (added ? 'default' : 'pointer') + ';' + (added ? 'border:1px solid var(--k-2A3832,#2A3832);background:transparent;color:var(--k-9DB0A6,#9DB0A6)' : 'border:0;background:#B8F36B;color:#0F1714'),
       add: () => { if (!added) this.setState((st) => ({ widgets: st.widgets.concat(id) })); } };
   });
   return { catalog, cur_f, folders, fv, gallery, ids, isHidden, toggleHide, widgets };

@@ -65,7 +65,7 @@ export function buildForums(ctx) {
       unread,
       hasUnread: unread > 0,
       open: () => this.setState((st) => ({ forumRead: { ...st.forumRead, [f.id]: true }, forum: f.id, panelKind: 'forum', mode: openMode, menu: false, tab: 'discussions', invite: false })),
-      rowStyle: 'display:flex;align-items:center;gap:10px;width:100%;min-height:44px;padding:4px 10px;border:0;border-radius:10px;cursor:pointer;text-align:left;font-size:14px;color:#E8EFEA;background:' + (active ? '#22302A' : 'transparent'),
+      rowStyle: 'display:flex;align-items:center;gap:10px;width:100%;min-height:44px;padding:4px 10px;border:0;border-radius:10px;cursor:pointer;text-align:left;font-size:14px;color:var(--k-E8EFEA,#E8EFEA);background:' + (active ? 'var(--k-22302A,#22302A)' : 'transparent'),
       chipStyle: 'flex:none;width:36px;height:36px;border-radius:10px;cursor:pointer;font-family:Space Grotesk,sans-serif;font-weight:700;font-size:12px;color:#0F1714;background:' + f.color + ';border:2px solid ' + (f.id === cur.id ? '#E8EFEA' : 'transparent') + ';opacity:' + (f.id === cur.id ? '1' : '0.65'),
       unreadStyle: 'position:absolute;top:-5px;right:-6px;min-width:17px;height:17px;padding:0 4px;box-sizing:border-box;border-radius:9px;background:#B8F36B;color:#0F1714;font:700 10px sans-serif;display:flex;align-items:center;justify-content:center;pointer-events:none'
     };
@@ -96,8 +96,8 @@ export function buildForums(ctx) {
     deleteForEveryone: deleteForEveryone ? () => { deleteForEveryone(); this.setState({ messageMenu: null }); } : null
   });
   const fStyle = (m) => (m.who === 'Sam' || m.who === 'You'
-    ? { ...m, who: 'You', mine: true, rowStyle: 'display:flex;gap:10px;flex-direction:row-reverse', bubbleStyle: 'max-width:78%;min-width:0;padding:10px 14px;border-radius:14px 4px 14px 14px;background:#2C3D34' }
-    : { ...m, mine: false, rowStyle: 'display:flex;gap:10px', bubbleStyle: 'flex:1;min-width:0;padding:10px 12px;border-radius:4px 12px 12px 12px;background:#1A2520' });
+    ? { ...m, who: 'You', mine: true, rowStyle: 'display:flex;gap:10px;flex-direction:row-reverse', bubbleStyle: 'max-width:78%;min-width:0;padding:10px 14px;border-radius:14px 4px 14px 14px;background:var(--k-2C3D34,#2C3D34)' }
+    : { ...m, mine: false, rowStyle: 'display:flex;gap:10px', bubbleStyle: 'flex:1;min-width:0;padding:10px 12px;border-radius:4px 12px 12px 12px;background:var(--k-1A2520,#1A2520)' });
   const forumMessages = baseMsgs.slice().reverse().concat(addedHere).map((message) => {
     const key = 'forum:' + cur.id + ':' + message.id;
     const source = message.source;
@@ -159,7 +159,7 @@ export function buildForums(ctx) {
         hasText: !!m.text, hasFile: !!m.file, fileList: [].concat(m.file || []), ...quote(m), reply: replyFn(who, m),
         replies: 0, mine, secureShare: sharesById[m.secureShareId] || null, hasSecureShare: !!sharesById[m.secureShareId],
         rowStyle: 'display:flex;gap:10px;' + (mine ? 'flex-direction:row-reverse' : ''),
-        bubbleStyle: 'max-width:78%;min-width:0;padding:10px 14px;border-radius:' + (mine ? '14px 4px 14px 14px;background:#2C3D34' : '4px 14px 14px 14px;background:#1A2520'),
+        bubbleStyle: 'max-width:78%;min-width:0;padding:10px 14px;border-radius:' + (mine ? '14px 4px 14px 14px;background:var(--k-2C3D34,#2C3D34)' : '4px 14px 14px 14px;background:var(--k-1A2520,#1A2520)'),
         ...actions
       };
     }).filter((message) => !s.hiddenChatMessages[message.messageKey] && !s.removedChatMessages[message.messageKey]);

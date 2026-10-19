@@ -44,11 +44,11 @@ export function buildAwards(ctx) {
     selectAll: () => setAw((x) => ({ people: x.people.concat(awMatches.map((d) => d.name).filter((n) => x.people.indexOf(n) === -1)) })),
     matches: awMatches.map((d) => { const on = awS.people.indexOf(d.name) !== -1; return { name: d.name, initials: d.initials, color: d.color, sub: d.title + ' · ' + (roleDefs.find((r) => r.id === personRole(d.name)) || {}).name, on: on, mark: on ? 'Selected' : '+ Add',
       toggle: () => setAw((x) => ({ people: on ? x.people.filter((y) => y !== d.name) : x.people.concat([d.name]) })),
-      style: 'display:flex;align-items:center;gap:10px;width:100%;min-height:44px;padding:4px 10px;border:0;cursor:pointer;color:#E8EFEA;font-family:inherit;background:' + (on ? '#24220F' : 'transparent') }; }),
+      style: 'display:flex;align-items:center;gap:10px;width:100%;min-height:44px;padding:4px 10px;border:0;cursor:pointer;color:var(--k-E8EFEA,#E8EFEA);font-family:inherit;background:' + (on ? 'var(--k-24220F,#24220F)' : 'transparent') }; }),
     posterNames: awS.people.length ? (awS.people.length > 3 ? awS.people.slice(0, 3).join(', ') + ' +' + (awS.people.length - 3) : awS.people.join(', ')) : 'Awardee names',
     approvalNote: f7 && f7.levels > 0 ? 'Awards are approved before they appear (' + (f7.levels === 1 ? 'direct approval by ' + f7.approvers[0] : f7.levels + ' levels: ' + f7.approvers.slice(0, f7.levels).join(' → ')) + ').' : 'Awards appear straight away.',
     submitLabel: f7 && f7.levels > 0 ? 'Send for approval' : 'Give award',
-    submitStyle: 'height:42px;padding:0 20px;border-radius:10px;border:0;font-weight:700;cursor:pointer;' + (awS.people.length ? 'background:#FFD66B;color:#0F1714' : 'background:#2A3832;color:#9DB0A6'),
+    submitStyle: 'height:42px;padding:0 20px;border-radius:10px;border:0;font-weight:700;cursor:pointer;' + (awS.people.length ? 'background:#FFD66B;color:#0F1714' : 'background:var(--k-2A3832,#2A3832);color:var(--k-9DB0A6,#9DB0A6)'),
     close: set({ awOpen: false }),
     submit: () => {
       const a0 = this.state.awd;

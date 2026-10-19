@@ -4,9 +4,9 @@
 <button v-if="variant === 'dock'" class="hub-grip" aria-label="Drag to resize panel. Arrow keys also resize." @pointerdown="startDrag" @keydown="resizeKey" style="position: absolute; left: 0; top: 0; bottom: 0; width: 14px; padding: 0; border: 0; background: transparent; cursor: ew-resize; z-index: 40; touch-action: none; display: flex; align-items: center; justify-content: center"><span :style="gripStyle"></span></button>
 <div :style="`flex: none; display: flex; flex-wrap: ${compact ? 'nowrap' : 'wrap'}; align-items: center; gap: ${compact ? 8 : 12}px; padding: ${compact ? '10px 12px' : '12px 18px'}`">
 <span :style="`width: 36px; height: 36px; border-radius: 10px; background: ${call.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 13px`">{{ call.initials }}</span>
-<div :style="`flex: 1 1 ${compact ? 0 : 200}px; min-width: 0; display: flex; flex-direction: column`"><strong style="font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ call.title }}</strong><span style="font-size: 12px; color: #9DB0A6">{{ call.modeLabel }} · {{ call.count }} people</span></div>
-<template v-if="call.rec"><span style="height: 30px; padding: 0 12px; border-radius: 15px; background: #3A1E1A; color: #FF9B8A; font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 6px"><span style="width: 8px; height: 8px; border-radius: 50%; background: #FF9B8A"></span>REC</span></template>
-<span style="height: 30px; padding: 0 12px; border-radius: 15px; background: #16201C; font-family: 'Space Grotesk', sans-serif; font-size: 14px; display: flex; align-items: center">{{ call.timer }}</span>
+<div :style="`flex: 1 1 ${compact ? 0 : 200}px; min-width: 0; display: flex; flex-direction: column`"><strong style="font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ call.title }}</strong><span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">{{ call.modeLabel }} · {{ call.count }} people</span></div>
+<template v-if="call.rec"><span style="height: 30px; padding: 0 12px; border-radius: 15px; background: var(--k-3A1E1A,#3A1E1A); color: var(--k-FF9B8A,#FF9B8A); font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 6px"><span style="width: 8px; height: 8px; border-radius: 50%; background: #FF9B8A"></span>REC</span></template>
+<span style="height: 30px; padding: 0 12px; border-radius: 15px; background: var(--k-16201C,#16201C); font-family: 'Space Grotesk', sans-serif; font-size: 14px; display: flex; align-items: center">{{ call.timer }}</span>
 <template v-if="variant === 'main'"><button aria-label="Back to side card" title="Side card" @click="callToDock" :style="winBtn"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M15 4v16"></path></svg></button><button aria-label="Minimize call" title="Minimize" @click="callToMin" :style="winBtn"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 18h14"></path></svg></button></template>
 <template v-if="variant === 'dock'"><button aria-label="Expand call" title="Expand" @click="callToFull" :style="winBtn"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"></path></svg></button><button aria-label="Minimize call" title="Minimize" @click="callToMin" :style="winBtn"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 18h14"></path></svg></button></template>
 <template v-if="variant === 'panel'"><button aria-label="Fit call to page" title="Fit to page" @click="toPage" :style="winBtn"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M15 4v16"></path></svg></button></template>
@@ -21,10 +21,10 @@
 
 <template v-if="call.isVideo">
 <template v-if="call.sharing">
-<div class="cs-share" style="flex: 1; min-height: 280px; border-radius: 18px; background: #16201C; border: 2px solid #B8F36B; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 20px; text-align: center">
-<svg aria-hidden="true" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#B8F36B" stroke-width="1.6" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"></rect><path d="M8 20h8M12 16v4M12 7v6M9 10l3-3 3 3"></path></svg>
+<div class="cs-share" style="flex: 1; min-height: 280px; border-radius: 18px; background: var(--k-16201C,#16201C); border: 2px solid var(--k-B8F36B,#B8F36B); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 20px; text-align: center">
+<svg aria-hidden="true" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="var(--k-B8F36B,#B8F36B)" stroke-width="1.6" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"></rect><path d="M8 20h8M12 16v4M12 7v6M9 10l3-3 3 3"></path></svg>
 <strong style="font-size: 18px">You are presenting your screen</strong>
-<span style="color: #9DB0A6; font-size: 13px">Everyone in the meeting can see it.</span>
+<span style="color: var(--k-9DB0A6,#9DB0A6); font-size: 13px">Everyone in the meeting can see it.</span>
 <button @click="toggleShare" style="height: 40px; padding: 0 18px; border-radius: 20px; border: 0; background: #FF9B8A; color: #0F1714; font-weight: 600; cursor: pointer">Stop presenting</button>
 </div>
 <div style="display: flex; gap: 10px; overflow-x: auto">
@@ -39,9 +39,9 @@
 <div class="cs-tile" :style="tl.style">
 <template v-if="tl.camOff"><UserAvatar :name="tl.name" :initials="tl.initials" :color="tl.color" :size="76" :font-size="26"/></template>
 <template v-if="tl.camOn"><div :style="`position: absolute; inset: 0; background: ${tl.camBg}; display: flex; align-items: flex-end; justify-content: center`"><span :style="`width: 46%; aspect-ratio: 1 / 1.1; border-radius: 50% 50% 18% 18%; background: ${tl.color}; opacity: 0.55`"></span></div></template>
-<span style="position: absolute; left: 10px; bottom: 10px; height: 28px; padding: 0 10px; border-radius: 14px; background: rgba(10,16,13,0.75); font-size: 12px; display: flex; align-items: center; gap: 6px">{{ tl.name }}<template v-if="tl.muted"><svg aria-label="Muted" role="img" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#FF9B8A" stroke-width="2" stroke-linecap="round"><path d="M9 9v2a3 3 0 0 0 5 2.2M15 10V5a3 3 0 0 0-6 0M5 11a7 7 0 0 0 11.5 5.3M19 11a7 7 0 0 1-.5 2.5M12 18v3M3 3l18 18"></path></svg></template></span>
+<span style="position: absolute; left: 10px; bottom: 10px; height: 28px; padding: 0 10px; border-radius: 14px; background: rgba(10,16,13,0.75); font-size: 12px; display: flex; align-items: center; gap: 6px">{{ tl.name }}<template v-if="tl.muted"><svg aria-label="Muted" role="img" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--k-FF9B8A,#FF9B8A)" stroke-width="2" stroke-linecap="round"><path d="M9 9v2a3 3 0 0 0 5 2.2M15 10V5a3 3 0 0 0-6 0M5 11a7 7 0 0 0 11.5 5.3M19 11a7 7 0 0 1-.5 2.5M12 18v3M3 3l18 18"></path></svg></template></span>
 <template v-if="tl.hand"><span style="position: absolute; top: 10px; left: 10px; height: 28px; padding: 0 10px; border-radius: 14px; background: #FFD66B; color: #0F1714; font-size: 12px; font-weight: 700; display: flex; align-items: center">Hand raised</span></template>
-<template v-if="tl.speaking"><span style="position: absolute; top: 10px; right: 10px; font-size: 11px; font-weight: 600; color: #B8F36B">Speaking</span></template>
+<template v-if="tl.speaking"><span style="position: absolute; top: 10px; right: 10px; font-size: 11px; font-weight: 600; color: var(--k-B8F36B,#B8F36B)">Speaking</span></template>
 <template v-if="tl.mod"><span style="position: absolute; right: 8px; bottom: 8px"><ModControls :tile="tl"/></span></template>
 </div>
 </template>
@@ -51,13 +51,13 @@
 
 <template v-if="call.isVoice">
 <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px; padding: 20px">
-<span style="font-size: 13px; color: #9DB0A6">Voice call</span>
+<span style="font-size: 13px; color: var(--k-9DB0A6,#9DB0A6)">Voice call</span>
 <div style="display: flex; flex-wrap: wrap; gap: 36px; justify-content: center">
 <template v-for="(tl, tl__i) in call.tiles" :key="tl__i">
 <div style="display: flex; flex-direction: column; align-items: center; gap: 10px">
 <UserAvatar class="cs-voice" :name="tl.name" :initials="tl.initials" :color="tl.color" :size="104" :font-size="34" :style="tl.voiceStyle"/>
-<span style="font-size: 14px; display: flex; align-items: center; gap: 6px">{{ tl.name }}<template v-if="tl.muted"><svg aria-label="Muted" role="img" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#FF9B8A" stroke-width="2" stroke-linecap="round"><path d="M9 9v2a3 3 0 0 0 5 2.2M15 10V5a3 3 0 0 0-6 0M5 11a7 7 0 0 0 11.5 5.3M19 11a7 7 0 0 1-.5 2.5M12 18v3M3 3l18 18"></path></svg></template></span>
-<template v-if="tl.hand"><span style="font-size: 11px; font-weight: 700; color: #FFD66B">Hand raised</span></template>
+<span style="font-size: 14px; display: flex; align-items: center; gap: 6px">{{ tl.name }}<template v-if="tl.muted"><svg aria-label="Muted" role="img" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--k-FF9B8A,#FF9B8A)" stroke-width="2" stroke-linecap="round"><path d="M9 9v2a3 3 0 0 0 5 2.2M15 10V5a3 3 0 0 0-6 0M5 11a7 7 0 0 0 11.5 5.3M19 11a7 7 0 0 1-.5 2.5M12 18v3M3 3l18 18"></path></svg></template></span>
+<template v-if="tl.hand"><span style="font-size: 11px; font-weight: 700; color: var(--k-FFD66B,#FFD66B)">Hand raised</span></template>
 <template v-if="tl.mod"><ModControls :tile="tl"/></template>
 </div>
 </template>
@@ -68,18 +68,18 @@
 
 <template v-if="call.panelOpen">
 <aside :aria-label="call.panelTitle" :style="sideStyle">
-<div style="flex: none; display: flex; align-items: center; padding: 14px 16px; border-bottom: 1px solid #24322C"><strong style="flex: 1">{{ call.panelTitle }}</strong><button aria-label="Close panel" @click="closeCallPanel" style="width: 34px; height: 34px; border-radius: 50%; border: 0; background: transparent; color: #E8EFEA; cursor: pointer; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></div>
+<div style="flex: none; display: flex; align-items: center; padding: 14px 16px; border-bottom: 1px solid var(--k-24322C,#24322C)"><strong style="flex: 1">{{ call.panelTitle }}</strong><button aria-label="Close panel" @click="closeCallPanel" style="width: 34px; height: 34px; border-radius: 50%; border: 0; background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></div>
 <template v-if="call.showPeople">
 <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px">
-<template v-for="(tl, tl__i) in call.tiles" :key="tl__i"><div style="display: flex; gap: 10px; align-items: center"><UserAvatar :name="tl.name" :initials="tl.initials" :color="tl.color" :size="34" :font-size="12"/><span style="flex: 1; font-size: 14px">{{ tl.name }}</span><template v-if="tl.mod"><ModControls :tile="tl"/></template><span style="font-size: 12px; color: #9DB0A6">{{ tl.stateLabel }}</span></div></template>
-<button style="margin-top: 6px; height: 38px; border-radius: 10px; border: 1px dashed #4A5C54; background: transparent; color: #E8EFEA; cursor: pointer">Invite people</button>
+<template v-for="(tl, tl__i) in call.tiles" :key="tl__i"><div style="display: flex; gap: 10px; align-items: center"><UserAvatar :name="tl.name" :initials="tl.initials" :color="tl.color" :size="34" :font-size="12"/><span style="flex: 1; font-size: 14px">{{ tl.name }}</span><template v-if="tl.mod"><ModControls :tile="tl"/></template><span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">{{ tl.stateLabel }}</span></div></template>
+<button style="margin-top: 6px; height: 38px; border-radius: 10px; border: 1px dashed var(--k-4A5C54,#4A5C54); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer">Invite people</button>
 </div>
 </template>
 <template v-if="call.showChat">
 <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px">
-<template v-for="(cm, cm__i) in call.msgs" :key="cm__i"><div style="display: flex; flex-direction: column; gap: 2px"><strong style="font-size: 12px">{{ cm.who }}</strong><span style="font-size: 14px; line-height: 1.4; padding: 8px 10px; border-radius: 4px 12px 12px 12px; background: #1F2C26">{{ cm.text }}</span></div></template>
+<template v-for="(cm, cm__i) in call.msgs" :key="cm__i"><div style="display: flex; flex-direction: column; gap: 2px"><strong style="font-size: 12px">{{ cm.who }}</strong><span style="font-size: 14px; line-height: 1.4; padding: 8px 10px; border-radius: 4px 12px 12px 12px; background: var(--k-1F2C26,#1F2C26)">{{ cm.text }}</span></div></template>
 </div>
-<div style="flex: none; display: flex; gap: 8px; align-items: center; padding: 10px 12px; border-top: 1px solid #24322C"><EmojiButton :size="38" @pick="pickEmojiCall"/><label style="flex: 1; min-width: 0"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Message everyone</span><input type="text" :value="call.draft" @input="onCallDraft" @keydown="callKey" placeholder="Message everyone" style="width: 100%; box-sizing: border-box; height: 40px; padding: 0 12px; border-radius: 20px; border: 1px solid #2A3832; background: #121B17; color: #E8EFEA"></label><button aria-label="Send" @click="sendCallMsg" style="width: 40px; height: 40px; border-radius: 50%; border: 0; background: #B8F36B; color: #0F1714; cursor: pointer; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 12l16-8-6 16-3-7z"></path></svg></button></div>
+<div style="flex: none; display: flex; gap: 8px; align-items: center; padding: 10px 12px; border-top: 1px solid var(--k-24322C,#24322C)"><EmojiButton :size="38" @pick="pickEmojiCall"/><label style="flex: 1; min-width: 0"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Message everyone</span><input type="text" :value="call.draft" @input="onCallDraft" @keydown="callKey" placeholder="Message everyone" style="width: 100%; box-sizing: border-box; height: 40px; padding: 0 12px; border-radius: 20px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA)"></label><button aria-label="Send" @click="sendCallMsg" style="width: 40px; height: 40px; border-radius: 50%; border: 0; background: #B8F36B; color: #0F1714; cursor: pointer; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 12l16-8-6 16-3-7z"></path></svg></button></div>
 </template>
 </aside>
 </template>
@@ -109,15 +109,15 @@ export default {
     ...hubBindings(["pickEmojiCall","call","callKey","closeCallPanel","endCall","onCallDraft","openCallChat","openCallPeople","sendCallMsg","gripStyle","panelStyle","resizeKey","showMeetingDock","showMeetingFull","showPanelCall","startDrag","callToDock","callToFull","callToMin","toDocked","toFull","toMin","toPage","toggleCam","toggleHand","toggleMic","toggleRec","toggleShare"]).computed,
     visible() { return this.variant === 'main' ? !!this.showMeetingFull : this.variant === 'dock' ? !!this.showMeetingDock : !!this.showPanelCall; },
     compact() { return this.variant === 'panel' || this.variant === 'dock'; },
-    winBtn() { return 'width: 34px; height: 34px; border-radius: 50%; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer; display: flex; align-items: center; justify-content: center; flex: none'; },
+    winBtn() { return 'width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; display: flex; align-items: center; justify-content: center; flex: none'; },
     rootStyle() {
-      const base = 'background: #0A100D; color: #E8EFEA; display: flex; flex-direction: column; overflow: hidden; box-sizing: border-box; z-index: 30; position: absolute;';
-      if (this.variant === 'main') return base + ' inset: 24px 12px 12px 12px; border-radius: 22px; border: 1px solid #2A3832; box-shadow: 0 12px 36px rgba(0,0,0,0.35)';
-      if (this.variant === 'dock') return this.panelStyle + ';background: #0A100D;color: #E8EFEA';
+      const base = 'background: var(--k-0A100D,#0A100D); color: var(--k-E8EFEA,#E8EFEA); display: flex; flex-direction: column; overflow: hidden; box-sizing: border-box; z-index: 30; position: absolute;';
+      if (this.variant === 'main') return base + ' inset: 24px 12px 12px 12px; border-radius: 22px; border: 1px solid var(--k-2A3832,#2A3832); box-shadow: 0 12px 36px rgba(0,0,0,0.35)';
+      if (this.variant === 'dock') return this.panelStyle + ';background: var(--k-0A100D,#0A100D);color: var(--k-E8EFEA,#E8EFEA)';
       return base + ' inset: 0; border-radius: inherit';
     },
     sideStyle() {
-      const card = 'background: #16201C; border: 1px solid #24322C; display: flex; flex-direction: column; overflow: hidden; border-radius: 18px; ';
+      const card = 'background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; overflow: hidden; border-radius: 18px; ';
       if (this.compact) return card + 'position: absolute; left: 8px; right: 8px; top: 0; bottom: 8px; z-index: 5';
       return card + 'flex: 0 0 340px; max-width: 45%';
     }

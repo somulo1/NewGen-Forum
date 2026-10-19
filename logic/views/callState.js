@@ -38,7 +38,7 @@ export function buildCallState(ctx) {
         stripStyle: 'position:relative;flex:none;width:160px;height:96px;border-radius:12px;background:' + p.bg + ';display:flex;align-items:center;justify-content:center;box-sizing:border-box;border:2px solid ' + (speaking ? '#B8F36B' : 'transparent'),
         voiceStyle: 'width:104px;height:104px;border-radius:50%;background:' + p.color + ';color:#0F1714;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:34px;' + (speaking ? 'animation:ring 1.2s ease-out infinite' : 'opacity:0.85') };
     });
-    const ctl = (on, danger) => 'width:66px;height:60px;border-radius:16px;border:0;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;' + (danger ? 'background:#FF9B8A;color:#0F1714' : on ? 'background:#B8F36B;color:#0F1714' : 'background:#1D2A25;color:#E8EFEA');
+    const ctl = (on, danger) => 'width:66px;height:60px;border-radius:16px;border:0;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;' + (danger ? 'background:#FF9B8A;color:#0F1714' : on ? 'background:#B8F36B;color:#0F1714' : 'background:var(--k-1D2A25,#1D2A25);color:var(--k-E8EFEA,#E8EFEA)');
     call = {
       ...s.call, timer, isVideo, isVoice: !isVideo, count: all.length,
       modeLabel: isVideo ? 'Video meeting' : 'Voice call',

@@ -66,7 +66,7 @@ export function buildTickets(ctx) {
     const c = calc(cur_t);
     const id = cur_t.id;
     const primary = 'height:42px;border-radius:10px;border:0;background:#B8F36B;color:#0F1714;font-weight:600;cursor:pointer;font-size:14px';
-    const secondary = 'height:42px;border-radius:10px;border:1px solid #2A3832;background:transparent;color:#E8EFEA;cursor:pointer;font-size:14px';
+    const secondary = 'height:42px;border-radius:10px;border:1px solid var(--k-2A3832,#2A3832);background:transparent;color:var(--k-E8EFEA,#E8EFEA);cursor:pointer;font-size:14px';
     const setStep = (step, text, extra) => this.updTicket(id, (t) => Object.assign({}, t, { step: step, hold: false, activity: this.act(t, { text: text }) }, extra || {}));
     const actions = [];
     if (cur_t.step === 1) actions.push({ label: 'Start work', style: primary, run: () => setStep(2, 'Started work') });
@@ -103,8 +103,8 @@ export function buildTickets(ctx) {
         const notes = [cur_t.created, cur_t.handler ? 'To ' + cur_t.handler : 'Waiting for someone', cur_t.step === 2 && cur_t.hold ? 'On hold' : (cur_t.step >= 2 ? 'Work started' : ''), cur_t.step >= 3 ? (cur_t.late ? 'After the TAT' : 'Within the TAT') : 'TAT ' + tatText(cur_t.cat), cur_t.step === 4 ? 'Done' : ''];
         return {
           label: label, num: done ? '✓' : String(i + 1), note: notes[i],
-          barStyle: 'display:block;height:4px;border-radius:2px;background:' + (done || now ? '#B8F36B' : '#2A3832'),
-          dotStyle: 'width:22px;height:22px;flex:none;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;' + (done ? 'background:#B8F36B;color:#0F1714' : now ? 'border:2px solid #B8F36B;color:#B8F36B;box-sizing:border-box' : 'border:1px solid #3F524A;color:#9DB0A6;box-sizing:border-box'),
+          barStyle: 'display:block;height:4px;border-radius:2px;background:' + (done || now ? '#B8F36B' : 'var(--k-2A3832,#2A3832)'),
+          dotStyle: 'width:22px;height:22px;flex:none;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;' + (done ? 'background:#B8F36B;color:#0F1714' : now ? 'border:2px solid var(--k-B8F36B,#B8F36B);color:var(--k-B8F36B,#B8F36B);box-sizing:border-box' : 'border:1px solid var(--k-3F524A,#3F524A);color:var(--k-9DB0A6,#9DB0A6);box-sizing:border-box'),
           labelStyle: 'font-weight:' + (now ? '700' : '500') + ';color:' + (done || now ? '#E8EFEA' : '#9DB0A6')
         };
       }),
@@ -119,7 +119,7 @@ export function buildTickets(ctx) {
     if (t._c.sla === 'Due soon' && ts.notify.nearing) autoNotifs.push({ text: t.id + ' is due soon: ' + fmtH(t._c.rem) + ' left on its TAT.', color: '#FFB86B', time: 'Now', ticket: t.id });
   });
   const notifList = autoNotifs.concat(s.notifs).map((n) => ({ ...n, open: n.url ? () => { if (typeof window !== 'undefined') { const w = window.open(n.url, '_blank'); if (w) w.opener = null; } this.setState({ notifOpen: false }); } : () => this.setState({ ticketFrom: null, notifOpen: false, section: n.ticket ? 'tickets' : this.state.section, ticketOpen: n.ticket || this.state.ticketOpen }) }));
-  const chip = (on) => 'height:36px;padding:0 14px;border-radius:18px;cursor:pointer;font-size:13px;' + (on ? 'border:1px solid #B8F36B;background:#2C3D34;color:#E8EFEA;font-weight:600' : 'border:1px solid #2A3832;background:#121B17;color:#C9D6CF');
+  const chip = (on) => 'height:36px;padding:0 14px;border-radius:18px;cursor:pointer;font-size:13px;' + (on ? 'border:1px solid var(--k-B8F36B,#B8F36B);background:var(--k-2C3D34,#2C3D34);color:var(--k-E8EFEA,#E8EFEA);font-weight:600' : 'border:1px solid var(--k-2A3832,#2A3832);background:var(--k-121B17,#121B17);color:var(--k-C9D6CF,#C9D6CF)');
   const ntCats = ts.cats.map((c) => ({ label: c.name + ' · ' + tatText(c.name), pick: () => this.setState((st) => ({ nt: { ...st.nt, cat: c.name } })), style: chip(s.nt.cat === c.name) }));
   const ntPrios = ['High', 'Medium', 'Low'].map((p) => ({ label: p, pick: () => this.setState((st) => ({ nt: { ...st.nt, prio: p } })), style: chip(s.nt.prio === p) }));
   const setTs = (patch) => this.setState((st) => ({ tset: Object.assign({}, st.tset, typeof patch === 'function' ? patch(st.tset) : patch) }));
