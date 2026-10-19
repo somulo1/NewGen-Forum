@@ -1,0 +1,51 @@
+// Sectors, branches, units and departments: each one's dashboard (what it received and sent, how much it handled on time,
+// its projects) and its performance threshold. The server builds all of it from real records; nothing is made up here.
+export const name = 'org';
+
+const PLURAL = { sector: 'sectors', branch: 'branches', unit: 'units', department: 'departments' };
+const KIND = { sectors: 'sector', branches: 'branch', units: 'unit', departments: 'department' };
+const FRESH_MS = 60000;
+
+// "departments:<id>" is how the pages name a unit
+export const keyOf = (kind, id) => PLURAL[kind] + ':' + id;
+export const idOf = (key) => key.slice(key.indexOf(':') + 1);
+
+export async function load(logic, srv) {
+  srv.ouData = srv.ouData || new Map();
+  srv.ouAsked = srv.ouAsked || new Map();
+  const { units } = await srv.request('GET', '/org/structure');
+  const targets = {};
+  units.forEach((u) => { if (u.target) targets[keyOf(u.kind, u.id)] = u.target; });
+  logic.setState({ targets });
+  await loadPerformance(logic, srv);
+}
+
+// One short summary per unit this person may open: the percentages on the org page, the cards and the widgets.
+export async function loadPerformance(logic, srv) {
+  try {
+    const { units } = await srv.request('GET', '/org/performance');
+    srv.perf = new Map(units.map((u) => [keyOf(u.kind, u.id), u]));
+  } catch (e) { srv.perf = new Map(); }
+  srv.perfAt = Date.now();
+  logic.forceUpdate();
+}
+
+// Loads (or refreshes) the dashboard of one unit; safe to call from a render, it asks the server at most once a minute.
+export function ensure(logic, srv, key, force) {
+  const asked = srv.ouAsked.get(key) || 0;
+  if (!force && Date.now() - asked < FRESH_MS) return;
+  srv.ouAsked.set(key, Date.now());
+  srv.request('GET', `/org/units/${idOf(key)}/dashboard`).then((d) => {
+    srv.ouData.set(key, d);
+    logic.forceUpdate();
+  }).catch(() => { /* no right to open it: the page shows nothing for it */ });
+}
+
+export async function setTarget(logic, srv, key, value) {
+  await srv.request('PUT', `/org/units/${idOf(key)}/target`, { target: value });
+  logic.setState((st) => ({ targets: { ...st.targets, [key]: value } }));
+  ensure(logic, srv, key, true);
+  loadPerformance(logic, srv);
+}
+
+export { KIND };

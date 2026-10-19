@@ -20,7 +20,7 @@ export async function load(logic, srv) {
     dir.push({
       id: dir.length, uid: p.id, account: p.account, name: p.name, email: p.email || '', initials: p.initials, dept: p.department ? p.department.name : '',
       title: p.title || '', loc: p.branch ? p.branch.name : '', sector: p.sector ? p.sector.name : '', unit: p.unit ? p.unit.name : '',
-      color: p.color || '#7CC4FF', status: STATUS[p.availability] || 'Available'
+      color: p.color || '#7CC4FF', status: STATUS[p.availability] || 'Available', role: p.role || ''
     });
   });
   srv.dirByUid = new Map(dir.map((d) => [d.uid, d]));

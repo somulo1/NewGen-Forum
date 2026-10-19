@@ -28,6 +28,10 @@ export default defineNuxtConfig({
   // The Hub logic is one shared instance, so Vue's component-by-component hot update can leave a docked panel pointing at a
   // torn-down child ("can't access property emitsOptions of null"). In dev, reload the page instead of hot-patching.
   vite: {
+    // Pre-bundle deps Vite would otherwise discover lazily (each discovery triggers a full page reload in dev).
+    optimizeDeps: {
+      include: ['@noble/curves/ed25519', '@noble/hashes/hkdf', '@noble/hashes/hmac', '@noble/hashes/sha256', 'qrcode']
+    },
     plugins: [{
       name: 'hub-full-reload',
       apply: 'serve',

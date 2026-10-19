@@ -1,3 +1,4 @@
+import * as rolesW from '~/logic/server/widgets/roles.js';
 // renderVals step: access. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildAccess(ctx) {
   const s = this.state;
@@ -67,6 +68,7 @@ export function buildAccess(ctx) {
     { id: 'unit', name: 'Unit lead', desc: 'Leads a unit inside a branch.', count: 6, needs: 'units' }
   ];
   const roleScope = { superadmin: 'Whole organization', admin: 'Whole organization', hod: 'Each department', it: 'Whole organization', finance: 'Whole organization', staff: 'Their own work', guest: 'Invited spaces only', sector: 'Each sector', branch: 'Each branch', unit: 'Each unit' };
+  if (s.roleCounts) roleDefs.forEach((r) => { if (s.roleCounts[r.id] !== undefined) r.count = s.roleCounts[r.id]; });
   const visibleRoles = roleDefs.filter((r) => (r.needs ? has[r.needs] : true) && (r.id !== 'hod' || has.departments || !has.structure));
   const staffAllow = { home: ['Customize home'], announcements: ['View'], wall: ['View', 'Post', 'Comment', 'Share outside Hub'], forums: ['View', 'Start calls'],
     tickets: ['View', 'Raise'], projects: ['View', 'Edit tasks', 'Move tasks'], files: ['View', 'Upload'], secureshare: ['Create link'], sessions: ['Join', 'Start meeting'],
@@ -91,7 +93,15 @@ export function buildAccess(ctx) {
     return base || extra;
   };
   const rKey = (role, mod, right) => role + '|' + mod + '|' + right;
-  const rightOf = (role, mod, right) => { const k = rKey(role, mod, right); return Object.prototype.hasOwnProperty.call(s.rightsOv, k) ? s.rightsOv[k] : defaultRight(role, mod, right); };
+  const rightOf = (role, mod, right) => {
+    const k = rKey(role, mod, right);
+    if (Object.prototype.hasOwnProperty.call(s.rightsOv, k)) return s.rightsOv[k];
+    // the server's rights win once loaded
+    const sr = s.roleRights && s.roleRights[role] && s.roleRights[role][mod];
+    if (sr && Object.prototype.hasOwnProperty.call(sr, right)) return !!sr[right];
+    if (role === 'superadmin' && s.roleRights) return true;
+    return defaultRight(role, mod, right);
+  };
   const can = (mod, right) => rightOf(s.actingRole, mod, right);
   this._canFullProfile = can('people', 'View full profiles');
   const flowById = (id) => s.flows.find((f) => f.id === id);
@@ -111,6 +121,13 @@ export function buildAccess(ctx) {
     const roleName = (roleDefs.find((r) => r.id === role) || {}).name;
     const logIt = (txt) => this.setState((st) => ({ extraLogs: [{ id: 'x' + Date.now(), ago: 0, user: 'Samwel Okoth Omulo', action: txt, module: 'Roles', ip: '10.0.4.21', loc: 'Office network', result: 'Success', rule: 'r5' }].concat(st.extraLogs) }));
     const label = roleName + ' · ' + (modInfo[mod] ? modInfo[mod][0] : mod) + ' · ' + right + (nv ? ' (allow)' : ' (remove)');
+    if (this.srv) {
+      if (s.pendingRights[k] !== undefined) return;
+      rolesW.setRight(this, this.srv, role, mod, right, nv)
+        .then((r) => this.notify(r === 'applied' ? 'Rights updated: ' + label + '. Logged for review.' : 'Sent for approval: Change rights: ' + label + '.', r === 'applied' ? '#B8F36B' : '#FFB86B'))
+        .catch((e) => this.notify(e.message || 'Could not change the right.', '#FF9B8A'));
+      return;
+    }
     if (f && f.levels > 0) {
       if (s.pendingRights[k] !== undefined) return;
       this.setState((st) => ({ pendingRights: { ...st.pendingRights, [k]: nv } }));

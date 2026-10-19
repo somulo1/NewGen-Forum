@@ -8,7 +8,7 @@ export function buildRoles(ctx) {
   const roleSelDef = roleDefs.find((r) => r.id === s.roleSel) || roleDefs[5];
   const roleList = roleDefs.map((r) => ({ ...r, pick: () => this.setState({ roleSel: r.id }), style: 'display:flex;align-items:center;gap:8px;width:100%;min-height:52px;padding:6px 12px;border-radius:10px;cursor:pointer;color:var(--k-E8EFEA,#E8EFEA);border:1px solid ' + (s.roleSel === r.id ? '#3F524A' : 'transparent') + ';background:' + (s.roleSel === r.id ? 'var(--k-22302A,#22302A)' : 'transparent') }));
   const roleSel = { ...roleSelDef,
-    members: (memberSamples[roleSelDef.id] || []).map((n) => ({ name: n, initials: n === 'Samwel Okoth Omulo' ? 'S' : ini(n), color: pColor[n] || '#C9B6FF' })),
+    members: (this.srv ? Object.keys(s.memberRoles).filter((n) => s.memberRoles[n] === roleSelDef.id).slice(0, 12) : memberSamples[roleSelDef.id] || []).map((n) => ({ name: n, initials: n === 'Samwel Okoth Omulo' ? 'S' : ini(n), color: pColor[n] || '#C9B6FF' })),
     modules: Object.keys(rightsDef).map((m) => {
       const rights = rightsDef[m].map((r) => { const k = rKey(roleSelDef.id, m, r); return { name: r, on: rightOf(roleSelDef.id, m, r), locked: !!roleSelDef.locked, pending: s.pendingRights[k] !== undefined, toggle: () => toggleRight(roleSelDef.id, m, r) }; });
       return { label: modInfo[m][0], tint: modInfo[m][1], rights, onCount: rights.filter((x) => x.on).length, total: rights.length };

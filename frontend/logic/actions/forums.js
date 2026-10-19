@@ -1,6 +1,7 @@
 import { chime, hangup, startRing, stopRing } from '~/logic/tones.js';
 import * as callsW from '~/logic/server/calls.js';
 import { MY_NAME, defaultPolicy, othersVoted, pollCap } from '~/logic/polls.js';
+import * as forumsW from '~/logic/server/widgets/forums.js';
 
 // HubLogic actions: forum polls, forum chat rules and private-chat privacy.
 // Mixed into HubLogic.prototype, so `this` is the HubLogic instance.
@@ -11,6 +12,7 @@ export const forumActions = {
     this._pollT = setInterval(() => this.pollTick(), 4000);
   },
   pollTick() {
+    if (this.srv) return;   // on the server the votes are real people's
     const open = this.state.polls.filter((p) => !p.locked && othersVoted(p) < pollCap(p));
     if (!open.length) return;
     const p = open[Math.floor(Math.random() * open.length)];
@@ -23,7 +25,15 @@ export const forumActions = {
   updPoll(pid, fn) {
     this.setState((st) => ({ polls: st.polls.map((p) => (p.id === pid ? fn(p) : p)) }));
   },
+  // Polls in a forum on the server: the vote, lock, delete and new-poll steps go to it; the screens redraw from the reload.
+  liveFail(e) { this.notify((e && e.message) || 'That did not go through.', '#FF9B8A'); },
   votePoll(pid, oid) {
+    const live = this.srv && forumsW.findPoll(this, pid);
+    if (live) {
+      if (live.poll.locked) { this.notify('Voting is closed on this poll.', '#FFB86B'); return; }
+      forumsW.votePoll(this, this.srv, pid, oid).catch((e) => this.liveFail(e));
+      return;
+    }
     const p = this.state.polls.find((x) => x.id === pid);
     if (!p) return;
     if (p.locked) { this.notify('Voting is closed on this poll.', '#FFB86B'); return; }
@@ -31,11 +41,14 @@ export const forumActions = {
     this.updPoll(pid, (x) => ({ ...x, myVote: x.myVote === oid ? null : oid }));
   },
   togglePollLock(pid) {
+    const live = this.srv && forumsW.findPoll(this, pid);
+    if (live) { forumsW.lockPoll(this, this.srv, pid).then(() => this.notify(live.poll.locked ? 'Voting is open again.' : 'Voting is now blocked on "' + live.poll.question + '".', '#7CC4FF')).catch((e) => this.liveFail(e)); return; }
     const p = this.state.polls.find((x) => x.id === pid);
     this.updPoll(pid, (x) => ({ ...x, locked: !x.locked }));
     this.notify(p && !p.locked ? 'Voting is now blocked on "' + p.question + '".' : 'Voting is open again.', '#7CC4FF');
   },
   deletePoll(pid) {
+    if (this.srv && forumsW.findPoll(this, pid)) { this.setState({ pollMenu: null }); forumsW.deletePoll(this, this.srv, pid).catch((e) => this.liveFail(e)); return; }
     this.setState((st) => ({ polls: st.polls.filter((p) => p.id !== pid), pollMenu: null }));
   },
   toggleBlockVoter(pid, name) {
@@ -50,6 +63,13 @@ export const forumActions = {
     else if (options.length < 2) err = 'Give at least two options.';
     else if (new Set(options.map((o) => o.toLowerCase())).size !== options.length) err = 'Each option must be different.';
     if (err) { this.setState({ pollForm: { ...f, err } }); return; }
+    if (this.srv && forumsW.isLive(this.srv, f.forum)) {
+      this.setState({ pollForm: null });
+      forumsW.createPoll(this, this.srv, f.forum, f.question.trim(), options)
+        .then(() => this.notify('Poll created. Members can vote now and the results update live.', '#B8F36B'))
+        .catch((e) => { this.setState({ pollForm: f }); this.liveFail(e); });
+      return;
+    }
     const poll = { id: 'poll' + Date.now(), forum: f.forum, question: f.question.trim(), options: options.map((l, i) => ({ id: 'o' + (i + 1), label: l, votes: 0 })), by: 'You', at: Date.now(), locked: false, blocked: [], myVote: null, members: f.members };
     this.setState((st) => ({ polls: [poll].concat(st.polls), pollForm: null }));
     this.notify('Poll created. Members can vote now and the results update live.', '#B8F36B');
@@ -57,15 +77,18 @@ export const forumActions = {
 
   // ---- Forum chat rules ----
   setForumChat(fid, patch) {
+    if (this.srv && forumsW.isLive(this.srv, fid)) { forumsW.saveRules(this, this.srv, fid, patch).catch((e) => this.liveFail(e)); return; }
     this.setState((st) => ({ forumChat: { ...st.forumChat, [fid]: { ...(st.forumChat[fid] || defaultPolicy()), ...patch } } }));
   },
   toggleChatRole(fid, role) {
-    const cur = this.state.forumChat[fid] || defaultPolicy();
+    const f = this.srv && forumsW.liveForum(this, fid);
+    const cur = f ? forumsW.policyOf(f) : (this.state.forumChat[fid] || defaultPolicy());
     this.setForumChat(fid, { roles: cur.roles.indexOf(role) !== -1 ? cur.roles.filter((r) => r !== role) : cur.roles.concat([role]) });
   },
   // Flips one person: someone who can chat is blocked; someone who cannot is let in (removed from the blocked list, or allowed by name).
   toggleMemberChat(fid, name, canNow) {
-    const cur = this.state.forumChat[fid] || defaultPolicy();
+    const f = this.srv && forumsW.liveForum(this, fid);
+    const cur = f ? forumsW.policyOf(f) : (this.state.forumChat[fid] || defaultPolicy());
     if (canNow) this.setForumChat(fid, { blocked: cur.blocked.concat([name]), allowed: cur.allowed.filter((n) => n !== name) });
     else if (cur.blocked.indexOf(name) !== -1) this.setForumChat(fid, { blocked: cur.blocked.filter((n) => n !== name) });
     else this.setForumChat(fid, { allowed: cur.allowed.concat([name]) });

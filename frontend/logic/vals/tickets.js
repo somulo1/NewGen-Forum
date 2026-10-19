@@ -41,6 +41,7 @@ export function valsTickets(ctx) {
       const list = this.capFiles(0, Array.from(e.target.files || []));
       e.target.value = '';
       if (!cur_t || !list.length) return;
+      if (this.srv) { ticketsW.attach(this, this.srv, cur_t, list).catch((err) => this.notify(err.message || 'Could not attach the file.', '#FF9B8A')); return; }
       this.updTicket(cur_t.id, (t) => Object.assign({}, t, { activity: list.reduce((acc, f) => acc.concat([{ who: 'Sam', time: 'Just now', kind: 'file', ...(i => ({ text: i.name, meta: i.meta, url: i.url, isImg: i.isImg }))(this.fileInfo(f)) }]), t.activity) }));
     },
     handover: (e) => {

@@ -1,3 +1,4 @@
+import * as rolesW from '~/logic/server/widgets/roles.js';
 import { LEVEL_LABEL, catsFor, levelsOf } from '~/logic/ticketRouting.js';
 
 // renderVals step: adminTables. Receives the names built by earlier steps and returns the ones later steps need.
@@ -79,7 +80,8 @@ export function buildAdminTables(ctx) {
     cols: [{ label: 'Widget', filter: 'select' }, { label: 'Right', filter: 'text' }, { label: roleCur.name + ' can', align: 'center' }], rows: rightsRows };
   const rightsHint = 'Setting rights for ' + roleCur.name + '. Tick a box to let this role do that action. ' + (f8 && f8.levels > 0 ? 'Changes need approval (' + (f8.levels === 1 ? 'direct' : f8.levels + ' levels') + ') and show as PENDING until approved.' : 'Changes apply straight away and are logged.') + ' Widgets your organization does not use are hidden.';
   const defaultRole = { 'Samwel Okoth Omulo': 'admin', 'Brian Kiprop': 'it', 'David Otieno': 'staff', 'Amina Wanjiru': 'finance', 'Grace Njeri': 'hod', 'Faith Achieng': 'staff', 'Kevin Mutua': 'staff', 'Mercy Wambui': 'staff', 'John Kamau': 'staff', 'Lilian Chebet': 'staff' };
-  const memberList = ['Samwel Okoth Omulo'].concat(corePeople).concat(this.dir.slice(0, 40).map((d) => d.name)).filter((n, i, a) => a.indexOf(n) === i);
+  const meName = this.srv ? this.srv.me.name : 'Samwel Okoth Omulo';
+  const memberList = (this.srv ? [meName].concat(this.dir.map((d) => d.name)) : ['Samwel Okoth Omulo'].concat(corePeople).concat(this.dir.slice(0, 40).map((d) => d.name))).filter((n, i, a) => a.indexOf(n) === i);
   const roleOpts = visibleRoles.map((r) => ({ v: r.id, l: r.name }));
   const ridOf = (n) => {
     const d = this.dir.find((x) => x.name === n);
@@ -88,20 +90,21 @@ export function buildAdminTables(ctx) {
   };
   const assignRole = (n, v) => {
     const rn = (visibleRoles.find((r) => r.id === v) || {}).name;
+    if (this.srv) { rolesW.setRole(this, this.srv, n, v).then((r) => this.notify(r === 'applied' ? n + ' is now ' + rn + '. Logged.' : 'Sent for approval: ' + n + ' as ' + rn + '.', r === 'applied' ? '#B8F36B' : '#FFB86B')).catch((e) => this.notify(e.message || 'Could not change the role.', '#FF9B8A')); return; }
     this.setState((x) => ({ memberRoles: { ...x.memberRoles, [n]: v }, extraLogs: [{ id: 'x' + Date.now(), ago: 0, user: 'Samwel Okoth Omulo', action: 'Gave ' + n + ' the ' + rn + ' role', module: 'Roles', ip: '10.0.4.21', loc: 'Office network', result: 'Success', rule: 'r5' }].concat(x.extraLogs) }));
     this.notify(n + ' is now ' + rn + '. Logged.', '#B8F36B');
   };
   const roleMembers = memberList.filter((n) => ridOf(n) === roleCur.id);
-  const roleAddOpts = memberList.filter((n) => ridOf(n) !== roleCur.id && n !== 'Samwel Okoth Omulo').map((n) => ({ v: n, l: n }));
+  const roleAddOpts = memberList.filter((n) => ridOf(n) !== roleCur.id && n !== meName).map((n) => ({ v: n, l: n }));
   const membersTable = { id: 'members-' + roleCur.id, pageSize: 12, minWidth: '760px', emptyText: 'Nobody has the ' + roleCur.name + ' role yet. Use "Add a person" above.',
     cols: [{ label: 'Person', filter: 'text' }, { label: 'Department', filter: 'select' }, { label: 'Move to another role' }, { label: '', align: 'right' }],
     rows: roleMembers.map((n) => {
       const d = this.dir.find((x) => x.name === n);
-      const mine = n === 'Samwel Okoth Omulo';
+      const mine = n === meName;
       return { cells: [C.p(n, { sub: d ? d.title : titleOf(n), fv: n }),
         C.t(d ? d.dept : ({ 'Brian Kiprop': 'IT Operations', 'David Otieno': 'Software Development', 'Amina Wanjiru': 'Finance', 'Grace Njeri': 'HR', 'Faith Achieng': 'Customer Care', 'Kevin Mutua': 'Sales', 'Samwel Okoth Omulo': 'Risk & Compliance' }[n] || 'Operations')),
         C.sel(roleCur.id, roleOpts, (e) => assignRole(n, e.target.value), { fv: roleCur.name, label: 'Role for ' + n, minWidth: '170px', disabled: mine }),
-        C.a([{ label: 'Remove from role', kind: 'danger', disabled: mine || roleCur.id === 'staff', run: () => { this.setState((x) => ({ memberRoles: { ...x.memberRoles, [n]: 'staff' } })); this.notify(n + ' moved back to Staff.', '#7CC4FF'); } }])] };
+        C.a([{ label: 'Remove from role', kind: 'danger', disabled: mine || roleCur.id === 'staff', run: () => { if (this.srv) { assignRole(n, 'staff'); return; } this.setState((x) => ({ memberRoles: { ...x.memberRoles, [n]: 'staff' } })); this.notify(n + ' moved back to Staff.', '#7CC4FF'); } }])] };
     }) };
   const roleBar = { name: roleCur.name, desc: roleCur.desc, scope: roleScope[roleCur.id] || 'Whole organization', count: roleMembers.length, options: visibleRoles.map((r) => ({ v: r.id, l: r.name })), value: roleCur.id, addOpts: roleAddOpts, locked: !!roleCur.locked };
   const setRoleSel = (e) => this.setState({ roleSel: e.target.value });

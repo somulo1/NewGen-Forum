@@ -14,10 +14,14 @@ import * as profile from './widgets/profile.js';
 import * as wall from './widgets/wall.js';
 import * as forums from './widgets/forums.js';
 import * as dms from './widgets/dms.js';
+import * as roles from './widgets/roles.js';
+import * as security from './widgets/security.js';
 import * as approvals from './widgets/approvals.js';
 import * as notifications from './widgets/notifications.js';
+import * as orgW from './widgets/org.js';
 
-const WIDGETS = [people, profile, prefs, comms, calendar, tickets, projects, awards, approvals, notifications, wall, forums, dms];
+// chats (forums, dms) come right after the directory they need, so they are not queued behind every other widget
+const WIDGETS = [people, profile, forums, dms, prefs, comms, calendar, tickets, projects, awards, approvals, notifications, wall, roles, security, orgW];
 
 async function openDevice(request, session) {
   const account = session.account;
@@ -58,7 +62,7 @@ export async function startServerSync(logic, request, session, bytes) {
   callsW.listen(logic, srv);
   callsW.loadHistory(logic, srv).catch(() => {});
   // what a live notification may need to refresh
-  srv.reload.tickets = () => tickets.load(logic, srv).catch(() => {});
+  srv.reload.tickets = () => { tickets.load(logic, srv).catch(() => {}); orgW.loadPerformance(logic, srv).catch(() => {}); };
   srv.reload.approvals = () => Promise.all([approvals.load(logic, srv), comms.load(logic, srv), awards.load(logic, srv)]).catch(() => {});
   logic.forceUpdate();
   return srv;
