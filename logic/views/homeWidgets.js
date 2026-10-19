@@ -23,7 +23,6 @@ export function buildHomeWidgets(ctx) {
     secureshare: { title: 'Secure share', sub: 'One-time links', tint: '#6EE7C8', desc: 'Share a password or credential through a link that self-destructs after one view.' },
     wall: { title: 'Community wall', sub: 'Latest posts', tint: '#F49AC1', desc: 'The newest posts from the wall, so nobody misses what colleagues are sharing.' },
     forums: { title: 'My forums', sub: 'Unread activity', tint: '#7CC4FF', desc: 'Your forums with unread counts. Open any one straight into the side panel.' },
-    people: { title: 'People finder', sub: 'Directory', tint: '#C9B6FF', desc: 'Search anyone in the organization and see who is online.' },
     files: { title: 'Recent files', sub: 'Across your forums', tint: '#C9B6FF', desc: 'The latest documents shared with you.' },
     joiners: { title: 'New joiners', sub: 'This week', tint: '#B8F36B', desc: 'Welcome new colleagues and help them settle in.' },
     sessions: { title: 'Meetings & standups', sub: 'Live & upcoming', tint: '#6EE7C8', desc: 'Live meetings and daily standups you can join, plus a button to start one.' },
@@ -82,7 +81,6 @@ export function buildHomeWidgets(ctx) {
     ],
     wall: s.posts.slice(0, 2).map((p) => ({ author: p.author, initials: p.initials, color: p.color, text: (p.text || 'Shared a file').length > 90 ? p.text.slice(0, 90) + '…' : (p.text || 'Shared a file'), likes: p.likes + (s.liked[p.id] ? 1 : 0) })),
     forums: forums.filter((f) => f.hasUnread).concat(forums.filter((f) => !f.hasUnread)).slice(0, 4),
-    people: people.slice(0, 4),
     branches: [
       { name: 'Head Office', place: '[CITY]', head: 'Amina Wanjiru', staff: 84, open: true },
       { name: 'North Branch', place: '[CITY]', head: 'Brian Kiprop', staff: 32, open: true },
