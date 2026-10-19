@@ -41,7 +41,7 @@ export function buildAccess(ctx) {
   };
   has.structure = has.departments || has.sectors || has.branches || has.units;
   has.comms = has.memos || has.newsletter || has.announcements;
-  ['tickets', 'projects', 'files', 'secureshare', 'sessions', 'awards'].forEach((k) => { has[k] = W.indexOf(k) !== -1; });
+  ['tickets', 'projects', 'files', 'secureshare', 'sessions', 'awards', 'notes'].forEach((k) => { has[k] = W.indexOf(k) !== -1; });
   if (!has.sessions) { rightsDef.calendar = ['View', 'Add events']; rightsDef.forums = rightsDef.forums.filter((x) => x !== 'Start calls'); }
   const optionalMods = ['calendar', 'memos', 'newsletter', 'announcements', 'departments', 'sectors', 'branches', 'units', 'performance', 'tickets', 'projects', 'files', 'secureshare', 'sessions', 'awards', 'chat'];
   const modEnabled = (m) => optionalMods.indexOf(m) === -1 || (m === 'performance' ? has.structure : W.indexOf(m) !== -1);

@@ -9,6 +9,8 @@ import { filesState } from '~/logic/state/files.js';
 import { projectsState } from '~/logic/state/projects.js';
 import { callsState } from '~/logic/state/calls.js';
 import { settingsState } from '~/logic/state/settings.js';
+import { notesState } from '~/logic/state/notes.js';
+import { buildNotes } from '~/logic/views/notes.js';
 import { ticketsState } from '~/logic/state/tickets.js';
 import { wallState } from '~/logic/state/wall.js';
 import { forumsState } from '~/logic/state/forums.js';
@@ -71,7 +73,7 @@ import { valsPanels } from '~/logic/vals/panels.js';
 export class HubLogic extends DCLogic {
   constructor(props) {
     super(props);
-    this.state = Object.assign({}, coreState(), awardsState(), calendarState(), commsState(), adminState(), profileState(), filesState(), projectsState(), callsState(), ticketsState(), wallState(), settingsState(), forumsState(), onboardingState());
+    this.state = Object.assign({}, coreState(), awardsState(), calendarState(), commsState(), adminState(), profileState(), filesState(), projectsState(), callsState(), ticketsState(), wallState(), settingsState(), notesState(), forumsState(), onboardingState());
     seedProjects.call(this);
     seedOrg.call(this);
     seedTickets.call(this);
@@ -109,5 +111,5 @@ export class HubLogic extends DCLogic {
 
 Object.assign(HubLogic.prototype, messagingActions, projectsActions, callsActions, uiActions, forumActions, onboardingActions, peopleAdminActions, ticketCatActions);
 
-const VIEW_STEPS = [buildAccess, buildReporting, buildForums, buildNav, buildWall, buildTickets, buildForumExtras, buildProjects, buildPeople, buildOnboarding, buildSecurity, buildRoles, buildTableHelpers, buildProjectTables, buildCalendar, buildProjectStandup, buildOrg, buildCatMgr, buildComms, buildAdminTables, buildReportingTab, buildSettings, buildAwards, buildHomeWidgets, buildProfile, buildWidgetSettings, buildCallState];
+const VIEW_STEPS = [buildAccess, buildReporting, buildForums, buildNav, buildWall, buildTickets, buildForumExtras, buildProjects, buildPeople, buildOnboarding, buildSecurity, buildRoles, buildTableHelpers, buildProjectTables, buildCalendar, buildProjectStandup, buildOrg, buildCatMgr, buildComms, buildAdminTables, buildNotes, buildReportingTab, buildSettings, buildAwards, buildHomeWidgets, buildProfile, buildWidgetSettings, buildCallState];
 const VAL_PARTS = [valsAccess, valsPages, valsProjects, valsTickets, valsShell, valsHome, valsWall, valsPanels];

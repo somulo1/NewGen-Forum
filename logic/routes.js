@@ -18,5 +18,6 @@ export const sectionRoutes = {
   "approvals": "/approvals",
   "widgets": "/widgets",
   "ticketdesk": "/ticket-desk",
-  "settings": "/settings"
+  "settings": "/settings",
+  "notes": "/notes"
 };

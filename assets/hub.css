@@ -1,6 +1,11 @@
 /* Scrollbars stay out of sight; everything still scrolls with wheel, touch and keys. */
 *{scrollbar-width:none;-ms-overflow-style:none}
 *::-webkit-scrollbar{display:none;width:0;height:0}
+/* Home widgets: calmer type so the important details stand out. Titles stay a little stronger than the rest. */
+.hub-home strong{font-weight:500}
+.hub-home [style*="font-weight: 700"]{font-weight:600 !important}
+.hub-home [style*="font-weight: 600"]{font-weight:500 !important}
+.hub-home h1,.hub-home strong[style*="font-size: 15px"],.hub-home strong[style*="font-size: 16px"],.hub-home strong[style*="font-size: 17px"]{font-weight:600 !important}
 /* Forum screen: tabs sit in the header bar, so they are compact there */
 .ff-tabs button{min-height:36px !important;padding:0 8px !important;font-size:13px !important}
 /* pinned profile / sign-out footer: nav items scroll underneath it */

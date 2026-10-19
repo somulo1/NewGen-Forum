@@ -1,6 +1,6 @@
 <!-- Home: awards ribbon + widget masonry -->
 <template><template v-if="show.home">
-<div style="width: 100%; display: flex; flex-direction: column; gap: 18px">
+<div class="hub-home" style="width: 100%; display: flex; flex-direction: column; gap: 18px">
 <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end">
 <div style="flex: 1 1 300px"><h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; letter-spacing: -0.02em">Good afternoon, Sam</h1><p style="margin: 4px 0 0; color: #9DB0A6">Your home page. Add, remove and arrange widgets to suit your organization.</p></div>
 <template v-if="canCustomize">
@@ -218,18 +218,6 @@
 </div>
 </template>
 
-<template v-if="w.t.people">
-<label style="display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid #2A3832; background: #121B17; color: #9DB0A6"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Search people</span><input type="search" placeholder="Name, role or department" style="flex: 1; min-width: 0; border: 0; outline: none; background: transparent; color: #E8EFEA"></label>
-<div style="display: flex; flex-direction: column; gap: 8px">
-<template v-for="(pp, pp__i) in w.items" :key="pp__i">
-<div style="display: flex; gap: 10px; align-items: center">
-<span style="position: relative; flex: none"><UserAvatar :name="pp.name" :initials="pp.initials" :color="pp.color" :size="34"/><span style="position: absolute; right: -1px; bottom: -1px; width: 10px; height: 10px; border-radius: 50%; background: #B8F36B; border: 2px solid #16201C"></span></span>
-<div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><strong style="font-size: 14px; font-weight: 600">{{ pp.name }}</strong><span style="font-size: 12px; color: #9DB0A6">{{ pp.role }}</span></div>
-</div>
-</template>
-</div>
-<button @click="w.goPeople" style="height: 38px; border-radius: 10px; border: 1px solid #2A3832; background: transparent; color: #E8EFEA; cursor: pointer">Open directory</button>
-</template>
 
 <template v-if="w.t.poll">
 <span style="font-size: 14px; font-weight: 500">Where should we hold the end-year party?</span>
@@ -241,7 +229,13 @@
 </template>
 
 <template v-if="w.t.notes">
-<label><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">My notes</span><textarea rows="5" :value="w.note" @input="w.onNote" placeholder="Jot down reminders for yourself…" style="width: 100%; box-sizing: border-box; padding: 12px; border-radius: 12px; border: 1px solid #4A4426; background: #2A2716; color: #F3EBC8; font-size: 14px; line-height: 1.5; resize: vertical"></textarea></label>
+<label><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">My notes</span><textarea rows="4" :value="w.note" @input="w.onNote" placeholder="Jot down reminders for yourself…" style="width: 100%; box-sizing: border-box; padding: 12px; border-radius: 12px; border: 1px solid #4A4426; background: #2A2716; color: #F3EBC8; font-size: 14px; line-height: 1.5; resize: vertical"></textarea></label>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px">
+<button :disabled="!noteWidget.canSave" @click="noteWidget.save" :style="`height: 36px; padding: 0 18px; border-radius: 18px; border: 0; font-weight: 600; font-size: 13px; cursor: ${noteWidget.canSave ? 'pointer' : 'default'}; background: ${noteWidget.canSave ? '#FFD66B' : '#3A3620'}; color: ${noteWidget.canSave ? '#0F1714' : '#9A9066'}`">Save note</button>
+<span v-if="noteWidget.flash" role="status" style="font-size: 12px; color: #FFD66B">{{ noteWidget.flash }}</span>
+<button @click="noteWidget.openAll" style="margin-left: auto; height: 36px; padding: 0 14px; border-radius: 18px; border: 1px solid #4A4426; background: transparent; color: #F3EBC8; cursor: pointer; font-size: 13px">All notes ({{ noteWidget.count }})</button>
+</div>
+<template v-for="rn in noteWidget.recent" :key="rn.id"><button @click="rn.open" style="display: flex; align-items: center; gap: 8px; width: 100%; min-height: 36px; padding: 0 10px; border: 0; border-radius: 10px; background: #1F2C26; color: #E8EFEA; cursor: pointer; text-align: left; font-size: 13px; font-family: inherit"><span :style="`width: 8px; height: 8px; flex: none; border-radius: 50%; background: ${rn.color}`"></span><span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ rn.title }}</span><span style="font-size: 11px; color: #9DB0A6">{{ rn.when }}</span></button></template>
 </template>
 
 <template v-if="w.t.countdown">
@@ -361,6 +355,6 @@ import { hubBindings } from '~/composables/useHub';
 
 export default {
   name: 'HomeSection',
-  ...hubBindings(["awardStrip","awardsOn","canCustomize","canWidgetsPage","customizeBtnStyle","customizeLabel","customizing","noWidgets","openAward","openGallery","secureShare","show","toggleCustomize","toggleNewDm","widgets"])
+  ...hubBindings(["noteWidget","awardStrip","awardsOn","canCustomize","canWidgetsPage","customizeBtnStyle","customizeLabel","customizing","noWidgets","openAward","openGallery","secureShare","show","toggleCustomize","toggleNewDm","widgets"])
 };
 </script>
