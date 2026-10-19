@@ -1,14 +1,16 @@
 import { hasLevelsFor } from '~/logic/actions/onboarding.js';
+import * as orgW from '~/logic/server/widgets/org.js';
 import { GENDERS, MANDATORY, csvColumns, structureFields, structureOptions } from '~/logic/onboarding.js';
 
 // renderVals step: onboarding. The form only shows the structure levels this organization has set up.
 export function buildOnboarding(ctx) {
   const { can, modEnabled, modInfo, reportRoleName, ridOf, rightOf, rightsDef, roleHolders, s, targetRoleOf, visibleRoles } = ctx;
-  const has = hasLevelsFor(s);
+  const has = hasLevelsFor(s, this.srv ? this.org : null);
   const ob = s.onboard;
   const canOnboard = can('people', 'Onboard people');
   const base = { canOnboard, open: false, openOne: () => this.openOnboard('one'), openBulk: () => this.openOnboard('bulk') };
-  if (!ob) return { onb: base };
+  const structureEd = buildStructureEd.call(this, s, can);
+  if (!ob) return { onb: base, structureEd };
   const f = ob.f, errs = ob.errs;
   // Role and individual rights, only when editing someone who is already in the directory.
   let access = null;
@@ -60,5 +62,57 @@ export function buildOnboarding(ctx) {
       moreRows: rowsAll.length > 200 ? rowsAll.length - 200 : 0,
       canImport: good > 0, importLabel: good ? 'Onboard ' + good + (good === 1 ? ' person' : ' people') + (bad ? ' (skip ' + bad + ')' : '') : 'Nothing to onboard yet',
       import: () => this.importBulk() } };
-  return { onb };
+  return { onb, structureEd };
+}
+
+// The Organization structure editor on the People page: which sectors, branches, units and departments the organization has.
+// Each level appears across Hub (pages, onboarding, imports) as soon as it has one.
+const KINDS = [
+  { kind: 'sector', label: 'Sector', plural: 'Sectors', level: 'sectors', field: 'sector', blurb: 'The largest groupings, such as Business or Operations.' },
+  { kind: 'branch', label: 'Branch', plural: 'Branches', level: 'branches', field: 'loc', blurb: 'Places or offices. They can sit under a sector.' },
+  { kind: 'unit', label: 'Unit', plural: 'Units', level: 'units', field: 'unit', blurb: 'Teams inside a branch (or a sector, if there are no branches).' },
+  { kind: 'department', label: 'Department', plural: 'Departments', level: 'departments', field: 'dept', blurb: 'Functions such as Finance or IT. They sit under a branch, unit or sector, or stand alone.' }
+];
+const PARENTS = { sector: [], branch: ['sector'], unit: ['branch', 'sector'], department: ['branch', 'unit', 'sector'] };
+
+function buildStructureEd(s, can) {
+  const canEdit = !!this.srv && can('settings', 'Edit organization profile');
+  const se = s.structEd;
+  const closed = { canEdit, open: false, openIt: () => this.setState({ structEd: { kind: 'sector', name: '', parent: '', err: '', busy: false, edit: null, del: null } }) };
+  if (!se || !canEdit) return closed;
+  const units = this.srv.unitList || [];
+  const byId = new Map(units.map((u) => [u.id, u]));
+  const kindLabel = (k) => (KINDS.find((x) => x.kind === k) || {}).label || k;
+  const set = (patch) => this.setState((st) => ({ structEd: { ...st.structEd, ...patch } }));
+  const run = (fn, after) => { set({ busy: true, err: '' }); return fn().then(() => { set({ busy: false, ...(after || {}) }); }).catch((e) => set({ busy: false, err: (e && e.message) || 'That did not work.' })); };
+  const have = (k) => units.filter((u) => u.kind === k);
+  // a unit's parent must be one of the levels the organization actually has
+  const parentOpts = PARENTS[se.kind].flatMap((k) => have(k).map((u) => ({ id: u.id, label: kindLabel(k) + ' · ' + u.name })));
+  const parent = parentOpts.some((o) => o.id === se.parent) ? se.parent : '';
+  const levels = KINDS.map((K) => ({
+    ...K, rows: have(K.kind).sort((a, b) => a.name.localeCompare(b.name)).map((u) => {
+      const par = byId.get(u.parent_id);
+      const n = this.dir.filter((p) => p[K.field] === u.name).length;
+      const editing = se.edit && se.edit.id === u.id;
+      return { id: u.id, name: u.name, under: par ? kindLabel(par.kind) + ' ' + par.name : 'Top level', people: n + (n === 1 ? ' person' : ' people'), editing, editName: editing ? se.edit.name : u.name,
+        startEdit: () => set({ edit: { id: u.id, name: u.name }, err: '' }), cancelEdit: () => set({ edit: null }),
+        onEdit: (e) => set({ edit: { id: u.id, name: e.target.value } }),
+        saveEdit: () => { const nm = (se.edit.name || '').trim(); if (!nm) { set({ err: 'Enter a name.' }); return; } run(() => orgW.renameUnit(this, this.srv, u.id, nm), { edit: null }); },
+        confirming: se.del === u.id, askRemove: () => set({ del: u.id, err: '' }), keep: () => set({ del: null }),
+        remove: () => run(() => orgW.removeUnit(this, this.srv, u.id), { del: null }) };
+    })
+  })).map((L) => ({ ...L, count: L.rows.length, none: L.rows.length === 0 }));
+  const K = KINDS.find((x) => x.kind === se.kind);
+  const name = se.name.trim();
+  return {
+    canEdit, open: true, openIt: closed.openIt, close: () => this.setState({ structEd: null }), busy: se.busy, err: se.err, hasErr: !!se.err,
+    levels,
+    summary: levels.filter((l) => l.count).map((l) => l.count + ' ' + (l.count === 1 ? l.label.toLowerCase() : l.plural.toLowerCase())).join(' · ') || 'No structure yet. Everyone works at one level.',
+    kinds: KINDS.map((x) => ({ kind: x.kind, label: x.label })), kind: se.kind, onKind: (e) => set({ kind: e.target.value, parent: '', err: '' }),
+    kindBlurb: K.blurb, name: se.name, onName: (e) => set({ name: e.target.value, err: '' }),
+    parentOpts, hasParents: PARENTS[se.kind].length > 0, parent, onParent: (e) => set({ parent: e.target.value }),
+    canAdd: !!name && !se.busy,
+    add: () => { if (!name) { set({ err: 'Enter a name.' }); return; } run(() => orgW.addUnit(this, this.srv, { kind: se.kind, name, parent }), { name: '' }); },
+    note: 'A level only appears in Hub (pages, onboarding forms, imports and reports) once it has at least one entry. Remove the last one and it disappears again.'
+  };
 }

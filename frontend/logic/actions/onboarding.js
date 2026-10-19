@@ -4,12 +4,17 @@ import { todayIso } from '~/logic/projects.js';
 const COLORS = ['#7CC4FF', '#FFB86B', '#F49AC1', '#6EE7C8', '#B8F36B', '#C9B6FF', '#FFD66B'];
 const BLANK = { first: '', last: '', dob: '', gender: '', email: '', phone: '', title: '', sector: '', branch: '', unit: '', department: '' };
 
-// Which structure levels the organization has, from the widgets it switched on.
-export const hasLevels = (st) => ({ departments: st.widgets.indexOf('departments') !== -1, sectors: st.widgets.indexOf('sectors') !== -1, branches: st.widgets.indexOf('branches') !== -1, units: st.widgets.indexOf('units') !== -1 });
+// Which structure levels the organization has: the ones it has created (People > Organization structure). Without the
+// server connected, the widgets it switched on decide, as in the sample data.
+export const hasLevels = (st, org) => {
+  const on = (k) => (org ? (org[k] || []).length > 0 : st.widgets.indexOf(k) !== -1);
+  return { departments: on('departments'), sectors: on('sectors'), branches: on('branches'), units: on('units') };
+};
 
-// When editing, a level the person already has a value for stays on the form even if its widget is off, so nothing they have is hidden.
-export const hasLevelsFor = (st) => {
-  const h = hasLevels(st), o = st.onboard;
+// When editing, a level the person already has a value for stays on the form even if the organization has since removed it,
+// so nothing they have is hidden.
+export const hasLevelsFor = (st, org) => {
+  const h = hasLevels(st, org), o = st.onboard;
   if (o && o.orig) { if (o.orig.sector) h.sectors = true; if (o.orig.branch) h.branches = true; if (o.orig.unit) h.units = true; if (o.orig.department) h.departments = true; }
   return h;
 };
@@ -39,7 +44,7 @@ export const onboardingActions = {
   // Changing sector, branch or department clears choices below it that no longer fit.
   setOnboardField(k, v) {
     this.setState((st) => {
-      const has = hasLevelsFor(st);
+      const has = hasLevelsFor(st, this.srv ? this.org : null);
       const f = { ...st.onboard.f, [k]: v };
       const opts = structureOptions(this.org, has, f);
       if (['sector', 'branch', 'unit', 'department'].indexOf(k) !== -1) ['branch', 'unit', 'department'].forEach((c) => { if (c !== k && f[c] && opts[c].indexOf(f[c]) === -1) f[c] = ''; });
@@ -88,7 +93,7 @@ export const onboardingActions = {
     if (!ob) return;
     const editing = ob.edit !== undefined && ob.edit !== null;
     const own = editing ? (this.dir[ob.edit].email || '').toLowerCase() : '';
-    const { errors, clean } = validatePerson(ob.f, this.org, hasLevelsFor(this.state), this.takenEmails().filter((e) => e !== own), todayIso(Date.now()));
+    const { errors, clean } = validatePerson(ob.f, this.org, hasLevelsFor(this.state, this.srv ? this.org : null), this.takenEmails().filter((e) => e !== own), todayIso(Date.now()));
     // Records created before these details were collected may have gaps; only insist on what was already filled in.
     if (editing) ['sector', 'branch', 'unit', 'department'].forEach((k) => { if (ob.orig[k] && ob.f[k] === ob.orig[k]) delete errors[k]; });
     if (editing) ['dob', 'gender', 'phone', 'email'].forEach((k) => { if (!ob.orig[k] && !String(ob.f[k] || '').trim()) delete errors[k]; });
@@ -126,7 +131,7 @@ export const onboardingActions = {
   },
 
   parseBulk(text) {
-    const has = hasLevels(this.state);
+    const has = hasLevels(this.state, this.srv ? this.org : null);
     const rows = parseCsv(text);
     if (!rows.length) { this.setState((st) => ({ onboard: { ...st.onboard, bulkText: text, bulk: null } })); return; }
     const { map, unknown } = mapHeaders(rows[0]);
@@ -167,7 +172,7 @@ export const onboardingActions = {
   },
 
   downloadOnboardTemplate() {
-    const blob = new Blob([templateCsv(hasLevels(this.state))], { type: 'text/csv' });
+    const blob = new Blob([templateCsv(hasLevels(this.state, this.srv ? this.org : null))], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url; a.download = 'onboarding-template.csv';

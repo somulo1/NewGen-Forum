@@ -1,5 +1,7 @@
 // Sectors, branches, units and departments: each one's dashboard (what it received and sent, how much it handled on time,
 // its projects) and its performance threshold. The server builds all of it from real records; nothing is made up here.
+import { loadStructure } from './people.js';
+
 export const name = 'org';
 
 const PLURAL = { sector: 'sectors', branch: 'branches', unit: 'units', department: 'departments' };
@@ -49,3 +51,24 @@ export async function setTarget(logic, srv, key, value) {
 }
 
 export { KIND };
+
+// ---- changing the structure (People > Organization structure) ----
+// Levels exist once they have a unit, so adding the first sector makes sector pages, onboarding fields and CSV columns appear.
+async function refresh(logic, srv) {
+  await loadStructure(logic, srv);
+  await load(logic, srv);
+  srv.ouData.clear(); srv.ouAsked.clear();
+  logic.forceUpdate();
+}
+export async function addUnit(logic, srv, u) {
+  await srv.request('POST', '/org/units', { kind: u.kind, name: u.name, parent_id: u.parent || undefined });
+  await refresh(logic, srv);
+}
+export async function renameUnit(logic, srv, id, name) {
+  await srv.request('PATCH', `/org/units/${id}`, { name });
+  await refresh(logic, srv);
+}
+export async function removeUnit(logic, srv, id) {
+  await srv.request('DELETE', `/org/units/${id}`);
+  await refresh(logic, srv);
+}

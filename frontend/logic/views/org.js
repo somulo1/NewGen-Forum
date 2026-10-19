@@ -177,7 +177,7 @@ export function buildOrg(ctx) {
   const allUnits = levels.reduce((acc, t) => acc.concat(O[t].map((r) => ({ type: t, r: r }))), []);
   const unitPerf = {};
   allUnits.forEach((u) => { unitPerf[u.type + ':' + u.r.id] = unitData(u.type, u.r); });
-  const myUnits = ['departments', 'branches', 'sectors', 'units'].filter((t) => has[t] && can(t, 'View dashboard')).map((t) => {
+  const myUnits = ['departments', 'branches', 'sectors', 'units'].filter((t) => has[t] && can(t, 'View dashboard') && recOf(t, O.mine[t])).map((t) => {
     const r = recOf(t, O.mine[t]);
     const key = t + ':' + r.id;
     const on = s.section === 'orgunit' && s.ou === key;

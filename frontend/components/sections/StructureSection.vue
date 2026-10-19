@@ -1,7 +1,7 @@
 <!-- Organization structure -->
 <template><template v-if="show.structure">
 <div style="width: 100%; display: flex; flex-direction: column; gap: 16px">
-<div><h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; letter-spacing: -0.02em">Organization structure</h1><p style="margin: 4px 0 0; color: var(--k-9DB0A6,#9DB0A6); line-height: 1.5">Built from the structure widgets you use. Add or remove Sectors, Branches, Units and Departments from Home → Add widget and this view rearranges itself.</p></div>
+<div><h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; letter-spacing: -0.02em">Organization structure</h1><p style="margin: 4px 0 0; color: var(--k-9DB0A6,#9DB0A6); line-height: 1.5">Built from the sectors, branches, units and departments your organization has. Add, rename or remove them from People → Organization structure and this view rearranges itself.</p></div>
 <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center"><template v-for="(ch, ch__i) in org.chain" :key="ch__i"><span :style="ch.style">{{ ch.label }}</span><template v-if="ch.arrow"><span style="color: var(--k-4A5C54,#4A5C54)">›</span></template></template></div>
 <template v-if="org.deptNote"><span style="font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">{{ org.deptNoteText }}</span></template>
 <div style="border-radius: 16px; border: 1px solid var(--k-24322C,#24322C); background: var(--k-16201C,#16201C); overflow: hidden">

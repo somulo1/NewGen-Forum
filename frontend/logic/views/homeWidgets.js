@@ -102,7 +102,9 @@ export function buildHomeWidgets(ctx) {
     })
   };
   const daysLeft = Math.max(0, Math.ceil((new Date('2026-12-18T00:00:00+03:00') - new Date()) / 86400000));
-  const ids = s.widgets;
+  // structure widgets follow the organization's structure, not the person's choice
+  const LEVELS = ['departments', 'sectors', 'branches', 'units'];
+  const ids = s.widgets.filter((x) => LEVELS.indexOf(x) === -1 || has[x]);
   const isHidden = (id) => s.hiddenWidgets.indexOf(id) !== -1;
   const toggleHide = (id) => () => this.setState((st) => ({ hiddenWidgets: st.hiddenWidgets.indexOf(id) !== -1 ? st.hiddenWidgets.filter((x) => x !== id) : st.hiddenWidgets.concat([id]) }));
   const removeWidget = (id) => this.setState((st) => {
@@ -156,7 +158,7 @@ export function buildHomeWidgets(ctx) {
       return { widgets: w };
     })
   }));
-  const gallery = Object.keys(catalog).filter((id) => id !== 'performance' || has.structure).map((id) => {
+  const gallery = Object.keys(catalog).filter((id) => (id !== 'performance' || has.structure) && (!this.srv || LEVELS.indexOf(id) === -1)).map((id) => {
     const added = ids.indexOf(id) !== -1;
     return { ...catalog[id], added, hidden: added && isHidden(id), hideLabel: isHidden(id) ? 'Show on Home' : 'Hide on Home', toggleHide: toggleHide(id), remove: () => removeWidget(id), btnLabel: added ? 'Added' : 'Add to home',
       openSettings: () => this.setState({ settingsFor: id }),

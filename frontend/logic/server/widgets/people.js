@@ -38,6 +38,7 @@ export async function loadStructure(logic, srv) {
   const org = { sectors: [], branches: [], units: [], departments: [], mine: {} };
   srv.structure = { sectors: new Map(), branches: new Map(), units: new Map(), departments: new Map() };
   srv.unitName = new Map(units.map((u) => [u.id, u.name]));
+  srv.unitList = units;   // as the server has them (with parents), for the Organization structure editor
   units.forEach((u) => {
     const level = LEVELS[u.kind];
     if (!level) return;
