@@ -40,11 +40,11 @@
 <div style="padding: 16px; border: 1px solid #2A3832; border-radius: 20px; background: #121B17">
 <div style="columns: 300px; column-gap: 16px">
 <template v-for="(w, w__i) in widgets" :key="w__i">
-<section :aria-label="w.title" :style="w.cardStyle + (w.hidden ? ';opacity: 0.5' : '')">
+<section class="home-widget" :aria-label="w.title" :style="w.cardStyle + (w.hidden ? ';opacity: 0.5' : '')">
 <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px">
 <div style="flex: 1 1 100%; min-width: 0; display: flex; align-items: center; gap: 10px">
 <span :style="`width: 10px; height: 10px; flex: none; border-radius: 50%; background: ${w.tint}`"></span>
-<div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><strong style="font-size: 15px; line-height: 1.3; overflow-wrap: anywhere">{{ w.title }}</strong><span style="font-size: 12px; color: #9DB0A6; line-height: 1.4; overflow-wrap: anywhere">{{ w.sub }}</span></div>
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><strong class="wh-title" style="font-size: 15px; line-height: 1.3; overflow-wrap: anywhere">{{ w.title }}</strong><span style="font-size: 12px; color: #9DB0A6; line-height: 1.4; overflow-wrap: anywhere">{{ w.sub }}</span></div>
 </div>
 <template v-if="w.customizing">
 <div style="flex: 1 1 100%; min-width: 0; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px">

@@ -18,7 +18,7 @@ export function valsProjects(ctx) {
     uploadToFolder: (e) => {
       const list = Array.from(e.target.files || []);
       e.target.value = '';
-      if (!cur_f || !list.length) return;
+      if (!cur_f || cur_f.isNotes || !list.length) return;
       const kindOf = (f) => { const n = f.name.toLowerCase(); if ((f.type || '').indexOf('image/') === 0) return 'IMG'; if (/\.pdf$/.test(n)) return 'PDF'; if (/\.(docx?|txt|rtf)$/.test(n)) return 'DOC'; if (/\.(xlsx?|csv)$/.test(n)) return 'XLS'; if (/\.(pptx?|key)$/.test(n)) return 'PPT'; return 'ZIP'; };
       const added = list.map((f) => { const k = kindOf(f); return { name: f.name, kind: k, size: this.fmtSize(f.size), by: 'Sam', when: 'Just now', url: k === 'IMG' ? URL.createObjectURL(f) : '' }; });
       this.setState((st) => ({ folders: st.folders.map((f) => (f.id === cur_f.id ? { ...f, updated: 'just now', files: added.concat(f.files) } : f)) }));
