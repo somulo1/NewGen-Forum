@@ -2,7 +2,7 @@
 // settings an admin sets for the whole organization (/settings/widgets). Changes are saved by watching the state.
 export const name = 'prefs';
 
-const PERSONAL = ['widgets', 'hiddenWidgets', 'theme', 'hiddenPosts', 'savedPosts'];
+const PERSONAL = ['widgets', 'hiddenWidgets', 'theme', 'hiddenPosts', 'savedPosts', 'dmPrivacy'];
 
 export async function load(logic, srv) {
   const prefs = await srv.request('GET', '/me/prefs');

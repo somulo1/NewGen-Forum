@@ -1,10 +1,12 @@
+import * as dmsW from '~/logic/server/widgets/dms.js';
 import { dmSamples, forumSamples } from '~/logic/samples.js';
 import { richTextHtml } from '~/logic/richText.js';
 import { noteText, notesConnected, isMine, permLabel } from '~/logic/noteText.js';
+import * as forumsW from '~/logic/server/widgets/forums.js';
 // renderVals step: forums. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildForums(ctx) {
   const { s } = ctx;
-  const forumsData = [
+  const sampleForums = [
     { id: 'it', name: 'IT Operations', initials: 'IT', color: '#B8F36B', unread: 3, members: 42, online: 9, privacy: 'Invite only', about: 'Day-to-day IT support, outages and change announcements.',
       updates: [
         { who: 'Brian K.', initials: 'BK', color: '#7CC4FF', time: '2 min ago', text: 'Email server patch is done. Restart Outlook if you see sync errors.', replies: 4 },
@@ -48,23 +50,27 @@ export function buildForums(ctx) {
     risk: ['Q3 control testing starts next week.', 'Please submit evidence by Friday.', 'Access review template is in Files.', 'Any exceptions to report?', 'Two, logged in the register.', 'Good, let\'s discuss Monday.', 'Policy acknowledgment is at 82%.', 'Reminder sent to the remaining staff.', 'Audit committee pack is due on the 30th.', 'Draft is ready for review.', 'Incident from last week is closed.', 'Root cause documented.', 'Thanks team.', 'Training session booked for Tuesday.']
   };
   const ago = ['4 h ago', '5 h ago', '6 h ago', 'Yesterday', 'Yesterday', 'Yesterday', '2 days ago', '2 days ago', '3 days ago', '4 days ago', 'Last week'];
-  forumsData.forEach((f, fi) => {
+  sampleForums.forEach((f, fi) => {
     const pool = lines[f.id];
     for (let i = 0; i < 26; i++) {
       const c = chatters[(i + fi) % chatters.length];
       f.updates.push({ who: c.who, initials: c.initials, color: c.color, time: ago[Math.min(ago.length - 1, Math.floor(i / 2.5))], text: pool[i % pool.length], replies: (i * 3 + fi) % 6 });
     }
   });
-  const cur = forumsData.find((f) => f.id === s.forum) || forumsData[0];
+  // Connected to the server: the forums you are in. Not connected (no sign-in to an organization): the built-in samples.
+  const live = s.forumsLive || (this.srv ? [] : null);
+  const forumsData = live ? live.map((f) => ({ ...f, updates: f.updates.slice() })) : sampleForums;
+  const NO_FORUM = { id: '', name: 'No forums yet', initials: '', color: '#9DB0A6', unread: 0, members: 0, online: 0, privacy: '', about: 'You are not in any forum yet.', updates: [], memberList: [] };
+  const cur = forumsData.find((f) => f.id === s.forum) || forumsData[0] || NO_FORUM;
   const openMode = this.isMobileViewport() ? 'page' : s.mode === 'full' || s.mode === 'page' ? s.mode : 'docked';
   const forums = forumsData.map((f) => {
     const active = f.id === cur.id && s.mode !== 'closed';
-    const unread = s.forumRead && s.forumRead[f.id] ? 0 : f.unread;
+    const unread = f.live ? f.unread : (s.forumRead && s.forumRead[f.id] ? 0 : f.unread);
     return {
       ...f,
       unread,
       hasUnread: unread > 0,
-      open: () => this.setState((st) => ({ forumRead: { ...st.forumRead, [f.id]: true }, forum: f.id, panelKind: 'forum', mode: openMode, menu: false, tab: 'discussions', invite: false })),
+      open: () => { this.setState((st) => ({ forumRead: { ...st.forumRead, [f.id]: true }, forum: f.id, panelKind: 'forum', mode: openMode, menu: false, tab: 'discussions', invite: false })); if (f.live) forumsW.markRead(this, this.srv, f.id); },
       rowStyle: 'display:flex;align-items:center;gap:10px;width:100%;min-height:44px;padding:4px 10px;border:0;border-radius:10px;cursor:pointer;text-align:left;font-size:14px;color:var(--k-E8EFEA,#E8EFEA);background:' + (active ? 'var(--k-22302A,#22302A)' : 'transparent'),
       chipStyle: 'flex:none;width:36px;height:36px;border-radius:10px;cursor:pointer;font-family:Space Grotesk,sans-serif;font-weight:700;font-size:12px;color:#0F1714;background:' + f.color + ';border:2px solid ' + (f.id === cur.id ? '#E8EFEA' : 'transparent') + ';opacity:' + (f.id === cur.id ? '1' : '0.65'),
       unreadStyle: 'position:absolute;top:-5px;right:-6px;min-width:17px;height:17px;padding:0 4px;box-sizing:border-box;border-radius:9px;background:#B8F36B;color:#0F1714;font:700 10px sans-serif;display:flex;align-items:center;justify-content:center;pointer-events:none'
@@ -74,13 +80,13 @@ export function buildForums(ctx) {
   const dmNow = s.panelKind === 'dm' ? s.dms.find((d) => d.id === s.dmId) : null;
   const replyKey = dmNow ? dmNow.id : cur.id;
   this._replyKey = replyKey;
-  const replyFn = (who, m) => () => this.setState({ replyTo: { key: replyKey, who, snippet: snip(m) } });
+  const replyFn = (who, m) => () => this.setState({ replyTo: { key: replyKey, who, snippet: snip(m), mid: m.mid || '' } });
   const quote = (m) => ({ hasReply: !!m.replyTo, replyWho: m.replyTo ? m.replyTo.who : '', replySnippet: m.replyTo ? m.replyTo.snippet : '' });
   const fingerprint = (message) => encodeURIComponent([message.who || '', message.time || '', message.text || '', [].concat(message.file || []).map((file) => file.name || '').join(',')].join('|'));
   const norm = (u, id) => ({ replies: 0, ...u, id: u.id || id, source: u, htmlText: richTextHtml(u.text), hasText: !!u.text, hasFile: !!u.file, fileList: [].concat(u.file || []), ...quote(u), hasShared: !!u.shared, sid: u.shared ? u.shared.sid : '', reply: replyFn(u.who === 'Sam' ? 'You' : u.who, u) });
   const addedSource = s.added[cur.id] || [];
   const addedHere = addedSource.map((message) => norm(message, 'forum-' + cur.id + '-added-' + fingerprint(message)));
-  const baseMsgs = cur.updates.concat(forumSamples()).map((message, index) => norm(message, 'forum-' + cur.id + '-sample-' + index));
+  const baseMsgs = (live ? cur.updates : cur.updates.concat(forumSamples())).map((message, index) => norm(message, 'forum-' + cur.id + '-sample-' + index));
   const messageActions = (message, key, deleteForEveryone) => ({
     messageKey: key,
     menuOpen: s.messageMenu === key,
@@ -101,8 +107,8 @@ export function buildForums(ctx) {
   const forumMessages = baseMsgs.slice().reverse().concat(addedHere).map((message) => {
     const key = 'forum:' + cur.id + ':' + message.id;
     const source = message.source;
-    const canDeleteForEveryone = message.mine && addedSource.includes(source);
-    const actions = messageActions(message, key, canDeleteForEveryone ? () => this.setState((st) => ({ added: { ...st.added, [cur.id]: (st.added[cur.id] || []).filter((item) => item !== source) } })) : null);
+    const canDeleteForEveryone = (message.who === 'Sam' || message.who === 'You') && (addedSource.includes(source) || !!source.mid);
+    const actions = messageActions(message, key, canDeleteForEveryone ? () => (source.mid ? forumsW.remove(this, this.srv, cur.id, source.mid).catch((e) => this.notify(e.message || 'Could not delete the message.', '#FF9B8A')) : this.setState((st) => ({ added: { ...st.added, [cur.id]: (st.added[cur.id] || []).filter((item) => item !== source) } }))) : null);
     return { ...fStyle(message), ...actions };
   }).filter((message) => !s.hiddenChatMessages[message.messageKey]);
   const forumView = { ...cur, chat: forumMessages, topics: forumMessages, subline: cur.online + ' online · live updates', dotColor: '#B8F36B' };
@@ -139,12 +145,13 @@ export function buildForums(ctx) {
       };
     });
     const sharesById = Object.fromEntries(secureShares.map((share) => [share.id, share]));
-    const dmMessages = dmSamples(curDm.with).concat(curDm.msgs).map((m, index) => {
+    const dmMessages = (this.srv ? [] : dmSamples(curDm.with)).concat(curDm.msgs).map((m, index) => {
       const mine = m.from === 'me';
       const who = mine ? 'You' : m.from;
       const pp = mine ? { initials: 'S', color: '#C2185B' } : dmPerson(m.from);
       const key = 'dm:' + curDm.id + ':' + (m.id || 'legacy-' + fingerprint({ who: m.from, ...m }));
       const actions = messageActions(m, key, mine ? () => {
+        if (m.mid && this.srv) { dmsW.remove(this, this.srv, curDm.id, m.mid).catch((e) => this.notify(e.message || 'Could not delete it.', '#FF9B8A')); return; }
         if (curDm.msgs.includes(m)) {
           this.setState((st) => ({
             dms: st.dms.map((dm) => dm.id === curDm.id ? { ...dm, msgs: dm.msgs.filter((item) => item !== m) } : dm),

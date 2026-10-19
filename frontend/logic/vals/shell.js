@@ -1,3 +1,4 @@
+import * as callsW from '~/logic/server/calls.js';
 import * as notificationsW from '~/logic/server/widgets/notifications.js';
 // Values and handlers the templates read through hubBindings: shell.
 export function valsShell(ctx) {
@@ -25,9 +26,10 @@ export function valsShell(ctx) {
     navSearch, headerSearch, denied,
     notifs: allNotifs, noNotifs: allNotifs.length === 0,
     notifOpen: s.notifOpen,
-    hasBadge: !s.notifSeen && allNotifs.length > 0,
-    badgeCount: allNotifs.length > 9 ? '9+' : String(allNotifs.length),
-    toggleNotifs: () => { if (!this.state.notifSeen && this.srv) notificationsW.markAllRead(this.srv).catch(() => {}); this.setState((st) => ({ notifOpen: !st.notifOpen, notifSeen: true })); },
+    // with the server connected the badge is the real unread count; offline it falls back to the sample list
+    hasBadge: this.srv ? (s.notifUnread || 0) > 0 && !s.notifSeen : !s.notifSeen && allNotifs.length > 0,
+    badgeCount: (() => { const n = this.srv ? (s.notifUnread || 0) : allNotifs.length; return n > 9 ? '9+' : String(n); })(),
+    toggleNotifs: () => { if (!this.state.notifSeen && this.srv) notificationsW.markAllRead(this.srv, this).catch(() => {}); this.setState((st) => ({ notifOpen: !st.notifOpen, notifSeen: true })); },
     hasToast: !!s.toast, toast: s.toast, toastColor: s.toastColor,
     inCall: !!s.call, call,
     navOpen: s.navOpen, navClass: 'hub-nav' + (s.navOpen ? ' open' : ''),
@@ -53,10 +55,10 @@ export function valsShell(ctx) {
     endCall: () => this.endCall(),
     showMeetingFull, showMeetingDock, showPanelCall, showCallMini, callMiniStyle, restoreCall,
     callToFull: set({ callMode: 'full' }), callToDock: set({ callMode: 'docked' }), callToMin: set({ callMode: 'min' }),
-    toggleMic: () => this.setState((st) => ({ mic: !st.mic })),
-    toggleCam: () => this.setState((st) => ({ cam: !st.cam })),
-    toggleShare: () => this.setState((st) => ({ sharing: !st.sharing })),
-    toggleHand: () => this.setState((st) => ({ hand: !st.hand })),
+    toggleMic: () => { this.setState((st) => ({ mic: !st.mic })); if (this.srv) callsW.applyLocal(this); },
+    toggleCam: () => { this.setState((st) => ({ cam: !st.cam })); if (this.srv) callsW.applyLocal(this); },
+    toggleShare: () => { this.setState((st) => ({ sharing: !st.sharing })); if (this.srv) callsW.applyLocal(this); },
+    toggleHand: () => { this.setState((st) => ({ hand: !st.hand })); if (this.srv) callsW.applyLocal(this); },
     toggleRec: () => this.setState((st) => ({ rec: !st.rec })),
     openCallChat: () => this.setState((st) => ({ callPanel: st.callPanel === 'chat' ? null : 'chat' })),
     openCallPeople: () => this.setState((st) => ({ callPanel: st.callPanel === 'people' ? null : 'people' })),

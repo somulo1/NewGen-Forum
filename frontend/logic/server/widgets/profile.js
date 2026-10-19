@@ -14,7 +14,7 @@ export async function load(logic, srv) {
     profile,
     meInfo: {
       name: row.name, initials: row.initials, color: row.color || '#C2185B', email: row.email || '', title: row.title || '', dept: row.department ? row.department.name : '',
-      branch: row.branch ? row.branch.name : '', unit: row.unit ? row.unit.name : '', role: row.role_name || '', joined: row.joined_on || ''
+      branch: row.branch ? row.branch.name : '', unit: row.unit ? row.unit.name : '', role: row.role_name || '', joined: row.joined_on || '', reportsTo: row.reports_to || null
     }
   });
 }

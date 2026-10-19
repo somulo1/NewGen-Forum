@@ -1,3 +1,4 @@
+import * as callsW from '~/logic/server/calls.js';
 // renderVals step: callState. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildCallState(ctx) {
   const { cur, curDm, ini, isDM, notifList, pColor, pw, s, taskNotifs } = ctx;
@@ -20,16 +21,22 @@ export function buildCallState(ctx) {
       const c = pColor[n] || ((this.dir.find((d) => d.name === n) || {}).color) || '#C9B6FF';
       return { name: n, initials: ini(n), color: c, bg: c + '26', camBg: c + '40', muted: i % 3 === 1, camOn: i % 2 === 0 };
     }) : (isVideo ? othersAll : othersAll.slice(0, 3));
-    const me = { name: 'You', initials: 'S', color: '#F49AC1', bg: '#2B2A1E', camBg: '#3D3B29', muted: !s.mic, camOn: isVideo && s.cam, you: true };
+    const live = !!(this.srv && s.call.peers);
+    const othersLive = live ? s.call.peers.map((p) => {
+      const d = this.dir.find((x) => x.name === p.name);
+      const c = (d && d.color) || '#C9B6FF';
+      return { name: p.name, initials: d ? d.initials : ini(p.name), color: c, bg: c + '26', camBg: c + '40', muted: !p.mic, camOn: p.cam || p.sharing, hand: p.hand, videoKey: p.id };
+    }) : null;
+    const me = { name: 'You', initials: 'S', color: '#F49AC1', bg: '#2B2A1E', camBg: '#3D3B29', muted: !s.mic, camOn: isVideo && (s.cam || s.sharing), you: true, videoKey: live ? 'local' : '' };
     // Moderator = the person who started a meeting, standup or forum call. One-to-one calls have no moderator.
     const isMod = s.call.context !== 'dm' && s.call.dir !== 'in';
     const off = s.callOff || {};
-    const all = [me].concat(others.map((o) => ({ ...o, muted: o.muted || !!(off[o.name] && off[o.name].mic), camOn: o.camOn && !(off[o.name] && off[o.name].cam) })));
+    const all = [me].concat((othersLive || others).map((o) => ({ ...o, muted: o.muted || !!(off[o.name] && off[o.name].mic), camOn: o.camOn && !(off[o.name] && off[o.name].cam) })));
     const talkers = all.filter((p) => !p.muted);
-    const speakerName = talkers.length ? talkers[Math.floor(secs / 4) % talkers.length].name : '';
+    const speakerName = live ? '' : talkers.length ? talkers[Math.floor(secs / 4) % talkers.length].name : '';
     const tiles = all.map((p) => {
       const speaking = p.name === speakerName;
-      const hand = p.you ? s.hand : false;
+      const hand = p.you ? s.hand : !!p.hand;
       const mod = isMod && !p.you;
       return { ...p, speaking, hand, mod, micOn: !p.muted, camOnNow: p.camOn && isVideo, camAvail: isVideo,
         muteMic: () => this.modOff(p.name, 'mic'), stopCam: () => this.modOff(p.name, 'cam'), camOff: !p.camOn || !isVideo, camOn: p.camOn && isVideo,
@@ -70,6 +77,7 @@ export function buildCallState(ctx) {
     const t = this.state.callDraft.trim();
     if (!t) return;
     this.setState((st) => ({ callMsgs: st.callMsgs.concat([{ who: 'You', text: t }]), callDraft: '' }));
+    if (this.srv) callsW.sendChat(t);
   };
   const allNotifs = taskNotifs.map((n) => ({ ...n, open: () => this.setState({ notifOpen: false, section: 'projects', projectOpen: n.task.pid, taskOpen: n.task }) })).concat(notifList);
   const roleNames = { admin: 'Admin', hod: 'Head of department', it: 'IT support', finance: 'Finance approver', staff: 'Staff', guest: 'Guest' };
