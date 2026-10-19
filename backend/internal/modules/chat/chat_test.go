@@ -176,6 +176,17 @@ func TestEncryptedForumLifecycle(t *testing.T) {
 		t.Fatalf("history %v", hist)
 	}
 	m0 := hist[0].(map[string]any)
+	// catch-up reads: everything since long ago has the message; nothing has changed since a moment in the future
+	sync := e.MustDo(200, "GET", "/conversations/"+cid+"/changes?since=2000-01-01T00:00:00Z", nil, a.Access)
+	if cm := sync["messages"].([]any); len(cm) != 1 || cm[0].(map[string]any)["id"] != m0["id"] || sync["more"] != false || sync["next_since"] == "" {
+		t.Fatalf("changes %v", sync)
+	}
+	if cm := e.MustDo(200, "GET", "/conversations/"+cid+"/changes?since="+time.Now().Add(time.Hour).UTC().Format(time.RFC3339Nano), nil, a.Access)["messages"].([]any); len(cm) != 0 {
+		t.Fatalf("changes from the future %v", cm)
+	}
+	if code, _ := e.Do("GET", "/conversations/"+cid+"/changes?since=nonsense", nil, a.Access); code != 400 {
+		t.Fatalf("bad marker: %d", code)
+	}
 	env, _ := base64.StdEncoding.DecodeString(m0["envelope"].(string))
 	sk := owner2signing(t, e, a, o.person, m0["sender_device"].(string))
 	pt, err := e2ee.Open(ak, env, sk, e2ee.Context{Org: org, Conversation: cid, Sender: o.acct, MessageID: m0["id"].(string), Epoch: 1})
@@ -267,7 +278,18 @@ func TestEncryptedForumLifecycle(t *testing.T) {
 			t.Fatalf("non-author deleted: %d", code)
 		}
 	}
+	mark := time.Now().Add(-time.Second).UTC().Format(time.RFC3339Nano)
 	e.MustDo(204, "DELETE", "/conversations/"+cid+"/messages/"+m0["id"].(string), nil, owner.Access)
+	// a catch-up read after the removal reports it, without the ciphertext
+	gone := false
+	for _, x := range e.MustDo(200, "GET", "/conversations/"+cid+"/changes?since="+mark, nil, owner.Access)["messages"].([]any) {
+		if xm := x.(map[string]any); xm["id"] == m0["id"] {
+			gone = xm["deleted"] == true && xm["envelope"] == ""
+		}
+	}
+	if !gone {
+		t.Fatal("changes did not report the removed message")
+	}
 }
 
 func owner2signing(t *testing.T, e *testkit.Env, viewer *member, person, deviceID string) []byte {

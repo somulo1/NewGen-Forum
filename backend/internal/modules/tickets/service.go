@@ -410,6 +410,8 @@ type Action struct {
 	ToRef  *uuid.UUID `json:"to_ref,omitempty"`
 	Person *uuid.UUID `json:"person,omitempty"`
 	Why    string     `json:"why,omitempty"`
+	// Category re-files the ticket under one of the destination's categories; its time limit starts again from now.
+	Category string `json:"category,omitempty"`
 	// At backdates the change (history loading only; not settable over HTTP).
 	At *time.Time `json:"-"`
 }
@@ -529,7 +531,7 @@ func (s *Service) Act(ctx context.Context, p *tenant.Principal, id uuid.UUID, a 
 				return httpx.Bad("Keep the reason under 300 characters.")
 			}
 			set, text = "escalated=true", "Escalated to "+cfg.Escalate
-			if a.ToType == "" && a.Person == nil {
+			if a.ToType == "" && a.Person == nil && a.Category == "" {
 				if err := s.notifyEscalation(ctx, tx, &nb, p.Org, cur, cfg); err != nil {
 					return err
 				}
@@ -551,6 +553,23 @@ func (s *Service) Act(ctx context.Context, p *tenant.Principal, id uuid.UUID, a 
 					args = append(args, a.ToType, a.ToRef)
 				}
 				set += fmt.Sprintf(", to_type=$%d, to_ref=$%d", len(args)-1, len(args))
+			}
+			if a.Category != "" {
+				tt, tr := cur.ToType, cur.ToRef
+				if a.ToType != "" {
+					tt, tr = a.ToType, a.ToRef
+				}
+				cat, err := s.category(ctx, tx, tt, tr, a.Category)
+				if err != nil {
+					return err
+				}
+				if cat == nil {
+					return httpx.Bad("That category does not exist for the place you are escalating to.")
+				}
+				due := cfg.Due(app.Now(), cat.TAT)
+				args = append(args, cat.Name, cat.TAT, due)
+				set += fmt.Sprintf(", category=$%d, tat_hours=$%d, due_at=$%d, late=false", len(args)-2, len(args)-1, len(args))
+				dest += " as " + cat.Name
 			}
 			if a.Person != nil {
 				var name string
