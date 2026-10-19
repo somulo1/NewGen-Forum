@@ -107,7 +107,7 @@
 <div style="padding: 12px 14px; display: flex; flex-direction: column; gap: 4px">
 <div style="display: flex; gap: 8px; align-items: center"><span :style="`flex: none; padding: 1px 6px; border-radius: 4px; background: ${fl.color}; color: #0F1714; font-size: 10px; font-weight: 700`">{{ fl.kind }}</span><strong style="font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ fl.name }}</strong></div>
 <span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">{{ fl.size }} · {{ fl.by }} · {{ fl.when }}</span>
-<div style="display: flex; gap: 6px; margin-top: 6px"><button style="flex: 1; height: 34px; border-radius: 9px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; font-size: 13px">Open</button><button style="flex: 1; height: 34px; border-radius: 9px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; font-size: 13px">Share</button></div>
+<div style="display: flex; gap: 6px; margin-top: 6px"><button @click="openFile(fl)" style="flex: 1; height: 34px; border-radius: 9px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; font-size: 13px">Open</button><button @click="shareFile(fl)" style="flex: 1; height: 34px; border-radius: 9px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; font-size: 13px">Share</button><button v-if="fl.fileId" @click="deleteFile(fl)" style="flex: 1; height: 34px; border-radius: 9px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-FF9B8A,#FF9B8A); cursor: pointer; font-size: 13px">Delete</button></div>
 </div>
 </div>
 </template>
@@ -121,6 +121,6 @@ import { hubBindings } from '~/composables/useHub';
 
 export default {
   name: 'FilesSection',
-  ...hubBindings(["closeFolder","folders","fv","showFolderList","showFolderView","uploadToFolder"])
+  ...hubBindings(["closeFolder","folders","fv","showFolderList","showFolderView","uploadToFolder","openFile","shareFile","deleteFile"])
 };
 </script>

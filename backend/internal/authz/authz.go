@@ -131,3 +131,29 @@ func PeopleWith(ctx context.Context, tx pgx.Tx, module, right string) ([]uuid.UU
 	}
 	return out, rs.Err()
 }
+
+// CanOwn answers "may this person do this to this item?": with the general right they may do it to anything; with the
+// matching "own" right (for example "Edit own posts") only to items they made. Both are rights the organization gives to roles.
+func CanOwn(ctx context.Context, tx pgx.Tx, person uuid.UUID, module, anyRight, ownRight string, mine bool) (bool, error) {
+	if anyRight != "" {
+		if ok, err := Can(ctx, tx, person, module, anyRight); err != nil || ok {
+			return ok, err
+		}
+	}
+	if mine && ownRight != "" {
+		return Can(ctx, tx, person, module, ownRight)
+	}
+	return false, nil
+}
+
+// RequireOwn is CanOwn that returns a 403 when the answer is no.
+func RequireOwn(ctx context.Context, tx pgx.Tx, person uuid.UUID, module, anyRight, ownRight string, mine bool) error {
+	ok, err := CanOwn(ctx, tx, person, module, anyRight, ownRight, mine)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return httpx.ErrForbidden
+	}
+	return nil
+}

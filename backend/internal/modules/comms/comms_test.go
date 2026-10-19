@@ -87,3 +87,46 @@ func TestAwardsNeedApprovalAndNotifyWinners(t *testing.T) {
 		t.Fatalf("stranger nominated: %d", code)
 	}
 }
+
+// Where an award should be announced is remembered, and each place is claimed once by the nominator after approval.
+func TestAwardAnnouncementTargetsAreClaimedOnce(t *testing.T) {
+	e := testkit.New(t)
+	ownerU, slug := e.NewOrg("Olivia Owner")
+	hod := e.Join(ownerU, slug, "Hana", "hod")
+	win := e.Join(ownerU, slug, "Wanjiru", "staff")
+	forum := uuid.NewString()
+	res := e.MustDo(201, "POST", "/awards", map[string]any{"type": "Team player", "people": []string{win.Person}, "citation": "helped", "targets": []string{"wall", forum}}, hod.Access)
+	id := res["award"].(map[string]any)["id"].(string)
+	// not approved: nothing to claim yet, and the targets are hidden
+	if code, _ := e.Do("POST", "/awards/"+id+"/claim", map[string]any{"target": "wall"}, hod.Access); code != 409 {
+		t.Fatalf("claimed before approval: %d", code)
+	}
+	ap := res["approval"].(map[string]any)["id"].(string)
+	e.MustDo(200, "POST", "/approvals/"+ap+"/approve", map[string]any{}, ownerU.Access)
+	e.MustDo(200, "POST", "/approvals/"+ap+"/approve", map[string]any{}, ownerU.Access)
+	find := func(tok string) map[string]any {
+		for _, a := range e.MustDo(200, "GET", "/awards", nil, tok)["awards"].([]any) {
+			if a.(map[string]any)["id"] == id {
+				return a.(map[string]any)
+			}
+		}
+		t.Fatal("award not listed")
+		return nil
+	}
+	if tg, _ := find(hod.Access)["targets"].([]any); len(tg) != 2 {
+		t.Fatalf("the nominator should see both places: %v", find(hod.Access))
+	}
+	if find(win.Access)["targets"] != nil {
+		t.Fatal("someone else saw where the award is to be announced")
+	}
+	if code, _ := e.Do("POST", "/awards/"+id+"/claim", map[string]any{"target": "wall"}, win.Access); code != 403 {
+		t.Fatalf("a stranger claimed the post: %d", code)
+	}
+	e.MustDo(204, "POST", "/awards/"+id+"/claim", map[string]any{"target": "wall"}, hod.Access)
+	if code, _ := e.Do("POST", "/awards/"+id+"/claim", map[string]any{"target": "wall"}, hod.Access); code != 409 {
+		t.Fatalf("posted twice: %d", code)
+	}
+	if tg, _ := find(hod.Access)["targets"].([]any); len(tg) != 1 || tg[0] != forum {
+		t.Fatalf("only the forum should be left: %v", tg)
+	}
+}

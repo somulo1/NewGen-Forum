@@ -276,10 +276,9 @@ func (s *Service) Delete(ctx context.Context, p *tenant.Principal, id uuid.UUID)
 		if err := tx.QueryRow(ctx, `select uploader, blob_key from hub.files where id=$1 and status <> 'deleted' for update`, id).Scan(&up, &key); err != nil {
 			return httpx.ErrNotFound
 		}
-		if up != p.Person {
-			if err := authz.Require(ctx, tx, p.Person, "files", "Delete"); err != nil {
-				return err
-			}
+		// anyone's file with "Delete"; your own with "Delete own files"
+		if err := authz.RequireOwn(ctx, tx, p.Person, "files", "Delete", "Delete own files", up == p.Person); err != nil {
+			return err
 		}
 		if _, err := tx.Exec(ctx, `update hub.files set status='deleted', envelope='\x00'::bytea, blob_key=null, updated_at=now(), `+integrity.Bump+` where id=$1`, id); err != nil {
 			return err

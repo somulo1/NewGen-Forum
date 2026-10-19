@@ -433,9 +433,17 @@ func (s *Service) Act(ctx context.Context, p *tenant.Principal, id uuid.UUID, a 
 			return err
 		}
 		isHandler := cur.Handler != nil && *cur.Handler == p.Person
+		raisedByMe := cur.RaisedBy == p.Person
 		need := func(right string) error {
+			// nobody works on a ticket they raised; they may still close it
+			if right == "Solve" && raisedByMe {
+				return httpx.Err(403, "own_ticket", "You raised this ticket, so someone else has to work on it. You can still close it.")
+			}
 			if isHandler && (right == "Solve" || right == "Close") {
 				return nil
+			}
+			if right == "Close" { // the person who raised it may close it with "Close own tickets"
+				return authz.RequireOwn(ctx, tx, p.Person, "tickets", "Close", "Close own tickets", cur.RaisedBy == p.Person)
 			}
 			return authz.Require(ctx, tx, p.Person, "tickets", right)
 		}
@@ -448,6 +456,9 @@ func (s *Service) Act(ctx context.Context, p *tenant.Principal, id uuid.UUID, a 
 			}
 			if a.Handler == nil {
 				return httpx.Bad("Choose who takes it.")
+			}
+			if *a.Handler == cur.RaisedBy {
+				return httpx.Bad("The person who raised a ticket cannot be the one to work on it. Choose someone else.")
 			}
 			var name string
 			if err := tx.QueryRow(ctx, `select first_name || ' ' || last_name from hub.people p where id=$1 and status='active' and exists (select 1 from hub.conversation_members m where m.conversation_id=$2 and m.account_id=p.account_id and m.left_at is null)`, *a.Handler, id).Scan(&name); err != nil {
@@ -549,6 +560,9 @@ func (s *Service) Act(ctx context.Context, p *tenant.Principal, id uuid.UUID, a 
 					if err := tx.QueryRow(ctx, `select name from hub.org_units where id=$1 and kind=$2`, *a.ToRef, a.ToType).Scan(&name); err != nil {
 						return httpx.Bad("That " + a.ToType + " does not exist.")
 					}
+					if err := escalationAllowed(ctx, tx, p.Person, cur, a.ToType, *a.ToRef, name); err != nil {
+						return err
+					}
 					dest = "the " + a.ToType + " " + name
 					args = append(args, a.ToType, a.ToRef)
 				}
@@ -572,6 +586,9 @@ func (s *Service) Act(ctx context.Context, p *tenant.Principal, id uuid.UUID, a 
 				dest += " as " + cat.Name
 			}
 			if a.Person != nil {
+				if *a.Person == cur.RaisedBy {
+					return httpx.Bad("The person who raised a ticket cannot be the one to work on it. Choose someone else.")
+				}
 				var name string
 				if err := tx.QueryRow(ctx, `select first_name || ' ' || last_name from hub.people p where id=$1 and status='active' and exists (select 1 from hub.conversation_members m where m.conversation_id=$2 and m.account_id=p.account_id and m.left_at is null)`, *a.Person, id).Scan(&name); err != nil {
 					return httpx.Bad("That person cannot take this ticket: they are not part of its conversation. Add them first.")
@@ -626,6 +643,24 @@ func (s *Service) Act(ctx context.Context, p *tenant.Principal, id uuid.UUID, a 
 	nb.Send(ctx, s.A)
 	s.changed(ctx, p, out)
 	return out, nil
+}
+
+// escalationAllowed checks where a ticket may be escalated to. It must move somewhere new, and a person may not send it to
+// their own sector, branch, unit or department at the level it already sits at (their unit's ticket into their own unit,
+// their branch's into their own branch). Moving it a level up into their own place is fine: from their unit into their
+// branch, from their branch into their sector.
+func escalationAllowed(ctx context.Context, tx pgx.Tx, person uuid.UUID, cur *Ticket, toType string, toRef uuid.UUID, name string) error {
+	if cur.ToType == toType && cur.ToRef != nil && *cur.ToRef == toRef {
+		return httpx.Bad("It is already with the " + toType + " " + name + ". Choose another place.")
+	}
+	var own bool
+	if err := tx.QueryRow(ctx, `select coalesce($2 in (sector_id, branch_id, unit_id, department_id), false) from hub.people where id=$1`, person, toRef).Scan(&own); err != nil {
+		return err
+	}
+	if own && cur.ToType == toType {
+		return httpx.Bad("You cannot escalate a " + toType + " ticket into your own " + toType + ". Escalate it to a higher level, or to another " + toType + ".")
+	}
+	return nil
 }
 
 // notifyEscalation tells whoever holds the escalation role (by role name or job title).

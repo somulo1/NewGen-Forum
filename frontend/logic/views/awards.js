@@ -35,8 +35,8 @@ export function buildAwards(ctx) {
     types: awTypes.map((t) => ({ label: t, pick: () => setAw({ type: t }), style: chip(awS.type === t) })),
     roleOpts: visibleRoles.map((r) => ({ v: r.id, l: r.name })),
     setQ: (e) => setAw({ q: e.target.value }), setRole: (e) => setAw({ role: e.target.value }), setCitation: (e) => setAw({ citation: e.target.value }),
-    setPoster: (e) => { const f = (e.target.files || [])[0]; e.target.value = ''; if (f) setAw({ poster: URL.createObjectURL(f) }); },
-    clearPoster: () => setAw({ poster: '' }),
+    setPoster: (e) => { const f = (e.target.files || [])[0]; e.target.value = ''; if (f) setAw({ poster: URL.createObjectURL(f), posterFile: f }); },
+    clearPoster: () => setAw({ poster: '', posterFile: null }),
     toggleWall: () => setAw((x) => ({ wall: !x.wall })),
     forumChips: forums.map((f) => { const on = awS.forums.indexOf(f.id) !== -1; return { name: f.name, on: on, style: chipS(on), toggle: () => setAw((x) => ({ forums: on ? x.forums.filter((y) => y !== f.id) : x.forums.concat([f.id]) })) }; }),
     countLabel: awS.people.length ? awS.people.length + (awS.people.length === 1 ? ' person selected' : ' people selected') : 'Nobody selected yet',
@@ -54,9 +54,9 @@ export function buildAwards(ctx) {
     submit: () => {
       const a0 = this.state.awd;
       if (!a0.people.length) { this.notify('Pick at least one person to award.', '#FFB86B'); return; }
-      this.setState({ awOpen: false, awd: { type: 'Employee of the month', people: [], role: 'all', q: '', citation: '', poster: '', wall: true, forums: [] } });
+      this.setState({ awOpen: false, awd: { type: 'Employee of the month', people: [], role: 'all', q: '', citation: '', poster: '', posterFile: null, wall: true, forums: [] } });
       const label = a0.type + ' for ' + (a0.people.length > 2 ? a0.people.length + ' people' : a0.people.join(' and '));
-      awardsW.give(this, this.srv, { type: a0.type, people: a0.people, citation: a0.citation.trim() })
+      awardsW.give(this, this.srv, { type: a0.type, people: a0.people, citation: a0.citation.trim(), wall: !!a0.wall, forums: a0.forums || [], poster: a0.posterFile || null })
         .then((r) => this.notify(r.approval ? label + ' sent for approval.' : label + ' is live on Home.', r.approval ? '#FFB86B' : '#B8F36B'))
         .catch((e) => this.notify(e.message || 'Could not give the award.', '#FF9B8A'));
     }

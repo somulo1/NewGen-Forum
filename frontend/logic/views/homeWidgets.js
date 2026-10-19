@@ -67,7 +67,7 @@ export function buildHomeWidgets(ctx) {
       { id: 'b2', name: 'Kevin Mutua', initials: 'KM', color: '#C9B6FF', what: '3 years with the team' }
     ].map((b) => ({ ...b, wishLabel: s.wished[b.id] ? 'Sent' : 'Send wish', wishStyle: pillBtn(!!s.wished[b.id]), wish: () => this.setState((st) => ({ wished: { ...st.wished, [b.id]: true } })) })),
     tickets: [{ n: nOpen, label: 'Open', color: '#E8EFEA' }, { n: nOver, label: 'Overdue', color: '#FF9B8A' }, { n: nSoon, label: 'Due soon', color: '#FFB86B' }],
-    files: files.slice(0, 4),
+    files: (s.folders.some((f) => /^[0-9a-f]{8}-/.test(f.id)) ? s.folders.flatMap((f) => f.files.map((x) => ({ kind: x.kind, color: kindColor[x.kind] || '#9DB0A6', name: x.name, meta: f.name + ' · ' + x.when, at: x.at }))).sort((a, b) => (a.at < b.at ? 1 : -1)) : files).slice(0, 4),
     joiners: [
       { name: 'Mercy Wambui', role: 'Accountant · Finance', initials: 'MW', color: '#FFB86B' },
       { name: 'John Kamau', role: 'Driver · Logistics', initials: 'JK', color: '#7CC4FF' },

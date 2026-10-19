@@ -126,6 +126,12 @@ export async function saveRules(logic, srv, local, patch) {
 
 // ---- reading ----
 
+// A shared wall post carries copies of its pictures (made when it was shared); they open like any attachment here.
+function sharedOf(sh, todo) {
+  if (!sh || !sh.snap || !sh.snap.media) return sh || null;
+  return { ...sh, snap: { ...sh.snap, media: sh.snap.media.map((f) => { if (!f.fileId) return f; todo.push(f); return { ...f, url: '', ref: f }; }) } };
+}
+
 // Turns the sealed messages of one forum (newest first) into the chat items the panels show (newest first).
 function toItems(srv, opened) {
   const byId = new Map(opened.map((x) => [x.m.id, x]));
@@ -138,9 +144,10 @@ function toItems(srv, opened) {
     const mine = m.sender_account === srv.me.account;
     const parent = m.reply_to ? byId.get(m.reply_to) : null;
     const file = (pl.file || []).map((f) => { const it = { name: f.name, meta: f.meta || '', isImg: !!f.isImg, isVideo: !!f.isVideo, url: '', fileId: f.fileId, ref: f }; todo.push(f); return it; });
+    if (pl.note) file.push({ name: (pl.note.title || 'Untitled') + '.note', meta: 'Note · ' + (pl.note.perm === 'edit' ? 'Can edit' : 'Read only'), noteId: pl.note.conv, shareId: pl.note.id, url: '' });
     return {
-      id: m.id, mid: m.id, who: nameOf(m), ...(mine ? { initials: ME.initials, color: ME.color } : lookOf(srv, m.sender_person, m.sender_name)),
-      time: ago(m.created_at), at: m.created_at, text: pl.text || '', file: file.length ? file : undefined, shared: pl.shared || null,
+      id: m.id, mid: m.id, noteShare: pl.note || null, who: nameOf(m), ...(mine ? { initials: ME.initials, color: ME.color } : lookOf(srv, m.sender_person, m.sender_name)),
+      time: ago(m.created_at), at: m.created_at, text: pl.text || '', file: file.length ? file : undefined, shared: sharedOf(pl.shared, todo),
       replyTo: parent && parent.m.type === 'text' ? { who: parent.m.sender_account === srv.me.account ? 'You' : parent.m.sender_name, snippet: snippet(parent.pl) } : null, replies: children.get(m.id) || 0
     };
   });
@@ -283,7 +290,13 @@ function applyOnline(logic, srv) {
 
 function loadFiles(logic, srv, todo) {
   todo.forEach((f) => files.openUrl(srv, f).then((url) => {
-    logic.setState((st) => ({ forumsLive: (st.forumsLive || []).map((fo) => ({ ...fo, updates: fo.updates.map((u) => (u.file && u.file.some((x) => x.fileId === f.fileId) ? { ...u, file: u.file.map((x) => (x.fileId === f.fileId ? { ...x, url } : x)) } : u)) })) }));
+    const put = (list) => list.map((x) => (x.fileId === f.fileId ? { ...x, url } : x));
+    logic.setState((st) => ({ forumsLive: (st.forumsLive || []).map((fo) => ({ ...fo, updates: fo.updates.map((u) => {
+      let n = u;
+      if (n.file && n.file.some((x) => x.fileId === f.fileId)) n = { ...n, file: put(n.file) };
+      if (n.shared && n.shared.snap && (n.shared.snap.media || []).some((x) => x.fileId === f.fileId)) n = { ...n, shared: { ...n.shared, snap: { ...n.shared.snap, media: put(n.shared.snap.media) } } };
+      return n;
+    }) })) }));
   }).catch(() => {}));
 }
 
@@ -310,30 +323,51 @@ export async function load(logic, srv) {
 // costs two reads, not one each, and an older read can never overwrite a newer one.
 // opts.meta: also re-read the forum's details and rules (members, name, unread count). Without it only messages are
 // brought up to date, which is what a new or removed message needs.
+// opts.incoming: messages the socket delivered whole (sealed, with their ids); they are applied without asking the server.
+// opts.gone: ids of messages removed. Both make the forum current at once, so a message appears as soon as it arrives.
 export function reloadForum(logic, srv, local, opts = { meta: true }) {
   const q = srv.forumReloads || (srv.forumReloads = new Map());
   const cur = q.get(local);
-  if (cur) { cur.again = true; cur.meta = cur.meta || !!opts.meta; return cur.done; }
-  const entry = { again: false, meta: !!opts.meta };
+  if (cur) {
+    cur.again = true; cur.meta = cur.meta || !!opts.meta;
+    cur.incoming.push(...(opts.incoming || [])); (opts.gone || []).forEach((id) => cur.gone.add(id));
+    return cur.done;
+  }
+  const entry = { again: false, meta: !!opts.meta, incoming: [...(opts.incoming || [])], gone: new Set(opts.gone || []) };
   entry.done = (async () => {
     try {
-      do { const meta = entry.meta; entry.again = false; entry.meta = false; await reloadOnce(logic, srv, local, meta); } while (entry.again);
+      do {
+        const run = { meta: entry.meta, incoming: entry.incoming, gone: entry.gone };
+        entry.again = false; entry.meta = false; entry.incoming = []; entry.gone = new Set();
+        await reloadOnce(logic, srv, local, run);
+      } while (entry.again);
     } finally { q.delete(local); }
   })();
   q.set(local, entry);
   return entry.done;
 }
 
-async function reloadOnce(logic, srv, local, meta) {
+async function reloadOnce(logic, srv, local, { meta, incoming = [], gone = new Set() }) {
   const sid = serverId(srv, local);
   if (!sid) return;
   let h = held(srv).get(sid);
   let fresh = null;
-  if (h) {
+  if (h && !meta && (incoming.length || gone.size)) {
+    // the socket handed us exactly what changed: no request, no waiting
+    fresh = [];
+    for (const m of incoming) {
+      if (m.conversation && m.conversation !== sid) continue;
+      if (!h.msgs.has(m.id) && !m.deleted) fresh.push(m);
+      h.msgs.set(m.id, m);
+    }
+    gone.forEach((id) => { const old = h.msgs.get(id); if (old) h.msgs.set(id, { ...old, deleted: true, envelope: '' }); });
+    if (h.msgs.size > MAX_MESSAGES) [...h.msgs.keys()].sort().slice(0, h.msgs.size - MAX_MESSAGES).forEach((id) => h.msgs.delete(id));
+  } else if (h) {
     // details and the message catch-up run side by side; if catching up is not possible, read the history again
     const [m, f] = await Promise.all([meta ? fetchMeta(srv, sid) : null, catchUp(srv, sid, h)]);
     if (m) { h.detail = m[0]; h.rules = m[1] || h.rules; }
     fresh = f;
+    incoming.forEach((m) => { if (!h.msgs.has(m.id) && !m.deleted) fresh && fresh.push(m); h.msgs.set(m.id, m); });
   }
   if (!h || fresh === null) h = await fetchFull(srv, sid);
   const { forum, todo } = await build(srv, h);
@@ -375,10 +409,26 @@ export async function send(logic, srv, local, m) {
   if (!sid) throw new Error('This forum is not connected to the server.');
   const refs = [];
   for (const f of m.files || []) refs.push(await files.upload(srv, sid, f));
-  const shared = m.shared ? { ...m.shared, snap: m.shared.snap ? { ...m.shared.snap, media: (m.shared.snap.media || []).map(({ name, meta, isImg, isVideo }) => ({ name, meta, isImg, isVideo })) } : undefined } : undefined;
+  // The pictures of a shared wall post belong to the wall, whose key forum members may not hold. Copy each into this forum
+  // (decrypt it here, encrypt it again for the forum) so everyone in the forum can open it.
+  let shared;
+  if (m.shared) {
+    const media = [];
+    for (const it of (m.shared.snap && m.shared.snap.media) || []) {
+      try {
+        const src = it.ref ? await files.openUrl(srv, it.ref) : (/^blob:|^\//.test(it.url || '') ? it.url : '');
+        if (!src) continue;
+        const blob = await (await fetch(src)).blob();
+        const up = await files.upload(srv, sid, new File([blob], it.name || 'picture', { type: it.type || blob.type || '' }));
+        media.push({ fileId: up.fileId, name: up.name, meta: up.meta, type: up.type, isImg: up.isImg, isVideo: up.isVideo, key: up.key });
+      } catch (e) { /* a picture that cannot be copied is left out; the text still goes */ }
+    }
+    shared = { ...m.shared, snap: m.shared.snap ? { ...m.shared.snap, media } : undefined };
+  }
   const payload = { text: m.text || '' };
   if (refs.length) payload.file = refs.map(({ fileId, name, meta, type, isImg, isVideo, key }) => ({ fileId, name, meta, type, isImg, isVideo, key }));
   if (shared) payload.shared = shared;
+  if (m.note) payload.note = m.note;   // a note shared into the forum: members open it from the Files tab
   await post(srv, sid, 'text', payload, m.replyTo);
   await reloadForum(logic, srv, local, { meta: false });
 }
@@ -489,14 +539,15 @@ function watch(logic, srv) {
     rt.on('message.new', (ev) => {
       const f = forumOf(ev);
       if (!f) return;
-      later(f, false);
       const m = ev.data || {};
+      // a complete message (it carries its sealed envelope) is applied right away; anything else falls back to a catch-up read
+      if (m.id && m.envelope) reloadForum(logic, srv, f, { meta: false, incoming: [m] }).catch(() => {}); else later(f, false);
       if (m.sender_account === srv.me.account || m.type !== 'text') return;
       const st = logic.state;
       const onScreen = st.forum === f && st.panelKind === 'forum' && !['closed', 'min'].includes(st.mode);
       try { (onScreen ? messageTone : alertTone)(); } catch (e) { /* sound is optional */ }
     });
-    rt.on('message.deleted', (ev) => { const f = forumOf(ev); if (f) later(f, false); });
+    rt.on('message.deleted', (ev) => { const f = forumOf(ev); const d = ev.data || {}; if (f && d.id) reloadForum(logic, srv, f, { meta: false, gone: [d.id] }).catch(() => {}); else if (f) later(f, false); });
     ['member.added', 'member.removed', 'member.joined'].forEach((t) => rt.on(t, (ev) => { const f = forumOf(ev); if (f) later(f); }));
     rt.on('conversation.new', () => { load(logic, srv).catch(() => {}); });
     rt.on('conversation.removed', () => { load(logic, srv).catch(() => {}); });

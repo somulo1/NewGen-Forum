@@ -13,15 +13,18 @@ import * as awards from './widgets/awards.js';
 import * as profile from './widgets/profile.js';
 import * as wall from './widgets/wall.js';
 import * as forums from './widgets/forums.js';
+import * as notes from './widgets/notes.js';
+import * as folders from './widgets/folders.js';
 import * as dms from './widgets/dms.js';
 import * as roles from './widgets/roles.js';
 import * as security from './widgets/security.js';
 import * as approvals from './widgets/approvals.js';
 import * as notifications from './widgets/notifications.js';
 import * as orgW from './widgets/org.js';
+import * as settingsW from './widgets/settings.js';
 
 // chats (forums, dms) come right after the directory they need, so they are not queued behind every other widget
-const WIDGETS = [people, profile, forums, dms, prefs, comms, calendar, tickets, projects, awards, approvals, notifications, wall, roles, security, orgW];
+const WIDGETS = [people, profile, forums, dms, prefs, comms, calendar, tickets, projects, awards, approvals, notifications, wall, roles, security, orgW, notes, folders, settingsW];
 
 async function openDevice(request, session) {
   const account = session.account;
@@ -53,6 +56,13 @@ export async function startServerSync(logic, request, session, bytes) {
   const srv = { request, bytes, vault, session, me, personOf: new Map(), nameOf: new Map(), reload: {} };
   logic.srv = srv;
   vault.custody().catch(() => {});   // hand keys to colleagues' new devices if they are waiting
+  // Signed in: the sample data built into the app must not show while (or if) the real data loads. Every list the server
+  // fills starts empty, and whatever was open from the samples is closed.
+  logic.setState({
+    projects: [], tickets: [], events: [], comms: [], posts: [], dms: [], notifs: [], notes: [], noteBooks: [],
+    awardList: [], requests: [], callLog: [], callMsgs: [],
+    projectOpen: null, ticketOpen: null
+  });
   for (const w of WIDGETS) {
     const t0 = performance.now();
     try { await w.load(logic, srv); } catch (e) { console.warn('Could not load ' + (w.name || 'a widget') + ':', e); }
@@ -64,6 +74,7 @@ export async function startServerSync(logic, request, session, bytes) {
   // what a live notification may need to refresh
   srv.reload.tickets = () => { tickets.load(logic, srv).catch(() => {}); orgW.loadPerformance(logic, srv).catch(() => {}); };
   srv.reload.approvals = () => Promise.all([approvals.load(logic, srv), comms.load(logic, srv), awards.load(logic, srv)]).catch(() => {});
+  srv.bootDone = true;
   logic.forceUpdate();
   return srv;
 }

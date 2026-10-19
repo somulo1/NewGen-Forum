@@ -118,3 +118,80 @@ func TestTicketRoutingHandOverAndEscalation(t *testing.T) {
 		t.Fatalf("overdue ticket not escalated: %v", late)
 	}
 }
+
+// Nobody works on a ticket they raised (they may close it), and nobody escalates a ticket into their own place at the
+// level it already sits at.
+func TestOwnTicketsAndEscalationScope(t *testing.T) {
+	e := testkit.New(t)
+	ownerU, slug := e.NewOrg("Olivia Owner")
+	o := e.Owner(ownerU)
+	e.MustDo(204, "PUT", "/approvals/flows/f11", map[string]any{"levels": 0}, ownerU.Access)
+	add := func(kind, name, parent string) string {
+		body := map[string]any{"kind": kind, "name": name}
+		if parent != "" {
+			body["parent_id"] = parent
+		}
+		return e.MustDo(201, "POST", "/org/units", body, ownerU.Access)["id"].(string)
+	}
+	sector := add("sector", "Central", "")
+	branch := add("branch", "Nairobi", sector)
+	other := add("branch", "Kisumu", sector)
+	unit := add("unit", "Support", branch)
+	staff := e.Join(ownerU, slug, "Sam", "staff")
+	for _, m := range []*testkit.Member{o, staff} {
+		m.Register(e)
+	}
+	e.MustDo(200, "PATCH", "/people/"+o.Person, map[string]any{"sector_id": sector, "branch_id": branch, "unit_id": unit}, ownerU.Access)
+	raise := func(by *testkit.Member, toType, toRef string) string {
+		key, _ := e2ee.NewConversationKey()
+		peer := o
+		if by == o {
+			peer = staff
+		}
+		conv := e.MustDo(201, "POST", "/conversations", map[string]any{"kind": "ticket", "members": []string{peer.Person}, "keys": by.WrapFor(e, key, 1, by.Person, peer.Person)}, by.Access)["id"].(string)
+		e.MustDo(201, "POST", "/tickets", map[string]any{"conversation": conv, "category": "Hardware", "to_type": toType, "to_ref": toRef}, by.Access)
+		return conv
+	}
+	act := func(conv string, body map[string]any) int {
+		code, _ := e.Do("POST", "/tickets/"+conv+"/act", body, ownerU.Access)
+		return code
+	}
+
+	// the owner raised it: they cannot work on it or take it, but may hand it to someone else and close it
+	mine := raise(o, "unit", unit)
+	if c := act(mine, map[string]any{"do": "assign", "handler": o.Person}); c != 400 {
+		t.Fatalf("raiser assigned to self: %d", c)
+	}
+	if c := act(mine, map[string]any{"do": "step", "step": 2}); c != 403 {
+		t.Fatalf("raiser started work: %d", c)
+	}
+	if c := act(mine, map[string]any{"do": "assign", "handler": staff.Person}); c != 200 {
+		t.Fatalf("hand over: %d", c)
+	}
+	if c := act(mine, map[string]any{"do": "step", "step": 4}); c != 200 {
+		t.Fatalf("raiser closing: %d", c)
+	}
+
+	// a unit ticket: not into the owner's own unit again, but up into their own branch is fine
+	tk := raise(staff, "unit", unit)
+	if c := act(tk, map[string]any{"do": "escalate", "to_type": "unit", "to_ref": unit}); c != 400 {
+		t.Fatalf("escalated to where it is: %d", c)
+	}
+	if c := act(tk, map[string]any{"do": "escalate", "to_type": "branch", "to_ref": branch}); c != 200 {
+		t.Fatalf("unit into own branch: %d", c)
+	}
+	// now a branch ticket: not into their own branch, but another branch or their sector is fine
+	if c := act(tk, map[string]any{"do": "escalate", "to_type": "branch", "to_ref": branch}); c != 400 {
+		t.Fatalf("branch into own branch: %d", c)
+	}
+	if c := act(tk, map[string]any{"do": "escalate", "to_type": "branch", "to_ref": other}); c != 200 {
+		t.Fatalf("into another branch: %d", c)
+	}
+	if c := act(tk, map[string]any{"do": "escalate", "to_type": "sector", "to_ref": sector}); c != 200 {
+		t.Fatalf("up into own sector: %d", c)
+	}
+	sec := raise(staff, "sector", sector)
+	if c := act(sec, map[string]any{"do": "escalate", "to_type": "sector", "to_ref": sector}); c != 400 {
+		t.Fatalf("sector into own sector: %d", c)
+	}
+}

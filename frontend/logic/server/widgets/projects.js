@@ -22,7 +22,7 @@ async function mapProject(srv, row) {
   const sprintByNo = (s) => { const m = /-s(\d+)$/.exec(s || ''); return m ? sprints.find((x) => x.name === 'Sprint ' + m[1]) : null; };
   const tasks = of('task').sort((a, b) => (a.r.id < b.r.id ? -1 : 1)).map(({ r, pl }) => {
     const sp = sprints.find((x) => x.id === (pl.sprint || r.meta.sprint)) || sprintByNo(pl.sprint || r.meta.sprint);
-    return { id: r.id, title: pl.title || '', col: Math.max(0, COLS.indexOf(r.meta.column)), primary: pl.primary || '', secondary: pl.secondary || '', start: pl.start || '', due: r.meta.due || pl.due || '', desc: pl.desc || '', links: pl.links || [], objective: pl.objective || '', sprint: sp ? sp.id : '' };
+    return { id: r.id, title: pl.title || '', col: Math.max(0, COLS.indexOf(r.meta.column)), primary: pl.primary || '', secondary: pl.secondary || '', start: pl.start || '', due: r.meta.due || pl.due || '', desc: pl.desc || '', links: pl.links || [], objective: pl.objective || '', history: pl.history || [], sprint: sp ? sp.id : '' };
   });
   const risks = of('risk').map(({ r, pl }) => ({ id: r.id, text: pl.text || '', level: r.meta.level || 'Medium' }));
   const activity = of('activity').sort((a, b) => (a.r.created_at < b.r.created_at ? 1 : -1)).map(({ r, pl }) => ({ id: r.id, text: pl.text || '', time: ago(r.created_at) }));
@@ -42,7 +42,8 @@ export async function load(logic, srv) {
   srv.projSnap = new Map();
   const ok = list.filter(Boolean);
   ok.forEach((p) => srv.projSnap.set(p.id, JSON.parse(JSON.stringify(p))));
-  logic.setState({ projects: ok });
+  srv.applyingProjects = true;
+  try { logic.setState((st) => ({ projects: ok, projectOpen: ok.some((p) => p.id === st.projectOpen) ? st.projectOpen : null })); } finally { srv.applyingProjects = false; }
   watch(logic, srv);
 }
 
@@ -82,7 +83,7 @@ export async function reload(logic, srv, id) {
 const SPEC = {
   milestones: { collection: 'milestone', payload: (m) => ({ name: m.name, desc: m.desc || '', closedOn: m.closedOn || '', closedBy: m.closedBy || '', closedComment: m.closedComment || '', history: m.history || [] }), meta: (m) => ({ due: m.iso, closed: !!m.closed }) },
   sprints: { collection: 'sprint', payload: (s) => ({ name: s.name }), meta: (s, tr) => ({ start: s.start, end: s.end, ...(tr(s.milestone) ? { milestone: tr(s.milestone) } : {}) }) },
-  tasks: { collection: 'task', payload: (t, tr) => ({ title: t.title, desc: t.desc || '', primary: t.primary || '', secondary: t.secondary || '', start: t.start || '', due: t.due || '', links: t.links || [], objective: t.objective || '', sprint: tr(t.sprint) || t.sprint || '' }), meta: (t, tr, srv) => ({ column: COLS[Math.min(3, Math.max(0, t.col))], ...(t.due ? { due: t.due } : {}), ...(pidOf(srv, t.primary) ? { assignee: pidOf(srv, t.primary) } : {}), ...(t.sprint ? { sprint: String(tr(t.sprint) || t.sprint) } : {}) }) },
+  tasks: { collection: 'task', payload: (t, tr) => ({ title: t.title, desc: t.desc || '', primary: t.primary || '', secondary: t.secondary || '', start: t.start || '', due: t.due || '', links: t.links || [], objective: t.objective || '', history: t.history || [], sprint: tr(t.sprint) || t.sprint || '' }), meta: (t, tr, srv) => ({ column: COLS[Math.min(3, Math.max(0, t.col))], ...(t.due ? { due: t.due } : {}), ...(pidOf(srv, t.primary) ? { assignee: pidOf(srv, t.primary) } : {}), ...(t.sprint ? { sprint: String(tr(t.sprint) || t.sprint) } : {}) }) },
   risks: { collection: 'risk', payload: (r) => ({ text: r.text }), meta: (r) => ({ level: ['Low', 'Medium', 'High'].includes(r.level) ? r.level : 'Medium' }) },
   activity: { collection: 'activity', payload: (a) => ({ text: a.text }), meta: () => ({}) }
 };

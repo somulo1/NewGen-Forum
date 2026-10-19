@@ -40,7 +40,9 @@
     "Export",
     "Approve level 1",
     "Approve level 2",
-    "Approve level 3"
+    "Approve level 3",
+    "Edit own posts",
+    "Delete own posts"
    ]
   },
   {
@@ -53,7 +55,9 @@
     "Invite members",
     "Start calls",
     "Moderate",
-    "Export"
+    "Export",
+    "Edit own messages",
+    "Delete own messages"
    ]
   },
   {
@@ -71,7 +75,9 @@
     "Export",
     "Approve level 1",
     "Approve level 2",
-    "Approve level 3"
+    "Approve level 3",
+    "Edit own tickets",
+    "Close own tickets"
    ]
   },
   {
@@ -88,7 +94,8 @@
     "Export",
     "Approve level 1",
     "Approve level 2",
-    "Approve level 3"
+    "Approve level 3",
+    "Edit own tasks"
    ]
   },
   {
@@ -103,7 +110,8 @@
     "Export",
     "Approve level 1",
     "Approve level 2",
-    "Approve level 3"
+    "Approve level 3",
+    "Delete own files"
    ]
   },
   {
@@ -202,7 +210,8 @@
     "View",
     "Add events",
     "Schedule meetings",
-    "Export"
+    "Export",
+    "Edit own events"
    ]
   },
   {
@@ -288,7 +297,9 @@
    "tint": "#C9B6FF",
    "rights": [
     "Send private messages",
-    "Private calls"
+    "Private calls",
+    "Edit own messages",
+    "Delete own messages"
    ]
   }
  ],

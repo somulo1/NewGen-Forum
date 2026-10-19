@@ -180,11 +180,12 @@ export function buildForums(ctx) {
     const attachedFiles = message.fileList.map((file) => {
       if (file.noteId) {
         // A shared note: a live link. It stops opening if the share is stopped, the note is deleted or the Notes widget is removed.
-        const note = s.notes.find((x) => x.id === file.noteId);
-        const share = note && (note.shares || []).find((x) => x.id === file.shareId);
-        const live = !!share && isMine(note) && notesConnected(s);
+        const note = s.notes.find((x) => x.container === file.noteId) || s.notes.find((x) => x.id === file.noteId);
+        const share = note && isMine(note) ? (note.shares || []).find((x) => x.id === file.shareId) : null;
+        const live = !!note && notesConnected(s) && (isMine(note) ? !!share : true);
+        const perm = note ? (isMine(note) ? (share && share.perm) : note.access) : 'view';
         return { ...file, kind: 'NOTE', previewKind: 'note', color: '#FFD66B', isNote: true, live, noteLive: live, notePreview: live ? noteText(note.body).split('\n').filter((l) => l.trim()).slice(0, 6).join('\n') : '',
-          meta: live ? 'Note · ' + permLabel(share.perm) + ' · live link' : 'Note · access removed', noteOpen: () => this.openNote(note.id) };
+          meta: live ? 'Note · ' + permLabel(perm) + ' · live link' : 'Note · access removed', noteOpen: () => this.openNote(note.id) };
       }
       const extension = (file.name || '').split('.').pop().toUpperCase();
       const kind = file.isImg ? 'IMG' : file.isVideo ? 'VIDEO' : ({ PNG: 'IMG', JPG: 'IMG', JPEG: 'IMG', GIF: 'IMG', SVG: 'IMG', WEBP: 'IMG', MP4: 'VIDEO', WEBM: 'VIDEO', MOV: 'VIDEO' })[extension] || extension || 'FILE';

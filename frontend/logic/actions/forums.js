@@ -125,6 +125,7 @@ export const forumActions = {
     const inc = this.state.incoming;
     if (!inc) return;
     clearTimeout(this._incT);
+    if (this.srv) { clearTimeout(this.srv.ringT); if (inc.callId && this.srv.doneCalls) this.srv.doneCalls.add(inc.callId); }
     stopRing();
     this.setState({ incoming: null });
     if (this.srv && inc.callId) {

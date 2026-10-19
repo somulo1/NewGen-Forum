@@ -78,6 +78,11 @@ func (s *Service) Send(ctx context.Context, p *tenant.Principal, conv uuid.UUID,
 				return err
 			}
 		}
+		if in.Type == "edit" {
+			if err := s.checkEdit(ctx, tx, p, conv, kind, in.ReplyTo); err != nil {
+				return err
+			}
+		}
 		if kind == "forum" && in.Type != "reaction" {
 			if err := mayPost(ctx, tx, conv, p.Person); err != nil {
 				return err
@@ -277,10 +282,11 @@ func (s *Service) Delete(ctx context.Context, p *tenant.Principal, conv, id uuid
 		} else if err != nil {
 			return err
 		}
-		if sender != p.Account {
-			if kind == "dm" {
-				return httpx.ErrForbidden
+		if rule, ok := messageRules[kind]; ok {
+			if err := authz.RequireOwn(ctx, tx, p.Person, rule.module, rule.moderate, rule.del, sender == p.Account); err != nil {
+				return err
 			}
+		} else if sender != p.Account {
 			if err := authz.Require(ctx, tx, p.Person, "forums", "Moderate"); err != nil {
 				return err
 			}
@@ -301,6 +307,46 @@ func (s *Service) Delete(ctx context.Context, p *tenant.Principal, conv, id uuid
 	}
 	d, _ := json.Marshal(map[string]any{"id": id, "conversation": conv})
 	s.A.Publish(ctx, realtime.Event{Type: "message.deleted", Channel: realtime.ConvChannel(conv), Org: p.Org.String(), Actor: p.Person.String(), Data: d})
+	return nil
+}
+
+// ownRules say which rights let someone change messages of each kind of conversation: the "own" rights for what they wrote
+// themselves, and the moderation right for other people's. Kinds not listed here (notes, project and event threads) leave
+// a person's own messages to them. All of these are rights the organization gives to roles.
+type ownRule struct{ module, edit, del, moderate string }
+
+var messageRules = map[string]ownRule{
+	"forum":  {"forums", "Edit own messages", "Delete own messages", "Moderate"},
+	"wall":   {"wall", "Edit own posts", "Delete own posts", "Moderate posts"},
+	"dm":     {"chat", "Edit own messages", "Delete own messages", ""},
+	"ticket": {"tickets", "Edit own tickets", "Edit own tickets", ""},
+}
+
+// editable are the message types a person can edit (what they wrote, not reactions or votes).
+var editable = map[string]bool{"text": true, "post": true, "comment": true}
+
+// checkEdit: an edit is a new sealed message of type "edit" that points at the original. Only its author may edit it, and
+// only with the "Edit own ..." right for that kind of conversation. Readers show the latest edit in place of the original.
+func (s *Service) checkEdit(ctx context.Context, tx pgx.Tx, p *tenant.Principal, conv uuid.UUID, kind string, replyTo *uuid.UUID) error {
+	if replyTo == nil {
+		return httpx.Bad("Say which message you are editing.")
+	}
+	var sender uuid.UUID
+	var typ string
+	if err := tx.QueryRow(ctx, `select sender_account, content_type from hub.messages where org_id=$1 and id=$2 and conversation_id=$3 and deleted_at is null`, p.Org, *replyTo, conv).Scan(&sender, &typ); errors.Is(err, pgx.ErrNoRows) {
+		return httpx.ErrNotFound
+	} else if err != nil {
+		return err
+	}
+	if sender != p.Account {
+		return httpx.Err(403, "not_yours", "You can only edit what you wrote.")
+	}
+	if !editable[typ] {
+		return httpx.Bad("That cannot be edited.")
+	}
+	if rule, ok := messageRules[kind]; ok {
+		return authz.Require(ctx, tx, p.Person, rule.module, rule.edit)
+	}
 	return nil
 }
 

@@ -95,14 +95,18 @@
     "Post",
     "Comment",
     "Share outside Hub",
-    "Moderate posts"
+    "Moderate posts",
+    "Edit own posts",
+    "Delete own posts"
    ],
    "forums": [
     "View",
     "Create forum",
     "Invite members",
     "Start calls",
-    "Moderate"
+    "Moderate",
+    "Edit own messages",
+    "Delete own messages"
    ],
    "tickets": [
     "View",
@@ -111,7 +115,8 @@
     "Solve",
     "Close",
     "Manage TAT settings",
-    "Set up ticket categories"
+    "Set up ticket categories",
+    "Edit own tickets"
    ],
    "projects": [
     "View",
@@ -119,13 +124,15 @@
     "Manage milestones",
     "Edit tasks",
     "Move tasks",
-    "Manage team"
+    "Manage team",
+    "Edit own tasks"
    ],
    "files": [
     "View",
     "Upload",
     "Delete",
-    "Share outside Hub"
+    "Share outside Hub",
+    "Delete own files"
    ],
    "secureshare": [
     "Create link",
@@ -168,7 +175,8 @@
    "calendar": [
     "View",
     "Add events",
-    "Schedule meetings"
+    "Schedule meetings",
+    "Edit own events"
    ],
    "memos": [
     "Read",
@@ -204,7 +212,9 @@
    ],
    "chat": [
     "Send private messages",
-    "Private calls"
+    "Private calls",
+    "Edit own messages",
+    "Delete own messages"
    ]
   },
   "admin": {
@@ -226,14 +236,18 @@
     "Post",
     "Comment",
     "Share outside Hub",
-    "Moderate posts"
+    "Moderate posts",
+    "Edit own posts",
+    "Delete own posts"
    ],
    "forums": [
     "View",
     "Create forum",
     "Invite members",
     "Start calls",
-    "Moderate"
+    "Moderate",
+    "Edit own messages",
+    "Delete own messages"
    ],
    "tickets": [
     "View",
@@ -242,7 +256,8 @@
     "Solve",
     "Close",
     "Manage TAT settings",
-    "Set up ticket categories"
+    "Set up ticket categories",
+    "Edit own tickets"
    ],
    "projects": [
     "View",
@@ -250,13 +265,15 @@
     "Manage milestones",
     "Edit tasks",
     "Move tasks",
-    "Manage team"
+    "Manage team",
+    "Edit own tasks"
    ],
    "files": [
     "View",
     "Upload",
     "Delete",
-    "Share outside Hub"
+    "Share outside Hub",
+    "Delete own files"
    ],
    "secureshare": [
     "Create link",
@@ -299,7 +316,8 @@
    "calendar": [
     "View",
     "Add events",
-    "Schedule meetings"
+    "Schedule meetings",
+    "Edit own events"
    ],
    "memos": [
     "Read",
@@ -335,7 +353,9 @@
    ],
    "chat": [
     "Send private messages",
-    "Private calls"
+    "Private calls",
+    "Edit own messages",
+    "Delete own messages"
    ]
   },
   "hod": {
@@ -354,14 +374,18 @@
     "Post",
     "Comment",
     "Share outside Hub",
-    "Moderate posts"
+    "Moderate posts",
+    "Edit own posts",
+    "Delete own posts"
    ],
    "forums": [
     "View",
     "Create forum",
     "Invite members",
     "Start calls",
-    "Moderate"
+    "Moderate",
+    "Edit own messages",
+    "Delete own messages"
    ],
    "tickets": [
     "View",
@@ -369,7 +393,8 @@
     "Assign & hand over",
     "Solve",
     "Close",
-    "Set up ticket categories"
+    "Set up ticket categories",
+    "Edit own tickets"
    ],
    "projects": [
     "View",
@@ -377,12 +402,14 @@
     "Manage milestones",
     "Edit tasks",
     "Move tasks",
-    "Manage team"
+    "Manage team",
+    "Edit own tasks"
    ],
    "files": [
     "View",
     "Upload",
-    "Share outside Hub"
+    "Share outside Hub",
+    "Delete own files"
    ],
    "secureshare": [
     "Create link"
@@ -411,7 +438,8 @@
    "calendar": [
     "View",
     "Add events",
-    "Schedule meetings"
+    "Schedule meetings",
+    "Edit own events"
    ],
    "memos": [
     "Read",
@@ -434,7 +462,9 @@
    ],
    "chat": [
     "Send private messages",
-    "Private calls"
+    "Private calls",
+    "Edit own messages",
+    "Delete own messages"
    ]
   },
   "it": {
@@ -448,13 +478,17 @@
     "View",
     "Post",
     "Comment",
-    "Share outside Hub"
+    "Share outside Hub",
+    "Edit own posts",
+    "Delete own posts"
    ],
    "forums": [
     "View",
     "Create forum",
     "Invite members",
-    "Start calls"
+    "Start calls",
+    "Edit own messages",
+    "Delete own messages"
    ],
    "tickets": [
     "View",
@@ -463,17 +497,20 @@
     "Solve",
     "Close",
     "Manage TAT settings",
-    "Set up ticket categories"
+    "Set up ticket categories",
+    "Edit own tickets"
    ],
    "projects": [
     "View",
     "Edit tasks",
-    "Move tasks"
+    "Move tasks",
+    "Edit own tasks"
    ],
    "files": [
     "View",
     "Upload",
-    "Delete"
+    "Delete",
+    "Delete own files"
    ],
    "secureshare": [
     "Create link",
@@ -501,7 +538,8 @@
    "calendar": [
     "View",
     "Add events",
-    "Schedule meetings"
+    "Schedule meetings",
+    "Edit own events"
    ],
    "memos": [
     "Read"
@@ -518,7 +556,9 @@
    ],
    "chat": [
     "Send private messages",
-    "Private calls"
+    "Private calls",
+    "Edit own messages",
+    "Delete own messages"
    ]
   },
   "finance": {
@@ -532,26 +572,33 @@
     "View",
     "Post",
     "Comment",
-    "Share outside Hub"
+    "Share outside Hub",
+    "Edit own posts",
+    "Delete own posts"
    ],
    "forums": [
     "View",
-    "Start calls"
+    "Start calls",
+    "Edit own messages",
+    "Delete own messages"
    ],
    "tickets": [
     "View",
-    "Raise"
+    "Raise",
+    "Edit own tickets"
    ],
    "projects": [
     "View",
     "Create project",
     "Edit tasks",
-    "Move tasks"
+    "Move tasks",
+    "Edit own tasks"
    ],
    "files": [
     "View",
     "Upload",
-    "Share outside Hub"
+    "Share outside Hub",
+    "Delete own files"
    ],
    "secureshare": [
     "Create link"
@@ -574,7 +621,8 @@
    "calendar": [
     "View",
     "Add events",
-    "Schedule meetings"
+    "Schedule meetings",
+    "Edit own events"
    ],
    "memos": [
     "Read"
@@ -591,7 +639,9 @@
    ],
    "chat": [
     "Send private messages",
-    "Private calls"
+    "Private calls",
+    "Edit own messages",
+    "Delete own messages"
    ]
   },
   "staff": {
@@ -605,24 +655,31 @@
     "View",
     "Post",
     "Comment",
-    "Share outside Hub"
+    "Share outside Hub",
+    "Edit own posts",
+    "Delete own posts"
    ],
    "forums": [
     "View",
-    "Start calls"
+    "Start calls",
+    "Edit own messages",
+    "Delete own messages"
    ],
    "tickets": [
     "View",
-    "Raise"
+    "Raise",
+    "Edit own tickets"
    ],
    "projects": [
     "View",
     "Edit tasks",
-    "Move tasks"
+    "Move tasks",
+    "Edit own tasks"
    ],
    "files": [
     "View",
-    "Upload"
+    "Upload",
+    "Delete own files"
    ],
    "secureshare": [
     "Create link"
@@ -645,7 +702,8 @@
    "calendar": [
     "View",
     "Add events",
-    "Schedule meetings"
+    "Schedule meetings",
+    "Edit own events"
    ],
    "memos": [
     "Read"
@@ -662,7 +720,9 @@
    ],
    "chat": [
     "Send private messages",
-    "Private calls"
+    "Private calls",
+    "Edit own messages",
+    "Delete own messages"
    ]
   },
   "guest": {
@@ -710,26 +770,33 @@
     "View",
     "Post",
     "Comment",
-    "Share outside Hub"
+    "Share outside Hub",
+    "Edit own posts",
+    "Delete own posts"
    ],
    "forums": [
     "View",
-    "Start calls"
+    "Start calls",
+    "Edit own messages",
+    "Delete own messages"
    ],
    "tickets": [
     "View",
     "Raise",
     "Assign & hand over",
-    "Set up ticket categories"
+    "Set up ticket categories",
+    "Edit own tickets"
    ],
    "projects": [
     "View",
     "Edit tasks",
-    "Move tasks"
+    "Move tasks",
+    "Edit own tasks"
    ],
    "files": [
     "View",
-    "Upload"
+    "Upload",
+    "Delete own files"
    ],
    "secureshare": [
     "Create link"
@@ -752,7 +819,8 @@
    "calendar": [
     "View",
     "Add events",
-    "Schedule meetings"
+    "Schedule meetings",
+    "Edit own events"
    ],
    "memos": [
     "Read",
@@ -775,7 +843,9 @@
    ],
    "chat": [
     "Send private messages",
-    "Private calls"
+    "Private calls",
+    "Edit own messages",
+    "Delete own messages"
    ]
   },
   "branch": {
@@ -789,27 +859,34 @@
     "View",
     "Post",
     "Comment",
-    "Share outside Hub"
+    "Share outside Hub",
+    "Edit own posts",
+    "Delete own posts"
    ],
    "forums": [
     "View",
-    "Start calls"
+    "Start calls",
+    "Edit own messages",
+    "Delete own messages"
    ],
    "tickets": [
     "View",
     "Raise",
     "Assign & hand over",
     "Solve",
-    "Set up ticket categories"
+    "Set up ticket categories",
+    "Edit own tickets"
    ],
    "projects": [
     "View",
     "Edit tasks",
-    "Move tasks"
+    "Move tasks",
+    "Edit own tasks"
    ],
    "files": [
     "View",
-    "Upload"
+    "Upload",
+    "Delete own files"
    ],
    "secureshare": [
     "Create link"
@@ -832,7 +909,8 @@
    "calendar": [
     "View",
     "Add events",
-    "Schedule meetings"
+    "Schedule meetings",
+    "Edit own events"
    ],
    "memos": [
     "Read",
@@ -855,7 +933,9 @@
    ],
    "chat": [
     "Send private messages",
-    "Private calls"
+    "Private calls",
+    "Edit own messages",
+    "Delete own messages"
    ]
   },
   "unit": {
@@ -869,26 +949,33 @@
     "View",
     "Post",
     "Comment",
-    "Share outside Hub"
+    "Share outside Hub",
+    "Edit own posts",
+    "Delete own posts"
    ],
    "forums": [
     "View",
-    "Start calls"
+    "Start calls",
+    "Edit own messages",
+    "Delete own messages"
    ],
    "tickets": [
     "View",
     "Raise",
     "Solve",
-    "Set up ticket categories"
+    "Set up ticket categories",
+    "Edit own tickets"
    ],
    "projects": [
     "View",
     "Edit tasks",
-    "Move tasks"
+    "Move tasks",
+    "Edit own tasks"
    ],
    "files": [
     "View",
-    "Upload"
+    "Upload",
+    "Delete own files"
    ],
    "secureshare": [
     "Create link"
@@ -911,7 +998,8 @@
    "calendar": [
     "View",
     "Add events",
-    "Schedule meetings"
+    "Schedule meetings",
+    "Edit own events"
    ],
    "memos": [
     "Read",
@@ -933,7 +1021,9 @@
    ],
    "chat": [
     "Send private messages",
-    "Private calls"
+    "Private calls",
+    "Edit own messages",
+    "Delete own messages"
    ]
   }
  },

@@ -17,6 +17,7 @@ export function useHubStore() {
       return logic.renderVals() || {};
     });
     hub = { logic, vals };
+    if (import.meta.dev && typeof window !== 'undefined') window.__hub = hub;   // for measuring in development
   }
   return hub;
 }

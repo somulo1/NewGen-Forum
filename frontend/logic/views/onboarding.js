@@ -75,44 +75,86 @@ const KINDS = [
 ];
 const PARENTS = { sector: [], branch: ['sector'], unit: ['branch', 'sector'], department: ['branch', 'unit', 'sector'] };
 
+const FRESH_ED = { kind: 'sector', name: '', parent: '', err: '', ok: '', busy: false, edit: null, del: null, move: {}, sel: {}, into: {}, mergeAsk: null };
+
+// The Manage organization structure page (People > Organization structure): add, rename, move and merge sectors,
+// branches, units and departments, and remove empty ones. Everything is checked again by the server.
 function buildStructureEd(s, can) {
   const canEdit = !!this.srv && can('settings', 'Edit organization profile');
-  const se = s.structEd;
-  const closed = { canEdit, open: false, openIt: () => this.setState({ structEd: { kind: 'sector', name: '', parent: '', err: '', busy: false, edit: null, del: null } }) };
-  if (!se || !canEdit) return closed;
+  const openIt = () => this.setState({ section: 'orgedit', structEd: { ...FRESH_ED } });
+  const closed = { canEdit, open: false, openIt };
+  if (s.section !== 'orgedit' || !canEdit) return closed;
+  const se = { ...FRESH_ED, ...(s.structEd || {}) };
   const units = this.srv.unitList || [];
   const byId = new Map(units.map((u) => [u.id, u]));
   const kindLabel = (k) => (KINDS.find((x) => x.kind === k) || {}).label || k;
-  const set = (patch) => this.setState((st) => ({ structEd: { ...st.structEd, ...patch } }));
-  const run = (fn, after) => { set({ busy: true, err: '' }); return fn().then(() => { set({ busy: false, ...(after || {}) }); }).catch((e) => set({ busy: false, err: (e && e.message) || 'That did not work.' })); };
+  const set = (patch) => this.setState((st) => ({ structEd: { ...FRESH_ED, ...(st.structEd || {}), ...(typeof patch === 'function' ? patch({ ...FRESH_ED, ...(st.structEd || {}) }) : patch) } }));
+  // one change at a time; the result (or the server's reason) is shown at the top of the page
+  const run = (fn, after, ok) => {
+    if (se.busy) return Promise.resolve();
+    set({ busy: true, err: '', ok: '' });
+    return fn().then(() => set({ busy: false, ok: ok || '', ...(after || {}) })).catch((e) => set({ busy: false, err: (e && e.message) || 'That did not work.' }));
+  };
   const have = (k) => units.filter((u) => u.kind === k);
-  // a unit's parent must be one of the levels the organization actually has
-  const parentOpts = PARENTS[se.kind].flatMap((k) => have(k).map((u) => ({ id: u.id, label: kindLabel(k) + ' · ' + u.name })));
+  const parentChoices = (kind, self) => PARENTS[kind].flatMap((k) => have(k).filter((u) => u.id !== self).map((u) => ({ id: u.id, label: kindLabel(k) + ' · ' + u.name })));
+  const parentOpts = parentChoices(se.kind);
   const parent = parentOpts.some((o) => o.id === se.parent) ? se.parent : '';
-  const levels = KINDS.map((K) => ({
-    ...K, rows: have(K.kind).sort((a, b) => a.name.localeCompare(b.name)).map((u) => {
+  const levels = KINDS.map((K) => {
+    const list = have(K.kind).sort((a, b) => a.name.localeCompare(b.name));
+    const sel = (se.sel[K.kind] || []).filter((id) => list.some((u) => u.id === id));
+    const rows = list.map((u) => {
       const par = byId.get(u.parent_id);
       const n = this.dir.filter((p) => p[K.field] === u.name).length;
       const editing = se.edit && se.edit.id === u.id;
-      return { id: u.id, name: u.name, under: par ? kindLabel(par.kind) + ' ' + par.name : 'Top level', people: n + (n === 1 ? ' person' : ' people'), editing, editName: editing ? se.edit.name : u.name,
-        startEdit: () => set({ edit: { id: u.id, name: u.name }, err: '' }), cancelEdit: () => set({ edit: null }),
+      const moveOpts = parentChoices(K.kind, u.id);
+      const moveTo = se.move[u.id] !== undefined ? se.move[u.id] : (u.parent_id || '');
+      const moved = moveTo !== (u.parent_id || '');
+      return {
+        id: u.id, name: u.name, under: par ? kindLabel(par.kind) + ' ' + par.name : 'Top level', people: n + (n === 1 ? ' person' : ' people'), editing, editName: editing ? se.edit.name : u.name,
+        startEdit: () => set({ edit: { id: u.id, name: u.name }, err: '', ok: '' }), cancelEdit: () => set({ edit: null }),
         onEdit: (e) => set({ edit: { id: u.id, name: e.target.value } }),
-        saveEdit: () => { const nm = (se.edit.name || '').trim(); if (!nm) { set({ err: 'Enter a name.' }); return; } run(() => orgW.renameUnit(this, this.srv, u.id, nm), { edit: null }); },
-        confirming: se.del === u.id, askRemove: () => set({ del: u.id, err: '' }), keep: () => set({ del: null }),
-        remove: () => run(() => orgW.removeUnit(this, this.srv, u.id), { del: null }) };
-    })
-  })).map((L) => ({ ...L, count: L.rows.length, none: L.rows.length === 0 }));
-  const K = KINDS.find((x) => x.kind === se.kind);
+        saveEdit: () => { const nm = (se.edit.name || '').trim(); if (!nm) { set({ err: 'Enter a name.' }); return; } run(() => orgW.renameUnit(this, this.srv, u.id, nm), { edit: null }, 'Renamed to ' + nm + '.'); },
+        confirming: se.del === u.id, askRemove: () => set({ del: u.id, err: '', ok: '' }), keep: () => set({ del: null }),
+        remove: () => run(() => orgW.removeUnit(this, this.srv, u.id), { del: null }, u.name + ' was removed.'),
+        // moving: only to a level this kind may sit under
+        canMove: PARENTS[K.kind].length > 0, moveOpts, moveTo, moved,
+        onMove: (e) => { const v = e.target.value; set((cur) => ({ move: { ...cur.move, [u.id]: v }, err: '', ok: '' })); },
+        doMove: () => {
+          const dest = moveTo ? byId.get(moveTo) : null;
+          run(() => orgW.moveUnit(this, this.srv, u.id, moveTo || null), { move: { ...se.move, [u.id]: undefined } }, u.name + ' now sits under ' + (dest ? kindLabel(dest.kind) + ' ' + dest.name : 'the top level') + '.');
+        },
+        // merging: tick the ones to merge
+        picked: sel.includes(u.id),
+        onPick: (e) => { const on = e.target.checked; set((cur) => { const now = (cur.sel[K.kind] || []).filter((x) => x !== u.id).concat(on ? [u.id] : []); return { sel: { ...cur.sel, [K.kind]: now }, mergeAsk: null, err: '', ok: '' }; }); }
+      };
+    });
+    const into = sel.includes(se.into[K.kind]) ? se.into[K.kind] : (sel[0] || '');
+    const target = byId.get(into);
+    const others = sel.filter((id) => id !== into).map((id) => byId.get(id)).filter(Boolean);
+    return {
+      ...K, rows, count: rows.length, none: rows.length === 0,
+      canMerge: sel.length >= 2, picked: sel.length,
+      mergeOpts: sel.map((id) => ({ id, label: (byId.get(id) || {}).name })), mergeInto: into,
+      onInto: (e) => set((cur) => ({ into: { ...cur.into, [K.kind]: e.target.value }, mergeAsk: null })),
+      asking: se.mergeAsk === K.kind,
+      mergeText: target ? 'Merge ' + others.map((x) => x.name).join(', ') + ' into ' + target.name + '? Their people, parts, tickets and walls move to ' + target.name + ', and they are removed. This cannot be undone.' : '',
+      askMerge: () => set({ mergeAsk: K.kind, err: '', ok: '' }), cancelMerge: () => set({ mergeAsk: null }),
+      clearPick: () => set((cur) => ({ sel: { ...cur.sel, [K.kind]: [] }, mergeAsk: null })),
+      merge: () => run(() => orgW.mergeUnits(this, this.srv, into, others.map((x) => x.id)), { sel: { ...se.sel, [K.kind]: [] }, mergeAsk: null }, others.map((x) => x.name).join(', ') + ' merged into ' + (target ? target.name : '') + '.')
+    };
+  });
+  const K = KINDS.find((x) => x.kind === se.kind) || KINDS[0];
   const name = se.name.trim();
   return {
-    canEdit, open: true, openIt: closed.openIt, close: () => this.setState({ structEd: null }), busy: se.busy, err: se.err, hasErr: !!se.err,
+    canEdit, open: true, openIt, close: () => this.setState({ section: 'people', structEd: null }), busy: se.busy,
+    err: se.err, hasErr: !!se.err, ok: se.ok, hasOk: !!se.ok && !se.err,
     levels,
     summary: levels.filter((l) => l.count).map((l) => l.count + ' ' + (l.count === 1 ? l.label.toLowerCase() : l.plural.toLowerCase())).join(' · ') || 'No structure yet. Everyone works at one level.',
     kinds: KINDS.map((x) => ({ kind: x.kind, label: x.label })), kind: se.kind, onKind: (e) => set({ kind: e.target.value, parent: '', err: '' }),
     kindBlurb: K.blurb, name: se.name, onName: (e) => set({ name: e.target.value, err: '' }),
     parentOpts, hasParents: PARENTS[se.kind].length > 0, parent, onParent: (e) => set({ parent: e.target.value }),
     canAdd: !!name && !se.busy,
-    add: () => { if (!name) { set({ err: 'Enter a name.' }); return; } run(() => orgW.addUnit(this, this.srv, { kind: se.kind, name, parent }), { name: '' }); },
-    note: 'A level only appears in Hub (pages, onboarding forms, imports and reports) once it has at least one entry. Remove the last one and it disappears again.'
+    add: () => { if (!name) { set({ err: 'Enter a name.' }); return; } run(() => orgW.addUnit(this, this.srv, { kind: se.kind, name, parent }), { name: '' }, K.label + ' ' + name + ' was added.'); },
+    note: 'Add, rename, move and merge the parts of your organization. Moving or merging re-places everyone inside straight away. A level only appears in Hub once it has at least one entry.'
   };
 }

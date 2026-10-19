@@ -28,13 +28,14 @@ type collection struct {
 	create    [2]string         // module/right needed to add one ("" = any member)
 	edit      [2]string         // module/right needed to change someone else's ("" = only the author)
 	meta      map[string]string // allowed meta keys -> validator
-	authorOwn bool              // authors may always edit/delete their own
+	authorOwn bool              // authors may edit/delete their own (personal items, or with the own right below)
+	own       [2]string         // module/right an author needs to change their own ("" = no right needed)
 }
 
 var collections = map[string]collection{
-	"note":      {kinds: []string{"note"}, authorOwn: true, meta: map[string]string{"book": "uuid", "pinned": "bool"}},
+	"note":      {kinds: []string{"note", "sharednote"}, authorOwn: true, meta: map[string]string{"book": "uuid", "pinned": "bool"}},
 	"notebook":  {kinds: []string{"note"}, authorOwn: true},
-	"task":      {kinds: []string{"project"}, create: [2]string{"projects", "Edit tasks"}, edit: [2]string{"projects", "Move tasks"}, authorOwn: true, meta: map[string]string{"column": "enum:backlog,todo,doing,review,done", "due": "date", "assignee": "uuid", "sprint": "str", "priority": "enum:low,medium,high"}},
+	"task":      {kinds: []string{"project"}, create: [2]string{"projects", "Edit tasks"}, edit: [2]string{"projects", "Move tasks"}, authorOwn: true, own: [2]string{"projects", "Edit own tasks"}, meta: map[string]string{"column": "enum:backlog,todo,doing,review,done", "due": "date", "assignee": "uuid", "sprint": "str", "priority": "enum:low,medium,high"}},
 	"milestone": {kinds: []string{"project"}, create: [2]string{"projects", "Manage milestones"}, edit: [2]string{"projects", "Manage milestones"}, meta: map[string]string{"due": "date", "closed": "bool"}},
 	"sprint":    {kinds: []string{"project"}, create: [2]string{"projects", "Manage milestones"}, edit: [2]string{"projects", "Manage milestones"}, meta: map[string]string{"start": "date", "end": "date", "milestone": "uuid"}},
 	"risk":      {kinds: []string{"project"}, create: [2]string{"projects", "Manage team"}, edit: [2]string{"projects", "Manage team"}, meta: map[string]string{"level": "enum:Low,Medium,High"}},
@@ -42,7 +43,43 @@ var collections = map[string]collection{
 	"standup":   {kinds: []string{"project"}, create: [2]string{"projects", "View"}, authorOwn: true, meta: map[string]string{"day": "date"}},
 	"rsvp":      {kinds: []string{"event"}, create: [2]string{"calendar", "View"}, authorOwn: true, meta: map[string]string{"going": "bool"}},
 	"comment":   {kinds: []string{"project", "event", "folder"}, authorOwn: true},
-	"entry":     {kinds: []string{"event"}, create: [2]string{"calendar", "Add events"}, edit: [2]string{"calendar", "Schedule meetings"}, authorOwn: true, meta: map[string]string{"date": "date", "start": "str", "end": "str", "type": "enum:Meeting,Standup,Task,Event,Personal,Reminder", "repeat": "str"}},
+	"entry":     {kinds: []string{"event"}, create: [2]string{"calendar", "Add events"}, edit: [2]string{"calendar", "Schedule meetings"}, authorOwn: true, own: [2]string{"calendar", "Edit own events"}, meta: map[string]string{"date": "date", "start": "str", "end": "str", "type": "enum:Meeting,Standup,Task,Event,Personal,Reminder", "repeat": "str"}},
+}
+
+// mayChange: your own record needs the "own" right where the collection has one (a task, a calendar entry); the general edit
+// right covers anyone's. Personal items (notes, your RSVP) are always yours to change.
+// sharedNoteEditor: in a shared note (a container made when a note is shared) the owner and the people given edit rights may
+// change the note; everyone else in it can only read. It returns nil when the container is not a shared note.
+func sharedNoteEditor(ctx context.Context, tx pgx.Tx, p *tenant.Principal, container uuid.UUID) (*bool, error) {
+	var kind, role string
+	err := tx.QueryRow(ctx, `select c.kind, coalesce(m.role,'') from hub.conversations c left join hub.conversation_members m on m.conversation_id=c.id and m.account_id=$2 and m.left_at is null where c.id=$1`, container, p.Account).Scan(&kind, &role)
+	if err != nil || kind != "sharednote" {
+		return nil, nil
+	}
+	ok := role == "owner" || role == "admin"
+	return &ok, nil
+}
+
+func mayChange(ctx context.Context, tx pgx.Tx, p *tenant.Principal, col collection, author, container uuid.UUID) error {
+	if ok, err := sharedNoteEditor(ctx, tx, p, container); err != nil || ok != nil {
+		if err != nil {
+			return err
+		}
+		if *ok {
+			return nil
+		}
+		return httpx.ErrForbidden
+	}
+	if author == p.Account && col.authorOwn {
+		if col.own[0] == "" {
+			return nil
+		}
+		return authz.RequireOwn(ctx, tx, p.Person, col.edit[0], col.edit[1], col.own[1], true)
+	}
+	if col.edit[0] == "" {
+		return httpx.ErrForbidden
+	}
+	return authz.Require(ctx, tx, p.Person, col.edit[0], col.edit[1])
 }
 
 var dateRe = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
@@ -162,6 +199,11 @@ func (s *Service) SaveRecord(ctx context.Context, p *tenant.Principal, container
 		env, _ := base64.StdEncoding.DecodeString(in.Envelope)
 		meta, _ := json.Marshal(in.Meta)
 		if !update {
+			if ok, err := sharedNoteEditor(ctx, tx, p, container); err != nil {
+				return err
+			} else if ok != nil && !*ok {
+				return httpx.ErrForbidden
+			}
 			if col.create[0] != "" {
 				if err := authz.Require(ctx, tx, p.Person, col.create[0], col.create[1]); err != nil {
 					return err
@@ -190,13 +232,8 @@ func (s *Service) SaveRecord(ctx context.Context, p *tenant.Principal, container
 			if err != nil {
 				return err
 			}
-			if author != p.Account || !col.authorOwn {
-				if col.edit[0] == "" {
-					return httpx.ErrForbidden
-				}
-				if err := authz.Require(ctx, tx, p.Person, col.edit[0], col.edit[1]); err != nil {
-					return err
-				}
+			if err := mayChange(ctx, tx, p, col, author, container); err != nil {
+				return err
 			}
 			if _, err := tx.Exec(ctx, `update hub.records set ciphertext=$3, meta=$4, epoch=$5, author_device=$6, updated_at=now(), `+integrity.Bump+` where org_id=$1 and id=$2`, p.Org, in.ID, env, meta, epoch, in.Device); err != nil {
 				return err
@@ -236,13 +273,8 @@ func (s *Service) DeleteRecord(ctx context.Context, p *tenant.Principal, contain
 			return err
 		}
 		col := collections[coll]
-		if author != p.Account || !col.authorOwn {
-			if col.edit[0] == "" {
-				return httpx.ErrForbidden
-			}
-			if err := authz.Require(ctx, tx, p.Person, col.edit[0], col.edit[1]); err != nil {
-				return err
-			}
+		if err := mayChange(ctx, tx, p, col, author, container); err != nil {
+			return err
 		}
 		if _, err := tx.Exec(ctx, `update hub.records set ciphertext='\x00'::bytea, deleted_at=now(), updated_at=now(), `+integrity.Bump+` where org_id=$1 and id=$2`, p.Org, id); err != nil {
 			return err

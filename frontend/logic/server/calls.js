@@ -232,8 +232,10 @@ export function listen(logic, srv) {
   const rt = srv.rt || (srv.rt = connectRealtime(srv));
   if (srv.callsLive) return;
   srv.callsLive = true;
+  srv.doneCalls = srv.doneCalls || new Set();   // calls already answered or ended: a late ring for one is ignored
   const onCall = (ev) => {
     const d = ev.data || {};
+    if (srv.doneCalls.has(d.call)) return;
     if (logic.state.call) { logic.notify('Missed a call from ' + (d.from_name || 'a colleague') + ' while you were in a call.', '#FFB86B'); return; }
     const pr = (logic.state.dmPrivacy || {})[d.from_name] || {};
     if (d.context === 'dm' && (pr.blocked || pr.noCall || (d.kind === 'video' && pr.noVideo))) { decline(srv, d.call); return; }
@@ -246,6 +248,20 @@ export function listen(logic, srv) {
   };
   rt.on('call.incoming', onCall);
   rt.on('call.started', onCall);
+  // Answered or ended somewhere else (another tab or device of mine, or the caller hung up): stop ringing here.
+  rt.on('call.answered', (ev) => {
+    const d = ev.data || {};
+    srv.doneCalls.add(d.call);
+    const inc = logic.state.incoming;
+    if (inc && inc.callId === d.call) { clearTimeout(srv.ringT); stopRing(); logic.setState({ incoming: null }); }
+    if (logic.state.call && logic.state.call.callId === d.call) stopRingback();
+  });
+  rt.on('call.ended', (ev) => {
+    const d = ev.data || {};
+    srv.doneCalls.add(d.call);
+    const inc = logic.state.incoming;
+    if (inc && inc.callId === d.call) { clearTimeout(srv.ringT); stopRing(); logic.setState({ incoming: null }); logic.notify('Missed a call from ' + (inc.name || 'a colleague') + '.', '#FFB86B'); }
+  });
   rt.on('call.declined', (ev) => {
     const d = ev.data || {};
     if (logic.state.call && logic.state.call.callId === d.call) { logic.notify((d.by_name || 'They') + ' declined the call.', '#FF9B8A'); logic.endCall(); }
