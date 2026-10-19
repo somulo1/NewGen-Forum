@@ -2,6 +2,7 @@ package org
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/google/uuid"
@@ -23,11 +24,13 @@ type Unit struct {
 	Target int `json:"target,omitempty"`
 }
 
-// parentKinds says what a unit of each kind may sit under (nil = top level, or any of the listed kinds).
+// parentKinds says what a unit of each kind may sit under. Every level is optional (an organization may have only
+// departments, or sectors and units but no branches), so a unit may also stand at the top level or under the nearest level
+// the organization does have.
 var parentKinds = map[string][]string{
 	"sector":     nil,
 	"branch":     {"sector"},
-	"unit":       {"branch"},
+	"unit":       {"branch", "sector"},
 	"department": {"branch", "sector", "unit"},
 }
 
@@ -65,9 +68,6 @@ func (s *Service) SaveUnit(ctx context.Context, p *tenant.Principal, id *uuid.UU
 			allowed, ok := parentKinds[in.Kind]
 			if !ok {
 				return httpx.Bad("Unknown kind of unit.")
-			}
-			if in.Parent == nil && allowed != nil && in.Kind != "department" {
-				return httpx.Bad("Choose where it belongs.")
 			}
 			if in.Parent != nil {
 				var pk string
@@ -111,4 +111,38 @@ func (s *Service) SaveUnit(ctx context.Context, p *tenant.Principal, id *uuid.UU
 		return nil, err
 	}
 	return &out, nil
+}
+
+// DeleteUnit removes a sector, branch, unit or department that nothing depends on: no units under it, nobody placed in
+// it, no ticket sent to it. Its own ticket categories and threshold go with it.
+func (s *Service) DeleteUnit(ctx context.Context, p *tenant.Principal, id uuid.UUID) error {
+	return s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
+		if err := authz.Require(ctx, tx, p.Person, "settings", "Edit organization profile"); err != nil {
+			return err
+		}
+		var name, kind string
+		if err := tx.QueryRow(ctx, `select name, kind from hub.org_units where id=$1 for update`, id).Scan(&name, &kind); err != nil {
+			return httpx.ErrNotFound
+		}
+		var kids, people, tickets int
+		if err := tx.QueryRow(ctx, `select (select count(*) from hub.org_units where parent_id=$1),
+			(select count(*) from hub.people where status <> 'deleted' and (sector_id=$1 or branch_id=$1 or unit_id=$1 or department_id=$1)),
+			(select count(*) from hub.tickets where to_ref=$1 and step < 4)`, id).Scan(&kids, &people, &tickets); err != nil {
+			return err
+		}
+		switch {
+		case kids > 0:
+			return httpx.Err(409, "in_use", fmt.Sprintf("%s has %d unit(s) under it. Move or remove those first.", name, kids))
+		case people > 0:
+			return httpx.Err(409, "in_use", fmt.Sprintf("%d people are placed in %s. Move them to another place first.", people, name))
+		case tickets > 0:
+			return httpx.Err(409, "in_use", fmt.Sprintf("%d open tickets are sent to %s.", tickets, name))
+		}
+		for _, q := range []string{`delete from hub.unit_targets where unit_id=$1`, `delete from hub.ticket_categories where unit_ref=$1`, `delete from hub.org_units where id=$1`} {
+			if _, err := tx.Exec(ctx, q, id); err != nil {
+				return err
+			}
+		}
+		return s.A.Audit(ctx, tx, p.Org, &p.Person, p.Name, "Removed "+kind+" "+name, "Settings", p.IP, map[string]any{"unit": id})
+	})
 }

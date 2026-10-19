@@ -134,4 +134,19 @@ func (s *Service) Private(r chi.Router) {
 		httpx.JSON(w, 200, map[string]any{"units": l})
 		return nil
 	}))
+	r.Delete("/org/units/{id}", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
+		p, err := tenant.MustOrg(r.Context())
+		if err != nil {
+			return err
+		}
+		id, err := uuid.Parse(chi.URLParam(r, "id"))
+		if err != nil {
+			return httpx.ErrNotFound
+		}
+		if err := s.DeleteUnit(r.Context(), p, id); err != nil {
+			return err
+		}
+		w.WriteHeader(204)
+		return nil
+	}))
 }
