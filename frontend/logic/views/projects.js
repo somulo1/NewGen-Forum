@@ -1,3 +1,4 @@
+import * as projectsW from '~/logic/server/widgets/projects.js';
 import { addDaysIso, defaultTaskDue, milestoneTimeline, nextSprintName, normalizeProject, sprintDefaults, sprintTimeline, taskContext, todayIso as isoToday, validateMilestone, validateSprint, validateTask } from '~/logic/projects.js';
 
 // renderVals step: projects. Project > milestone > sprint > task. Progress is always calculated from the tasks.
@@ -29,7 +30,7 @@ export function buildProjects(ctx) {
   const openProjectForm = () => {
     if (!has.projects || !can('projects', 'Create project')) return;
     const start = today;
-    this.setState({ projectForm: { name: '', goal: '', owner: 'Samwel Okoth Omulo', team: ['Samwel Okoth Omulo'], teamQuery: '', start, due: addDaysIso(start, 29), budget: '', err: '' } });
+    this.setState({ projectForm: { name: '', goal: '', owner: this.srv ? this.srv.me.name : 'Samwel Okoth Omulo', team: [this.srv ? this.srv.me.name : 'Samwel Okoth Omulo'], teamQuery: '', start, due: addDaysIso(start, 29), budget: '', err: '' } });
   };
   let projectForm = { open: false };
   if (s.projectForm && has.projects && can('projects', 'Create project')) {
@@ -72,31 +73,11 @@ export function buildProjects(ctx) {
         else if (!Number.isFinite(budget) || budget < 0) err = 'Enter a valid non-negative budget.';
         if (err) { this.setState({ projectForm: { ...f, err } }); return; }
 
-        const id = 'project-' + Date.now();
-        const usedCodes = new Set(s.projects.map((p) => p.code));
-        let codeNumber = Math.max(0, ...s.projects.map((p) => Number((p.code.match(/\d+/) || [0])[0])).filter(Number.isFinite)) + 1;
-        let code = 'PRJ-' + String(codeNumber).padStart(2, '0');
-        while (usedCodes.has(code)) { codeNumber++; code = 'PRJ-' + String(codeNumber).padStart(2, '0'); }
         const owner = ownerOptions.find((p) => p.name === f.owner) || { color: '#9DB0A6' };
-        const project = normalizeProject({
-          id, name, code, color: owner.color, owner: f.owner,
-          team: Array.from(new Set([f.owner, ...f.team])),
-          status: 'On track', goal, start: f.start, due: f.due, budget, sync: 'Not synced',
-          tickets: [], milestones: [{ id: id + '-m1', name: 'Project delivery', iso: f.due }],
-          sprints: [], tasks: [],
-          activity: [{ text: 'Project created by Samwel Okoth Omulo', time: 'Just now' }]
-        });
-        const flow = this._flowById ? this._flowById('f2') : null;
         this.setState({ projectForm: null });
-        if (flow && flow.levels > 0 && this._makeRequest) {
-          this._makeRequest('f2', 'New project: ' + name, {
-            kind: 'project', project,
-            note: 'Goal: ' + goal + ' · Owner: ' + f.owner + ' · Dates: ' + f.start + ' to ' + f.due + ' · Budget: ' + budget
-          });
-        } else {
-          this.setState((st) => ({ projects: [project].concat(st.projects) }));
-          this.notify('Project "' + name + '" created.', '#B8F36B');
-        }
+        projectsW.create(this, this.srv, { name, goal, owner: f.owner, team: Array.from(new Set([f.owner, ...f.team])), start: f.start, due: f.due, budget }, owner.color)
+          .then((r) => this.notify(r.approval ? 'Project "' + name + '" sent for approval. It opens in Projects once approved.' : 'Project "' + name + '" created.', r.approval ? '#FFB86B' : '#B8F36B'))
+          .catch((e) => this.notify(e.message || 'Could not create the project.', '#FF9B8A'));
       }
     };
   }

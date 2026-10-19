@@ -1,3 +1,4 @@
+import * as notificationsW from '~/logic/server/widgets/notifications.js';
 // Values and handlers the templates read through hubBindings: shell.
 export function valsShell(ctx) {
   const { denied, can, forums, go, myUnits, ticketDeskOk, allNotifs, call, callMiniStyle, cur, curDm, curSec, dmView, has, isDM, restoreCall, s, sendCall, set, showCallMini, showMeetingDock, showMeetingFull, showPanelCall } = ctx;
@@ -26,7 +27,7 @@ export function valsShell(ctx) {
     notifOpen: s.notifOpen,
     hasBadge: !s.notifSeen && allNotifs.length > 0,
     badgeCount: allNotifs.length > 9 ? '9+' : String(allNotifs.length),
-    toggleNotifs: () => this.setState((st) => ({ notifOpen: !st.notifOpen, notifSeen: true })),
+    toggleNotifs: () => { if (!this.state.notifSeen && this.srv) notificationsW.markAllRead(this.srv).catch(() => {}); this.setState((st) => ({ notifOpen: !st.notifOpen, notifSeen: true })); },
     hasToast: !!s.toast, toast: s.toast, toastColor: s.toastColor,
     inCall: !!s.call, call,
     navOpen: s.navOpen, navClass: 'hub-nav' + (s.navOpen ? ' open' : ''),

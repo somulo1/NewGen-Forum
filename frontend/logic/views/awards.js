@@ -1,3 +1,4 @@
+import * as awardsW from '~/logic/server/widgets/awards.js';
 // renderVals step: awards. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildAwards(ctx) {
   const { can, chip, chipS, flowById, fmtDay, forums, has, makeRequest, openPersonName, personOf, roleDefs, s, set, todayISO, visibleRoles } = ctx;
@@ -53,13 +54,11 @@ export function buildAwards(ctx) {
     submit: () => {
       const a0 = this.state.awd;
       if (!a0.people.length) { this.notify('Pick at least one person to award.', '#FFB86B'); return; }
-      const id = 'AW-' + (13 + this.state.awardList.length);
-      const needs = f7 && f7.levels > 0;
-      const rec = { id: id, type: a0.type, people: a0.people.slice(), citation: a0.citation.trim(), date: todayISO, status: needs ? 'Pending' : 'Approved', poster: a0.poster, wall: a0.wall, forums: a0.forums.slice() };
-      this.setState((x) => ({ awOpen: false, awardList: [rec].concat(x.awardList), awd: { type: 'Employee of the month', people: [], role: 'all', q: '', citation: '', poster: '', wall: true, forums: [] } }));
+      this.setState({ awOpen: false, awd: { type: 'Employee of the month', people: [], role: 'all', q: '', citation: '', poster: '', wall: true, forums: [] } });
       const label = a0.type + ' for ' + (a0.people.length > 2 ? a0.people.length + ' people' : a0.people.join(' and '));
-      if (needs) makeRequest('f7', label, { kind: 'award', awardId: id });
-      else this.notify(label + ' is live on Home.', '#B8F36B');
+      awardsW.give(this, this.srv, { type: a0.type, people: a0.people, citation: a0.citation.trim() })
+        .then((r) => this.notify(r.approval ? label + ' sent for approval.' : label + ' is live on Home.', r.approval ? '#FFB86B' : '#B8F36B'))
+        .catch((e) => this.notify(e.message || 'Could not give the award.', '#FF9B8A'));
     }
   };
   return { aw, awardStrip, awardsOn };

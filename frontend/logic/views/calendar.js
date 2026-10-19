@@ -1,3 +1,4 @@
+import * as calendarW from '~/logic/server/widgets/calendar.js';
 // renderVals step: calendar. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildCalendar(ctx) {
   const { C, chip, corePeople, dowOf, fmtDay, has, isoAdd, personOf, s, set, todayISO } = ctx;
@@ -32,7 +33,7 @@ export function buildCalendar(ctx) {
   const joinEvent = (e) => this.startCall(e.type === 'Standup' ? 'voice' : 'video', e.title, e.title.split(' ').map((x) => x[0]).join('').slice(0, 2).toUpperCase(), typeColor[e.type], e.people, null, null, e.by && e.by !== 'Samwel Okoth Omulo' ? 'in' : 'out');
   const cal = {
     monthLabel: new Date(firstISO + 'T12:00:00+03:00').toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'Africa/Nairobi' }),
-    prevMonth: () => this.setState({ calMonth: monthShift(-1) }), nextMonth: () => this.setState({ calMonth: monthShift(1) }),
+    prevMonth: () => { this.setState({ calMonth: monthShift(-1) }); calendarW.ensureMonth(this, this.srv, monthShift(-1)); }, nextMonth: () => { this.setState({ calMonth: monthShift(1) }); calendarW.ensureMonth(this, this.srv, monthShift(1)); },
     today: () => this.setState({ calMonth: todayISO.slice(0, 7), calSel: todayISO }),
     weekdays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((l) => ({ l: l })),
     legend: [['Personal', 'My own'], ['Meeting', 'Meetings'], ['Standup', 'Standups'], ['Task', 'Tasks'], ['Event', 'Events'], ['Deadline', 'Project deadlines']].filter(([k]) => (k !== 'Deadline' || has.projects) && ((k !== 'Meeting' && k !== 'Standup') || has.sessions)).map(([k, l]) => ({ label: l, color: typeColor[k], on: !s.calHide[k],
@@ -62,9 +63,9 @@ export function buildCalendar(ctx) {
       people: e.people.slice(0, 6).map(personOf), hasPeople: e.people.length > 0, peopleLabel: e.people.length + (e.people.length === 1 ? ' person' : ' people'),
       canJoin: (e.type === 'Meeting' || e.type === 'Standup') && s.calSel === todayISO && !ended(e, s.calSel), join: () => joinEvent(e),
       canClose: isMine(e) && !ended(e, s.calSel), closeLabel: e.type === 'Task' ? 'Mark done' : 'Close',
-      closeIt: () => { this.setState((x) => ({ events: x.events.map((y) => (y.id === e.id ? { ...y, closedDates: (y.closedDates || []).concat([s.calSel]) } : y)) })); this.notify('"' + e.title + '" ' + (e.type === 'Task' ? 'marked done.' : 'closed.'), '#7CC4FF'); },
+      closeIt: () => { calendarW.update(this, this.srv, e, { closedDates: (e.closedDates || []).concat([s.calSel]) }).catch((x) => this.notify(x.message, '#FF9B8A')); this.notify('"' + e.title + '" ' + (e.type === 'Task' ? 'marked done.' : 'closed.'), '#7CC4FF'); },
       canRemove: isMine(e) && !ended(e, s.calSel), removeLabel: 'Cancel',
-      remove: () => { this.setState((x) => ({ events: x.events.filter((y) => y.id !== e.id) })); this.notify(e.type === 'Task' ? '"' + e.title + '" marked done.' : '"' + e.title + '" cancelled. Participants were told.', '#7CC4FF'); }
+      remove: () => { calendarW.remove(this, this.srv, e).catch((x) => this.notify(x.message, '#FF9B8A')); this.notify(e.type === 'Task' ? '"' + e.title + '" marked done.' : '"' + e.title + '" cancelled. Participants were told.', '#7CC4FF'); }
     }))
   };
   cal.noAgenda = cal.agenda.length === 0;
@@ -95,7 +96,8 @@ export function buildCalendar(ctx) {
       if (!e.title.trim()) { this.notify('Give it a title first.', '#FFB86B'); return; }
       if ((e.type === 'Meeting' || e.type === 'Standup') && e.people.length === 0) { this.notify('Pick at least one participant.', '#FFB86B'); return; }
       const item = { id: 'e' + Date.now(), title: e.title.trim(), type: e.type, date: e.date || todayISO, start: e.start, end: e.end, people: (e.type === 'Meeting' || e.type === 'Standup') ? e.people : [], forum: e.forum, repeat: (e.type === 'Meeting' || e.type === 'Standup') ? e.repeat : 'None', by: 'Samwel Okoth Omulo', notes: (e.type === 'Meeting' || e.type === 'Standup') ? '' : (e.notes || '').trim(), visibility: (e.type === 'Meeting' || e.type === 'Standup') ? '' : e.visibility, remind: e.remind };
-      this.setState((x) => ({ evOpen: false, events: x.events.concat([item]), calSel: item.date, calMonth: item.date.slice(0, 7) }));
+      this.setState({ evOpen: false, calSel: item.date, calMonth: item.date.slice(0, 7) });
+      calendarW.create(this, this.srv, { ...item, by: this.srv.me.name }).catch((x) => this.notify(x.message || 'Could not save it.', '#FF9B8A'));
       this.notify((e.type === 'Meeting' || e.type === 'Standup') ? e.type + ' scheduled for ' + fmtDay(item.date) + '. Invites sent to ' + e.people.length + (e.people.length === 1 ? ' person.' : ' people.') : 'Added to your calendar for ' + fmtDay(item.date) + '.', '#B8F36B');
     }
   };
@@ -110,7 +112,7 @@ export function buildCalendar(ctx) {
       C.t(e.start + '–' + e.end, { nowrap: true, mono: true }), C.t(e.repeat === 'None' ? 'Once' : e.repeat),
       { kind: 'avatars', list: e.people.slice(0, 5).map(personOf), sub: e.people.length + (e.people.length === 1 ? ' person' : ' people'), fv: '' },
       C.t(e.by === 'Samwel Okoth Omulo' ? 'You' : e.by, { fv: e.by === 'Samwel Okoth Omulo' ? 'You' : e.by }),
-      C.a([{ label: 'Join', kind: 'primary', run: () => joinEvent(e) }, { label: 'Cancel', kind: 'danger', run: () => { this.setState((x) => ({ events: x.events.filter((y) => y.id !== e.id) })); this.notify('"' + e.title + '" cancelled. Participants were told.', '#7CC4FF'); } }])
+      C.a([{ label: 'Join', kind: 'primary', run: () => joinEvent(e) }, { label: 'Cancel', kind: 'danger', run: () => { calendarW.remove(this, this.srv, e).catch((x) => this.notify(x.message, '#FF9B8A')); this.notify('"' + e.title + '" cancelled. Participants were told.', '#7CC4FF'); } }])
     ] })) };
   const meetingsSummary = meetingEvents.length + ' meeting' + (meetingEvents.length === 1 ? '' : 's') + ' scheduled · ' + meetingEvents.filter((e) => e.people.length > 0).length + ' with participants';
   return { cal, calItems, ev, joinEvent, meetingsSummary, meetingsTable, occurs, openEv, titleOf };

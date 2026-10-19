@@ -1,4 +1,5 @@
 import { shareUrl } from '~/logic/shareOut.js';
+import * as approvalsW from '~/logic/server/widgets/approvals.js';
 // renderVals step: roles. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildRoles(ctx) {
   const { badge, flowById, ini, modInfo, pColor, rKey, rightOf, rightsDef, roleDefs, s, set, tabS, toggleRight } = ctx;
@@ -40,6 +41,13 @@ export function buildRoles(ctx) {
         dot: 'width:22px;height:22px;flex:none;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;box-sizing:border-box;' + (done ? 'background:#B8F36B;color:#0F1714' : 'border:2px solid ' + c + ';color:' + c) };
     });
     const decide = (ok) => () => {
+      if (rq.uid) {
+        const last = rq.level >= L;
+        approvalsW.decide(this, this.srv, rq, ok)
+          .then(() => this.notify(!ok ? rq.id + ' rejected. ' + rq.by + ' has been told.' : last ? rq.id + ' fully approved: ' + rq.title + '.' : rq.id + ' approved at level ' + rq.level + '. Sent to ' + (f.approvers[rq.level] || 'the next approver') + '.', ok ? '#B8F36B' : '#FF9B8A'))
+          .catch((e) => this.notify(e.message || 'Could not record your decision.', '#FF9B8A'));
+        return;
+      }
       const cur = this.state.requests.find((x) => x.id === rq.id);
       const lvl = cur.level;
       const hist = cur.history.concat([{ level: lvl, who: 'You', decision: ok ? 'Approved' : 'Rejected', when: 'Just now' }]);

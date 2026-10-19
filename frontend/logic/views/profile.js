@@ -1,3 +1,4 @@
+import * as profileW from '~/logic/server/widgets/profile.js';
 // renderVals step: profile. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildProfile(ctx) {
   const { reportOf, fmtDay, forums, has, nav, projects, s, skillsByDept, ts } = ctx;
@@ -12,6 +13,10 @@ export function buildProfile(ctx) {
   ];
   const curStatus = statusDefs.find((x) => x.label === pf.status) || statusDefs[0];
   const setPf = (patch) => this.setState((st) => ({ profile: Object.assign({}, st.profile, patch) }));
+  // status and cover save straight away; text fields save with "Save" in edit mode
+  const saveNow = (patch) => { setPf(patch); if (this.srv && !s.profileEdit) profileW.save(this, this.srv).catch((e) => this.notify(e.message || 'Could not save.', '#FF9B8A')); };
+  const mi = s.meInfo || { name: 'Samwel Okoth Omulo', initials: 'S', color: '#C2185B', email: '', title: '', dept: '', branch: '', role: '', joined: '' };
+  const joinedLabel = mi.joined ? fmtDay(mi.joined) : '';
   let localTime = '';
   try { localTime = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Nairobi' }); } catch (err) { localTime = ''; }
   const checks = [!!pf.photo, (pf.bio || '').trim().length > 20, pf.skills.length >= 3, true, !!pf.phone.trim()];
@@ -19,60 +24,57 @@ export function buildProfile(ctx) {
   const tip = !pf.photo ? 'Add a profile photo so colleagues recognise you.' : !pf.phone.trim() ? 'Add your phone number to reach 100%.' : (pf.bio || '').trim().length <= 20 ? 'Write a short bio.' : 'Your profile is complete.';
   const myPosts = s.posts.filter((p) => p.author === 'Sam');
   const myRaised = s.tickets.filter((t) => t.raisedBy === 'Sam');
-  const myActivity = myPosts.slice(0, 2).map((p) => ({ tag: 'W', color: '#F49AC1', text: 'Posted on the wall: "' + ((p.text || 'a file').length > 70 ? p.text.slice(0, 70) + '…' : (p.text || 'a file')) + '"', time: p.meta.split('· ').pop() }))
+  const myActivity0 = myPosts.slice(0, 2).map((p) => ({ tag: 'W', color: '#F49AC1', text: 'Posted on the wall: "' + ((p.text || 'a file').length > 70 ? p.text.slice(0, 70) + '…' : (p.text || 'a file')) + '"', time: p.meta.split('· ').pop() }))
     .concat(myRaised.slice(0, 2).map((t) => ({ tag: 'T', color: '#FF9B8A', text: 'Raised ' + t.id + ': ' + t.title, time: t.created })))
-    .concat([
-      { tag: 'F', color: '#6EE7C8', text: 'Shared "Access review template" in Risk & Compliance', time: 'Yesterday' },
-      { tag: 'A', color: '#7CC4FF', text: 'Assigned IT-208 to Brian Kiprop', time: 'Today, 08:40' },
-      { tag: 'B', color: '#FFD66B', text: 'Earned the Security Champion badge', time: 'Last month' },
-      { tag: 'A', color: '#7CC4FF', text: 'Approved access request for the Finance reporting folder', time: '2 days ago' },
-      { tag: 'F', color: '#6EE7C8', text: 'Uploaded "Q3 control test results.xlsx" to Files', time: '3 days ago' },
-      { tag: 'T', color: '#FF9B8A', text: 'Closed ticket IT-187: VPN certificate renewal', time: 'Last week' },
-      { tag: 'P', color: '#C9B6FF', text: 'Moved "Control testing" to In progress in Audit readiness', time: 'Last week' }
-    ]);
+    .concat(s.tickets.filter((t) => t.handler === mi.name).slice(0, 2).map((t) => ({ tag: 'A', color: '#7CC4FF', text: 'Handling ' + t.id + ': ' + t.title, time: t.handlerSince || t.created })))
+    .concat(s.awardList.filter((a) => a.status === 'Approved' && a.people.indexOf(mi.name) !== -1).map((a) => ({ tag: 'B', color: '#FFD66B', text: 'Earned the ' + a.type + ' award', time: fmtDay(a.date) })));
+  const myActivity = myActivity0;
   const kindOf = { W: 'Wall post', T: 'Ticket', F: 'File', A: 'Assignment', B: 'Badge', P: 'Project' };
   const withKind = (arr) => arr.map((a) => ({ ...a, kind: kindOf[a.tag] || 'Activity' }));
   const meOwn = {
-    isOther: false, initials: 'S', color: '#C2185B', aboutTitle: 'About me', forumsTitle: 'My forums', reportsTo: reportOf('Samwel Okoth Omulo').display,
-    name: 'Samwel Okoth Omulo', email: '[you@company.com]', role: 'Cybersecurity & Technology Risk Officer', dept: 'Risk & Compliance',
+    isOther: false, initials: mi.initials, color: mi.color, aboutTitle: 'About me', forumsTitle: 'My forums', reportsTo: reportOf(mi.name).display,
+    name: mi.name, email: mi.email, role: mi.title, dept: mi.dept,
     status: curStatus.label, statusColor: curStatus.color, statusNote: curStatus.note, statusMenu: s.statusMenu,
-    statuses: statusDefs.map((x) => ({ ...x, pick: () => this.setState((st) => ({ statusMenu: false, profile: { ...st.profile, status: x.label } })) })),
+    statuses: statusDefs.map((x) => ({ ...x, pick: () => { this.setState({ statusMenu: false }); saveNow({ status: x.label }); } })),
     photo: pf.photo, hasPhoto: !!pf.photo, noPhoto: !pf.photo,
     editing: s.profileEdit, notEditing: !s.profileEdit,
     coverStyle: 'position:relative;height:190px;background:' + pf.cover + ';overflow:hidden;border-radius:21px 21px 0 0',
-    covers: [['#1F3A2B', 'Forest'], ['#1E3347', 'Ocean'], ['#3A2433', 'Plum'], ['#3D3320', 'Sand']].map(([c, label]) => ({ label: label + ' cover', pick: () => setPf({ cover: c }),
+    covers: [['#1F3A2B', 'Forest'], ['#1E3347', 'Ocean'], ['#3A2433', 'Plum'], ['#3D3320', 'Sand']].map(([c, label]) => ({ label: label + ' cover', pick: () => saveNow({ cover: c }),
       style: 'width:26px;height:26px;border-radius:50%;cursor:pointer;background:' + c + ';border:2px solid ' + (pf.cover === c ? '#E8EFEA' : 'rgba(255,255,255,0.25)') })),
     complete, completeTip: tip, completeBar: 'height:100%;width:' + complete + '%;background:' + (complete === 100 ? '#B8F36B' : '#FFB86B') + ';border-radius:3px',
     bio: pf.bio, phone: pf.phone, newSkill: s.newSkill,
     skills: pf.skills.map((n, i) => ({ name: n, editing: s.profileEdit, remove: () => this.setState((st) => ({ profile: { ...st.profile, skills: st.profile.skills.filter((x, j) => j !== i) } })) })),
     facts: [
-      { label: 'Department', value: 'Risk & Compliance', sub: 'Cybersecurity team' },
-      { label: 'Reports to', value: reportOf('Samwel Okoth Omulo').display, sub: reportOf('Samwel Okoth Omulo').sub },
-      { label: 'Location', value: 'Kenya', sub: 'GMT+3 · ' + localTime + ' now' },
-      { label: 'Member since', value: '[JOIN DATE]', sub: 'Hub member' }
+      { label: 'Department', value: mi.dept || 'Not set', sub: mi.unit || mi.title },
+      { label: 'Reports to', value: reportOf(mi.name).display, sub: reportOf(mi.name).sub },
+      { label: 'Location', value: mi.branch || 'Kenya', sub: 'GMT+3 · ' + localTime + ' now' },
+      { label: 'Member since', value: joinedLabel || 'Not recorded', sub: mi.role || 'Hub member' }
     ],
     stats: [
       { label: 'Tickets raised', n: myRaised.length, color: '#FF9B8A' },
       { label: 'Tickets handled', n: s.tickets.filter((t) => t.handler === 'Sam' || t.assignees.indexOf('Sam') !== -1).length, color: '#7CC4FF' },
       { label: 'Wall posts', n: myPosts.length, color: '#F49AC1' },
-      { label: 'Kudos received', n: 14, color: '#FFD66B' }
+      { label: 'Awards', n: s.awardList.filter((a) => a.status === 'Approved' && a.people.indexOf(mi.name) !== -1).length, color: '#FFD66B' }
     ],
-    projects: projects.filter((p) => p.id === 'audit' || p.id === 'network').map((p) => ({ ...p, myRole: p.id === 'audit' ? 'Controls reviewer' : 'Security reviewer' })),
+    projects: projects.filter((p) => s.projects.some((x) => x.id === p.id && x.team.indexOf(mi.name) !== -1)).map((p) => { const x = s.projects.find((y) => y.id === p.id); return { ...p, myRole: x && x.owner === mi.name ? 'Owner' : 'Team member' }; }),
     activity: withKind(myActivity),
     contact: [
-      { label: 'Work email', value: '[you@company.com]', color: '#E8EFEA' },
+      { label: 'Work email', value: mi.email || 'Not set', color: '#E8EFEA' },
       { label: 'Phone', value: pf.phone.trim() || 'Not added yet', color: pf.phone.trim() ? '#E8EFEA' : '#FFB86B' },
-      { label: 'Office', value: '[OFFICE / FLOOR]', color: '#E8EFEA' }
+      { label: 'Office', value: [mi.branch, mi.unit].filter(Boolean).join(' · ') || 'Not set', color: '#E8EFEA' }
     ],
     localTime, hours: ts.start + ' to ' + ts.end,
-    badges: has.awards ? s.awardList.filter((a) => a.status === 'Approved' && a.people.indexOf('Samwel Okoth Omulo') !== -1).map((a) => ({ name: a.type, when: fmtDay(a.date), color: '#FFD66B', bg: '#2A2716' })) : [],
-    hasBadges: has.awards && s.awardList.some((a) => a.status === 'Approved' && a.people.indexOf('Samwel Okoth Omulo') !== -1),
-    forums: forums.filter((f) => f.id === 'risk' || f.id === 'it' || f.id === 'dev').map((f) => ({ ...f, myRole: f.id === 'risk' ? 'Admin' : 'Member' }))
+    badges: has.awards ? s.awardList.filter((a) => a.status === 'Approved' && a.people.indexOf(mi.name) !== -1).map((a) => ({ name: a.type, when: fmtDay(a.date), color: '#FFD66B', bg: '#2A2716' })) : [],
+    hasBadges: has.awards && s.awardList.some((a) => a.status === 'Approved' && a.people.indexOf(mi.name) !== -1),
+    forums: forums.filter((f) => !f.notMember).slice(0, 6).map((f) => ({ ...f, myRole: f.myRole || 'Member' }))
   };
   // Full profile of another person (only for roles with the "View full profiles" right)
   const opDir = s.profileOf ? this.dir.find((x) => x.name === s.profileOf) : null;
   let meOther = null;
   if (opDir) {
+    const det = this.srv && opDir.uid ? (this.srv.people || {})[opDir.uid] : null;
+    if (this.srv && opDir.uid && det === undefined) profileW.loadPerson(this, this.srv, opDir.uid);
+    const pd = det && det !== 'loading' ? det : null;
     const first = opDir.name.split(' ')[0];
     const mine = (v) => v === opDir.name || v === first;
     const opStatus = statusDefs.find((x) => x.label === opDir.status) || statusDefs[0];
@@ -94,17 +96,17 @@ export function buildProfile(ctx) {
       ]);
     meOther = {
       isOther: true, initials: opDir.initials, color: opDir.color, aboutTitle: 'About ' + first, forumsTitle: 'Forums', reportsTo: reportOf(opDir.name).display,
-      name: opDir.name, role: opDir.title, dept: opDir.dept,
+      name: opDir.name, email: (pd && pd.email) || opDir.email || '', role: opDir.title, dept: opDir.dept,
       status: opStatus.label, statusColor: opStatus.color, statusNote: opStatus.note, statusMenu: false, statuses: [],
       photo: '', hasPhoto: false, noPhoto: true, editing: false, notEditing: true,
-      coverStyle: 'position:relative;height:190px;background:' + opDir.color + '40;overflow:hidden', covers: [],
-      complete: 100, completeTip: '', completeBar: '', bio: opDir.name + ' works in ' + opDir.dept + ' as ' + opDir.title + '.', phone: '', newSkill: '',
-      skills: (skillsByDept[opDir.dept] || ['Teamwork']).map((n) => ({ name: n, editing: false, remove: () => {} })),
+      coverStyle: 'position:relative;height:190px;background:' + ((pd && pd.cover) || opDir.color + '40') + ';overflow:hidden', covers: [],
+      complete: 100, completeTip: '', completeBar: '', bio: (pd && pd.bio) || opDir.name + ' works in ' + opDir.dept + ' as ' + opDir.title + '.', phone: (pd && pd.phone) || '', newSkill: '',
+      skills: ((pd && pd.skills && pd.skills.length ? pd.skills : null) || skillsByDept[opDir.dept] || ['Teamwork']).map((n) => ({ name: n, editing: false, remove: () => {} })),
       facts: [
         { label: 'Department', value: opDir.dept, sub: opDir.title },
         { label: 'Reports to', value: reportOf(opDir.name).display, sub: reportOf(opDir.name).sub },
         { label: 'Location', value: opDir.loc || 'Kenya', sub: 'GMT+3 · ' + localTime + ' now' },
-        { label: 'Member since', value: '[JOIN DATE]', sub: 'Hub member' }
+        { label: 'Member since', value: pd && pd.joined_on ? fmtDay(pd.joined_on) : 'Not recorded', sub: (pd && pd.role_name) || 'Hub member' }
       ],
       stats: [
         { label: 'Tickets raised', n: opRaised.length, color: '#FF9B8A' },
@@ -115,8 +117,8 @@ export function buildProfile(ctx) {
       projects: projects.filter((p) => opProjIds.indexOf(p.id) !== -1).map((p) => ({ ...p, myRole: 'Contributor' })),
       activity: withKind(opActivity),
       contact: [
-        { label: 'Work email', value: '[' + opDir.name.toLowerCase().replace(/ /g, '.') + '@company.com]', color: '#E8EFEA' },
-        { label: 'Phone', value: 'Not shared', color: '#9DB0A6' },
+        { label: 'Work email', value: (pd && pd.email) || opDir.email || 'Not shared', color: '#E8EFEA' },
+        { label: 'Phone', value: (pd && pd.phone) || 'Not shared', color: (pd && pd.phone) ? '#E8EFEA' : '#9DB0A6' },
         { label: 'Office', value: opDir.loc || '[OFFICE / FLOOR]', color: '#E8EFEA' }
       ],
       localTime, hours: ts.start + ' to ' + ts.end,

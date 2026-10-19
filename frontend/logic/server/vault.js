@@ -60,7 +60,7 @@ export class Vault {
     return this.openItem({ conversation: m.conversation, id: m.id, sender: m.sender_account, senderPerson: m.sender_person, senderDevice: m.sender_device, epoch: m.epoch, envelope: m.envelope });
   }
   openRecord(r, personOf) {
-    return this.openItem({ conversation: r.container, id: r.id, sender: r.author_account, senderPerson: personOf ? personOf(r.author_account) : null, senderDevice: r.author_device, epoch: r.epoch, envelope: r.envelope });
+    return this.openItem({ conversation: r.container, id: r.id, sender: r.author_account, senderPerson: r.author_person || (personOf ? personOf(r.author_account) : null), senderDevice: r.author_device, epoch: r.epoch, envelope: r.envelope });
   }
 
   async conversation(id, force = false) {
