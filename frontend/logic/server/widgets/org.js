@@ -1,6 +1,6 @@
 // Sectors, branches, units and departments: each one's dashboard (what it received and sent, how much it handled on time,
 // its projects) and its performance threshold. The server builds all of it from real records; nothing is made up here.
-import { loadStructure } from './people.js';
+import { loadStructure, load as loadPeople } from './people.js';
 
 export const name = 'org';
 
@@ -61,8 +61,12 @@ async function refresh(logic, srv) {
   logic.forceUpdate();
 }
 export async function addUnit(logic, srv, u) {
+  const first = !(srv.unitList || []).some((x) => x.kind === u.kind);
   await srv.request('POST', '/org/units', { kind: u.kind, name: u.name, parent_id: u.parent || undefined });
   await refresh(logic, srv);
+  // the first sector, branch, unit or department makes that level's widget available; put it on this person's Home
+  const id = PLURAL[u.kind];
+  if (first && !(logic.state.widgets || []).includes(id)) logic.setState((st) => ({ widgets: st.widgets.concat(id) }));
 }
 export async function renameUnit(logic, srv, id, name) {
   await srv.request('PATCH', `/org/units/${id}`, { name });
@@ -71,4 +75,15 @@ export async function renameUnit(logic, srv, id, name) {
 export async function removeUnit(logic, srv, id) {
   await srv.request('DELETE', `/org/units/${id}`);
   await refresh(logic, srv);
+}
+// Moving or merging re-places people on the server, so the directory is read again too.
+export async function moveUnit(logic, srv, id, parent) {
+  await srv.request('POST', `/org/units/${id}/move`, { parent_id: parent || null });
+  await refresh(logic, srv);
+  await loadPeople(logic, srv);
+}
+export async function mergeUnits(logic, srv, into, from) {
+  await srv.request('POST', '/org/units/merge', { into, from });
+  await refresh(logic, srv);
+  await loadPeople(logic, srv);
 }
