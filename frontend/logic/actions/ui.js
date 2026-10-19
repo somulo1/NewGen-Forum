@@ -69,7 +69,7 @@ export const uiActions = {
 
   // A picked file as the {name, meta, url, isImg} record every attachment view reads.
   fileInfo(f) {
-    return { name: f.name, meta: this.fmtSize(f.size), url: URL.createObjectURL(f), isImg: (f.type || '').indexOf('image/') === 0, isVideo: (f.type || '').indexOf('video/') === 0 };
+    return { name: f.name, meta: this.fmtSize(f.size), url: URL.createObjectURL(f), isImg: (f.type || '').indexOf('image/') === 0, isVideo: (f.type || '').indexOf('video/') === 0, file: f };
   },
 
   fmtSize(n) {

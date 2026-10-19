@@ -1,4 +1,5 @@
 // Values and handlers the Community wall reads through hubBindings: moments, polls, audience, hashtags, wishes.
+import * as wallW from '~/logic/server/widgets/wall.js';
 export function valsWall(ctx) {
   const { moments, openEv, openPersonName, people, s, sharedViews, settingsPage, orgName, orgLogo, notesPage, noteWidget } = ctx;
   const set = (o) => this.setState(o);
@@ -18,6 +19,7 @@ export function valsWall(ctx) {
         if (!m) return;
         const other = kind === 'likes' ? 'loves' : null;
         this.setState((st) => ({ moments: st.moments.map((x, i) => (i !== s.momentOpen ? x : { ...x, [kind]: x[kind].indexOf('Sam') !== -1 ? x[kind].filter((n) => n !== 'Sam') : x[kind].concat(['Sam']) })) }));
+        wallW.toggleReaction(this, this.srv, m.id, kind === 'likes' ? 'like' : 'love').catch((e) => this.notify(e.message || 'That did not work.', '#FF9B8A'));
       };
       const loveOn = () => { if (m && m.loves.indexOf('Sam') === -1) react('loves'); };
       const who = m && m.mine ? m.likes.map((n) => ({ name: n, kind: 'Liked' })).concat(m.loves.map((n) => ({ name: n, kind: 'Loved' }))) : [];
@@ -32,15 +34,10 @@ export function valsWall(ctx) {
     addMoment: (caption, bg, file) => {
       const c = (caption || '').trim();
       if (!c && !file) return false;
-      const info = file ? this.fileInfo(file) : null;
-      const id = 'm' + Date.now();
-      set({ moments: [{ id, owner: 'Sam', initials: 'S', color: '#F49AC1', bg: bg || COLORS[0], caption: c.slice(0, 120), media: info ? { url: info.url, isImg: info.isImg, isVideo: info.isVideo, name: info.name } : undefined, likes: [], loves: [] }].concat(s.moments), addMomentOpen: false });
-      this.notify('Your moment is up.', '#B8F36B');
-      // Colleagues react a little later, so you can see likes and loves arrive.
-      [['Brian Kiprop', 'likes', 5000], ['Faith Achieng', 'loves', 9000]].forEach(([n, k, ms]) => setTimeout(() => {
-        this.setState((st) => ({ moments: st.moments.map((x) => (x.id === id && x[k].indexOf(n) === -1 ? { ...x, [k]: x[k].concat([n]) } : x)) }));
-        this.notify(n + (k === 'likes' ? ' liked' : ' loved') + ' your moment.', k === 'likes' ? '#7CC4FF' : '#FF9B8A');
-      }, ms));
+      this.setState({ addMomentOpen: false });
+      wallW.addMoment(this, this.srv, { caption: c.slice(0, 120), bg: bg || COLORS[0], file })
+        .then(() => this.notify('Your moment is up.', '#B8F36B'))
+        .catch((e) => this.notify(e.message || 'Could not add the moment.', '#FF9B8A'));
       return true;
     },
     // Poll builder in the composer

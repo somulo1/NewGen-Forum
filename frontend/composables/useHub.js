@@ -62,7 +62,7 @@ export function useHubShell() {
   onMounted(() => {
     const be = useBackend();
     const session = be.session();
-    if (session && session.org) startServerSync(logic, be.request, session).catch((e) => console.error('Could not connect to the server:', e));
+    if (session && session.org) startServerSync(logic, be.request, session, be.bytes).catch((e) => console.error('Could not connect to the server:', e));
     if (logic.componentDidMount) logic.componentDidMount();
     document.addEventListener('click', openInAppSecureShare, true);
   });
