@@ -124,7 +124,7 @@
 <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--k-9DB0A6,#9DB0A6)">Contact</span>
 <template v-for="(ct, ct__i) in me.contact" :key="ct__i"><div style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">{{ ct.label }}</span><span :style="`font-size: 14px; color: ${ct.color}`">{{ ct.value }}</span></div></template>
 <template v-if="me.editing"><label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Phone number<input type="tel" :value="me.phone" @input="onPhone" placeholder="Add your work phone" style="height: 38px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px"></label></template>
-<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 4px"><button style="height: 38px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; font-size: 13px">Copy email</button><button @click="shareProfile" style="height: 38px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; font-size: 13px">Share card</button></div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 4px"><button @click="copyEmail" style="height: 38px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; font-size: 13px">Copy email</button><button @click="shareProfile" style="height: 38px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; font-size: 13px">Share card</button></div>
 </div>
 
 <section v-if="!me.isOther" aria-label="Change password" style="padding: 18px; border-radius: 18px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 12px">
@@ -180,7 +180,7 @@ import { hubBindings } from '~/composables/useHub';
 
 export default {
   name: 'ProfileSection',
-  ...hubBindings(["addSkill","cancelProfile","me","newSkillKey","onBio","onNewSkill","onPhone","onPhoto","profileBack","saveProfile","shareProfile","show","startEditProfile","toggleStatusMenu"]),
+  ...hubBindings(["addSkill","copyEmail","cancelProfile","me","newSkillKey","onBio","onNewSkill","onPhone","onPhoto","profileBack","saveProfile","shareProfile","show","startEditProfile","toggleStatusMenu"]),
   data() {
     return { currentPassword: '', newPassword: '', confirmPassword: '', passwordMessage: '', passwordError: false, passwordBusy: false };
   },

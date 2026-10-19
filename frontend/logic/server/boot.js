@@ -3,9 +3,17 @@
 import { Device, unb64, b64 } from './e2ee.js';
 import { Vault } from './vault.js';
 import * as people from './widgets/people.js';
-import * as announcements from './widgets/announcements.js';
+import * as comms from './widgets/comms.js';
+import * as prefs from './widgets/prefs.js';
+import * as calendar from './widgets/calendar.js';
+import * as tickets from './widgets/tickets.js';
+import * as projects from './widgets/projects.js';
+import * as awards from './widgets/awards.js';
+import * as profile from './widgets/profile.js';
+import * as approvals from './widgets/approvals.js';
+import * as notifications from './widgets/notifications.js';
 
-const WIDGETS = [people, announcements];
+const WIDGETS = [people, profile, prefs, comms, calendar, tickets, projects, awards, approvals, notifications];
 
 async function openDevice(request, session) {
   const account = session.account;

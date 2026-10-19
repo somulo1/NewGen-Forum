@@ -25,5 +25,18 @@ export default defineNuxtConfig({
       ]
     }
   },
+  // The Hub logic is one shared instance, so Vue's component-by-component hot update can leave a docked panel pointing at a
+  // torn-down child ("can't access property emitsOptions of null"). In dev, reload the page instead of hot-patching.
+  vite: {
+    plugins: [{
+      name: 'hub-full-reload',
+      apply: 'serve',
+      handleHotUpdate({ file, server }) {
+        if (!/\/(components|layouts|pages|logic|composables)\/.*\.(vue|js|ts)$/.test(file)) return;
+        server.ws.send({ type: 'full-reload' });
+        return [];
+      }
+    }]
+  },
   compatibilityDate: '2024-10-01'
 });

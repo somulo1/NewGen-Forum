@@ -1,8 +1,8 @@
 // Initial state: calendar.
 export function calendarState() {
   return {
-    calMonth: '2026-10', calSel: '2026-10-15', calHide: {},
-    evOpen: false, ev: { title: '', type: 'Meeting', date: '2026-10-15', start: '10:00', end: '11:00', repeat: 'None', forum: '', people: [], pq: '' },
+    calMonth: new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Nairobi' }).slice(0, 7), calSel: new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Nairobi' }), calHide: {},
+    evOpen: false, ev: { title: '', type: 'Meeting', date: new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Nairobi' }), start: '10:00', end: '11:00', repeat: 'None', forum: '', people: [], pq: '' },
     events: [
       { id: 'e1', title: 'Sprint review', type: 'Meeting', date: '2026-10-15', start: '15:00', end: '16:00', people: ['David Otieno', 'Amina Wanjiru', 'Brian Kiprop', 'Kevin Mutua'], forum: 'Product Builders', repeat: 'None', by: 'David Otieno' },
       { id: 'e2', title: 'IT daily standup', type: 'Standup', date: '2026-10-13', start: '09:15', end: '09:30', people: ['Brian Kiprop', 'David Otieno', 'John Kamau'], forum: 'IT Operations', repeat: 'Weekdays', by: 'Brian Kiprop' },

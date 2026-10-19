@@ -1,3 +1,4 @@
+import * as ticketsW from '~/logic/server/widgets/tickets.js';
 import { recipientOf, recipientLabel } from '~/logic/ticketRouting.js';
 import { richTextHtml } from '~/logic/richText.js';
 
@@ -67,20 +68,20 @@ export function buildTickets(ctx) {
     const id = cur_t.id;
     const primary = 'height:42px;border-radius:10px;border:0;background:#B8F36B;color:#0F1714;font-weight:600;cursor:pointer;font-size:14px';
     const secondary = 'height:42px;border-radius:10px;border:1px solid var(--k-2A3832,#2A3832);background:transparent;color:var(--k-E8EFEA,#E8EFEA);cursor:pointer;font-size:14px';
-    const setStep = (step, text, extra) => this.updTicket(id, (t) => Object.assign({}, t, { step: step, hold: false, activity: this.act(t, { text: text }) }, extra || {}));
+    const fail = (e) => this.notify(e.message || 'That did not work.', '#FF9B8A');
+    const setStep = (step, done) => ticketsW.setStep(this, this.srv, cur_t, step).then(done).catch(fail);
     const actions = [];
-    if (cur_t.step === 1) actions.push({ label: 'Start work', style: primary, run: () => setStep(2, 'Started work') });
+    if (cur_t.step === 1) actions.push({ label: 'Start work', style: primary, run: () => setStep(2) });
     if (cur_t.step === 2) {
       actions.push({ label: 'Mark as solved', style: primary, run: () => {
         const late = cur_t.elapsed > c.tat;
-        setStep(3, 'Marked it solved', { late: late });
-        if (ts.notify.solved) this.notify(id + ' solved' + (late ? ' (late)' : ' on time') + '. ' + cur_t.raisedBy + ' has been notified.', '#B8F36B', id);
+        setStep(3, () => { if (ts.notify.solved) this.notify(id + ' solved' + (late ? ' (late)' : ' on time') + '. ' + cur_t.raisedBy + ' has been notified.', '#B8F36B', id); });
       } });
-      actions.push({ label: cur_t.hold ? 'Resume work' : 'Put on hold', style: secondary, run: () => this.updTicket(id, (t) => Object.assign({}, t, { hold: !t.hold, activity: this.act(t, { text: t.hold ? 'Resumed work' : 'Put the ticket on hold' }) })) });
+      actions.push({ label: cur_t.hold ? 'Resume work' : 'Put on hold', style: secondary, run: () => (cur_t.hold ? ticketsW.resume : ticketsW.hold)(this, this.srv, cur_t).catch(fail) });
     }
     if (cur_t.step === 3) {
-      actions.push({ label: 'Close ticket', style: primary, run: () => setStep(4, 'Closed the ticket') });
-      actions.push({ label: 'Reopen', style: secondary, run: () => setStep(2, 'Reopened the ticket') });
+      actions.push({ label: 'Close ticket', style: primary, run: () => setStep(4) });
+      actions.push({ label: 'Reopen', style: secondary, run: () => setStep(2) });
     }
     const pauses = [ts.pause.weekends && 'weekends', ts.pause.holidays && 'public holidays', ts.pause.offhours && ('outside ' + ts.start + '–' + ts.end), ts.pause.onhold && 'on-hold time', ts.pause.awaiting && 'waiting for the requester'].filter(Boolean);
     tk = {

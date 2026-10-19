@@ -1,3 +1,4 @@
+import * as ticketsW from '~/logic/server/widgets/tickets.js';
 // HubLogic actions: ticket categories a unit (or the ticket desk) attends to. Mixed into HubLogic.prototype.
 // Edits go into a working copy (state.catWork). Nothing reaches the saved list, or any ticket, until "Save changes".
 export const ticketCatActions = {
@@ -11,12 +12,16 @@ export const ticketCatActions = {
   saveWork() {
     const w = this.state.catWork;
     if (!w) return;
-    this.setState((st) => ({ unitCats: { ...st.unitCats, [w.key]: w.rows }, catWork: null }));
-    this.notify('Ticket categories saved. New tickets use them from now on.', '#B8F36B');
+    this.setState({ catWork: null });
+    ticketsW.saveUnitCats(this, this.srv, w.key, w.rows)
+      .then(() => this.notify('Ticket categories saved. New tickets use them from now on.', '#B8F36B'))
+      .catch((e) => this.notify(e.message || 'Could not save the categories.', '#FF9B8A'));
   },
   discardWork() { this.setState({ catWork: null }); },
   startOwnCats(key, defaults) {
-    this.setState((st) => ({ catWork: null, unitCats: { ...st.unitCats, [key]: defaults.map((c, i) => ({ id: 'c' + Date.now() + i, name: c.name, tat: c.tat, prio: 'Medium', members: [] })) } }));
+    this.setState({ catWork: null });
+    ticketsW.saveUnitCats(this, this.srv, key, defaults.map((c, i) => ({ id: 'c' + Date.now() + i, name: c.name, tat: c.tat, prio: 'Medium', members: [] })))
+      .catch((e) => this.notify(e.message || 'Could not set up the categories.', '#FF9B8A'));
   },
   setCatDraft(patch) { this.setState((st) => ({ catDraft: { ...st.catDraft, ...patch, err: '' } })); },
   addUnitCat(key) {

@@ -1,3 +1,4 @@
+import * as ticketsW from '~/logic/server/widgets/tickets.js';
 import { pickHandler } from '~/logic/ticketRouting.js';
 
 // Values and handlers the templates read through hubBindings: tickets.
@@ -32,7 +33,7 @@ export function valsTickets(ctx) {
       const text = this.state.tcomment.trim();
       if (!text || !cur_t || cur_t.step === 4) return;
       const tagged = tagNames.filter((n) => text.indexOf('@' + n) !== -1);
-      this.updTicket(cur_t.id, (t) => Object.assign({}, t, { activity: this.act(t, { kind: 'comment', text: text }) }));
+      ticketsW.comment(this, this.srv, cur_t, text).catch((e) => this.notify(e.message || 'Could not post the comment.', '#FF9B8A'));
       this.setState({ tcomment: '', tagOpen: false });
       if (tagged.length) this.notify('You tagged ' + tagged.join(', ') + ' on ' + cur_t.id + '. They have been notified.', '#C9B6FF', cur_t.id);
     },
@@ -45,9 +46,7 @@ export function valsTickets(ctx) {
     handover: (e) => {
       const name = e.target.value;
       if (!name || !cur_t || name === cur_t.handler) return;
-      const verb = cur_t.handler ? 'Handed it over to ' : 'Assigned it to ';
-      this.updTicket(cur_t.id, (t) => Object.assign({}, t, { handler: name, handlerSince: 'Just now', assignees: t.assignees.indexOf(name) === -1 ? t.assignees.concat([name]) : t.assignees, step: Math.max(1, t.step), activity: this.act(t, { text: verb + name }) }));
-      if (ts.notify.assigned) this.notify(cur_t.id + (cur_t.handler ? ' handed over to ' : ' assigned to ') + name + '. They have been notified.', '#7CC4FF', cur_t.id);
+      ticketsW.assign(this, this.srv, cur_t, name).then(() => { if (ts.notify.assigned) this.notify(cur_t.id + (cur_t.handler ? ' handed over to ' : ' assigned to ') + name + '. They have been notified.', '#7CC4FF', cur_t.id); }).catch((x) => this.notify(x.message || 'Could not hand it over.', '#FF9B8A'));
     },
     ntOpen: s.ntOpen, nt: s.nt, ntCats, ntPrios,
     toggleNewTicket: () => this.setState((st) => ({ ntOpen: !st.ntOpen })),
@@ -60,12 +59,10 @@ export function valsTickets(ctx) {
       const nt = this.state.nt;
       const cat = ntCatSel;
       if (!nt.title.trim()) return;
-      const handler = pickHandler(cat, this.state.tickets);
-      const pre = /Software/.test(cat.name) ? 'DEV-' : /HR/.test(cat.name) ? 'HR-' : /Network|Hardware|Access/.test(cat.name) ? 'IT-' : 'TK-';
-      const id = pre + (300 + this.state.tickets.length);
-      const t = { id: id, title: nt.title.trim(), cat: cat.name, prio: cat.custom ? cat.prio : nt.prio, step: 0, hold: false, raisedBy: 'Sam', assignees: handler ? [handler] : [], handler: handler, handlerSince: handler ? 'Just now' : '', created: 'Just now', elapsed: 0, sync: 'Not synced', dept: ntTargets.name || 'IT Operations', to: ntTargets.type === 'desk' ? { type: 'desk', name: 'Ticket desk' } : { type: ntTargets.type, name: ntTargets.name }, fromDept: 'Risk & Compliance', createdAt: new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Nairobi' }), escalated: false, tatH: cat.custom ? cat.tat : 0, desc: nt.desc.trim() || 'No details given.', activity: [{ who: 'Sam', kind: 'event', text: 'Raised the ticket', time: 'Just now' }].concat((nt.files || []).map((f) => ({ who: 'Sam', kind: 'file', time: 'Just now', text: f.name, meta: f.meta, url: f.url, isImg: f.isImg }))) };
-      this.setState((st) => ({ tickets: [t].concat(st.tickets), ntOpen: false, nt: { title: '', cat: st.nt.cat, prio: 'Medium', desc: '', files: [], toType: st.nt.toType, toName: st.nt.toName }, ticketOpen: id }));
-      this.notify(id + ' raised in ' + cat.name + ' and sent to ' + (ntTargets.type === 'desk' ? 'the ticket desk' : ntTargets.name) + '. TAT ' + (cat.custom ? cat.tat + ' hours' : tatText(cat.name)) + (handler ? '. Assigned to ' + handler : '') + '.', '#7CC4FF', id);
+      this.setState((st) => ({ ntOpen: false, nt: { title: '', cat: st.nt.cat, prio: 'Medium', desc: '', files: [], toType: st.nt.toType, toName: st.nt.toName } }));
+      ticketsW.raise(this, this.srv, nt, { name: cat.name, prio: cat.custom ? cat.prio : nt.prio }, ntTargets)
+        .then((t) => { this.setState({ ticketOpen: t.id }); this.notify(t.id + ' raised in ' + cat.name + ' and sent to ' + (ntTargets.type === 'desk' ? 'the ticket desk' : ntTargets.name) + '. TAT ' + (cat.custom ? cat.tat + ' hours' : tatText(cat.name)) + (t.handler ? '. Assigned to ' + t.handler : '') + '.', '#7CC4FF', t.id); })
+        .catch((e) => this.notify(e.message || 'Could not raise the ticket.', '#FF9B8A'));
     }
   };
 }

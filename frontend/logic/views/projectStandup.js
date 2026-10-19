@@ -1,3 +1,4 @@
+import * as calendarW from '~/logic/server/widgets/calendar.js';
 // renderVals step: projectStandup. A project standup is a calendar event for the whole team.
 // Before it starts the project shows the time; from the start time until it ends the button becomes "Join standup".
 export function buildProjectStandup(ctx) {
@@ -18,7 +19,7 @@ export function buildProjectStandup(ctx) {
     state: live ? 'live' : next ? 'upcoming' : 'none', isLive: live, isUpcoming: !!next && !live, isNone: !next,
     label: next ? (next.iso === todayISO ? 'Today' : fmtDay(next.iso)) + ' · ' + next.e.start + (next.e.repeat && next.e.repeat !== 'None' ? ' · repeats ' + next.e.repeat.toLowerCase() : '') : '',
     join: () => next && joinEvent(next.e),
-    cancel: () => { if (!next) return; this.setState((x) => ({ events: x.events.filter((y) => y.id !== next.e.id) })); this.notify('Standup cancelled. The team was told.', '#7CC4FF'); },
+    cancel: () => { if (!next) return; calendarW.remove(this, this.srv, next.e).catch((e) => this.notify(e.message, '#FF9B8A')); this.notify('Standup cancelled. The team was told.', '#7CC4FF'); },
     openForm: () => this.setState({ standupForm: { date: todayISO, start: addMinutes(nowHM, 5), repeat: 'None', err: '' } }),
     formOpen: !!f, form: f ? { date: f.date, start: f.start, repeat: f.repeat, err: f.err, hasErr: !!f.err, onDate: setF('date'), onStart: setF('start'), onRepeat: setF('repeat'), min: todayISO,
       close: () => this.setState({ standupForm: null }),
@@ -26,7 +27,8 @@ export function buildProjectStandup(ctx) {
         if (!f.date || !f.start) { this.setState({ standupForm: { ...f, err: 'Pick the date and the start time.' } }); return; }
         if (f.date < todayISO || (f.date === todayISO && f.start <= nowHM)) { this.setState({ standupForm: { ...f, err: 'Pick a time that is still ahead.' } }); return; }
         const item = { id: 'sp' + Date.now(), title: cur_p.name + ' standup', type: 'Standup', date: f.date, start: f.start, end: addMinutes(f.start, 15), people: cur_p.team.slice(), forum: '', repeat: f.repeat, by: 'Samwel Okoth Omulo', notes: '', visibility: 'Project team', remind: 'None', project: cur_p.name, pid: cur_p.id };
-        this.setState((x) => ({ standupForm: null, events: x.events.concat([item]) }));
+        this.setState({ standupForm: null });
+        calendarW.create(this, this.srv, { ...item, by: this.srv.me.name }).catch((e) => this.notify(e.message || 'Could not schedule it.', '#FF9B8A'));
         this.notify('Standup scheduled for ' + (f.date === todayISO ? 'today' : fmtDay(f.date)) + ' at ' + f.start + '. The button turns into "Join standup" when it starts.', '#B8F36B');
       } } : {} };
   return {};

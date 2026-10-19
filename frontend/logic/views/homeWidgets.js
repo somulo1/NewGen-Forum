@@ -1,7 +1,8 @@
-import * as announcementsW from '~/logic/server/widgets/announcements.js';
+import * as calendarW from '~/logic/server/widgets/calendar.js';
+import * as commsW from '~/logic/server/widgets/comms.js';
 // renderVals step: homeWidgets. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildHomeWidgets(ctx) {
-  const { calItems, files, fmtDay, sharedNotes, forums, has, ini, myUnits, nOpen, nOver, nSoon, openCm, openEv, orgWidgetItems, people, projStats, projects, s, sessions, tickets } = ctx;
+  const { todayISO, calItems, files, fmtDay, sharedNotes, forums, has, ini, myUnits, nOpen, nOver, nSoon, openCm, openEv, orgWidgetItems, people, projStats, projects, s, sessions, tickets } = ctx;
   // ---- Files ----
   const kindColor = { PDF: '#FF9B8A', DOC: '#7CC4FF', XLS: '#B8F36B', PPT: '#FFB86B', IMG: '#F49AC1', ZIP: '#C9B6FF' };
   // "Shared notes" is a built-in folder: notes shared with me (live links) and the notes I share.
@@ -55,13 +56,11 @@ export function buildHomeWidgets(ctx) {
   const itemsFor = {
     chat: s.dms.slice(0, 4).map((d) => { const pr = this.dir.find((x) => x.name === d.with) || { initials: ini(d.with), color: '#C9B6FF' }; const last = d.msgs[d.msgs.length - 1];
       return { name: d.with, initials: pr.initials, color: pr.color, unread: d.unread, hasUnread: d.unread > 0, last: last ? (last.from === 'me' ? 'You: ' : '') + (last.text || 'Sent a file') : 'Say hello', open: () => this.openDm(d.with) }; }),
-    announcements: (s.announcementItems || []).slice(0, 3).map((a) => ({ ...a, ackLabel: a.read ? 'Read' : 'Mark read', ackStyle: pillBtn(!!a.read), ack: () => announcementsW.markRead(this, this.srv, a.id) })),
+    announcements: s.comms.filter((c) => c.type === 'Announcement' && c.status === 'Published').slice(0, 3).map((c) => ({ id: c.id, tag: (c.byDept || 'News').split(' ')[0], title: c.title, meta: c.by + ' · ' + fmtDay(c.date), ackLabel: c.iRead ? 'Read' : 'Mark read', ackStyle: pillBtn(!!c.iRead), ack: () => commsW.markRead(this, this.srv, c) })),
     links: [['Email', 'E', '#7CC4FF'], ['Payroll', 'P', '#B8F36B'], ['HR system', 'H', '#F49AC1'], ['IT helpdesk', 'I', '#FFB86B'], ['Policies', 'P', '#6EE7C8'], ['Leave request', 'L', '#C9B6FF']].map(([label, letter, color]) => ({ label, letter, color })),
-    events: [
-      { id: 'e1', mon: 'OCT', day: '18', title: 'Team building', meta: 'Saturday · Karura Forest' },
-      { id: 'e2', mon: 'OCT', day: '22', title: 'Quarterly town hall', meta: 'Wednesday · 10:00 · Online' },
-      { id: 'e3', mon: 'OCT', day: '31', title: 'Dress-up day', meta: 'Friday · All offices' }
-    ].map((e) => ({ ...e, rsvpLabel: s.rsvp[e.id] ? 'Going' : 'RSVP', rsvpStyle: pillBtn(!!s.rsvp[e.id]), rsvp: () => this.setState((st) => ({ rsvp: { ...st.rsvp, [e.id]: !st.rsvp[e.id] } })) })),
+    events: calendarW.upcomingEvents(s.events, todayISO).map((e) => ({ id: e.id, mon: new Date(e.date + 'T12:00:00+03:00').toLocaleDateString('en-GB', { month: 'short', timeZone: 'Africa/Nairobi' }).toUpperCase(), day: String(Number(e.date.slice(8, 10))), title: e.title,
+      meta: new Date(e.date + 'T12:00:00+03:00').toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'Africa/Nairobi' }) + (e.start ? ' · ' + e.start : '') + (e.forum ? ' · ' + e.forum : ''),
+      rsvpLabel: s.rsvp[e.id] ? 'Going' : 'RSVP', rsvpStyle: pillBtn(!!s.rsvp[e.id]), rsvp: () => calendarW.toggleRsvp(this, this.srv, e).catch((x) => this.notify(x.message, '#FF9B8A')) })),
     clocks: [['Nairobi', 'Africa/Nairobi'], ['London', 'Europe/London'], ['New York', 'America/New_York'], ['Dubai', 'Asia/Dubai']].map(([city, zone]) => ({ city, time: tz(zone), day: tzDay(zone) })),
     birthdays: [
       { id: 'b1', name: 'Faith Achieng', initials: 'FA', color: '#B8F36B', what: 'Birthday today' },

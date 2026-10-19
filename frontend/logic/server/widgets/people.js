@@ -25,4 +25,31 @@ export async function load(logic, srv) {
   });
   srv.dirByUid = new Map(dir.map((d) => [d.uid, d]));
   logic.dir = dir;
+  await loadStructure(logic, srv);
+}
+
+// Organization structure: the frontend names levels by their own words (sectors, branches, units, departments).
+const LEVELS = { sector: 'sectors', branch: 'branches', unit: 'units', department: 'departments' };
+
+export async function loadStructure(logic, srv) {
+  const { units } = await srv.request('GET', '/org/structure');
+  const byId = new Map(units.map((u) => [u.id, u]));
+  const ancestor = (u, kind) => { let x = u; while (x) { if (x.kind === kind) return x; x = byId.get(x.parent_id); } return null; };
+  const org = { sectors: [], branches: [], units: [], departments: [], mine: {} };
+  srv.structure = { sectors: new Map(), branches: new Map(), units: new Map(), departments: new Map() };
+  srv.unitName = new Map(units.map((u) => [u.id, u.name]));
+  units.forEach((u) => {
+    const level = LEVELS[u.kind];
+    if (!level) return;
+    const rec = { id: u.id, name: u.name };
+    if (u.kind === 'branch') rec.sector = (ancestor(byId.get(u.parent_id), 'sector') || {}).id || '';
+    if (u.kind === 'unit') rec.branch = (ancestor(byId.get(u.parent_id), 'branch') || {}).id || '';
+    if (u.kind === 'department') { rec.branch = (ancestor(byId.get(u.parent_id), 'branch') || {}).id || ''; rec.sector = (ancestor(byId.get(u.parent_id), 'sector') || {}).id || ''; }
+    org[level].push(rec);
+    srv.structure[level].set(u.name, u.id);
+  });
+  const mine = await srv.request('GET', '/people/' + srv.me.person);
+  const pick = (o) => (o && o.id) || '';
+  org.mine = { departments: pick(mine.department), branches: pick(mine.branch), sectors: pick(mine.sector), units: pick(mine.unit) };
+  logic.org = org;
 }

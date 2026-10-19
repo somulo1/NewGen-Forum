@@ -1,3 +1,4 @@
+import * as commsW from '~/logic/server/widgets/comms.js';
 // renderVals step: comms. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildComms(ctx) {
   const { C, O, chip, chipS, flowById, fmtDay, forums, has, makeRequest, recOf, roleNameOf, ruleSentence, s, set, todayISO, typeName } = ctx;
@@ -41,20 +42,12 @@ export function buildComms(ctx) {
       if (ruleObj && !ruleObj.on) { this.notify(c.type + 's are switched off for your ' + typeName[ruleLevel].toLowerCase() + '.', '#FF9B8A'); return; }
       if (!senderOk) { this.notify('Only the ' + roleNameOf(ruleObj.sender) + ' role can send ' + c.type.toLowerCase() + 's here.', '#FF9B8A'); return; }
       const fo = forums.find((f) => f.id === c.forum);
-      const to = (c.wall && wallAllowed ? ['Community wall'] : []).concat(fo ? [fo.name + ' forum'] : []).concat(Object.keys(c.sel).filter((k) => c.sel[k]).map((k) => k.split(':')[1]));
-      if (!to.length) { this.notify('Choose at least one place to send it.', '#FFB86B'); return; }
-      const id = 'C-' + (211 + this.state.comms.length);
-      const needs = ruleNeeds || (c.type === 'Announcement' && f1 && f1.levels > 0);
-      const item = { id: id, type: c.type, title: c.title.trim(), body: c.body.trim(), by: 'Samwel Okoth Omulo', date: todayISO, to: to, status: needs ? 'Awaiting approval' : 'Published', read: 0 };
-      const patch = { cmOpen: false, comms: [item].concat(this.state.comms) };
-      if (!needs && c.wall) patch.posts = [{ id: Date.now(), author: 'Sam', initials: 'S', color: '#F49AC1', meta: c.type + ' · Just now', text: item.title + (item.body ? '\n' + item.body : ''), likes: 0, extra: 0, shares: 0, comments: [] }].concat(this.state.posts);
-      this.setState(patch);
-      if (needs && ruleNeeds) {
-        const apName = roleNameOf(ruleObj.approver);
-        this.setState((x) => ({ flows: x.flows.map((fl) => (fl.id === 'f10' ? { ...fl, levels: 1, approvers: [apName, fl.approvers[1], fl.approvers[2]] } : fl)) }));
-        makeRequest('f10', c.type + ' from ' + ruleRec.name + ': ' + item.title, { kind: 'comm', commId: id });
-      } else if (needs) makeRequest('f1', c.type + ': ' + item.title, { kind: 'comm', commId: id });
-      else { if (fo) this.addForumMsg(fo.id, c.type + ': ' + item.title); this.notify(c.type + ' published to ' + to.join(', ') + '.', '#B8F36B'); }
+      const sel = Object.keys(c.sel).filter((k) => c.sel[k]);
+      if (!(c.wall && wallAllowed) && !fo && !sel.length) { this.notify('Choose at least one place to send it.', '#FFB86B'); return; }
+      this.setState({ cmOpen: false });
+      commsW.publish(this, this.srv, { type: c.type, title: c.title.trim(), body: c.body.trim(), wall: c.wall && wallAllowed, forum: fo ? { id: this.srv.forumConv && this.srv.forumConv[fo.id], name: fo.name } : null, sel: c.sel })
+        .then((r) => this.notify(r.pending ? c.type + ' sent for approval.' : c.type + ' published.', r.pending ? '#FFB86B' : '#B8F36B'))
+        .catch((e) => this.notify(e.message || 'Could not send it.', '#FF9B8A'));
     }
   };
   const commNew = commTypes.map((t, i) => ({ label: 'New ' + t.toLowerCase(), run: () => openCm(t), style: 'height:40px;padding:0 16px;border-radius:20px;font-weight:600;cursor:pointer;' + (i === 0 ? 'border:0;background:#B8F36B;color:#0F1714' : 'border:1px solid var(--k-2A3832,#2A3832);background:transparent;color:var(--k-E8EFEA,#E8EFEA)') }));
