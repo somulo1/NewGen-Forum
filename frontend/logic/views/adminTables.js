@@ -3,7 +3,7 @@ import { LEVEL_LABEL, catsFor, levelsOf } from '~/logic/ticketRouting.js';
 
 // renderVals step: adminTables. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildAdminTables(ctx) {
-  const { C, O, can, agoLabel, defaultCats, deskTickets, myTickets, alertsAll, alertsRange, logsRange, allLogs, chip, corePeople, f8, flowItem, fmtDay, has, modEnabled, modInfo, nowMs, rKey, requestsShown, rightOf, rightsDef, roleScope, ruleDefs, ruleOn, ruleSev, s, sec, sevColor, tickets, titleOf, toggleRight, tz9, visibleRoles } = ctx;
+  const { C, O, can, agoLabel, rightMeta, defaultCats, deskTickets, myTickets, alertsAll, alertsRange, logsRange, allLogs, chip, corePeople, f8, flowItem, fmtDay, has, modEnabled, modInfo, nowMs, rKey, requestsShown, rightOf, rightsDef, roleScope, ruleDefs, ruleOn, ruleSev, s, sec, sevColor, tickets, titleOf, toggleRight, tz9, visibleRoles } = ctx;
   // =============== Tables for existing pages ===============
   const prioColor = { High: '#FF9B8A', Medium: '#FFB86B', Low: '#9DB0A6' };
   const ticketCols = [{ label: 'ID', filter: 'text' }, { label: 'Title', filter: 'text' }];
@@ -65,34 +65,37 @@ export function buildAdminTables(ctx) {
   const rulesTable = { id: 'rules', pageSize: 10, minWidth: '860px',
     cols: [{ label: 'Rule', filter: 'text' }, { label: 'Severity', filter: 'select' }, { label: 'Matches today' }, { label: 'On', filter: 'select', align: 'center' }],
     rows: sec.rules.map((r) => ({ cells: [C.t(r.name, { strong: true, sub: r.desc }), C.sel(r.sev, sevOpts, r.setSev, { label: 'Severity for ' + r.name, minWidth: '110px' }), C.t(r.hits), C.chk(r.on, r.toggle, { label: 'Turn ' + r.name + (r.on ? ' off' : ' on') })] })) };
-  const roleCur = visibleRoles.find((r) => r.id === s.roleSel) || visibleRoles.find((r) => r.id === 'staff') || visibleRoles[0];
-  const rolesTable = { id: 'roles', pageSize: 10, minWidth: '900px',
+  // Roles and rights are data (made on this page, stored on the server): nothing about them is built in.
+  const roleCur = visibleRoles.find((r) => r.id === s.roleSel) || visibleRoles.find((r) => r.isDefault) || visibleRoles[0] || { id: '', name: 'No role selected', desc: 'Create a role first.', locked: false, count: 0, isDefault: false };
+  const fail = (e) => this.notify((e && e.message) || 'That did not go through.', '#FF9B8A');
+  const srv = this.srv;
+  const rolesTable = { id: 'roles', pageSize: 10, minWidth: '900px', emptyText: 'No roles yet. Create the first one above.',
     cols: [{ label: 'Role', filter: 'text' }, { label: 'Scope', filter: 'select' }, { label: 'People' }, { label: 'Rights granted' }, { label: '', align: 'right' }],
-    rows: visibleRoles.map((r) => { const mods = Object.keys(rightsDef).filter(modEnabled); let on = 0, tot = 0; mods.forEach((m) => rightsDef[m].forEach((x) => { tot++; if (rightOf(r.id, m, x)) on++; })); const pc = Math.round(on / tot * 100);
-      return { tint: r.id === roleCur.id ? '#B8F36B' : '', cells: [C.t(r.name, { strong: true, sub: r.desc }), C.t(roleScope[r.id] || 'Whole organization'), C.t(String(r.count)), C.bar(pc, pc > 80 ? '#FFB86B' : '#B8F36B', on + ' / ' + tot),
-        C.a([{ label: 'Edit rights', kind: 'primary', run: () => this.setState({ roleSel: r.id, rolesTab: 'rights' }) }, { label: 'Members', run: () => this.setState({ roleSel: r.id, rolesTab: 'members' }) }])] }; }) };
+    rows: visibleRoles.map((r) => { const mods = Object.keys(rightsDef).filter(modEnabled); let on = 0, tot = 0; mods.forEach((m) => rightsDef[m].forEach((x) => { tot++; if (rightOf(r.id, m, x)) on++; })); const pc = tot ? Math.round(on / tot * 100) : 0;
+      return { tint: r.id === roleCur.id ? '#B8F36B' : '', cells: [C.t(r.name + (r.isDefault ? ' · default' : '') + (r.locked ? ' · owner' : ''), { strong: true, sub: r.desc, fv: r.name }), C.t(roleScope[r.id] || 'Whole organization'), C.t(String(r.count)), C.bar(pc, pc > 80 ? '#FFB86B' : '#B8F36B', on + ' / ' + tot),
+        C.a([{ label: 'Edit rights', kind: 'primary', run: () => this.setState({ roleSel: r.id, rolesTab: 'rights' }) }, { label: 'Members', run: () => this.setState({ roleSel: r.id, rolesTab: 'members' }) }]
+          .concat(!r.locked && !r.count ? [{ label: 'Delete', kind: 'danger', run: () => rolesW.deleteRole(this, srv, r.id).then(() => this.notify('Role deleted.', '#B8F36B')).catch(fail) }] : []))] }; }) };
+  // Rights grouped by what they let a person do: see a page, create, edit, delete, export, approve a level, manage.
+  const KIND_LABEL = { view: 'See / open', create: 'Create / send', edit: 'Edit / update', delete: 'Delete', export: 'Export', approve: 'Approve', manage: 'Manage', other: 'Other' };
+  const kindOptions = ((s.catalog && s.catalog.kinds) || Object.keys(KIND_LABEL)).map((k) => ({ v: k, l: KIND_LABEL[k] || k }));
   const rightsRows = [];
   Object.keys(rightsDef).filter(modEnabled).forEach((m) => rightsDef[m].forEach((x) => {
     const pend = s.pendingRights[rKey(roleCur.id, m, x)] !== undefined;
-    rightsRows.push({ cells: [C.t(modInfo[m][0], { fv: modInfo[m][0] }), C.t(x, { strong: true }), C.chk(rightOf(roleCur.id, m, x), () => toggleRight(roleCur.id, m, x), { disabled: !!roleCur.locked, pending: pend, label: roleCur.name + ': ' + modInfo[m][0] + ' · ' + x })] });
+    const meta = (rightMeta[m] || {})[x] || {};
+    rightsRows.push({ cells: [C.t(modInfo[m][0], { fv: modInfo[m][0] }), C.t(meta.label || x, { strong: true }), C.t(KIND_LABEL[meta.kind] || 'Other', { fv: KIND_LABEL[meta.kind] || 'Other' }),
+      C.chk(rightOf(roleCur.id, m, x), () => toggleRight(roleCur.id, m, x), { disabled: !!roleCur.locked || !roleCur.id, pending: pend, label: roleCur.name + ': ' + modInfo[m][0] + ' · ' + x }),
+      C.a(meta.builtin === false ? [{ label: 'Remove right', kind: 'danger', run: () => rolesW.removeRight(this, srv, m, x).then(() => this.notify('Right removed.', '#B8F36B')).catch(fail) }] : [])] });
   }));
-  const rightsTable = { id: 'rights-' + roleCur.id, pageSize: 12, minWidth: '560px',
-    cols: [{ label: 'Widget', filter: 'select' }, { label: 'Right', filter: 'text' }, { label: roleCur.name + ' can', align: 'center' }], rows: rightsRows };
-  const rightsHint = 'Setting rights for ' + roleCur.name + '. Tick a box to let this role do that action. ' + (f8 && f8.levels > 0 ? 'Changes need approval (' + (f8.levels === 1 ? 'direct' : f8.levels + ' levels') + ') and show as PENDING until approved.' : 'Changes apply straight away and are logged.') + ' Widgets your organization does not use are hidden.';
-  const defaultRole = { 'Samwel Okoth Omulo': 'admin', 'Brian Kiprop': 'it', 'David Otieno': 'staff', 'Amina Wanjiru': 'finance', 'Grace Njeri': 'hod', 'Faith Achieng': 'staff', 'Kevin Mutua': 'staff', 'Mercy Wambui': 'staff', 'John Kamau': 'staff', 'Lilian Chebet': 'staff' };
-  const meName = this.srv ? this.srv.me.name : 'Samwel Okoth Omulo';
-  const memberList = (this.srv ? [meName].concat(this.dir.map((d) => d.name)) : ['Samwel Okoth Omulo'].concat(corePeople).concat(this.dir.slice(0, 40).map((d) => d.name))).filter((n, i, a) => a.indexOf(n) === i);
-  const roleOpts = visibleRoles.map((r) => ({ v: r.id, l: r.name }));
-  const ridOf = (n) => {
-    const d = this.dir.find((x) => x.name === n);
-    const rid = s.memberRoles[n] || defaultRole[n] || (d && /Lead|Supervisor/.test(d.title) ? (has.branches ? 'branch' : 'hod') : 'staff');
-    return visibleRoles.find((r) => r.id === rid) ? rid : 'staff';
-  };
+  const rightsTable = { id: 'rights-' + roleCur.id, pageSize: 12, minWidth: '680px', emptyText: 'The rights catalog is empty.',
+    cols: [{ label: 'Page', filter: 'select' }, { label: 'Right', filter: 'text' }, { label: 'Kind', filter: 'select' }, { label: roleCur.name + ' can', align: 'center' }, { label: '', align: 'right' }], rows: rightsRows };
+  const rightsHint = 'Setting rights for ' + roleCur.name + '. Tick a box to let this role do that. ' + (f8 && f8.levels > 0 ? 'Changes need approval (' + (f8.levels === 1 ? 'direct' : f8.levels + ' levels') + ') and show as pending until approved. ' : '') + (roleCur.locked ? 'The owner role can always do everything.' : '');
+  const meName = srv ? srv.me.name : '';
+  const memberList = [meName].concat(this.dir.map((d) => d.name)).filter((n, i, a) => n && a.indexOf(n) === i);
+  const roleOpts = [{ v: '', l: '— none —' }].concat(visibleRoles.map((r) => ({ v: r.id, l: r.name })));
+  const ridOf = (n) => { const rid = s.memberRoles[n] || ''; return visibleRoles.find((r) => r.id === rid) ? rid : ''; };
   const assignRole = (n, v) => {
-    const rn = (visibleRoles.find((r) => r.id === v) || {}).name;
-    if (this.srv) { rolesW.setRole(this, this.srv, n, v).then((r) => this.notify(r === 'applied' ? n + ' is now ' + rn + '. Logged.' : 'Sent for approval: ' + n + ' as ' + rn + '.', r === 'applied' ? '#B8F36B' : '#FFB86B')).catch((e) => this.notify(e.message || 'Could not change the role.', '#FF9B8A')); return; }
-    this.setState((x) => ({ memberRoles: { ...x.memberRoles, [n]: v }, extraLogs: [{ id: 'x' + Date.now(), ago: 0, user: 'Samwel Okoth Omulo', action: 'Gave ' + n + ' the ' + rn + ' role', module: 'Roles', ip: '10.0.4.21', loc: 'Office network', result: 'Success', rule: 'r5' }].concat(x.extraLogs) }));
-    this.notify(n + ' is now ' + rn + '. Logged.', '#B8F36B');
+    const rn = (visibleRoles.find((r) => r.id === v) || {}).name || 'no role';
+    rolesW.setRole(this, srv, n, v).then((r) => this.notify(r === 'applied' ? n + ' now has ' + rn + '. Logged.' : 'Sent for approval: ' + n + ' as ' + rn + '.', r === 'applied' ? '#B8F36B' : '#FFB86B')).catch(fail);
   };
   const roleMembers = memberList.filter((n) => ridOf(n) === roleCur.id);
   const roleAddOpts = memberList.filter((n) => ridOf(n) !== roleCur.id && n !== meName).map((n) => ({ v: n, l: n }));
@@ -101,21 +104,49 @@ export function buildAdminTables(ctx) {
     rows: roleMembers.map((n) => {
       const d = this.dir.find((x) => x.name === n);
       const mine = n === meName;
-      return { cells: [C.p(n, { sub: d ? d.title : titleOf(n), fv: n }),
-        C.t(d ? d.dept : ({ 'Brian Kiprop': 'IT Operations', 'David Otieno': 'Software Development', 'Amina Wanjiru': 'Finance', 'Grace Njeri': 'HR', 'Faith Achieng': 'Customer Care', 'Kevin Mutua': 'Sales', 'Samwel Okoth Omulo': 'Risk & Compliance' }[n] || 'Operations')),
+      return { cells: [C.p(n, { sub: d ? d.title : (s.meInfo || {}).title || '', fv: n }),
+        C.t(d ? d.dept : (s.meInfo || {}).dept || '', {}),
         C.sel(roleCur.id, roleOpts, (e) => assignRole(n, e.target.value), { fv: roleCur.name, label: 'Role for ' + n, minWidth: '170px', disabled: mine }),
-        C.a([{ label: 'Remove from role', kind: 'danger', disabled: mine || roleCur.id === 'staff', run: () => { if (this.srv) { assignRole(n, 'staff'); return; } this.setState((x) => ({ memberRoles: { ...x.memberRoles, [n]: 'staff' } })); this.notify(n + ' moved back to Staff.', '#7CC4FF'); } }])] };
+        C.a([{ label: 'Remove from role', kind: 'danger', disabled: mine, run: () => assignRole(n, '') }])] };
     }) };
-  const roleBar = { name: roleCur.name, desc: roleCur.desc, scope: roleScope[roleCur.id] || 'Whole organization', count: roleMembers.length, options: visibleRoles.map((r) => ({ v: r.id, l: r.name })), value: roleCur.id, addOpts: roleAddOpts, locked: !!roleCur.locked };
+  const nr = s.newRole || { name: '', desc: '', err: '' };
+  const setNr = (patch) => this.setState((st) => ({ newRole: { ...st.newRole, ...patch, err: '' } }));
+  const roleBar = { name: roleCur.name, desc: roleCur.desc, scope: roleScope[roleCur.id] || 'Whole organization', count: roleMembers.length, options: visibleRoles.map((r) => ({ v: r.id, l: r.name })), value: roleCur.id, addOpts: roleAddOpts, locked: !!roleCur.locked,
+    hasRole: !!roleCur.id, isDefault: !!roleCur.isDefault, canDelete: !!roleCur.id && !roleCur.locked && !roleCur.count,
+    toggleDefault: () => rolesW.updateRole(this, srv, roleCur.id, { default: !roleCur.isDefault }).then(() => this.notify(roleCur.isDefault ? 'New people no longer get a role automatically.' : roleCur.name + ' is now the role new people get.', '#B8F36B')).catch(fail),
+    remove: () => rolesW.deleteRole(this, srv, roleCur.id).then(() => this.notify('Role deleted.', '#B8F36B')).catch(fail),
+    editName: nr.editing ? nr.editName : roleCur.name, editDesc: nr.editing ? nr.editDesc : roleCur.desc, editing: !!nr.editing,
+    startEdit: () => this.setState((st) => ({ newRole: { ...st.newRole, editing: true, editName: roleCur.name, editDesc: roleCur.desc } })),
+    onEditName: (e) => setNr({ editName: e.target.value }), onEditDesc: (e) => setNr({ editDesc: e.target.value }),
+    cancelEdit: () => setNr({ editing: false }),
+    saveEdit: () => rolesW.updateRole(this, srv, roleCur.id, { name: nr.editName, desc: nr.editDesc }).then(() => { setNr({ editing: false }); this.notify('Role saved.', '#B8F36B'); }).catch((e) => this.setState((st) => ({ newRole: { ...st.newRole, err: e.message } }))) };
+  const newRoleForm = { name: nr.name, desc: nr.desc, err: nr.err, hasErr: !!nr.err, copyFrom: nr.copy || '', copyOpts: [{ v: '', l: 'Start with no rights' }].concat(visibleRoles.filter((r) => !r.locked).map((r) => ({ v: r.id, l: 'Copy the rights of ' + r.name }))),
+    onName: (e) => setNr({ name: e.target.value }), onDesc: (e) => setNr({ desc: e.target.value }), onCopy: (e) => setNr({ copy: e.target.value }),
+    create: () => rolesW.createRole(this, srv, { name: nr.name, desc: nr.desc, copy_from: nr.copy || '' })
+      .then((id) => { this.setState({ newRole: { name: '', desc: '', err: '', copy: '' }, roleSel: id, rolesTab: 'rights' }); this.notify('Role created. Tick the rights it should have.', '#B8F36B'); })
+      .catch((e) => this.setState((st) => ({ newRole: { ...st.newRole, err: e.message || 'Could not create the role.' } }))) };
+  // Add your own right (a named permission) to a page, or your own page.
+  const nrt = s.newRight || { module: '', name: '', kind: '', err: '' };
+  const setNrt = (patch) => this.setState((st) => ({ newRight: { ...st.newRight, ...patch, err: '' } }));
+  const moduleOptions = ((s.catalog && s.catalog.modules) || []).map((m) => ({ v: m.key, l: m.label }));
+  const newRightForm = { module: nrt.module || (moduleOptions[0] || {}).v || '', name: nrt.name, kind: nrt.kind || '', err: nrt.err, hasErr: !!nrt.err, moduleOptions, kindOptions: [{ v: '', l: 'Kind: choose for me' }].concat(kindOptions),
+    onModule: (e) => setNrt({ module: e.target.value }), onName: (e) => setNrt({ name: e.target.value }), onKind: (e) => setNrt({ kind: e.target.value }),
+    add: () => rolesW.addRight(this, srv, { module: nrt.module || (moduleOptions[0] || {}).v, name: nrt.name, kind: nrt.kind })
+      .then(() => { this.setState({ newRight: { module: nrt.module, name: '', kind: '', err: '' } }); this.notify('Right added. Give it to roles in the table below.', '#B8F36B'); })
+      .catch((e) => this.setState((st) => ({ newRight: { ...st.newRight, err: e.message || 'Could not add the right.' } }))) };
+  const nm = s.newModule || { name: '', err: '' };
+  const newModuleForm = { name: nm.name, err: nm.err, hasErr: !!nm.err, onName: (e) => this.setState({ newModule: { name: e.target.value, err: '' } }),
+    add: () => rolesW.addModule(this, srv, nm.name).then(() => { this.setState({ newModule: { name: '', err: '' } }); this.notify('Page added. Add rights to it.', '#B8F36B'); }).catch((e) => this.setState({ newModule: { ...nm, err: e.message || 'Could not add it.' } })) };
   const setRoleSel = (e) => this.setState({ roleSel: e.target.value });
   const addToRole = (e) => { const n = e.target.value; if (n) assignRole(n, roleCur.id); };
-  const approverOpts = ['Line manager', 'Head of department', 'Finance approver', 'HR Manager', 'Communications lead', 'Security officer', 'Head of IT Operations', 'Managing Director'].concat(has.sectors ? ['Sector manager'] : []).concat(has.branches ? ['Branch manager'] : []).concat(has.units ? ['Unit lead'] : []).map((x) => ({ v: x, l: x }));
   const levelOpts = [{ v: '0', l: 'No approval' }, { v: '1', l: 'Direct (1 level)' }, { v: '2', l: '2 levels' }, { v: '3', l: '3 levels' }];
-  const flowsTable = { id: 'flows', pageSize: 10, minWidth: '1180px',
-    cols: [{ label: 'Action', filter: 'text' }, { label: 'Widget', filter: 'select' }, { label: 'Approval', filter: 'select' }, { label: 'Level 1' }, { label: 'Level 2' }, { label: 'Level 3' }],
+  // Who approves a level is not typed in: it is whoever holds the right "Approve level N" on that flow's page. The names shown
+  // come from the server (the roles that hold it).
+  const flowsTable = { id: 'flows', pageSize: 10, minWidth: '1100px',
+    cols: [{ label: 'Action', filter: 'text' }, { label: 'Page', filter: 'select' }, { label: 'Approval', filter: 'select' }, { label: 'Level 1 approved by' }, { label: 'Level 2 approved by' }, { label: 'Level 3 approved by' }],
     rows: s.flows.filter((f) => modEnabled(f.mod)).map((f) => {
       const fi = flowItem(f);
-      const lv = (i) => C.sel(f.approvers[i] || 'Line manager', approverOpts, (e) => { const v = e.target.value; this.setState((st) => ({ flows: st.flows.map((x) => (x.id === f.id ? { ...x, approvers: x.approvers.map((a, j) => (j === i ? v : a)) } : x)) })); }, { disabled: f.levels <= i, label: 'Level ' + (i + 1) + ' approver for ' + f.action, minWidth: '160px' });
+      const lv = (i) => (i < f.levels ? C.t(f.approvers[i] || 'Nobody has this right yet', { sub: 'Right: Approve level ' + (i + 1), danger: !f.approvers[i] }) : C.t('—'));
       return { cells: [C.t(f.action, { strong: true }), C.t(fi.modName), C.sel(String(f.levels), levelOpts, fi.setLevels, { fv: levelOpts[f.levels].l, label: 'Approval levels for ' + f.action, minWidth: '150px' }), lv(0), lv(1), lv(2)] };
     }) };
   const approvalsTable = { id: 'approvals-' + s.apTab, pageSize: 8, minWidth: '1080px', emptyText: s.apTab === 'waiting' ? 'Nothing is waiting for approval.' : 'No requests yet.',
@@ -145,5 +176,5 @@ export function buildAdminTables(ctx) {
     recs: ntRecs.map((r) => ({ label: r.name, pick: () => this.setState((x) => ({ nt: { ...x.nt, toType: ntType, toName: r.name } })), style: chip(ntName === r.name) })),
     recsLabel: ntType === 'desk' ? '' : 'Send to ' + LEVEL_LABEL[ntType].toLowerCase(),
     summary: ntType === 'desk' ? 'This organization has no departments, units, branches or sectors, so tickets go to the ticket desk.' : 'It will show on the ' + LEVEL_LABEL[ntType].toLowerCase() + ' dashboard of ' + ntName + '.' };
-  return { ntCats, ntCatSel, deskCats, deskTable, addToRole, alertsTable, approvalsTable, flowsTable, logsTable, membersTable, ntTargets, peopleSummary, peopleTable, userActions, rightsHint, rightsTable, roleBar, rolesTable, rolesTabs, rolesView, rulesTable, setRoleSel, ticketsTable };
+  return { newRoleForm, newRightForm, newModuleForm, ntCats, ntCatSel, deskCats, deskTable, addToRole, alertsTable, approvalsTable, flowsTable, logsTable, membersTable, ntTargets, peopleSummary, peopleTable, userActions, rightsHint, rightsTable, roleBar, rolesTable, rolesTabs, rolesView, rulesTable, setRoleSel, ticketsTable };
 }

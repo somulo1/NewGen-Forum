@@ -82,13 +82,13 @@ export const forumActions = {
   },
   toggleChatRole(fid, role) {
     const f = this.srv && forumsW.liveForum(this, fid);
-    const cur = f ? forumsW.policyOf(f) : (this.state.forumChat[fid] || defaultPolicy());
+    const cur = f ? forumsW.policyOf(f, Object.fromEntries((this.state.serverRoles || []).map((r) => [r.id, r.name]))) : (this.state.forumChat[fid] || defaultPolicy());
     this.setForumChat(fid, { roles: cur.roles.indexOf(role) !== -1 ? cur.roles.filter((r) => r !== role) : cur.roles.concat([role]) });
   },
   // Flips one person: someone who can chat is blocked; someone who cannot is let in (removed from the blocked list, or allowed by name).
   toggleMemberChat(fid, name, canNow) {
     const f = this.srv && forumsW.liveForum(this, fid);
-    const cur = f ? forumsW.policyOf(f) : (this.state.forumChat[fid] || defaultPolicy());
+    const cur = f ? forumsW.policyOf(f, Object.fromEntries((this.state.serverRoles || []).map((r) => [r.id, r.name]))) : (this.state.forumChat[fid] || defaultPolicy());
     if (canNow) this.setForumChat(fid, { blocked: cur.blocked.concat([name]), allowed: cur.allowed.filter((n) => n !== name) });
     else if (cur.blocked.indexOf(name) !== -1) this.setForumChat(fid, { blocked: cur.blocked.filter((n) => n !== name) });
     else this.setForumChat(fid, { allowed: cur.allowed.concat([name]) });

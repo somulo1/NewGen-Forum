@@ -80,6 +80,6 @@ export function buildCallState(ctx) {
     if (this.srv) callsW.sendChat(t);
   };
   const allNotifs = taskNotifs.map((n) => ({ ...n, open: () => this.setState({ notifOpen: false, section: 'projects', projectOpen: n.task.pid, taskOpen: n.task }) })).concat(notifList);
-  const roleNames = { admin: 'Admin', hod: 'Head of department', it: 'IT support', finance: 'Finance approver', staff: 'Staff', guest: 'Guest' };
+  const roleNames = Object.fromEntries((this.state.serverRoles || []).map((r) => [r.id, r.name]));
   return { allNotifs, call, callMiniStyle, restoreCall, roleNames, sendCall, showCallMini, showMeetingDock, showMeetingFull, showPanelCall };
 }

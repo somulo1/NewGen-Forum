@@ -16,9 +16,6 @@ type ReportsTo struct {
 	RoleKey string `json:"role_key,omitempty"`
 }
 
-// defaultReports is who each role reports to until the organization chooses otherwise.
-var defaultReports = map[string]string{"staff": "hod", "it": "hod", "finance": "hod", "hod": "branch", "unit": "branch", "branch": "sector", "sector": "admin"}
-
 type roleLine struct {
 	name     string
 	holders  int
@@ -72,9 +69,6 @@ func (s *Service) reportsTo(ctx context.Context, tx pgx.Tx, person uuid.UUID, ma
 			return &ReportsTo{Kind: "person", Person: l.toPerson, Role: l.name, RoleKey: cur}, nil
 		}
 		next := l.toRole
-		if !l.set {
-			next = defaultReports[cur]
-		}
 		if next == "" || next == cur {
 			break
 		}

@@ -59,40 +59,20 @@ func (s *Service) Create(ctx context.Context, account uuid.UUID, displayName, na
 		if err := db.SetOrg(ctx, tx, org); err != nil {
 			return err
 		}
-		// roles and their full rights matrix
-		roleIDs := map[string]uuid.UUID{}
-		for _, r := range cat.Roles {
-			id := app.NewID()
-			roleIDs[r.ID] = id
-			if _, err := tx.Exec(ctx, `insert into hub.roles (id, org_id, key, name, description, scope, locked, needs_level) values ($1,$2,$3,$4,$5,$6,$7,nullif($8,''))`,
-				id, org, r.ID, r.Name, r.Desc, r.Scope, r.Locked, r.Needs); err != nil {
-				return err
-			}
-		}
-		b := &pgx.Batch{}
-		for _, r := range cat.Roles {
-			allowed := map[string]bool{}
-			for mod, rights := range cat.Defaults[r.ID] {
-				for _, x := range rights {
-					allowed[mod+"|"+x] = true
-				}
-			}
-			for _, m := range cat.Modules {
-				for _, x := range m.Rights {
-					b.Queue(`insert into hub.role_rights (org_id, role_id, module, right_name, allowed) values ($1,$2,$3,$4,$5)`, org, roleIDs[r.ID], m.Key, x, allowed[m.Key+"|"+x])
-				}
-			}
-		}
-		if err := sendBatch(ctx, tx, b); err != nil {
+		// the catalog of pages and rights, and the one role every organization starts with: the owner. Everything else
+		// (roles and what they may do) is made by the organization on the Roles page.
+		if err := access.Install(ctx, tx, org, func(table, where string, args ...any) error { return s.A.Sign.Seal(ctx, tx, table, where, args...) }); err != nil {
 			return err
 		}
-		for _, t := range []string{"roles", "role_rights"} {
-			if err := s.A.Sign.Seal(ctx, tx, t, "org_id=$1", org); err != nil {
-				return err
-			}
+		ownerRole := app.NewID()
+		if _, err := tx.Exec(ctx, `insert into hub.roles (id, org_id, key, name, description, scope, locked) values ($1,$2,'owner','Owner','Full control of Hub. This role cannot be limited.','Whole organization',true)`, ownerRole, org); err != nil {
+			return err
+		}
+		if err := s.A.Sign.Seal(ctx, tx, "roles", "org_id=$1", org); err != nil {
+			return err
 		}
 		for _, f := range cat.Flows {
-			if _, err := tx.Exec(ctx, `insert into hub.approval_flows (org_id, key, module, action, levels, approvers) values ($1,$2,$3,$4,$5,$6)`, org, f.ID, f.Mod, f.Action, f.Levels, f.Approvers); err != nil {
+			if _, err := tx.Exec(ctx, `insert into hub.approval_flows (org_id, key, module, action, levels) values ($1,$2,$3,$4,$5)`, org, f.ID, f.Mod, f.Action, f.Levels); err != nil {
 				return err
 			}
 		}
@@ -129,7 +109,7 @@ func (s *Service) Create(ctx context.Context, account uuid.UUID, displayName, na
 		if err := s.A.Sign.Seal(ctx, tx, "people", "id=$1", person); err != nil {
 			return err
 		}
-		if _, err := tx.Exec(ctx, `insert into hub.person_roles (org_id, person_id, role_id) values ($1,$2,$3)`, org, person, roleIDs["superadmin"]); err != nil {
+		if _, err := tx.Exec(ctx, `insert into hub.person_roles (org_id, person_id, role_id) values ($1,$2,$3)`, org, person, ownerRole); err != nil {
 			return err
 		}
 		if err := s.A.Sign.Seal(ctx, tx, "person_roles", "org_id=$1", org); err != nil {

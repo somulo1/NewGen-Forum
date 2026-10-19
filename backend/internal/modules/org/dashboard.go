@@ -253,18 +253,22 @@ func (s *Service) Dashboard(ctx context.Context, p *tenant.Principal, id uuid.UU
 
 		// ---- approval requests ----
 		rs, err = tx.Query(ctx, `
-			select r.id, r.seq, r.title_enc, r.level, r.status, r.created_at, r.decided_at, f.levels, f.approvers,
+			select r.id, r.seq, r.title_enc, r.level, r.status, r.created_at, r.decided_at, f.levels, array[]::text[],
 			  r.requester in `+um+`,
 			  exists (select 1 from hub.approval_steps s where s.request_id = r.id and s.approver in `+um+`),
 			  exists (select 1 from hub.people pe left join hub.person_roles pr on pr.person_id = pe.id left join hub.roles ro on ro.id = pr.role_id
-			     where pe.id in `+um+` and r.status = 'Pending' and (lower(pe.title) = lower(f.approvers[r.level]) or lower(coalesce(ro.name,'')) = lower(f.approvers[r.level]))),
+			     where pe.id in `+um+` and r.status = 'Pending' and pe.status = 'active' and (coalesce(ro.locked,false) or coalesce(
+			        (select x.allowed from hub.person_rights x where x.person_id = pe.id and x.module = f.module and x.right_name = 'Approve level ' || r.level),
+			        (select rr.allowed from hub.role_rights rr where rr.role_id = pr.role_id and rr.module = f.module and rr.right_name = 'Approve level ' || r.level), false))),
 			  coalesce(dx.name, ''), rq.first_name || ' ' || rq.last_name
 			from hub.approval_requests r join hub.approval_flows f on f.key = r.flow_key
 			join hub.people rq on rq.id = r.requester left join hub.org_units dx on dx.id = rq.department_id
 			where r.created_at > $2 and r.status <> 'Cancelled'
 			  and (r.requester in `+um+` or exists (select 1 from hub.approval_steps s where s.request_id = r.id and s.approver in `+um+`)
 			       or exists (select 1 from hub.people pe left join hub.person_roles pr on pr.person_id = pe.id left join hub.roles ro on ro.id = pr.role_id
-			            where pe.id in `+um+` and r.status = 'Pending' and (lower(pe.title) = lower(f.approvers[r.level]) or lower(coalesce(ro.name,'')) = lower(f.approvers[r.level]))))
+			            where pe.id in `+um+` and r.status = 'Pending' and pe.status = 'active' and (coalesce(ro.locked,false) or coalesce(
+			        (select x.allowed from hub.person_rights x where x.person_id = pe.id and x.module = f.module and x.right_name = 'Approve level ' || r.level),
+			        (select rr.allowed from hub.role_rights rr where rr.role_id = pr.role_id and rr.module = f.module and rr.right_name = 'Approve level ' || r.level), false))))
 			order by r.created_at desc limit 200`, id, since)
 		if err != nil {
 			return err

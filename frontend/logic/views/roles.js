@@ -4,11 +4,10 @@ import * as approvalsW from '~/logic/server/widgets/approvals.js';
 export function buildRoles(ctx) {
   const { badge, flowById, ini, modInfo, pColor, rKey, rightOf, rightsDef, roleDefs, s, set, tabS, toggleRight } = ctx;
   // ---- Roles page ----
-  const memberSamples = { superadmin: ['Samwel Okoth Omulo', 'Brian Kiprop'], admin: ['Samwel Okoth Omulo', 'David Otieno', 'Grace Njeri'], hod: ['Grace Njeri', 'Amina Wanjiru', 'Kevin Mutua'], it: ['Brian Kiprop', 'David Otieno', 'John Kamau'], finance: ['Amina Wanjiru', 'Mercy Wambui'], staff: ['Faith Achieng', 'Kevin Mutua', 'Mercy Wambui', 'John Kamau', 'Lilian Chebet'], guest: ['External auditor'] };
-  const roleSelDef = roleDefs.find((r) => r.id === s.roleSel) || roleDefs[5];
+  const roleSelDef = roleDefs.find((r) => r.id === s.roleSel) || roleDefs.find((r) => r.isDefault) || roleDefs[0] || { id: '', name: '', desc: '', locked: false, count: 0 };
   const roleList = roleDefs.map((r) => ({ ...r, pick: () => this.setState({ roleSel: r.id }), style: 'display:flex;align-items:center;gap:8px;width:100%;min-height:52px;padding:6px 12px;border-radius:10px;cursor:pointer;color:var(--k-E8EFEA,#E8EFEA);border:1px solid ' + (s.roleSel === r.id ? '#3F524A' : 'transparent') + ';background:' + (s.roleSel === r.id ? 'var(--k-22302A,#22302A)' : 'transparent') }));
   const roleSel = { ...roleSelDef,
-    members: (this.srv ? Object.keys(s.memberRoles).filter((n) => s.memberRoles[n] === roleSelDef.id).slice(0, 12) : memberSamples[roleSelDef.id] || []).map((n) => ({ name: n, initials: n === 'Samwel Okoth Omulo' ? 'S' : ini(n), color: pColor[n] || '#C9B6FF' })),
+    members: Object.keys(s.memberRoles).filter((n) => s.memberRoles[n] === roleSelDef.id).slice(0, 12).map((n) => ({ name: n, initials: this.srv && n === this.srv.me.name ? 'S' : ini(n), color: pColor[n] || '#C9B6FF' })),
     modules: Object.keys(rightsDef).map((m) => {
       const rights = rightsDef[m].map((r) => { const k = rKey(roleSelDef.id, m, r); return { name: r, on: rightOf(roleSelDef.id, m, r), locked: !!roleSelDef.locked, pending: s.pendingRights[k] !== undefined, toggle: () => toggleRight(roleSelDef.id, m, r) }; });
       return { label: modInfo[m][0], tint: modInfo[m][1], rights, onCount: rights.filter((x) => x.on).length, total: rights.length };
@@ -24,7 +23,7 @@ export function buildRoles(ctx) {
 
   // ---- Approvals inbox ----
   const reqItems = s.requests.map((rq) => {
-    const f = flowById(rq.flowId) || { levels: 1, approvers: ['Line manager'], mod: 'home' };
+    const f = flowById(rq.flowId) || { levels: 1, approvers: [], mod: 'home' };
     const L = Math.max(1, f.levels);
     const pending = rq.status === 'Pending';
     const stC = rq.status === 'Approved' ? '#B8F36B' : rq.status === 'Rejected' ? '#FF9B8A' : '#FFB86B';

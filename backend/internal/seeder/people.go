@@ -9,6 +9,10 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+
+	"hub/internal/access"
+	"hub/internal/app"
 
 	"hub/internal/e2ee"
 	"hub/internal/modules/auth"
@@ -80,10 +84,15 @@ func (s *Seeder) seedPeople(ctx context.Context) {
 	// the owner
 	acct, err := s.Auth.Signup(ctx, OwnerName, OwnerEmail, DemoPassword, quiz, "10.0.0.1")
 	s.must(err, "owner signup")
-	o := &Actor{Name: OwnerName, First: "Samwel", Last: "Okoth Omulo", Email: OwnerEmail, Account: acct, Color: "#B8F36B", Initials: "S", Role: "superadmin"}
+	o := &Actor{Name: OwnerName, First: "Samwel", Last: "Okoth Omulo", Email: OwnerEmail, Account: acct, Color: "#B8F36B", Initials: "S", Role: "owner"}
 	created, err := s.Org.Create(ctx, acct, OwnerName, "Demo Organization", OrgSlug, "10.0.0.1")
 	s.must(err, "create organization")
 	s.OrgID, o.Person = created.ID, created.Person
+	// the sample roles (a real organization makes its own on the Roles page)
+	s.must(s.A.DB.WithOrg(ctx, s.OrgID, func(tx pgx.Tx) error {
+		_, err := access.InstallDemoRoles(ctx, tx, s.OrgID, app.NewID, func(table, where string, args ...any) error { return s.A.Sign.Seal(ctx, tx, table, where, args...) })
+		return err
+	}), "demo roles")
 	o.P = s.principal(o)
 	s.Owner = o
 	s.All = append(s.All, o)

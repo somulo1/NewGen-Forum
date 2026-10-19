@@ -42,9 +42,10 @@ function watchFlows(logic, srv) {
     srv.flowSnap = now;
     for (const f of logic.state.flows) {
       const b = before.find((x) => x.id === f.id);
-      if (b && JSON.stringify(b) === JSON.stringify(f)) continue;
-      try { await srv.request('PUT', `/approvals/flows/${f.id}`, { levels: f.levels, approvers: f.approvers }); } catch (e) { logic.notify(e.message || 'Could not save the approval flow.', '#FF9B8A'); }
+      if (b && b.levels === f.levels) continue;   // only the number of levels is edited here; approvers follow from the "Approve level N" rights
+      try { await srv.request('PUT', `/approvals/flows/${f.id}`, { levels: f.levels }); } catch (e) { logic.notify(e.message || 'Could not save the approval flow.', '#FF9B8A'); }
     }
+    await load(logic, srv);   // the approver names per level come back from the server
   };
   const orig = logic.setState.bind(logic);
   logic.setState = (update, done) => { orig(update, done); clearTimeout(timer); timer = setTimeout(flush, 800); };

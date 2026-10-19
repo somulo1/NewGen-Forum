@@ -13,7 +13,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"hub/internal/access"
 	"hub/internal/app"
 	"hub/internal/authz"
 	"hub/internal/crypto"
@@ -405,18 +404,25 @@ func (s *Service) Onboard(ctx context.Context, p *tenant.Principal, list []NewPe
 		if err != nil {
 			return err
 		}
-		roleByKey := map[string]uuid.UUID{}
-		rs, err := tx.Query(ctx, `select key, id from hub.roles`)
+		type roleRef struct {
+			id     uuid.UUID
+			locked bool
+		}
+		roleByKey := map[string]roleRef{}
+		rs, err := tx.Query(ctx, `select key, id, locked from hub.roles`)
 		if err != nil {
 			return err
 		}
 		for rs.Next() {
 			var k string
-			var id uuid.UUID
-			_ = rs.Scan(&k, &id)
-			roleByKey[k] = id
+			var r roleRef
+			_ = rs.Scan(&k, &r.id, &r.locked)
+			roleByKey[k] = r
 		}
 		rs.Close()
+		// the organization's default role (if it set one) is what a person gets when no role is chosen
+		var defaultKey string
+		_ = tx.QueryRow(ctx, `select r.key from hub.default_role d join hub.roles r on r.id = d.role_id`).Scan(&defaultKey)
 		for i := range list {
 			n := list[i]
 			out[i] = Onboarded{Email: n.Email}
@@ -427,12 +433,16 @@ func (s *Service) Onboard(ctx context.Context, p *tenant.Principal, list []NewPe
 			out[i].Email = n.Email
 			role := n.Role
 			if role == "" {
-				role = "staff"
+				role = defaultKey
 			}
-			rid, ok := roleByKey[role]
-			if !ok || role == "superadmin" {
-				out[i].Status, out[i].Error = "rejected", "That role cannot be given when adding a person."
-				continue
+			var rid uuid.UUID // the nil id means no role
+			if role != "" {
+				ref, ok := roleByKey[role]
+				if !ok || ref.locked {
+					out[i].Status, out[i].Error = "rejected", "That role cannot be given when adding a person."
+					continue
+				}
+				rid = ref.id
 			}
 			id := app.NewID()
 			if _, err := tx.Exec(ctx, "savepoint row"); err != nil {
@@ -494,11 +504,13 @@ func (s *Service) insertPerson(ctx context.Context, tx pgx.Tx, dek []byte, p *te
 	if err := s.A.Sign.Seal(ctx, tx, "people", "id=$1", id); err != nil {
 		return "", err
 	}
-	if _, err := tx.Exec(ctx, `insert into hub.person_roles (org_id, person_id, role_id) values ($1,$2,$3)`, p.Org, id, role); err != nil {
-		return "", err
-	}
-	if err := s.A.Sign.Seal(ctx, tx, "person_roles", "person_id=$1", id); err != nil {
-		return "", err
+	if role != uuid.Nil {
+		if _, err := tx.Exec(ctx, `insert into hub.person_roles (org_id, person_id, role_id) values ($1,$2,$3)`, p.Org, id, role); err != nil {
+			return "", err
+		}
+		if err := s.A.Sign.Seal(ctx, tx, "person_roles", "person_id=$1", id); err != nil {
+			return "", err
+		}
 	}
 	secret := crypto.RandomToken(32)
 	if _, err := tx.Exec(ctx, `insert into hub.person_invites (org_id, person_id, token_hash, expires_at, created_by) values ($1,$2,$3,$4,$5)`,
@@ -730,7 +742,9 @@ func (s *Service) Update(ctx context.Context, p *tenant.Principal, id uuid.UUID,
 			if err := authz.Require(ctx, tx, p.Person, "roles", "Manage roles & rights"); err != nil {
 				return err
 			}
-			if *c.Role == "superadmin" {
+			var givesLocked bool
+			_ = tx.QueryRow(ctx, `select locked from hub.roles where key=$1`, *c.Role).Scan(&givesLocked)
+			if givesLocked {
 				ok, _ := authz.Can(ctx, tx, p.Person, "roles", "Manage roles & rights")
 				var mine bool
 				_ = tx.QueryRow(ctx, `select coalesce(r.locked,false) from hub.person_roles pr join hub.roles r on r.id=pr.role_id where pr.person_id=$1`, p.Person).Scan(&mine)
@@ -773,8 +787,12 @@ func (s *Service) validateChanges(ctx context.Context, tx pgx.Tx, c Changes) err
 	if c.Phone != nil && (len(*c.Phone) < 5 || len(*c.Phone) > 24) {
 		return httpx.Bad("Enter a valid phone number.")
 	}
-	if c.Role != nil {
-		if _, ok := access.Default().Defaults[*c.Role]; !ok {
+	if c.Role != nil && *c.Role != "" { // an empty role takes the person's role away
+		var ok bool
+		if err := tx.QueryRow(ctx, `select exists (select 1 from hub.roles where key=$1)`, *c.Role).Scan(&ok); err != nil {
+			return err
+		}
+		if !ok {
 			return httpx.Bad("Unknown role.")
 		}
 	}
@@ -819,8 +837,13 @@ func (s *Service) applyUpdate(ctx context.Context, tx pgx.Tx, a approvals.Applie
 			return err
 		}
 	}
-	if c.Role != nil {
-		if _, err := tx.Exec(ctx, `update hub.person_roles set role_id=(select id from hub.roles where key=$2), `+integrity.Bump+` where person_id=$1`, pl.Person, *c.Role); err != nil {
+	if c.Role != nil && *c.Role == "" {
+		if _, err := tx.Exec(ctx, `delete from hub.person_roles where person_id=$1`, pl.Person); err != nil {
+			return err
+		}
+	} else if c.Role != nil {
+		if _, err := tx.Exec(ctx, `insert into hub.person_roles (org_id, person_id, role_id) select $3, $1, id from hub.roles where key=$2
+			on conflict (org_id, person_id) do update set role_id=excluded.role_id, `+integrity.BumpOn("person_roles"), pl.Person, *c.Role, a.Org); err != nil {
 			return err
 		}
 		if err := s.A.Sign.Seal(ctx, tx, "person_roles", "person_id=$1", pl.Person); err != nil {

@@ -10,9 +10,10 @@ export async function load(logic, srv) {
   const roleCounts = Object.fromEntries(roles.map((r) => [r.id, r.count]));
   // who holds which role, from the directory
   const memberRoles = {};
-  (logic.dir || []).forEach((p) => { if (p.role) memberRoles[p.name] = p.role; });
-  if (srv.me.role) memberRoles[srv.me.name] = srv.me.role;
+  (logic.dir || []).forEach((p) => { memberRoles[p.name] = p.role || ''; });
+  memberRoles[srv.me.name] = srv.me.role || '';
   srv.rightsCatalog = cat;
+  const preview = logic.state.actingRole && roles.some((r) => r.id === logic.state.actingRole) && logic.state.myRole && logic.state.actingRole !== logic.state.myRole;
   // reporting lines between roles (and, where chosen, the person a role reports to)
   const reportsTo = {}, reportsPerson = {};
   roles.forEach((r) => {
@@ -20,7 +21,7 @@ export async function load(logic, srv) {
     if (r.reports_to_person) reportsPerson[r.id] = r.reports_to_person === srv.me.person ? srv.me.name : srv.nameOf.get(r.reports_to_person) || '';
   });
   srv.reportSnap = JSON.stringify({ reportsTo, reportsPerson });
-  logic.setState((st) => ({ reportsTo, reportsPerson, roleRights, roleCounts, memberRoles: { ...st.memberRoles, ...memberRoles }, actingRole: srv.me.role || st.actingRole, pendingRights: {} }));
+  logic.setState((st) => ({ reportsTo, reportsPerson, roleRights, roleCounts, serverRoles: roles, catalog: cat, memberRoles: { ...st.memberRoles, ...memberRoles }, myRole: srv.me.role || '', actingRole: preview ? st.actingRole : (srv.me.role || ''), roleSel: roles.some((r) => r.id === st.roleSel) ? st.roleSel : '', pendingRights: {} }));
 }
 
 const key = (role, mod, right) => role + '|' + mod + '|' + right;
@@ -43,7 +44,13 @@ export async function setRole(logic, srv, personName, role) {
   if (!pid) throw new Error('Choose someone from the directory.');
   const res = await srv.request('PATCH', '/people/' + pid, { role });
   const applied = !res || res.applied !== false;
-  if (applied) { logic.setState((st) => ({ memberRoles: { ...st.memberRoles, [personName]: role } })); await load(logic, srv); } else if (srv.reload.approvals) srv.reload.approvals();
+  if (applied) {
+    const d = (logic.dir || []).find((x) => x.name === personName);
+    if (d) d.role = role;
+    if (personName === srv.me.name) srv.me.role = role;
+    logic.setState((st) => ({ memberRoles: { ...st.memberRoles, [personName]: role } }));
+    await load(logic, srv);
+  } else if (srv.reload.approvals) srv.reload.approvals();
   return applied ? 'applied' : 'pending';
 }
 
@@ -59,4 +66,37 @@ export async function saveReporting(logic, srv) {
     await srv.request('PUT', '/roles/reporting', { role: r, reports_to_role: to, reports_to_person: pid || null });
   }
   await load(logic, srv);
+}
+
+// ---- making and changing roles and the rights catalog (all data on the server) ----
+
+const reload = (logic, srv) => load(logic, srv);
+
+// r = { name, desc, copy_from }. Returns the new role's id.
+export async function createRole(logic, srv, r) {
+  const res = await srv.request('POST', '/roles', { name: r.name, desc: r.desc || '', copy_from: r.copy_from || '' });
+  await reload(logic, srv);
+  return res.id;
+}
+// patch = { name?, desc?, scope?, default? }
+export async function updateRole(logic, srv, id, patch) {
+  await srv.request('PATCH', '/roles/' + id, patch);
+  await reload(logic, srv);
+}
+export async function deleteRole(logic, srv, id) {
+  await srv.request('DELETE', '/roles/' + id);
+  await reload(logic, srv);
+}
+// r = { module, name, kind }
+export async function addRight(logic, srv, r) {
+  await srv.request('POST', '/access/rights', { module: r.module, name: r.name, kind: r.kind || '' });
+  await reload(logic, srv);
+}
+export async function removeRight(logic, srv, module, name) {
+  await srv.request('DELETE', `/access/rights?module=${encodeURIComponent(module)}&name=${encodeURIComponent(name)}`);
+  await reload(logic, srv);
+}
+export async function addModule(logic, srv, label) {
+  await srv.request('POST', '/access/modules', { module: label, label });
+  await reload(logic, srv);
 }

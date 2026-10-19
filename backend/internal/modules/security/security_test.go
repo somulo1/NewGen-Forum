@@ -59,7 +59,7 @@ func TestRightsChangeAndLogsExportAndIntegrity(t *testing.T) {
 	e := testkit.New(t)
 	ownerU, slug := e.NewOrg("Olivia Owner")
 	_ = slug
-	e.MustDo(204, "PUT", "/approvals/flows/f8", map[string]any{"levels": 0, "approvers": []string{"a", "b", "c"}}, ownerU.Access)
+	e.MustDo(204, "PUT", "/approvals/flows/f8", map[string]any{"levels": 0}, ownerU.Access)
 	e.MustDo(200, "PUT", "/roles/staff/rights", map[string]any{"module": "wall", "right": "Post", "allowed": false}, ownerU.Access)
 	alerts := e.MustDo(200, "GET", "/security/alerts", nil, ownerU.Access)["alerts"].([]any)
 	got := false

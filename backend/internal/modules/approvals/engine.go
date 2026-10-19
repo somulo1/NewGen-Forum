@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"hub/internal/access"
 	"hub/internal/app"
 	"hub/internal/authz"
 	"hub/internal/crypto"
@@ -91,7 +92,7 @@ func fieldCtx(org uuid.UUID, id uuid.UUID, col string) crypto.Context {
 
 func (e *Engine) flow(ctx context.Context, tx pgx.Tx, key string) (*Flow, error) {
 	f := &Flow{Key: key}
-	err := tx.QueryRow(ctx, `select module, action, levels, approvers from hub.approval_flows where key=$1`, key).Scan(&f.Module, &f.Action, &f.Levels, &f.Approvers)
+	err := tx.QueryRow(ctx, `select module, action, levels from hub.approval_flows where key=$1`, key).Scan(&f.Module, &f.Action, &f.Levels)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, httpx.Bad("That action has no approval flow.")
 	}
@@ -255,28 +256,36 @@ func (e *Engine) Decide(ctx context.Context, p *tenant.Principal, id uuid.UUID, 
 	return out, err
 }
 
-// mayDecide: the requester never decides their own request. At each level the approver is a title, a role or "Line manager".
-// Roles that are locked (super admin) can stand in at any level, so a vacant position never blocks the organization.
+// mayDecide: the requester never decides their own request. A level is decided by anyone holding the right "Approve level N" in
+// the flow's module (given to roles on the Roles page). Locked (owner) roles can stand in at any level, so a vacant position
+// never blocks the organization.
 func (e *Engine) mayDecide(ctx context.Context, tx pgx.Tx, who, requester uuid.UUID, f *Flow, level int) (bool, error) {
 	if who == requester {
 		return false, nil
 	}
-	label := ""
-	if level >= 1 && level <= len(f.Approvers) {
-		label = f.Approvers[level-1]
+	return authz.Can(ctx, tx, who, f.Module, access.ApproveRight(level))
+}
+
+// waiting names the roles that can decide a level (for "waiting for ..." labels).
+func (e *Engine) waiting(ctx context.Context, tx pgx.Tx, module string, level int) string {
+	rs, err := tx.Query(ctx, `select r.name from hub.roles r
+		where r.locked or coalesce((select rr.allowed from hub.role_rights rr where rr.role_id = r.id and rr.module=$1 and rr.right_name=$2), false)
+		order by r.locked, r.name`, module, access.ApproveRight(level))
+	if err != nil {
+		return ""
 	}
-	var ok bool
-	err := tx.QueryRow(ctx, `
-		select exists (
-		  select 1 from hub.people p
-		  left join hub.person_roles pr on pr.person_id = p.id
-		  left join hub.roles r on r.id = pr.role_id
-		  where p.id = $1 and p.status = 'active' and (
-		    coalesce(r.locked,false)
-		    or lower(coalesce(r.name,'')) = lower($2) or lower(p.title) = lower($2)
-		    or ($2 = 'Line manager' and exists (select 1 from hub.person_reports x where x.person_id = $3 and x.manager_id = p.id))
-		  ))`, who, label, requester).Scan(&ok)
-	return ok, err
+	defer rs.Close()
+	var names []string
+	for rs.Next() {
+		var n string
+		if rs.Scan(&n) == nil {
+			names = append(names, n)
+		}
+	}
+	if len(names) > 3 {
+		names = append(names[:3], "…")
+	}
+	return strings.Join(names, ", ")
 }
 
 func (e *Engine) get(ctx context.Context, tx pgx.Tx, p *tenant.Principal, id uuid.UUID) (*Request, error) {
@@ -297,27 +306,27 @@ func (e *Engine) list(ctx context.Context, tx pgx.Tx, p *tenant.Principal, where
 	}
 	rs, err := tx.Query(ctx, `
 		select r.id, r.seq, r.flow_key, r.kind, r.title_enc, r.note_enc, r.requester, p.first_name || ' ' || p.last_name, r.level, r.status, r.created_at, r.decided_at,
-		       f.levels, f.approvers
+		       f.levels, f.module
 		from hub.approval_requests r join hub.people p on p.id = r.requester join hub.approval_flows f on f.key = r.flow_key
 		where `+where+` order by r.created_at desc, r.id desc limit `+fmt.Sprint(limit), args...)
 	if err != nil {
 		return nil, err
 	}
 	out := []*Request{}
-	var approvers [][]string
+	var modules []string
 	var seqs []int
 	for rs.Next() {
 		x := &Request{History: []Step{}}
 		var tEnc, nEnc []byte
-		var ap []string
+		var mod string
 		var sq int
-		if err := rs.Scan(&x.ID, &sq, &x.Flow, &x.Kind, &tEnc, &nEnc, &x.Requester, &x.By, &x.Level, &x.Status, &x.CreatedAt, &x.DecidedAt, &x.Levels, &ap); err != nil {
+		if err := rs.Scan(&x.ID, &sq, &x.Flow, &x.Kind, &tEnc, &nEnc, &x.Requester, &x.By, &x.Level, &x.Status, &x.CreatedAt, &x.DecidedAt, &x.Levels, &mod); err != nil {
 			rs.Close()
 			return nil, err
 		}
 		x.Levels = max(1, x.Levels)
 		out = append(out, x)
-		approvers = append(approvers, ap)
+		modules = append(modules, mod)
 		seqs = append(seqs, sq)
 		if t, err := crypto.FieldOpen(dek, fieldCtx(p.Org, x.ID, "title_enc"), tEnc); err == nil {
 			x.Title = string(t)
@@ -334,8 +343,8 @@ func (e *Engine) list(ctx context.Context, tx pgx.Tx, p *tenant.Principal, where
 	}
 	for i, x := range out {
 		x.Ref = ref(seqs[i])
-		if x.Level >= 1 && x.Level <= len(approvers[i]) && x.Status == "Pending" {
-			x.Waiting = approvers[i][x.Level-1]
+		if x.Status == "Pending" {
+			x.Waiting = e.waiting(ctx, tx, modules[i], x.Level)
 		}
 		ss, err := tx.Query(ctx, `select s.level, p.first_name || ' ' || p.last_name, s.decision, s.comment_enc, s.created_at from hub.approval_steps s join hub.people p on p.id = s.approver where s.request_id=$1 order by s.level`, x.ID)
 		if err != nil {
@@ -357,7 +366,7 @@ func (e *Engine) list(ctx context.Context, tx pgx.Tx, p *tenant.Principal, where
 		}
 		ss.Close()
 		if x.Status == "Pending" {
-			f := &Flow{Approvers: approvers[i]}
+			f := &Flow{Module: modules[i]}
 			x.CanDecide, _ = e.mayDecide(ctx, tx, p.Person, x.Requester, f, x.Level)
 		}
 	}
@@ -428,37 +437,44 @@ func (e *Engine) Cancel(ctx context.Context, p *tenant.Principal, id uuid.UUID) 
 func (e *Engine) Flows(ctx context.Context, p *tenant.Principal) ([]Flow, error) {
 	out := []Flow{}
 	err := e.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
-		rs, err := tx.Query(ctx, `select key, module, action, levels, approvers from hub.approval_flows order by length(key), key`)
+		rs, err := tx.Query(ctx, `select key, module, action, levels from hub.approval_flows order by length(key), key`)
 		if err != nil {
 			return err
 		}
 		defer rs.Close()
 		for rs.Next() {
 			var f Flow
-			if err := rs.Scan(&f.Key, &f.Module, &f.Action, &f.Levels, &f.Approvers); err != nil {
+			if err := rs.Scan(&f.Key, &f.Module, &f.Action, &f.Levels); err != nil {
 				return err
 			}
 			out = append(out, f)
 		}
-		return rs.Err()
+		if err := rs.Err(); err != nil {
+			return err
+		}
+		rs.Close()
+		for i := range out { // names of who decides each level (a second query, so the rows above are closed first)
+			out[i].Approvers = []string{}
+			for l := 1; l <= max(1, out[i].Levels); l++ {
+				out[i].Approvers = append(out[i].Approvers, e.waiting(ctx, tx, out[i].Module, l))
+			}
+		}
+		return nil
 	})
 	return out, err
 }
 
-func (e *Engine) SetFlow(ctx context.Context, p *tenant.Principal, key string, levels int, approvers []string) error {
-	if levels < 0 || levels > 3 || len(approvers) < levels || len(approvers) > 5 {
-		return httpx.Bad("A flow has up to 3 levels and a named approver for each.")
-	}
-	for _, a := range approvers {
-		if strings.TrimSpace(a) == "" || len(a) > 80 {
-			return httpx.Bad("Every approver needs a name.")
-		}
+// SetFlow sets how many levels a flow needs. Who approves each level is not stored on the flow: it is whoever holds the right
+// "Approve level N" in the flow's module.
+func (e *Engine) SetFlow(ctx context.Context, p *tenant.Principal, key string, levels int) error {
+	if levels < 0 || levels > 3 {
+		return httpx.Bad("A flow has between 0 and 3 levels.")
 	}
 	return e.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
 		if err := authz.Require(ctx, tx, p.Person, "roles", "Configure approvals"); err != nil {
 			return err
 		}
-		tag, err := tx.Exec(ctx, `update hub.approval_flows set levels=$2, approvers=$3, updated_at=now(), `+integrity.Bump+` where key=$1`, key, levels, approvers)
+		tag, err := tx.Exec(ctx, `update hub.approval_flows set levels=$2, updated_at=now(), `+integrity.Bump+` where key=$1`, key, levels)
 		if err != nil {
 			return err
 		}
@@ -468,6 +484,6 @@ func (e *Engine) SetFlow(ctx context.Context, p *tenant.Principal, key string, l
 		if err := e.A.Sign.Seal(ctx, tx, "approval_flows", "key=$1", key); err != nil {
 			return err
 		}
-		return e.A.Audit(ctx, tx, p.Org, &p.Person, p.Name, fmt.Sprintf("Set approval flow %s to %d levels", key, levels), "Roles", p.IP, map[string]any{"flow": key, "levels": levels, "approvers": approvers})
+		return e.A.Audit(ctx, tx, p.Org, &p.Person, p.Name, fmt.Sprintf("Set approval flow %s to %d levels", key, levels), "Roles", p.IP, map[string]any{"flow": key, "levels": levels})
 	})
 }
