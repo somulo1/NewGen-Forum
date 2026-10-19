@@ -19,6 +19,7 @@
 <video v-else-if="file.previewKind === 'video' && file.url" :src="file.url" controls preload="metadata" playsinline :aria-label="file.name" style="width: 100%; max-height: 100%; border-radius: 8px; background: #000"></video>
 <div v-else-if="file.previewKind === 'video'" style="color: #9DB0A6; font-size: 13px">Video preview unavailable</div>
 <iframe v-else-if="file.previewKind === 'pdf' && file.url" :src="file.url" :title="file.name" style="width: 100%; height: 100%; border: 0; border-radius: 6px; background: #fff"></iframe>
+<div v-else-if="file.previewKind === 'note'" :style="`width: 150px; height: 100%; max-height: 166px; border-radius: 4px; background: #FBF6E3; padding: 12px; box-sizing: border-box; display: flex; flex-direction: column; gap: 5px; overflow: hidden; box-shadow: 0 6px 14px rgba(0,0,0,0.35); opacity: ${file.live ? 1 : 0.45}`"><span style="font-size: 10px; font-weight: 600; line-height: 1.3; color: #2A2716; overflow: hidden; max-height: 2.7em">{{ file.name.replace(/\.note$/, '') }}</span><span style="height: 2px; width: 36%; background: #E0B93A"></span><span style="font-size: 7.5px; line-height: 1.5; color: #5A5434; white-space: pre-line; overflow: hidden; flex: 1">{{ file.live ? file.notePreview : 'This note is no longer shared.' }}</span></div>
 <div v-else-if="file.previewKind === 'sheet'" style="width: 100%; max-width: 190px; border-radius: 5px; background: #EDF1EE; padding: 6px; box-sizing: border-box; display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px">
 <template v-for="cell in 24" :key="cell"><span :style="`height: 12px; background: ${cell <= 4 ? '#8FC64A' : cell % 4 === 1 ? '#D6DED8' : '#E3E9E5'}`"></span></template>
 </div>
@@ -35,6 +36,7 @@
 <div style="padding: 12px 14px; display: flex; flex-direction: column; gap: 4px">
 <div style="display: flex; gap: 8px; align-items: center; min-width: 0"><span :style="`flex: none; padding: 1px 6px; border-radius: 4px; background: ${file.color}; color: #0F1714; font-size: 10px; font-weight: 700`">{{ file.kind }}</span><strong :title="file.name" style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px">{{ file.name }}</strong></div>
 <span style="font-size: 12px; color: #9DB0A6">{{ file.meta || 'Shared in this chat' }}</span>
+<button v-if="file.isNote" type="button" :disabled="!file.live" @click="file.noteOpen" :style="`height: 32px; margin-top: 5px; border: 1px solid #2A3832; border-radius: 9px; background: transparent; color: ${file.live ? '#E8EFEA' : '#6C7B73'}; cursor: ${file.live ? 'pointer' : 'default'}; font-size: 13px`">{{ file.live ? 'Open note' : 'Disconnected' }}</button>
 <a v-if="file.url" :href="file.url" :download="file.name" style="height: 32px; margin-top: 5px; border: 1px solid #2A3832; border-radius: 9px; color: #E8EFEA; text-decoration: none; display: flex; align-items: center; justify-content: center; font-size: 13px">Download</a>
 </div>
 </article>

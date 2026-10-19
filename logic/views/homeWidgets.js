@@ -1,13 +1,18 @@
 // renderVals step: homeWidgets. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildHomeWidgets(ctx) {
-  const { calItems, files, fmtDay, forums, has, ini, myUnits, nOpen, nOver, nSoon, openCm, openEv, orgWidgetItems, people, projStats, projects, s, sessions, tickets } = ctx;
+  const { calItems, files, fmtDay, sharedNotes, forums, has, ini, myUnits, nOpen, nOver, nSoon, openCm, openEv, orgWidgetItems, people, projStats, projects, s, sessions, tickets } = ctx;
   // ---- Files ----
   const kindColor = { PDF: '#FF9B8A', DOC: '#7CC4FF', XLS: '#B8F36B', PPT: '#FFB86B', IMG: '#F49AC1', ZIP: '#C9B6FF' };
-  const folders = s.folders.map((f) => ({ ...f, count: f.files.length,
+  // "Shared notes" is a built-in folder: notes shared with me (live links) and the notes I share.
+  const sn = sharedNotes;
+  const noteFolder = { id: 'sharednotes', name: 'Shared notes', color: '#FFD66B', audience: 'you and the people you share notes with', updated: sn.in.length ? sn.in[0].when : 'no notes yet', files: [], count: sn.in.length + sn.out.length,
+    samples: sn.in.concat(sn.out).slice(0, 3).map((x, i) => ({ kind: 'NOTE', color: '#FFD66B', h: [86, 74, 80][i] + 'px' })),
+    open: () => this.setState({ folder: 'sharednotes' }) };
+  const folders = [noteFolder].concat(s.folders.map((f) => ({ ...f, count: f.files.length,
     samples: f.files.slice(0, 3).map((x, i) => ({ kind: x.kind, color: kindColor[x.kind] || '#9DB0A6', h: [86, 74, 80][i] + 'px' })),
-    open: () => this.setState({ folder: f.id }) }));
-  const cur_f = s.folders.find((f) => f.id === s.folder);
-  const fv = cur_f ? { ...cur_f, count: cur_f.files.length, files: cur_f.files.map((x) => ({ ...x, color: kindColor[x.kind] || '#9DB0A6',
+    open: () => this.setState({ folder: f.id }) })));
+  const cur_f = s.folder === 'sharednotes' ? { id: 'sharednotes', name: 'Shared notes', color: '#FFD66B', audience: 'you and the people you share notes with', files: [], isNotes: true } : s.folders.find((f) => f.id === s.folder);
+  const fv = cur_f ? { ...cur_f, sn, isDocs: !cur_f.isNotes, count: cur_f.isNotes ? sn.in.length + sn.out.length : cur_f.files.length, files: cur_f.files.map((x) => ({ ...x, color: kindColor[x.kind] || '#9DB0A6',
     isDoc: x.kind === 'PDF' || x.kind === 'DOC', isSheet: x.kind === 'XLS', isSlide: x.kind === 'PPT', isImg: x.kind === 'IMG', isZip: x.kind === 'ZIP' || !kindColor[x.kind],
     hasUrl: !!x.url, noUrl: !x.url, imgBg: x.imgBg || '#3A3150' })) } : {};
 

@@ -1,5 +1,6 @@
 import { dmSamples, forumSamples } from '~/logic/samples.js';
 import { richTextHtml } from '~/logic/richText.js';
+import { noteText, notesConnected, isMine, permLabel } from '~/logic/noteText.js';
 // renderVals step: forums. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildForums(ctx) {
   const { s } = ctx;
@@ -166,10 +167,18 @@ export function buildForums(ctx) {
       chat: dmMessages, topics: [] };
   }
   const curView = isDM ? dmView : forumView;
-  const fileKindColor = { PDF: '#FF9B8A', DOC: '#7CC4FF', DOCX: '#7CC4FF', XLS: '#B8F36B', XLSX: '#B8F36B', PPT: '#FFB86B', PPTX: '#FFB86B', ZIP: '#C9B6FF', RAR: '#C9B6FF', '7Z': '#C9B6FF', IMG: '#F49AC1', VIDEO: '#6EE7C8' };
+  const fileKindColor = { PDF: '#FF9B8A', DOC: '#7CC4FF', DOCX: '#7CC4FF', XLS: '#B8F36B', XLSX: '#B8F36B', PPT: '#FFB86B', PPTX: '#FFB86B', ZIP: '#C9B6FF', RAR: '#C9B6FF', '7Z': '#C9B6FF', IMG: '#F49AC1', VIDEO: '#6EE7C8', NOTE: '#FFD66B' };
   const fileFolders = curView.chat.flatMap((message, messageIndex) => {
     if (!message.fileList.length) return [];
     const attachedFiles = message.fileList.map((file) => {
+      if (file.noteId) {
+        // A shared note: a live link. It stops opening if the share is stopped, the note is deleted or the Notes widget is removed.
+        const note = s.notes.find((x) => x.id === file.noteId);
+        const share = note && (note.shares || []).find((x) => x.id === file.shareId);
+        const live = !!share && isMine(note) && notesConnected(s);
+        return { ...file, kind: 'NOTE', previewKind: 'note', color: '#FFD66B', isNote: true, live, noteLive: live, notePreview: live ? noteText(note.body).split('\n').filter((l) => l.trim()).slice(0, 6).join('\n') : '',
+          meta: live ? 'Note · ' + permLabel(share.perm) + ' · live link' : 'Note · access removed', noteOpen: () => this.openNote(note.id) };
+      }
       const extension = (file.name || '').split('.').pop().toUpperCase();
       const kind = file.isImg ? 'IMG' : file.isVideo ? 'VIDEO' : ({ PNG: 'IMG', JPG: 'IMG', JPEG: 'IMG', GIF: 'IMG', SVG: 'IMG', WEBP: 'IMG', MP4: 'VIDEO', WEBM: 'VIDEO', MOV: 'VIDEO' })[extension] || extension || 'FILE';
       const previewKind = kind === 'IMG' ? 'image' : kind === 'VIDEO' ? 'video' : kind === 'PDF' ? 'pdf' : ['XLS', 'XLSX', 'CSV'].includes(kind) ? 'sheet' : ['PPT', 'PPTX'].includes(kind) ? 'slides' : ['ZIP', 'RAR', '7Z'].includes(kind) ? 'archive' : ['DOC', 'DOCX', 'TXT'].includes(kind) ? 'document' : 'file';
