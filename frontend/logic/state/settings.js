@@ -16,7 +16,7 @@ export function settingsState() {
   return {
     setTab: 'profile',
     orgProfile: { name: '[YOUR ORGANIZATION]', short: 'Org', logo: '', industry: 'Financial services', size: '201–500', website: '', email: '', phone: '', address: '', city: '', country: 'Kenya', timezone: 'Africa/Nairobi', language: 'English', currency: 'KES', regNo: '', taxId: '' },
-    orgSecurity: { mfa: false, session: '8', domains: '', retention: '12', externalSharing: true },
+    orgSecurity: { mfa: false, session: '8', domains: '', retention: '12', externalSharing: true, maxVideoMB: '50' },
     setDraft: null,
     orgSub: { plan: 'business', cycle: 'monthly', seats: 300, autoRenew: true, renews: iso(now + 23 * day), status: 'Active', cancelAt: '', addons: { storage: false, video: true, sms: false } },
     orgBilling: { cardBrand: 'Visa', cardLast4: '4242', cardExp: '08/28', holder: '', contactEmail: '', vat: '' },

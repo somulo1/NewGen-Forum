@@ -20,10 +20,11 @@ type Security struct {
 	Domains         string `json:"domains"`
 	Retention       string `json:"retention"` // months
 	ExternalSharing bool   `json:"externalSharing"`
+	MaxVideoMB      string `json:"maxVideoMB"` // largest video, in MB, that may be posted in forums, chats and the wall
 }
 
 func DefaultSecurity() Security {
-	return Security{Session: "8", Retention: "12", ExternalSharing: true}
+	return Security{Session: "8", Retention: "12", ExternalSharing: true, MaxVideoMB: "50"}
 }
 
 func cx(org uuid.UUID, section string) crypto.Context {

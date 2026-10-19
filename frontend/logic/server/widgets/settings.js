@@ -10,6 +10,7 @@ export async function load(logic, srv) {
   srv.etrAsked = srv.etrAsked || new Set();
   const all = await srv.request('GET', '/settings');
   apply(logic, all);
+  srv.maxVideoMB = Number(all.security && all.security.maxVideoMB) || 50;
   srv.plans = all.plans; srv.addons = all.addons; srv.seatsInUse = all.seats_in_use;
   try {
     const { invoices } = await srv.request('GET', '/billing/invoices');
@@ -32,6 +33,7 @@ export async function saveProfile(logic, srv, profile) {
 }
 export async function saveSecurity(logic, srv, security) {
   await srv.request('PUT', '/settings/security', security);
+  srv.maxVideoMB = Number(security.maxVideoMB) || 50;
   await load(logic, srv);
 }
 export async function saveBilling(logic, srv, billing) {

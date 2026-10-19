@@ -16,6 +16,8 @@ const kindOf = (name, type) => {
 
 // Uploads a browser File into a container. Returns what a message or record should carry about it.
 export async function upload(srv, container, file) {
+  const limit = (srv.maxVideoMB || 50) * 1048576;
+  if (kindOf(file.name, file.type) === 'VID' && file.size > limit) throw new Error('Videos can be up to ' + (srv.maxVideoMB || 50) + ' MB. "' + file.name + '" is ' + fmtSize(file.size) + '. Your administrator sets this limit in Settings.');
   const raw = new Uint8Array(await file.arrayBuffer());
   const fileKey = globalThis.crypto.getRandomValues(new Uint8Array(32));
   const nonce = globalThis.crypto.getRandomValues(new Uint8Array(12));
