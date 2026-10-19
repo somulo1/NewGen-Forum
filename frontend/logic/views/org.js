@@ -26,7 +26,16 @@ export function buildOrg(ctx) {
   const deptCats = { 'IT Operations': ['Network & Wi-Fi', 'Hardware', 'Access request'], 'Software Development': ['Software bug', 'Change request'], 'HR': ['HR request', 'Payroll query'], 'Finance': ['Payment query', 'Budget approval'], 'Risk & Compliance': ['Security incident', 'Compliance query'], 'Customer Care': ['Customer complaint'], 'Legal': ['Contract review'] };
   const escLevels = ['departments', 'units', 'branches', 'sectors'].filter((t) => has[t]);
   const escTypes = escLevels.length ? escLevels : ['desk'];
-  const escRecs = (type) => type === 'desk' ? [{ id: 'desk', name: 'Ticket team' }] : (O[type] || []).filter((r) => !(cur_t && type === 'departments' && r.name === cur_t.dept));
+  // Not back to where it is, and not into my own sector, branch, unit or department at the level it already sits at
+  // (moving it up a level into my own place is fine). The server enforces the same rule.
+  const myPlace = (this.dir || []).find((p) => this.srv && p.name === this.srv.me.name) || {};
+  const myOf = { departments: myPlace.dept, units: myPlace.unit, branches: myPlace.loc, sectors: myPlace.sector };
+  const escRecs = (type) => type === 'desk' ? [{ id: 'desk', name: 'Ticket team' }] : (O[type] || []).filter((r) => {
+    if (!cur_t) return true;
+    if (cur_t.to && cur_t.to.type === type && cur_t.to.name === r.name) return false;
+    if (cur_t.to && cur_t.to.type === type && myOf[type] === r.name) return false;
+    return !(type === 'departments' && !this.srv && r.name === cur_t.dept);
+  });
   const TB = { departments: 'department', units: 'unit', branches: 'branch', sectors: 'sector' };
   const srvCats = (type, r) => {
     const all = (this.srv && this.srv.ticketCats) || [];
@@ -57,7 +66,7 @@ export function buildOrg(ctx) {
   const escRec = escRecList.find((r) => r.id === ES.id) || (escType === 'desk' ? escRecList[0] : null);
   const escCatList = escRec ? escCats(escType, escRec) : [];
   const escCat = escCatList.indexOf(ES.cat) !== -1 ? ES.cat : '';
-  const escPpl = escRec && escCat ? escPeople(escType, escRec, escCat) : [];
+  const escPpl = (escRec && escCat ? escPeople(escType, escRec, escCat) : []).filter((p) => !cur_t || (p.name !== cur_t.raisedBy && !(cur_t.raisedBy === 'Sam' && this.srv && p.name === this.srv.me.name)));   // never the person who raised it
   const escPerson = escPpl.find((p) => p.name === ES.person) ? ES.person : '';
   const setEsc = (patch) => this.setState((st) => ({ esc: Object.assign({}, st.esc, patch) }));
   const escLabel = (t) => (t === 'desk' ? 'Ticket team' : typeName[t]);
