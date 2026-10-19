@@ -73,16 +73,21 @@ func (s *Service) Begin(ctx context.Context, p *tenant.Principal, folder uuid.UU
 	}
 	var out *File
 	err = s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
-		if err := authz.Require(ctx, tx, p.Person, "files", "Upload"); err != nil {
-			return err
-		}
 		var kind string
 		var epoch int
 		if err := tx.QueryRow(ctx, `select c.kind, c.epoch from hub.conversations c join hub.conversation_members m on m.conversation_id=c.id and m.account_id=$2 and m.left_at is null where c.id=$1`, folder, p.Account).Scan(&kind, &epoch); err != nil {
 			return httpx.ErrNotFound
 		}
-		if kind != "folder" {
-			return httpx.Bad("That is not a folder.")
+		// folders hold the Files library; the other containers hold attachments (wall photos, chat files, ticket evidence)
+		// that only their members can open
+		switch kind {
+		case "folder":
+			if err := authz.Require(ctx, tx, p.Person, "files", "Upload"); err != nil {
+				return err
+			}
+		case "wall", "forum", "dm", "ticket", "project", "event":
+		default:
+			return httpx.Bad("Files cannot be attached here.")
 		}
 		if in.Epoch != epoch {
 			return httpx.Err(409, "epoch_changed", "The folder's key changed. Fetch it and try again.")

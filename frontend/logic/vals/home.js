@@ -1,3 +1,4 @@
+import * as wallW from '~/logic/server/widgets/wall.js';
 // Values and handlers the templates read through hubBindings: home.
 export function valsHome(ctx) {
   const { canPost, curView, fileFolders, files, forums, ftab, gallery, go, ids, moments, nav, people, posts, s, selectedChatFolder, sessions, set, show, tab, tabTo, tickets, wfiles, widgets } = ctx;
@@ -95,7 +96,7 @@ export function valsHome(ctx) {
     onWallFiles: (e) => {
       const list = this.capFiles(this.state.wfiles.length, Array.from(e.target.files || [])).map((f, i) => {
         const isImg = (f.type || '').indexOf('image/') === 0;
-        return { id: Date.now() + '-' + i, name: f.name, meta: this.fmtSize(f.size), isImg: isImg, isVideo: (f.type || '').indexOf('video/') === 0, url: URL.createObjectURL(f) };
+        return { id: Date.now() + '-' + i, name: f.name, meta: this.fmtSize(f.size), isImg: isImg, isVideo: (f.type || '').indexOf('video/') === 0, url: URL.createObjectURL(f), file: f };
       });
       e.target.value = '';
       this.setState((st) => ({ wfiles: st.wfiles.concat(list) }));
@@ -111,7 +112,10 @@ export function valsHome(ctx) {
       if (wp && (opts.length < 2 || !t)) { this.notify('A poll needs a question and at least two options.', '#FFB86B'); return; }
       if (!t && !media.length) return;
       const pollData = wp ? { opts: opts.map((label, i) => ({ id: 'o' + i, label, votes: 0 })) } : undefined;
-      this.setState({ draft: '', wfiles: [], emojiW: false, wpoll: null, posts: [{ id: Date.now(), author: 'Sam', initials: 'S', color: '#F49AC1', meta: this.state.wallAudience + ' · Just now', text: t, postBg: postBg || undefined, likes: 0, extra: 0, shares: 0, comments: [], media: media, pollData }, ...this.state.posts] });
+      this.setState({ draft: '', wfiles: [], emojiW: false, wpoll: null });
+      wallW.post(this, this.srv, { text: t, postBg, files: media.map((m) => m.file).filter(Boolean), poll: wp ? opts : null, audience: this.state.wallAudience })
+        .then(() => this.notify('Posted to the wall.', '#B8F36B'))
+        .catch((e) => this.notify(e.message || 'Could not post.', '#FF9B8A'));
       return true;
     },
     postBtnStyle: 'height:38px;padding:0 22px;border-radius:19px;border:0;font-weight:600;cursor:' + (canPost ? 'pointer' : 'default') + ';background:' + (canPost ? '#B8F36B' : '#2A3832') + ';color:' + (canPost ? '#0F1714' : '#9DB0A6')

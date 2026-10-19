@@ -1,4 +1,5 @@
 import { shareUrl } from '~/logic/shareOut.js';
+import * as wallW from '~/logic/server/widgets/wall.js';
 import { richTextHtml } from '~/logic/richText.js';
 // renderVals step: wall. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildWall(ctx) {
@@ -31,18 +32,18 @@ export function buildWall(ctx) {
     const key = p.id + ':' + here.join('.');
     return { key, who: c.who, initials: c.initials, color: c.color, text: c.text, htmlText: richTextHtml(c.text), time: c.time || '', depth: path.length, replying: s.replyFor === key,
       startReply: () => this.setState({ replyFor: key }), cancel: () => this.setState({ replyFor: null }),
-      send: (text) => this.setState((st) => ({ replyFor: null, posts: st.posts.map((q) => (q.id === p.id ? { ...q, comments: addAt(q.comments || [], here, text) } : q)) })),
+      send: (text) => { this.setState({ replyFor: null }); wallW.comment(this, this.srv, c.id || p.id, text).catch((e) => this.notify(e.message || 'That did not work.', '#FF9B8A')); },
       replies: buildComments(p, c.replies || [], here) };
   });
   const userPollOf = (p) => (p.pollData ? (() => {
       const my = s.pollVotes[p.id];
       const tot = p.pollData.opts.reduce((n, o) => n + o.votes, 0) + (my ? 1 : 0);
-      return { tot, list: p.pollData.opts.map((o) => { const v = o.votes + (my === o.id ? 1 : 0); return { label: o.label + (my === o.id ? '  ✓' : ''), pct: my ? Math.round((v / tot) * 100) + '%' : '', vote: () => this.setState((st) => ({ pollVotes: { ...st.pollVotes, [p.id]: o.id } })),
+      return { tot, list: p.pollData.opts.map((o) => { const v = o.votes + (my === o.id ? 1 : 0); return { label: o.label + (my === o.id ? '  ✓' : ''), pct: my ? Math.round((v / tot) * 100) + '%' : '', vote: () => { this.setState((st) => ({ pollVotes: { ...st.pollVotes, [p.id]: o.id } })); wallW.vote(this, this.srv, p.id, o.id).catch((e) => this.notify(e.message || 'That did not work.', '#FF9B8A')); },
         style: 'display:flex;align-items:center;min-height:44px;padding:0 14px;border-radius:10px;cursor:pointer;font-size:14px;color:var(--k-E8EFEA,#E8EFEA);text-align:left;border:1px solid ' + (my === o.id ? '#B8F36B' : '#2A3832') + ';background:var(--k-121B17,#121B17)' }; }) };
   })() : null);
   const posts = s.posts.filter((p) => !s.hiddenPosts[p.id] && tagHit(p)).map((p) => {
     const liked = !!s.liked[p.id];
-    const mineP = p.author === 'Sam';
+    const mineP = p.author === 'Sam' || !!p.mine;
     const saved = !!s.savedPosts[p.id];
     const closeMenu = { postMenu: null };
     const userPoll = userPollOf(p);
@@ -54,7 +55,7 @@ export function buildWall(ctx) {
         { label: saved ? 'Unsave post' : 'Save post', run: () => this.setState((st) => ({ ...closeMenu, savedPosts: { ...st.savedPosts, [p.id]: !saved } })) },
         { label: 'Copy link', run: () => this.setState((st) => ({ ...closeMenu, shareNote: { ...st.shareNote, [p.id]: 'Link copied. Paste it anywhere in Hub.' } })) },
         { label: 'Hide this post', run: () => { this.setState((st) => ({ ...closeMenu, hiddenPosts: { ...st.hiddenPosts, [p.id]: true } })); this.notify('Post hidden. It will not show on your wall.', '#9DB0A6'); } },
-        mineP ? { label: 'Delete post', danger: true, run: () => { this.setState((st) => ({ ...closeMenu, posts: st.posts.filter((q) => q.id !== p.id) })); this.notify('Your post was deleted.', '#FF9B8A'); } }
+        mineP ? { label: 'Delete post', danger: true, run: () => { this.setState(closeMenu); wallW.remove(this, this.srv, p.id).catch((e) => this.notify(e.message || 'That did not work.', '#FF9B8A')); this.notify('Your post was deleted.', '#FF9B8A'); } }
           : { label: 'Report post', danger: true, run: () => { this.setState(closeMenu); this.notify('Thanks. The post was reported to the moderators.', '#FFB86B'); } }
       ],
       saved, savedLabel: saved ? 'Saved' : '',
@@ -68,7 +69,7 @@ export function buildWall(ctx) {
       toggleComments: () => this.setState((st) => ({ commentsOpen: { ...st.commentsOpen, [p.id]: !st.commentsOpen[p.id] }, replyFor: null })),
       commentTree: buildComments(p, p.comments || [], []),
       hasComments: (p.comments || []).length > 0,
-      addComment: (text) => this.setState((st) => ({ posts: st.posts.map((q) => (q.id === p.id ? { ...q, comments: (q.comments || []).concat([newComment(text)]) } : q)) })),
+      addComment: (text) => wallW.comment(this, this.srv, p.id, text).catch((e) => this.notify(e.message || 'That did not work.', '#FF9B8A')),
       media: p.media || [], hasMedia: !!(p.media && p.media.length),
       images: (p.media || []).filter((m) => m.isImg),
       docs: (p.media || []).filter((m) => !m.isImg && !m.isVideo),
@@ -104,17 +105,18 @@ export function buildWall(ctx) {
         const sid = 'sp' + Date.now();
         // The post goes to the forum as it is: text, images and poll. Reactions do not follow it; polls stay one poll.
         this.addForumMsg(f.id, '', undefined, undefined, { sid, postId: p.id, snap: { author: p.author, initials: p.initials, color: p.color, meta: p.meta, text: p.text || '', media: p.media || [] } });
-        this.setState((st) => ({ shareFor: null, shareCount: { ...st.shareCount, [p.id]: (st.shareCount[p.id] || 0) + 1 }, shareNote: { ...st.shareNote, [p.id]: 'Shared to ' + f.name + ' as it is.' } }));
+        this.setState((st) => ({ shareFor: null, shareNote: { ...st.shareNote, [p.id]: 'Shared to ' + f.name + ' as it is.' } }));
+        wallW.shared(this, this.srv, p.id, f.name).catch((e) => this.notify(e.message || 'That did not work.', '#FF9B8A'));
       } })),
       commentCount: p.extra + countAll(p.comments || []),
       heartFill: liked ? 'currentColor' : 'none',
-      like: () => this.setState({ liked: { ...this.state.liked, [p.id]: !liked } }),
+      like: () => { this.setState({ liked: { ...this.state.liked, [p.id]: !liked } }); wallW.toggleReaction(this, this.srv, p.id, 'like').catch((e) => this.notify(e.message || 'That did not work.', '#FF9B8A')); },
       likeStyle: 'height:40px;border-radius:10px;border:0;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;gap:8px;background:transparent;font-weight:' + (liked ? '600' : '400') + ';color:' + (liked ? '#FF9B8A' : '#C9D6CF'),
       onComment: (e) => {
         const v = (e.target.value || '').trim();
         if (e.key !== 'Enter' || !v) return;
         e.target.value = '';
-        this.setState({ posts: this.state.posts.map((q) => q.id === p.id ? { ...q, comments: [...q.comments, { who: 'Sam', initials: 'S', color: '#F49AC1', text: v }] } : q) });
+        wallW.comment(this, this.srv, p.id, v).catch((e) => this.notify(e.message || 'That did not work.', '#FF9B8A'));
       }
     };
   });

@@ -10,10 +10,11 @@ import * as tickets from './widgets/tickets.js';
 import * as projects from './widgets/projects.js';
 import * as awards from './widgets/awards.js';
 import * as profile from './widgets/profile.js';
+import * as wall from './widgets/wall.js';
 import * as approvals from './widgets/approvals.js';
 import * as notifications from './widgets/notifications.js';
 
-const WIDGETS = [people, profile, prefs, comms, calendar, tickets, projects, awards, approvals, notifications];
+const WIDGETS = [people, profile, prefs, comms, calendar, tickets, projects, awards, approvals, notifications, wall];
 
 async function openDevice(request, session) {
   const account = session.account;
@@ -37,12 +38,12 @@ async function openDevice(request, session) {
   return { device, deviceId: reg.id };
 }
 
-export async function startServerSync(logic, request, session) {
+export async function startServerSync(logic, request, session, bytes) {
   if (logic.srv) return logic.srv;
   const { device, deviceId } = await openDevice(request, session);
   const me = await request('GET', '/me');
   const vault = new Vault(request, { org: session.org.id, account: session.account, person: session.org.person, device, deviceId });
-  const srv = { request, vault, session, me, personOf: new Map(), nameOf: new Map(), reload: {} };
+  const srv = { request, bytes, vault, session, me, personOf: new Map(), nameOf: new Map(), reload: {} };
   logic.srv = srv;
   vault.custody().catch(() => {});   // hand keys to colleagues' new devices if they are waiting
   for (const w of WIDGETS) {

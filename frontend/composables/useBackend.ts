@@ -70,8 +70,23 @@ export const useBackend = () => {
     }
   };
 
+  // Binary transfer (encrypted file contents): PUT bytes up, or GET bytes down.
+  const bytes = async (method: 'GET' | 'PUT', path: string, body?: Uint8Array): Promise<Uint8Array | null> => {
+    let s = read();
+    if (s && Date.now() >= s.expiresAt) s = await refresh();
+    if (!s) throw new ApiError(401, 'signed_out', 'Sign in to continue.');
+    const res = await fetch(base + '/v1' + path, { method, headers: { Authorization: 'Bearer ' + s.access, ...(body ? { 'Content-Type': 'application/octet-stream' } : {}) }, body });
+    if (!res.ok) {
+      let msg = 'Transfer failed (' + res.status + ').';
+      try { msg = (await res.json()).error.message || msg; } catch (e) { /* not JSON */ }
+      throw new ApiError(res.status, 'error', msg);
+    }
+    return method === 'GET' ? new Uint8Array(await res.arrayBuffer()) : null;
+  };
+
   return {
     session: read,
+    bytes,
     signedIn: () => !!read(),
     async login(email: string, password: string, totp = ''): Promise<Session> {
       const e = email.trim();
