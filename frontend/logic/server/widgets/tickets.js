@@ -150,6 +150,8 @@ export async function saveUnitCats(logic, srv, key, rows) {
 
 // ---- settings: the timing policy and default categories (the TAT settings page saves as you edit) ----
 export function watchSettings(logic, srv) {
+  if (srv.watchingTset) return;
+  srv.watchingTset = true;
   const pick = (t) => JSON.stringify({ start: t.start, end: t.end, pause: t.pause, notify: t.notify, nearPct: t.nearPct, escalate: t.escalate });
   const cats = (t) => JSON.stringify(t.cats);
   let saved = { cfg: pick(logic.state.tset), cats: cats(logic.state.tset) };

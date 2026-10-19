@@ -1,4 +1,7 @@
 // HubLogic actions: messaging. Mixed into HubLogic.prototype, so `this` is the HubLogic instance.
+import * as forumsW from '~/logic/server/widgets/forums.js';
+import * as dmsW from '~/logic/server/widgets/dms.js';
+
 export const messagingActions = {
   postMsg(text, file, replyTo) {
     const gate = this._chatGate;
@@ -7,21 +10,21 @@ export const messagingActions = {
     else this.addForumMsg(this.state.forum, text, file, replyTo);
   },
 
+  // Shows the message at once, then seals and sends it; the stored copy replaces it when the server echoes it back.
   addDmMsg(id, text, file, replyTo) {
-    this.setState((st) => ({ dms: st.dms.map((d) => (d.id === id ? { ...d, msgs: d.msgs.concat([{ id: crypto.randomUUID(), from: 'me', text: text, file: file, replyTo: replyTo || null, time: 'Just now' }]) } : d)) }));
-    if (!text) return;
-    const replies = ['Got it, thanks!', 'Sure, give me a minute.', 'Okay, I\'ll check and get back to you.', 'Thanks for the update.', 'Can we jump on a quick call?'];
-    clearTimeout(this._dmT);
-    this._dmT = setTimeout(() => {
-      const conv = this.state.dms.find((d) => d.id === id);
-      const pr = (conv && this.state.dmPrivacy[conv.with]) || {};
-      if (pr.blocked || pr.noChat) return;
-      this.setState((st) => ({ dms: st.dms.map((d) => (d.id === id ? { ...d, msgs: d.msgs.concat([{ id: crypto.randomUUID(), from: d.with, text: replies[d.msgs.length % replies.length], time: 'Just now' }]) } : d)) }));
-    }, 2600);
+    const tmp = crypto.randomUUID();
+    this.setState((st) => ({ dms: st.dms.map((d) => (d.id === id ? { ...d, msgs: d.msgs.concat([{ id: tmp, from: 'me', text: text, file: file, replyTo: replyTo || null, time: 'Just now', pending: true }]) } : d)) }));
+    if (!this.srv) return;
+    const drop = () => this.setState((st) => ({ dms: st.dms.map((d) => ({ ...d, msgs: d.msgs.filter((m) => m.id !== tmp) })) }));
+    dmsW.send(this, this.srv, id, { text: text || '', files: [].concat(file || []).map((f) => f.file).filter(Boolean), replyTo: replyTo || null })
+      .then((conv) => dmsW.refresh(this, this.srv, conv).then(drop))
+      .catch((e) => { drop(); this.notify(e.message || 'Could not send the message.', '#FF9B8A'); });
   },
 
   openDm(name) {
-    if (!name || name === 'Samwel Okoth Omulo') return;
+    if (!name || name === 'Samwel Okoth Omulo' || (this.srv && name === this.srv.me.name)) return;
+    const known = this.state.dms.find((d) => d.with === name);
+    if (this.srv && known) dmsW.markRead(this, this.srv, known.id);
     this.setState((st) => {
       let conv = st.dms.find((d) => d.with === name);
       const dms = conv ? st.dms.map((d) => (d.id === conv.id ? { ...d, unread: 0 } : d)) : [{ id: 'dm-' + Date.now(), with: name, unread: 0, msgs: [] }].concat(st.dms);
@@ -30,7 +33,14 @@ export const messagingActions = {
     });
   },
 
+  // The message shows at once; when the forum is on the server it is sealed and sent, then replaced by the stored copy.
   addForumMsg(fid, text, file, replyTo, shared) {
-    this.setState((st) => ({ added: { ...st.added, [fid]: [...(st.added[fid] || []), { id: crypto.randomUUID(), who: 'Sam', initials: 'S', color: '#F49AC1', time: 'Just now', text: text, file: file, replyTo: replyTo || null, shared: shared || null, replies: 0 }] } }));
+    const tmp = crypto.randomUUID();
+    this.setState((st) => ({ added: { ...st.added, [fid]: [...(st.added[fid] || []), { id: tmp, who: 'Sam', initials: 'S', color: '#F49AC1', time: 'Just now', text: text, file: file, replyTo: replyTo || null, shared: shared || null, replies: 0 }] } }));
+    if (!forumsW.isLive(this.srv, fid)) return;
+    const dropTmp = () => this.setState((st) => ({ added: { ...st.added, [fid]: (st.added[fid] || []).filter((m) => m.id !== tmp) } }));
+    forumsW.send(this, this.srv, fid, { text, files: [].concat(file || []).map((f) => f.file).filter(Boolean), replyTo: replyTo && replyTo.mid, shared })
+      .then(dropTmp)
+      .catch((e) => { dropTmp(); this.notify(e.message || 'Could not send the message.', '#FF9B8A'); });
   }
 };

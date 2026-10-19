@@ -12,17 +12,25 @@ export class Vault {
     this.convs = new Map();     // conversation id -> latest known conversation (epoch, members)
   }
 
+  // One request per conversation at a time: opening a page of messages asks for the same keys hundreds of times at once.
   async epochKeys(conv, force = false) {
     let m = this.keys.get(conv);
     if (m && !force) return m;
-    m = m || new Map();
-    const { keys } = await this.request('GET', `/conversations/${conv}/keys`);
-    for (const k of keys) {
-      if (k.device !== this.deviceId || m.has(k.epoch)) continue;
-      try { m.set(k.epoch, await this.device.unwrap(unb64(k.wrapped_key))); } catch (e) { /* not wrapped for this device */ }
-    }
-    this.keys.set(conv, m);
-    return m;
+    this.inflight = this.inflight || new Map();
+    const k = 'keys:' + conv;
+    if (this.inflight.has(k)) return this.inflight.get(k);
+    const job = (async () => {
+      const have = this.keys.get(conv) || new Map();
+      const { keys } = await this.request('GET', `/conversations/${conv}/keys`);
+      for (const kk of keys) {
+        if (kk.device !== this.deviceId || have.has(kk.epoch)) continue;
+        try { have.set(kk.epoch, await this.device.unwrap(unb64(kk.wrapped_key))); } catch (e) { /* not wrapped for this device */ }
+      }
+      this.keys.set(conv, have);
+      return have;
+    })().finally(() => this.inflight.delete(k));
+    this.inflight.set(k, job);
+    return job;
   }
   async keyFor(conv, epoch) {
     let m = await this.epochKeys(conv);
@@ -30,16 +38,57 @@ export class Vault {
     return m.get(epoch) || null;
   }
 
+  // Signing keys of other people's devices are fetched in batches: everyone asked for in the same tick goes in one request.
+  batchSigning(personId) {
+    this.signQ = this.signQ || { people: new Map(), timer: 0 };
+    const q = this.signQ;
+    return new Promise((resolve, reject) => {
+      const w = q.people.get(personId) || [];
+      w.push({ resolve, reject });
+      q.people.set(personId, w);
+      if (!q.timer) q.timer = setTimeout(() => this.flushSigning(), 0);
+    });
+  }
+  async flushSigning() {
+    const q = this.signQ;
+    this.signQ = null;
+    const ids = [...q.people.keys()];
+    try {
+      for (let i = 0; i < ids.length; i += 1000) {
+        const { devices } = await this.request('POST', '/e2ee/people/devices', { people: ids.slice(i, i + 1000) });
+        for (const d of devices) {
+          const have = this.signing.get(d.account) || new Map();
+          have.set(d.id, unb64(d.signing_key));
+          this.signing.set(d.account, have);
+        }
+      }
+      q.people.forEach((ws) => ws.forEach((w) => w.resolve()));
+    } catch (e) { q.people.forEach((ws) => ws.forEach((w) => w.reject(e))); }
+  }
+
   async signingKey(accountId, personId, deviceId) {
     let byDev = this.signing.get(accountId);
     if (!byDev || (deviceId && !byDev.has(deviceId))) {
-      byDev = byDev || new Map();
-      if (accountId === this.account) {
-        for (const d of (await this.request('GET', '/e2ee/devices')).devices) byDev.set(d.id, unb64(d.signing_key));
-      } else if (personId) {
-        for (const d of (await this.request('GET', `/e2ee/people/${personId}/devices`)).devices) byDev.set(d.id, unb64(d.signing_key));
+      this.inflight = this.inflight || new Map();
+      const k = 'sign:' + accountId + ':' + (byDev ? 'all' : 'first');
+      if (!this.inflight.has(k)) {
+        const job = (async () => {
+          const have = this.signing.get(accountId) || new Map();
+          if (accountId === this.account) {
+            for (const d of (await this.request('GET', '/e2ee/devices')).devices) have.set(d.id, unb64(d.signing_key));
+          } else if (personId) {
+            // first look: the batch (active devices). A device that is not there (revoked since) is asked for by itself.
+            if (!byDev) { await this.batchSigning(personId); for (const [id, key] of this.signing.get(accountId) || []) have.set(id, key); }
+            if (!have.size || (deviceId && !have.has(deviceId))) {
+              for (const d of (await this.request('GET', `/e2ee/people/${personId}/devices`)).devices) have.set(d.id, unb64(d.signing_key));
+            }
+          }
+          this.signing.set(accountId, have);
+          return have;
+        })().finally(() => this.inflight.delete(k));
+        this.inflight.set(k, job);
       }
-      this.signing.set(accountId, byDev);
+      byDev = await this.inflight.get(k);
     }
     return deviceId ? byDev.get(deviceId) || [...byDev.values()][0] : [...byDev.values()][0];
   }

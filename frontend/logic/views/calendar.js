@@ -30,7 +30,7 @@ export function buildCalendar(ctx) {
   const isClosed = (e, iso) => (e.closedDates || []).indexOf(iso) !== -1;
   const ended = (e, iso) => isPast(e, iso) || isClosed(e, iso);
   const isMine = (e) => e.type !== 'Deadline' && (e.by === ME || e.by === 'Sam');
-  const joinEvent = (e) => this.startCall(e.type === 'Standup' ? 'voice' : 'video', e.title, e.title.split(' ').map((x) => x[0]).join('').slice(0, 2).toUpperCase(), typeColor[e.type], e.people, null, null, e.by && e.by !== 'Samwel Okoth Omulo' ? 'in' : 'out');
+  const joinEvent = (e) => this.startCall(e.type === 'Standup' ? 'voice' : 'video', e.title, e.title.split(' ').map((x) => x[0]).join('').slice(0, 2).toUpperCase(), typeColor[e.type], e.people, null, e.container || null, e.by && e.by !== 'Samwel Okoth Omulo' ? 'in' : 'out');
   const cal = {
     monthLabel: new Date(firstISO + 'T12:00:00+03:00').toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'Africa/Nairobi' }),
     prevMonth: () => { this.setState({ calMonth: monthShift(-1) }); calendarW.ensureMonth(this, this.srv, monthShift(-1)); }, nextMonth: () => { this.setState({ calMonth: monthShift(1) }); calendarW.ensureMonth(this, this.srv, monthShift(1)); },

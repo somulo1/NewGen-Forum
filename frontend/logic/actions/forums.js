@@ -1,4 +1,5 @@
 import { chime, hangup, startRing, stopRing } from '~/logic/tones.js';
+import * as callsW from '~/logic/server/calls.js';
 import { MY_NAME, defaultPolicy, othersVoted, pollCap } from '~/logic/polls.js';
 
 // HubLogic actions: forum polls, forum chat rules and private-chat privacy.
@@ -103,6 +104,12 @@ export const forumActions = {
     clearTimeout(this._incT);
     stopRing();
     this.setState({ incoming: null });
+    if (this.srv && inc.callId) {
+      this._joinCallId = inc.callId;
+      if (inc.context === 'dm') { const d0 = this.dir.find((x) => x.name === inc.name) || { initials: inc.name.split(' ').map((x) => x[0]).join(''), color: '#C9B6FF' }; this.startDmCall(inc.kind, inc.name, d0.initials, d0.color, 'in'); }
+      else this.startCall(inc.kind, (inc.context === 'forum' ? 'Forum call' : 'Meeting') + ' with ' + inc.name, inc.name.split(' ').map((x) => x[0]).join('').slice(0, 2), '#7CC4FF', [], inc.context === 'forum' ? 'forum' : null, inc.context === 'forum' && this.srv.forumLocalId ? this.srv.forumLocalId.get(inc.conversation) : inc.conversation, 'in');
+      return;
+    }
     const d = this.dir.find((x) => x.name === inc.name) || { initials: inc.name.split(' ').map((x) => x[0]).join(''), color: '#C9B6FF' };
     this.startDmCall(inc.kind, inc.name, d.initials, d.color, 'in');
   },
@@ -110,6 +117,7 @@ export const forumActions = {
     clearTimeout(this._incT);
     stopRing(); hangup();
     const inc = this.state.incoming;
+    if (this.srv && inc && inc.callId) { if (inc.context === 'dm') callsW.decline(this.srv, inc.callId); this.setState({ incoming: null }); return; }
     if (inc) this.logCall({ ctx: 'dm', ref: inc.name, kind: inc.kind, dir: 'declined' });
     this.setState({ incoming: null });
   }

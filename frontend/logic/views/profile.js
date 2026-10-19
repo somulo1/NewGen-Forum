@@ -17,8 +17,19 @@ export function buildProfile(ctx) {
   const saveNow = (patch) => { setPf(patch); if (this.srv && !s.profileEdit) profileW.save(this, this.srv).catch((e) => this.notify(e.message || 'Could not save.', '#FF9B8A')); };
   const mi = s.meInfo || { name: 'Samwel Okoth Omulo', initials: 'S', color: '#C2185B', email: '', title: '', dept: '', branch: '', role: '', joined: '' };
   const joinedLabel = mi.joined ? fmtDay(mi.joined) : '';
-  let localTime = '';
-  try { localTime = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Nairobi' }); } catch (err) { localTime = ''; }
+  // The organization's time zone (Settings > Regional); the profile shows the time there and its offset from GMT.
+  const orgTz = (s.orgProfile && s.orgProfile.timezone) || 'Africa/Nairobi';
+  let localTime = '', gmt = 'GMT';
+  try {
+    localTime = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: orgTz });
+    const off = new Intl.DateTimeFormat('en-GB', { timeZone: orgTz, timeZoneName: 'longOffset' }).formatToParts(new Date()).find((x) => x.type === 'timeZoneName');
+    gmt = off ? off.value.replace(/:00$/, '').replace(/([+-])0(\d)/, '$1$2').replace(/^GMT$/, 'GMT+0') : 'GMT';
+  } catch (err) { localTime = ''; }
+  const where = (branch) => branch || (s.orgProfile && s.orgProfile.country) || 'Not set';
+  // Who a person answers to, from the server (their manager, the person their role reports to, or the role). Without it, the local rules.
+  const reportLine = (rt, fallback) => (!rt ? fallback : rt.kind === 'person' ? { display: rt.person.name, sub: rt.role ? rt.role + ' · reporting line' : 'Manager' } : rt.kind === 'role' ? { display: rt.role, sub: 'Role' } : { display: 'No one', sub: 'Top of the organization' });
+  // What someone did in the forums you can see: their latest messages.
+  const forumActivity = (who) => (s.forumsLive || []).flatMap((f) => f.updates.filter((u) => u.who === who && u.text).slice(0, 1).map((u) => ({ tag: 'F', color: '#6EE7C8', text: 'Posted in ' + f.name + ': "' + (u.text.length > 70 ? u.text.slice(0, 70) + '…' : u.text) + '"', time: u.time, at: u.at || '' }))).sort((a, b) => (a.at < b.at ? 1 : -1)).slice(0, 2);
   const checks = [!!pf.photo, (pf.bio || '').trim().length > 20, pf.skills.length >= 3, true, !!pf.phone.trim()];
   const complete = Math.round((checks.filter(Boolean).length / checks.length) * 100);
   const tip = !pf.photo ? 'Add a profile photo so colleagues recognise you.' : !pf.phone.trim() ? 'Add your phone number to reach 100%.' : (pf.bio || '').trim().length <= 20 ? 'Write a short bio.' : 'Your profile is complete.';
@@ -27,12 +38,14 @@ export function buildProfile(ctx) {
   const myActivity0 = myPosts.slice(0, 2).map((p) => ({ tag: 'W', color: '#F49AC1', text: 'Posted on the wall: "' + ((p.text || 'a file').length > 70 ? p.text.slice(0, 70) + '…' : (p.text || 'a file')) + '"', time: p.meta.split('· ').pop() }))
     .concat(myRaised.slice(0, 2).map((t) => ({ tag: 'T', color: '#FF9B8A', text: 'Raised ' + t.id + ': ' + t.title, time: t.created })))
     .concat(s.tickets.filter((t) => t.handler === mi.name).slice(0, 2).map((t) => ({ tag: 'A', color: '#7CC4FF', text: 'Handling ' + t.id + ': ' + t.title, time: t.handlerSince || t.created })))
-    .concat(s.awardList.filter((a) => a.status === 'Approved' && a.people.indexOf(mi.name) !== -1).map((a) => ({ tag: 'B', color: '#FFD66B', text: 'Earned the ' + a.type + ' award', time: fmtDay(a.date) })));
+    .concat(s.awardList.filter((a) => a.status === 'Approved' && a.people.indexOf(mi.name) !== -1).map((a) => ({ tag: 'B', color: '#FFD66B', text: 'Earned the ' + a.type + ' award', time: fmtDay(a.date) })))
+    .concat(forumActivity('Sam'));
   const myActivity = myActivity0;
+  const myReport = reportLine(mi.reportsTo, reportOf(mi.name));
   const kindOf = { W: 'Wall post', T: 'Ticket', F: 'File', A: 'Assignment', B: 'Badge', P: 'Project' };
   const withKind = (arr) => arr.map((a) => ({ ...a, kind: kindOf[a.tag] || 'Activity' }));
   const meOwn = {
-    isOther: false, initials: mi.initials, color: mi.color, aboutTitle: 'About me', forumsTitle: 'My forums', reportsTo: reportOf(mi.name).display,
+    isOther: false, initials: mi.initials, color: mi.color, aboutTitle: 'About me', forumsTitle: 'My forums', reportsTo: myReport.display,
     name: mi.name, email: mi.email, role: mi.title, dept: mi.dept,
     status: curStatus.label, statusColor: curStatus.color, statusNote: curStatus.note, statusMenu: s.statusMenu,
     statuses: statusDefs.map((x) => ({ ...x, pick: () => { this.setState({ statusMenu: false }); saveNow({ status: x.label }); } })),
@@ -46,8 +59,8 @@ export function buildProfile(ctx) {
     skills: pf.skills.map((n, i) => ({ name: n, editing: s.profileEdit, remove: () => this.setState((st) => ({ profile: { ...st.profile, skills: st.profile.skills.filter((x, j) => j !== i) } })) })),
     facts: [
       { label: 'Department', value: mi.dept || 'Not set', sub: mi.unit || mi.title },
-      { label: 'Reports to', value: reportOf(mi.name).display, sub: reportOf(mi.name).sub },
-      { label: 'Location', value: mi.branch || 'Kenya', sub: 'GMT+3 · ' + localTime + ' now' },
+      { label: 'Reports to', value: myReport.display, sub: myReport.sub },
+      { label: 'Location', value: where(mi.branch), sub: gmt + ' · ' + localTime + ' now' },
       { label: 'Member since', value: joinedLabel || 'Not recorded', sub: mi.role || 'Hub member' }
     ],
     stats: [
@@ -81,21 +94,16 @@ export function buildProfile(ctx) {
     const opRaised = s.tickets.filter((t) => mine(t.raisedBy));
     const opHandled = s.tickets.filter((t) => mine(t.handler) || (t.assignees || []).some(mine));
     const opPosts = s.posts.filter((p) => mine(p.author));
+    const opReport = reportLine(pd && pd.reports_to, reportOf(opDir.name));
     const opAwards = has.awards ? s.awardList.filter((a) => a.status === 'Approved' && a.people.indexOf(opDir.name) !== -1) : [];
     const opProjIds = s.projects.filter((p) => (p.tasks || []).some((t) => mine(t.who))).map((p) => p.id);
     const opActivity = opPosts.slice(0, 2).map((p) => ({ tag: 'W', color: '#F49AC1', text: 'Posted on the wall: "' + ((p.text || 'a file').length > 70 ? p.text.slice(0, 70) + '…' : (p.text || 'a file')) + '"', time: p.meta.split('· ').pop() }))
       .concat(opRaised.slice(0, 2).map((t) => ({ tag: 'T', color: '#FF9B8A', text: 'Raised ' + t.id + ': ' + t.title, time: t.created })))
       .concat(opHandled.slice(0, 2).map((t) => ({ tag: 'A', color: '#7CC4FF', text: 'Handling ' + t.id + ': ' + t.title, time: t.created })))
       .concat(opAwards.map((a) => ({ tag: 'B', color: '#FFD66B', text: 'Earned the ' + a.type + ' award', time: fmtDay(a.date) })))
-      .concat([
-        { tag: 'F', color: '#6EE7C8', text: 'Shared a document in the ' + opDir.dept + ' forum', time: 'Yesterday' },
-        { tag: 'P', color: '#C9B6FF', text: 'Updated a task in ' + opDir.dept + ' planning', time: 'Last week' },
-        { tag: 'A', color: '#7CC4FF', text: 'Joined the weekly ' + opDir.dept + ' standup', time: '2 weeks ago' },
-        { tag: 'F', color: '#6EE7C8', text: 'Downloaded the "Staff handbook" from Files', time: '2 weeks ago' },
-        { tag: 'W', color: '#F49AC1', text: 'Reacted to a post on the community wall', time: 'Last month' }
-      ]);
+      .concat(forumActivity(opDir.name));
     meOther = {
-      isOther: true, initials: opDir.initials, color: opDir.color, aboutTitle: 'About ' + first, forumsTitle: 'Forums', reportsTo: reportOf(opDir.name).display,
+      isOther: true, initials: opDir.initials, color: opDir.color, aboutTitle: 'About ' + first, forumsTitle: 'Forums', reportsTo: opReport.display,
       name: opDir.name, email: (pd && pd.email) || opDir.email || '', role: opDir.title, dept: opDir.dept,
       status: opStatus.label, statusColor: opStatus.color, statusNote: opStatus.note, statusMenu: false, statuses: [],
       photo: '', hasPhoto: false, noPhoto: true, editing: false, notEditing: true,
@@ -104,8 +112,8 @@ export function buildProfile(ctx) {
       skills: ((pd && pd.skills && pd.skills.length ? pd.skills : null) || skillsByDept[opDir.dept] || ['Teamwork']).map((n) => ({ name: n, editing: false, remove: () => {} })),
       facts: [
         { label: 'Department', value: opDir.dept, sub: opDir.title },
-        { label: 'Reports to', value: reportOf(opDir.name).display, sub: reportOf(opDir.name).sub },
-        { label: 'Location', value: opDir.loc || 'Kenya', sub: 'GMT+3 · ' + localTime + ' now' },
+        { label: 'Reports to', value: opReport.display, sub: opReport.sub },
+        { label: 'Location', value: where(opDir.loc), sub: gmt + ' · ' + localTime + ' now' },
         { label: 'Member since', value: pd && pd.joined_on ? fmtDay(pd.joined_on) : 'Not recorded', sub: (pd && pd.role_name) || 'Hub member' }
       ],
       stats: [
@@ -123,7 +131,7 @@ export function buildProfile(ctx) {
       ],
       localTime, hours: ts.start + ' to ' + ts.end,
       badges: opAwards.map((a) => ({ name: a.type, when: fmtDay(a.date), color: '#FFD66B', bg: '#2A2716' })), hasBadges: opAwards.length > 0,
-      forums: forums.slice(0, 3).map((f) => ({ ...f, myRole: 'Member' }))
+      forums: (s.forumsLive ? forums.filter((f) => (f.memberList || []).some((m) => m.name === opDir.name)).slice(0, 6).map((f) => ({ ...f, myRole: ((f.memberList.find((m) => m.name === opDir.name) || {}).role || 'member').replace(/^./, (c) => c.toUpperCase()) })) : forums.slice(0, 3).map((f) => ({ ...f, myRole: 'Member' })))
     };
   }
   const me = meOther || meOwn;

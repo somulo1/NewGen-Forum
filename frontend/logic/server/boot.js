@@ -2,6 +2,7 @@
 // API into the logic state. Each widget has its own file in widgets/ exporting load(logic, srv) and, where it writes, actions.
 import { Device, unb64, b64 } from './e2ee.js';
 import { Vault } from './vault.js';
+import * as callsW from './calls.js';
 import * as people from './widgets/people.js';
 import * as comms from './widgets/comms.js';
 import * as prefs from './widgets/prefs.js';
@@ -11,10 +12,12 @@ import * as projects from './widgets/projects.js';
 import * as awards from './widgets/awards.js';
 import * as profile from './widgets/profile.js';
 import * as wall from './widgets/wall.js';
+import * as forums from './widgets/forums.js';
+import * as dms from './widgets/dms.js';
 import * as approvals from './widgets/approvals.js';
 import * as notifications from './widgets/notifications.js';
 
-const WIDGETS = [people, profile, prefs, comms, calendar, tickets, projects, awards, approvals, notifications, wall];
+const WIDGETS = [people, profile, prefs, comms, calendar, tickets, projects, awards, approvals, notifications, wall, forums, dms];
 
 async function openDevice(request, session) {
   const account = session.account;
@@ -47,8 +50,16 @@ export async function startServerSync(logic, request, session, bytes) {
   logic.srv = srv;
   vault.custody().catch(() => {});   // hand keys to colleagues' new devices if they are waiting
   for (const w of WIDGETS) {
+    const t0 = performance.now();
     try { await w.load(logic, srv); } catch (e) { console.warn('Could not load ' + (w.name || 'a widget') + ':', e); }
+    console.debug('[hub] ' + (w.name || 'widget') + ' loaded in ' + Math.round(performance.now() - t0) + ' ms');
   }
+  // incoming calls ring live; each chat's Calls tab shows the real history
+  callsW.listen(logic, srv);
+  callsW.loadHistory(logic, srv).catch(() => {});
+  // what a live notification may need to refresh
+  srv.reload.tickets = () => tickets.load(logic, srv).catch(() => {});
+  srv.reload.approvals = () => Promise.all([approvals.load(logic, srv), comms.load(logic, srv), awards.load(logic, srv)]).catch(() => {});
   logic.forceUpdate();
   return srv;
 }
