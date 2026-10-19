@@ -256,7 +256,7 @@ func (s *Seeder) seedForumRules(ctx context.Context) {
 		for _, name := range r.Roles {
 			switch strings.ToLower(name) {
 			case "admin":
-				roleKeys = append(roleKeys, "admin", "superadmin")
+				roleKeys = append(roleKeys, "admin", "owner")
 			case "moderator":
 				roleKeys = append(roleKeys, "hod")
 			}

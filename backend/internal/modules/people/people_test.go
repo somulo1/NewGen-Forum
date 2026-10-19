@@ -73,9 +73,15 @@ func TestEditsFollowTheApprovalFlow(t *testing.T) {
 	e := testkit.New(t)
 	owner, slug := e.NewOrg("Olivia Owner")
 	a, aID := join(t, e, owner, slug, "Alice", "Analyst")
-	b, _ := join(t, e, owner, slug, "Beth", "HR Manager")
+	b, bID := join(t, e, owner, slug, "Beth", "HR Manager")
+	e.MustDo(204, "PUT", "/approvals/flows/f8", map[string]any{"levels": 0}, owner.Access)
+	e.MustDo(204, "PUT", "/approvals/flows/f11", map[string]any{"levels": 0}, owner.Access)
+	// who approves level 1 of "change a person" is a right, given to a role the organization made
+	reviewer := e.MustDo(201, "POST", "/roles", map[string]any{"name": "People reviewer"}, owner.Access)["id"].(string)
+	e.MustDo(200, "PUT", "/roles/"+reviewer+"/rights", map[string]any{"module": "people", "right": "Approve level 1", "allowed": true}, owner.Access)
+	e.MustDo(200, "PATCH", "/people/"+bID, map[string]any{"role": reviewer}, owner.Access)
 
-	e.MustDo(204, "PUT", "/approvals/flows/f11", map[string]any{"levels": 1, "approvers": []string{"HR Manager", "x", "y"}}, owner.Access)
+	e.MustDo(204, "PUT", "/approvals/flows/f11", map[string]any{"levels": 1}, owner.Access)
 	res := e.MustDo(202, "PATCH", "/people/"+aID, map[string]any{"title": "Senior Analyst"}, owner.Access)
 	req := res["request"].(map[string]any)
 	id := req["id"].(string)
@@ -107,13 +113,13 @@ func TestEditsFollowTheApprovalFlow(t *testing.T) {
 		t.Fatalf("rejected change applied: %v", got)
 	}
 	// with zero levels the change is direct
-	e.MustDo(204, "PUT", "/approvals/flows/f11", map[string]any{"levels": 0, "approvers": []string{"a", "b", "c"}}, owner.Access)
+	e.MustDo(204, "PUT", "/approvals/flows/f11", map[string]any{"levels": 0}, owner.Access)
 	e.MustDo(200, "PATCH", "/people/"+aID, map[string]any{"title": "Lead"}, owner.Access)
 	if got := e.MustDo(200, "GET", "/people/"+aID, nil, owner.Access)["title"]; got != "Lead" {
 		t.Fatalf("direct change not applied: %v", got)
 	}
 	// non-admins cannot change flows
-	if code, _ := e.Do("PUT", "/approvals/flows/f11", map[string]any{"levels": 0, "approvers": []string{"a"}}, a.Access); code != 403 {
+	if code, _ := e.Do("PUT", "/approvals/flows/f11", map[string]any{"levels": 0}, a.Access); code != 403 {
 		t.Fatalf("staff changed a flow: %d", code)
 	}
 }
@@ -241,12 +247,12 @@ func TestReportsToFollowsReportingLines(t *testing.T) {
 		t.Fatalf("expected no one, got %v", r)
 	}
 	// the organization says staff report to the Super admin role
-	e.MustDo(204, "PUT", "/roles/reporting", map[string]any{"role": "staff", "reports_to_role": "superadmin"}, owner.Access)
-	if r := reports(); r["kind"] != "role" || r["role_key"] != "superadmin" {
+	e.MustDo(204, "PUT", "/roles/reporting", map[string]any{"role": "staff", "reports_to_role": "owner"}, owner.Access)
+	if r := reports(); r["kind"] != "role" || r["role_key"] != "owner" {
 		t.Fatalf("expected the Super admin role, got %v", r)
 	}
 	// naming a person in that role makes it that person
-	e.MustDo(204, "PUT", "/roles/reporting", map[string]any{"role": "staff", "reports_to_role": "superadmin", "reports_to_person": ownerID}, owner.Access)
+	e.MustDo(204, "PUT", "/roles/reporting", map[string]any{"role": "staff", "reports_to_role": "owner", "reports_to_person": ownerID}, owner.Access)
 	if r := reports(); r["kind"] != "person" || r["person"].(map[string]any)["id"] != ownerID {
 		t.Fatalf("expected Olivia, got %v", r)
 	}
@@ -257,7 +263,7 @@ func TestReportsToFollowsReportingLines(t *testing.T) {
 			staff = x.(map[string]any)
 		}
 	}
-	if staff["reports_to_role"] != "superadmin" || staff["reports_to_person"] != ownerID {
+	if staff["reports_to_role"] != "owner" || staff["reports_to_person"] != ownerID {
 		t.Fatalf("roles list lost the reporting line: %v", staff)
 	}
 }

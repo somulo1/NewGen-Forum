@@ -11,14 +11,15 @@ export function buildForumExtras(ctx) {
   const liveF = !curDm && cur.live ? cur : null;
   const people = liveF ? liveF.memberList.map((m) => ({ name: m.name, initials: m.initials, color: m.color, role: m.title || m.role, forumRole: m.forumRole, person: m.person, roleKey: m.roleKey })) : sampleMembers;
   const myRole = liveF ? liveF.myForumRole : (MY_FORUM_ROLE[fid] || 'Member');
-  const policy = liveF ? forumsW.policyOf(liveF) : (s.forumChat[fid] || defaultPolicy());
-  const gateOf = (m) => (liveF ? forumsW.mayPost(liveF.rules, m.person, m.roleKey) : chatAllowed(policy, m.name, m.forumRole));
+  const roleNm = Object.fromEntries((s.serverRoles || []).map((r) => [r.id, r.name]));
+  const policy = liveF ? forumsW.policyOf(liveF, roleNm) : (s.forumChat[fid] || defaultPolicy());
+  const gateOf = (m) => (liveF ? forumsW.mayPost(liveF.rules, m.person, m.roleKey, roleNm) : chatAllowed(policy, m.name, m.forumRole));
   const priv = curDm ? (s.dmPrivacy[curDm.with] || {}) : {};
 
   // postMsg() reads this, so a blocked chat can never send, whichever composer is used.
   const chatGate = isDM
     ? (priv.blocked ? { allowed: false, reason: 'You blocked ' + curDm.with + '. Unblock them to send messages.' } : { allowed: true, reason: '' })
-    : liveF ? forumsW.mayPost(liveF.rules, this.srv.me.person, this.srv.me.role) : chatAllowed(policy, MY_NAME, myRole);
+    : liveF ? forumsW.mayPost(liveF.rules, this.srv.me.person, this.srv.me.role, roleNm) : chatAllowed(policy, MY_NAME, myRole);
   this._chatGate = chatGate;
 
   const canManage = !isDM && (myRole === 'Admin' || myRole === 'Moderator' || can('forums', 'Moderate'));
@@ -27,7 +28,7 @@ export function buildForumExtras(ctx) {
   const chatCtl = { canManage, mode: policy.mode, summary: policySummary(policy), youLine: chatGate.allowed ? 'You can chat in this forum.' : chatGate.reason,
     modeOpts: [{ v: 'everyone', l: 'Everyone can chat' }, { v: 'roles', l: 'Only selected roles can chat' }, { v: 'locked', l: 'Locked: only admins can chat' }],
     setMode: (e) => this.setForumChat(fid, { mode: e.target.value }), isRoles: policy.mode === 'roles',
-    roles: FORUM_ROLES.map((r) => ({ name: r, on: policy.roles.indexOf(r) !== -1, toggle: () => this.toggleChatRole(fid, r) })),
+    roles: (liveF ? (s.serverRoles || []).map((r) => r.name) : FORUM_ROLES).map((r) => ({ name: r, on: policy.roles.indexOf(r) !== -1, toggle: () => this.toggleChatRole(fid, r) })),
     members: people.map((m) => {
       const g = gateOf(m);
       const listed = policy.blocked.indexOf(m.name) !== -1;

@@ -17,9 +17,9 @@ export function buildWidgetSettings(ctx) {
       flows: wflows, noFlows: wflows.length === 0,
       title: cfg.title, see: cfg.see, manage: cfg.manage, setTitle: setCfg('title'), setSee: setCfg('see'), setManage: setCfg('manage') };
     // Visibility (groups) and management (roles)
-    const setW = (patch) => this.setState((st) => ({ wcfg: { ...st.wcfg, [sid]: Object.assign({ title: catalog[sid].title, see: 'Everyone', groups: [], managers: ['superadmin', 'admin'] }, st.wcfg[sid] || {}, typeof patch === 'function' ? patch(Object.assign({ groups: [], managers: ['superadmin', 'admin'] }, st.wcfg[sid] || {})) : patch) } }));
+    const setW = (patch) => this.setState((st) => ({ wcfg: { ...st.wcfg, [sid]: Object.assign({ title: catalog[sid].title, see: 'Everyone', groups: [], managers: [] }, st.wcfg[sid] || {}, typeof patch === 'function' ? patch(Object.assign({ groups: [], managers: [] }, st.wcfg[sid] || {})) : patch) } }));
     const groups = cfg.groups || [];
-    const managers = cfg.managers || ['superadmin', 'admin'];
+    const managers = cfg.managers || [];
     const isGroups = cfg.see === 'Specific groups';
     const groupSets = ['departments', 'sectors', 'branches', 'units'].filter((t) => has[t]).map((t) => ({ label: typeName[t] + (t === 'branches' ? 'es' : 's'), items: O[t].map((r) => ({ key: t + ':' + r.id, name: r.name })) }))
       .concat([{ label: 'Forums', items: forums.map((f) => ({ key: 'forum:' + f.id, name: f.name })) }])
@@ -29,12 +29,12 @@ export function buildWidgetSettings(ctx) {
       isGroups: isGroups, groupSets: groupSets,
       groupsHint: groups.length ? groups.length + (groups.length === 1 ? ' group selected. Only its members see this widget.' : ' groups selected. Only their members see this widget.') : 'Pick at least one group. You can\'t save until you do.',
       groupsHintColor: groups.length ? '#C9D6CF' : '#FFB86B', groupsBorder: groups.length ? '#24322C' : '#6A5426',
-      managerRoles: visibleRoles.map((r) => { const on = r.id === 'superadmin' || managers.indexOf(r.id) !== -1; return { name: r.name, on: on, locked: r.id === 'superadmin', style: chipS(on), toggle: () => setW((c) => ({ managers: on ? c.managers.filter((x) => x !== r.id) : c.managers.concat([r.id]) })) }; })
+      managerRoles: visibleRoles.map((r) => { const on = r.locked || managers.indexOf(r.id) !== -1; return { name: r.name, on: on, locked: r.locked, style: chipS(on), toggle: () => setW((c) => ({ managers: on ? c.managers.filter((x) => x !== r.id) : c.managers.concat([r.id]) })) }; })
     });
     // Communication rules for structure widgets
     if (['departments', 'sectors', 'branches', 'units'].indexOf(sid) !== -1) {
       const lvl = sid;
-      const roleOpts = visibleRoles.filter((r) => r.id !== 'guest').map((r) => ({ v: r.id, l: r.name }));
+      const roleOpts = visibleRoles.map((r) => ({ v: r.id, l: r.name }));
       const setRule = (ty, patch) => this.setState((st) => ({ commRules: { ...st.commRules, [lvl]: { ...st.commRules[lvl], [ty]: Object.assign({}, st.commRules[lvl][ty], typeof patch === 'function' ? patch(st.commRules[lvl][ty]) : patch) } } }));
       const targetKeys = ['own', 'wall'].concat(['departments', 'sectors', 'branches', 'units'].filter((t) => has[t]));
       Object.assign(sw, {

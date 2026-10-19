@@ -10,97 +10,37 @@ export function buildAccess(ctx) {
   };
 
   // ---- Roles & rights ----
-  const rightsDef = {
-    home: ['Customize home', 'Manage widget settings', 'Open widgets page', 'Add & remove widgets'],
-    announcements: ['View', 'Post', 'Edit', 'Delete', 'See who read'],
-    wall: ['View', 'Post', 'Comment', 'Share outside Hub', 'Moderate posts'],
-    forums: ['View', 'Create forum', 'Invite members', 'Start calls', 'Moderate'],
-    tickets: ['View', 'Raise', 'Assign & hand over', 'Solve', 'Close', 'Manage TAT settings', 'Set up ticket categories'],
-    projects: ['View', 'Create project', 'Manage milestones', 'Edit tasks', 'Move tasks', 'Manage team'],
-    files: ['View', 'Upload', 'Delete', 'Share outside Hub'],
-    secureshare: ['Create link', 'View link history'],
-    sessions: ['Join', 'Start meeting', 'Record'],
-    awards: ['View', 'Nominate', 'Approve awards'],
-    people: ['View directory', 'See contact details', 'View full profiles', 'Onboard people', 'Edit profiles'],
-    security: ['View alerts', 'View logs', 'Resolve alerts', 'Manage rules', 'Export logs'],
-    roles: ['View roles', 'Manage roles & rights', 'Configure approvals'],
-    settings: ['View settings', 'Edit organization profile', 'Manage subscription'],
-    calendar: ['View', 'Add events', 'Schedule meetings'],
-    memos: ['Read', 'Send memos'],
-    newsletter: ['Read', 'Publish newsletters'],
-    departments: ['View dashboard', 'Manage department', 'See performance'],
-    sectors: ['View dashboard', 'Manage sector', 'See performance'],
-    branches: ['View dashboard', 'Manage branch', 'See performance'],
-    units: ['View dashboard', 'Manage unit', 'See performance'],
-    performance: ['View', 'Set targets'],
-    chat: ['Send private messages', 'Private calls']
-  };
+  // The rights catalog and the roles are data from the server (Roles & rights): nothing about roles or rights is built in here.
+  const catalog = (s.catalog && s.catalog.modules) || [];
+  const rightsDef = Object.fromEntries(catalog.map((m) => [m.key, m.rights.map((r) => r.name)]));
+  const rightMeta = Object.fromEntries(catalog.map((m) => [m.key, Object.fromEntries(m.rights.map((r) => [r.name, r]))]));
   const W = s.widgets;
+  // A structure level exists when the organization has created at least one of it (People > Organization structure).
+  // Without the server connected, the widgets still decide, as in the sample data.
+  const lvl = (k) => (this.srv ? ((this.org && this.org[k]) || []).length > 0 : W.indexOf(k) !== -1);
   const has = {
-    departments: W.indexOf('departments') !== -1, sectors: W.indexOf('sectors') !== -1, branches: W.indexOf('branches') !== -1, units: W.indexOf('units') !== -1,
+    departments: lvl('departments'), sectors: lvl('sectors'), branches: lvl('branches'), units: lvl('units'),
     chat: W.indexOf('chat') !== -1, calendar: W.indexOf('calendar') !== -1, memos: W.indexOf('memos') !== -1, newsletter: W.indexOf('newsletter') !== -1, announcements: W.indexOf('announcements') !== -1
   };
   has.structure = has.departments || has.sectors || has.branches || has.units;
   has.comms = has.memos || has.newsletter || has.announcements;
   ['tickets', 'projects', 'files', 'secureshare', 'sessions', 'awards', 'notes'].forEach((k) => { has[k] = W.indexOf(k) !== -1; });
-  if (!has.sessions) { rightsDef.calendar = ['View', 'Add events']; rightsDef.forums = rightsDef.forums.filter((x) => x !== 'Start calls'); }
   const optionalMods = ['calendar', 'memos', 'newsletter', 'announcements', 'departments', 'sectors', 'branches', 'units', 'performance', 'tickets', 'projects', 'files', 'secureshare', 'sessions', 'awards', 'chat'];
-  const modEnabled = (m) => optionalMods.indexOf(m) === -1 || (m === 'performance' ? has.structure : W.indexOf(m) !== -1);
-  const modInfo = {
-    home: ['Home & widgets', '#B8F36B'], announcements: ['Announcements', '#B8F36B'], wall: ['Community wall', '#F49AC1'], forums: ['Forums', '#7CC4FF'],
-    tickets: ['Tickets', '#FF9B8A'], projects: ['Projects', '#7CC4FF'], files: ['Files', '#C9B6FF'], secureshare: ['Secure share', '#6EE7C8'],
-    sessions: ['Meetings & standups', '#6EE7C8'], awards: ['Performance awards', '#FFD66B'], people: ['People', '#C9B6FF'],
-    security: ['Security & logs', '#FF9B8A'], roles: ['Roles & rights', '#FFB86B'], settings: ['Organization settings', '#7CC4FF'],
-    calendar: ['Calendar', '#7CC4FF'], memos: ['Memos', '#FFD66B'], newsletter: ['Newsletter', '#F49AC1'],
-    departments: ['Departments', '#B8F36B'], sectors: ['Sectors', '#FFB86B'], branches: ['Branches', '#7CC4FF'], units: ['Units', '#C9B6FF'], performance: ['Performance', '#6EE7C8'], chat: ['Private messages', '#C9B6FF']
-  };
-  const genericRights = ['View', 'Edit content', 'Manage settings'];
-  const roleDefs = [
-    { id: 'superadmin', name: 'Super admin', desc: 'Full control of Hub. This role cannot be limited.', count: 2, locked: true },
-    { id: 'admin', name: 'Admin', desc: 'Runs Hub day to day and manages widgets.', count: 5 },
-    { id: 'hod', name: 'Head of department', desc: 'Leads a department and approves its requests.', count: 11 },
-    { id: 'it', name: 'IT support', desc: 'Handles tickets and watches security.', count: 9 },
-    { id: 'finance', name: 'Finance approver', desc: 'Approves spending and finance documents.', count: 4 },
-    { id: 'staff', name: 'Staff', desc: 'Everyone working in the organization.', count: 212 },
-    { id: 'guest', name: 'Guest', desc: 'People from outside. View only.', count: 5 },
-    { id: 'sector', name: 'Sector manager', desc: 'Runs a sector and every branch in it.', count: 3, needs: 'sectors' },
-    { id: 'branch', name: 'Branch manager', desc: 'Runs a branch and its units.', count: 4, needs: 'branches' },
-    { id: 'unit', name: 'Unit lead', desc: 'Leads a unit inside a branch.', count: 6, needs: 'units' }
-  ];
-  const roleScope = { superadmin: 'Whole organization', admin: 'Whole organization', hod: 'Each department', it: 'Whole organization', finance: 'Whole organization', staff: 'Their own work', guest: 'Invited spaces only', sector: 'Each sector', branch: 'Each branch', unit: 'Each unit' };
-  if (s.roleCounts) roleDefs.forEach((r) => { if (s.roleCounts[r.id] !== undefined) r.count = s.roleCounts[r.id]; });
-  const visibleRoles = roleDefs.filter((r) => (r.needs ? has[r.needs] : true) && (r.id !== 'hod' || has.departments || !has.structure));
-  const staffAllow = { home: ['Customize home'], announcements: ['View'], wall: ['View', 'Post', 'Comment', 'Share outside Hub'], forums: ['View', 'Start calls'],
-    tickets: ['View', 'Raise'], projects: ['View', 'Edit tasks', 'Move tasks'], files: ['View', 'Upload'], secureshare: ['Create link'], sessions: ['Join', 'Start meeting'],
-    awards: ['View', 'Nominate'], people: ['View directory', 'See contact details'], security: [], roles: [],
-    calendar: ['View', 'Add events', 'Schedule meetings'], memos: ['Read'], newsletter: ['Read'], departments: [], sectors: [], branches: [], units: [], performance: ['View'], chat: ['Send private messages', 'Private calls'] };
-  const extraAllow = {
-    hod: { announcements: ['Post', 'Edit', 'See who read'], wall: ['Moderate posts'], forums: ['Create forum', 'Invite members', 'Moderate'], tickets: ['Assign & hand over', 'Solve', 'Close', 'Set up ticket categories'], projects: ['Create project', 'Manage milestones', 'Manage team'], files: ['Share outside Hub'], sessions: ['Record'], awards: ['Approve awards'], roles: ['View roles'] },
-    it: { tickets: ['Assign & hand over', 'Solve', 'Close', 'Manage TAT settings', 'Set up ticket categories'], security: ['View alerts', 'View logs', 'Resolve alerts'], files: ['Delete'], forums: ['Create forum', 'Invite members'], secureshare: ['View link history'] },
-    finance: { files: ['Share outside Hub'], projects: ['Create project'] },
-    sector: { sectors: ['View dashboard', 'Manage sector', 'See performance'], memos: ['Send memos'], performance: ['Set targets'], announcements: ['Post'], tickets: ['Assign & hand over', 'Set up ticket categories'] },
-    branch: { branches: ['View dashboard', 'Manage branch', 'See performance'], memos: ['Send memos'], performance: ['Set targets'], tickets: ['Assign & hand over', 'Solve', 'Set up ticket categories'] },
-    unit: { units: ['View dashboard', 'Manage unit', 'See performance'], memos: ['Send memos'], tickets: ['Solve', 'Set up ticket categories'] }
-  };
-  extraAllow.hod.people = ['View full profiles', 'Onboard people']; extraAllow.hod.home = ['Open widgets page'];
-  extraAllow.hod.memos = ['Send memos']; extraAllow.hod.departments = ['View dashboard', 'Manage department', 'See performance']; extraAllow.hod.performance = ['Set targets'];
-  const defaultRight = (role, mod, right) => {
-    if (role === 'superadmin' || role === 'admin') return true;
-    if (!rightsDef[mod]) return (role === 'hod' || role === 'sector' || role === 'branch') ? right !== 'Manage settings' : right === 'View';
-    if (role === 'guest') return ['announcements', 'wall', 'forums', 'sessions'].indexOf(mod) !== -1 && (right === 'View' || right === 'Join');
-    const base = (staffAllow[mod] || []).indexOf(right) !== -1;
-    const extra = ((extraAllow[role] || {})[mod] || []).indexOf(right) !== -1;
-    return base || extra;
-  };
+  const modEnabled = (m) => optionalMods.indexOf(m) === -1 || (m === 'performance' ? has.structure : ['departments', 'sectors', 'branches', 'units'].indexOf(m) !== -1 ? has[m] : W.indexOf(m) !== -1);
+  const modInfo = Object.fromEntries(catalog.map((m) => [m.key, [m.label, m.tint]]));
+  const genericRights = ['View'];
+  // the roles of the organization, as made on the Roles page (the count and the "needs" level come from the server)
+  const roleDefs = (s.serverRoles || []).map((r) => ({ id: r.id, name: r.name, desc: r.desc || '', count: r.count, locked: !!r.locked, needs: r.needs || '', scope: r.scope || '', isDefault: !!r.default }));
+  const roleScope = Object.fromEntries(roleDefs.map((r) => [r.id, r.scope || 'Whole organization']));
+  const visibleRoles = roleDefs.filter((r) => (r.needs ? has[r.needs] : true));
   const rKey = (role, mod, right) => role + '|' + mod + '|' + right;
   const rightOf = (role, mod, right) => {
     const k = rKey(role, mod, right);
     if (Object.prototype.hasOwnProperty.call(s.rightsOv, k)) return s.rightsOv[k];
-    // the server's rights win once loaded
+    const def = roleDefs.find((r) => r.id === role);
+    if (def && def.locked) return true;      // a locked (owner) role can do everything
     const sr = s.roleRights && s.roleRights[role] && s.roleRights[role][mod];
-    if (sr && Object.prototype.hasOwnProperty.call(sr, right)) return !!sr[right];
-    if (role === 'superadmin' && s.roleRights) return true;
-    return defaultRight(role, mod, right);
+    return !!(sr && sr[right]);               // a right nobody gave the role is off
   };
   const can = (mod, right) => rightOf(s.actingRole, mod, right);
   this._canFullProfile = can('people', 'View full profiles');
@@ -114,7 +54,7 @@ export function buildAccess(ctx) {
   };
   this._makeRequest = makeRequest; this._flowById = flowById;
   const toggleRight = (role, mod, right) => {
-    if (role === 'superadmin') return;
+    if ((roleDefs.find((r) => r.id === role) || {}).locked) return;
     const k = rKey(role, mod, right);
     const nv = !rightOf(role, mod, right);
     const f = flowById('f8');
@@ -139,5 +79,5 @@ export function buildAccess(ctx) {
       this.notify('Rights updated: ' + label + '. Logged for review.', '#FFB86B');
     }
   };
-  return { can, flowById, genericRights, has, makeRequest, modEnabled, modInfo, openPersonName, rKey, rightOf, rightsDef, roleDefs, roleScope, s, set, toggleRight, visibleRoles };
+  return { can, catalog, rightMeta, flowById, genericRights, has, makeRequest, modEnabled, modInfo, openPersonName, rKey, rightOf, rightsDef, roleDefs, roleScope, s, set, toggleRight, visibleRoles };
 }

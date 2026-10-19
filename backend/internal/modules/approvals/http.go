@@ -84,13 +84,12 @@ func (e *Engine) Private(r chi.Router) {
 			return err
 		}
 		var in struct {
-			Levels    int      `json:"levels"`
-			Approvers []string `json:"approvers"`
+			Levels int `json:"levels"`
 		}
 		if err := httpx.Decode(r, &in, 8<<10); err != nil {
 			return err
 		}
-		if err := e.SetFlow(r.Context(), p, chi.URLParam(r, "key"), in.Levels, in.Approvers); err != nil {
+		if err := e.SetFlow(r.Context(), p, chi.URLParam(r, "key"), in.Levels); err != nil {
 			return err
 		}
 		w.WriteHeader(204)

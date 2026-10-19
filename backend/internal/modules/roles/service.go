@@ -43,6 +43,7 @@ type RoleInfo struct {
 	Locked  bool   `json:"locked"`
 	Needs   string `json:"needs,omitempty"`
 	Members int    `json:"count"`
+	Default bool   `json:"default"` // the role new people get when none is chosen
 	// who this role reports to: a role, and optionally one named person in it
 	ReportsToRole   string     `json:"reports_to_role,omitempty"`
 	ReportsToPerson *uuid.UUID `json:"reports_to_person,omitempty"`
@@ -55,9 +56,9 @@ func (s *Service) Roles(ctx context.Context, p *tenant.Principal) ([]RoleInfo, e
 			return err
 		}
 		rs, err := tx.Query(ctx, `select r.key, r.name, r.description, r.scope, r.locked, coalesce(r.needs_level,''), count(pp.person_id) filter (where x.status <> 'deleted'),
-			coalesce(min(rt.key),''), (array_agg(rr.reports_to_person))[1]
+			coalesce(min(rt.key),''), (array_agg(rr.reports_to_person))[1], bool_or(dr.role_id is not null)
 			from hub.roles r left join hub.person_roles pp on pp.role_id = r.id left join hub.people x on x.id = pp.person_id
-			left join hub.role_reports rr on rr.role_id = r.id left join hub.roles rt on rt.id = rr.reports_to_role
+			left join hub.role_reports rr on rr.role_id = r.id left join hub.roles rt on rt.id = rr.reports_to_role left join hub.default_role dr on dr.role_id = r.id
 			group by r.id order by r.locked desc, min(r.key)`)
 		if err != nil {
 			return err
@@ -65,7 +66,7 @@ func (s *Service) Roles(ctx context.Context, p *tenant.Principal) ([]RoleInfo, e
 		defer rs.Close()
 		for rs.Next() {
 			var x RoleInfo
-			if err := rs.Scan(&x.Key, &x.Name, &x.Desc, &x.Scope, &x.Locked, &x.Needs, &x.Members, &x.ReportsToRole, &x.ReportsToPerson); err != nil {
+			if err := rs.Scan(&x.Key, &x.Name, &x.Desc, &x.Scope, &x.Locked, &x.Needs, &x.Members, &x.ReportsToRole, &x.ReportsToPerson, &x.Default); err != nil {
 				return err
 			}
 			out = append(out, x)
@@ -130,12 +131,22 @@ type rightChange struct {
 	Allowed *bool     `json:"allowed"` // nil on a person removes their personal override
 }
 
-func (s *Service) validate(c rightChange, person bool) error {
-	if !access.Default().Valid(c.Module, c.Right) {
-		return httpx.Bad("That right does not exist.")
-	}
+func (s *Service) validate(ctx context.Context, org uuid.UUID, c rightChange, person bool) error {
 	if !person && c.Allowed == nil {
 		return httpx.Bad("Say whether the right is allowed.")
+	}
+	var ok bool
+	err := s.A.DB.WithOrg(ctx, org, func(tx pgx.Tx) error {
+		if err := s.ensureCatalog(ctx, tx, org); err != nil {
+			return err
+		}
+		return tx.QueryRow(ctx, `select exists (select 1 from hub.rights where module=$1 and name=$2)`, c.Module, c.Right).Scan(&ok)
+	})
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return httpx.Bad("That right does not exist.")
 	}
 	return nil
 }
@@ -143,7 +154,7 @@ func (s *Service) validate(c rightChange, person bool) error {
 // SetRoleRight changes one right of a role. Flow f8 may need approval first; locked roles can never be limited.
 func (s *Service) SetRoleRight(ctx context.Context, p *tenant.Principal, role string, c rightChange) (*approvals.Request, bool, error) {
 	c.Role, c.Person = role, uuid.Nil
-	if err := s.validate(c, false); err != nil {
+	if err := s.validate(ctx, p.Org, c, false); err != nil {
 		return nil, false, err
 	}
 	var req *approvals.Request
@@ -178,7 +189,9 @@ func (s *Service) applyRoleRight(ctx context.Context, tx pgx.Tx, a approvals.App
 	if err := json.Unmarshal(a.Payload, &c); err != nil {
 		return err
 	}
-	tag, err := tx.Exec(ctx, `update hub.role_rights set allowed=$4, `+integrity.Bump+` where role_id=(select id from hub.roles where key=$1 and not locked) and module=$2 and right_name=$3`, c.Role, c.Module, c.Right, *c.Allowed)
+	tag, err := tx.Exec(ctx, `insert into hub.role_rights (org_id, role_id, module, right_name, allowed)
+		select $5::uuid, r.id, $2::text, $3::text, $4::boolean from hub.roles r where r.key=$1 and not r.locked
+		on conflict (org_id, role_id, module, right_name) do update set allowed=excluded.allowed, `+integrity.BumpOn("role_rights"), c.Role, c.Module, c.Right, *c.Allowed, a.Org)
 	if err != nil {
 		return err
 	}
@@ -195,7 +208,7 @@ func (s *Service) applyRoleRight(ctx context.Context, tx pgx.Tx, a approvals.App
 // SetPersonRight gives or takes away a single right for one person (nil removes the personal override).
 func (s *Service) SetPersonRight(ctx context.Context, p *tenant.Principal, person uuid.UUID, c rightChange) (*approvals.Request, bool, error) {
 	c.Person, c.Role = person, ""
-	if err := s.validate(c, true); err != nil {
+	if err := s.validate(ctx, p.Org, c, true); err != nil {
 		return nil, false, err
 	}
 	var req *approvals.Request

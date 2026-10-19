@@ -24,7 +24,7 @@ export function buildAwards(ctx) {
   };
   const awS = s.awd;
   const setAw = (patch) => this.setState((x) => ({ awd: Object.assign({}, x.awd, typeof patch === 'function' ? patch(x.awd) : patch) }));
-  const personRole = (n) => s.memberRoles[n] || ({ 'Samwel Okoth Omulo': 'admin', 'Brian Kiprop': 'it', 'Amina Wanjiru': 'finance', 'Grace Njeri': 'hod' }[n]) || (/Lead|Supervisor/.test(((this.dir.find((d) => d.name === n) || {}).title) || '') ? (has.branches ? 'branch' : 'hod') : 'staff');
+  const personRole = (n) => s.memberRoles[n] || '';
   const awq = awS.q.trim().toLowerCase();
   const awPool = this.dir.filter((d) => (awS.role === 'all' || personRole(d.name) === awS.role) && (!awq || (d.name + ' ' + d.title + ' ' + d.dept).toLowerCase().indexOf(awq) !== -1));
   const awMatches = awPool.slice(0, 40);
@@ -33,7 +33,7 @@ export function buildAwards(ctx) {
   const aw = {
     type: awS.type, q: awS.q, role: awS.role, citation: awS.citation, poster: awS.poster, hasPoster: !!awS.poster, noPoster: !awS.poster, wall: awS.wall,
     types: awTypes.map((t) => ({ label: t, pick: () => setAw({ type: t }), style: chip(awS.type === t) })),
-    roleOpts: visibleRoles.filter((r) => r.id !== 'superadmin').map((r) => ({ v: r.id, l: r.name })),
+    roleOpts: visibleRoles.map((r) => ({ v: r.id, l: r.name })),
     setQ: (e) => setAw({ q: e.target.value }), setRole: (e) => setAw({ role: e.target.value }), setCitation: (e) => setAw({ citation: e.target.value }),
     setPoster: (e) => { const f = (e.target.files || [])[0]; e.target.value = ''; if (f) setAw({ poster: URL.createObjectURL(f) }); },
     clearPoster: () => setAw({ poster: '' }),

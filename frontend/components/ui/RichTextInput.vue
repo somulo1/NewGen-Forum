@@ -1,6 +1,6 @@
 <template>
 <div :style="toolbarInActions ? 'display: contents' : 'width: 100%; min-width: 0; box-sizing: border-box; display: flex; flex-direction: column; align-items: flex-start; gap: 5px'">
-<textarea ref="editor" :value="modelValue" :rows="rows" :aria-label="ariaLabel" :placeholder="placeholder" :disabled="disabled" @input="$emit('update:modelValue', $event.target.value)" @keydown="onKeydown" :style="`display: block; width: 100%; min-width: 0; box-sizing: border-box; padding: 10px 12px; border: 1px solid var(--k-2A3832,#2A3832); border-radius: 10px; outline: none; background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font: inherit; resize: vertical; ${toolbarInActions ? 'grid-column: 2; grid-row: 1 / 3; min-height: 80px; height: 100%;' : ''} ${inputStyle}`"></textarea>
+<textarea ref="editor" :value="local" :rows="rows" :aria-label="ariaLabel" :placeholder="placeholder" :disabled="disabled" @input="onInput" @keydown="onKeydown" @blur="flush" :style="`display: block; width: 100%; min-width: 0; box-sizing: border-box; padding: 10px 12px; border: 1px solid var(--k-2A3832,#2A3832); border-radius: 10px; outline: none; background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font: inherit; resize: vertical; ${toolbarInActions ? 'grid-column: 2; grid-row: 1 / 3; min-height: 80px; height: 100%;' : ''} ${inputStyle}`"></textarea>
 <div role="toolbar" aria-label="Text formatting" :style="`display: flex; align-items: center; gap: 3px; width: max-content; max-width: 100%; box-sizing: border-box; padding: 2px 5px; border: 1px solid var(--k-2A3832,#2A3832); border-radius: 8px; background: var(--k-121B17,#121B17); overflow-x: auto; ${toolbarInActions ? 'grid-column: 1; grid-row: 2; align-self: start;' : ''}`">
 <button v-for="tool in tools" :key="tool.key" type="button" :aria-label="tool.label" :title="tool.label" :disabled="disabled" @mousedown.prevent @click="format(tool.key)" :style="`flex: none; min-width: 32px; height: 30px; padding: 0 7px; border: 0; border-radius: 6px; background: transparent; color: ${disabled ? 'var(--k-66736C,#66736C)' : 'var(--k-E8EFEA,#E8EFEA)'}; cursor: ${disabled ? 'not-allowed' : 'pointer'}; font-weight: 700`">
 <svg v-if="tool.key === 'link'" aria-hidden="true" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.07 0l3-3A5 5 0 0 0 13 2.93l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.07 0l-3 3A5 5 0 0 0 11 21.07l1.71-1.71"></path></svg>
@@ -35,8 +35,13 @@ export default {
     toolbarInActions: Boolean
   },
   emits: ['update:modelValue', 'keydown'],
+  // Typing stays in this box and reaches the app a moment later (or at once on any key handled above, blur or format).
+  // Each update re-renders the whole Hub, so sending one per keystroke made typing lag.
   data() {
     return {
+      local: this.modelValue || '',
+      sent: this.modelValue || '',
+      timer: null,
       tools: [
         { key: 'bold', label: 'Bold (Ctrl/⌘+B)', icon: 'B' },
         { key: 'italic', label: 'Italic (Ctrl/⌘+I)', icon: 'I' },
@@ -45,8 +50,27 @@ export default {
       ]
     };
   },
+  watch: {
+    // the app changed the text (cleared after sending, a draft restored): show it, unless it is our own pending value
+    modelValue(v) { if ((v || '') !== this.sent) { clearTimeout(this.timer); this.timer = null; this.local = this.sent = v || ''; } }
+  },
+  beforeUnmount() { this.flush(); },
   methods: {
+    onInput(event) {
+      this.local = event.target.value;
+      clearTimeout(this.timer);
+      this.timer = setTimeout(this.flush, 150);
+    },
+    flush() {
+      clearTimeout(this.timer);
+      this.timer = null;
+      if (this.local === this.sent) return;
+      this.sent = this.local;
+      this.$emit('update:modelValue', this.local);
+    },
     onKeydown(event) {
+      // a key the app handles (Enter to send) must see everything typed so far
+      if (event.key === 'Enter' || event.ctrlKey || event.metaKey) this.flush();
       const modifier = event.ctrlKey || event.metaKey;
       const key = event.key.toLowerCase();
       const shortcut = modifier && !event.altKey && !event.shiftKey
@@ -64,7 +88,8 @@ export default {
       const input = this.$refs.editor;
       if (!input) return;
       const start = input.selectionStart, end = input.selectionEnd;
-      const value = this.modelValue || '';
+      this.flush();
+      const value = this.local;
       const selected = value.slice(start, end);
       let before = '', after = '', text = selected;
       if (kind === 'bold') { before = '**'; after = '**'; }

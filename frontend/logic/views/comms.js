@@ -11,11 +11,13 @@ export function buildComms(ctx) {
   const f1 = flowById('f1');
   // Communication rules: the user's own level decides where memos/announcements may go
   const ruleLevel = ['departments', 'units', 'branches', 'sectors'].find((t) => has[t]);
-  const ruleObj = ruleLevel && (cmS.type === 'Memo' || cmS.type === 'Announcement') ? (s.commRules[ruleLevel] || {})[cmS.type] : null;
   const ruleRec = ruleLevel ? recOf(ruleLevel, O.mine[ruleLevel]) : null;
+  // a rule applies through the sender's own place in the structure; someone not placed in it has no level rule
+  const ruleObj = ruleLevel && ruleRec && (cmS.type === 'Memo' || cmS.type === 'Announcement') ? (s.commRules[ruleLevel] || {})[cmS.type] : null;
   const ruleTo = ruleObj ? (ruleObj.on ? ruleObj.to : []) : null;
-  const senderOk = !ruleObj || ['admin', 'superadmin'].indexOf(s.actingRole) !== -1 || s.actingRole === ruleObj.sender;
-  const ruleNeeds = !!(ruleObj && ruleObj.on && ruleObj.approver !== 'none');
+  const actingLocked = ((s.serverRoles || []).find((r) => r.id === s.actingRole) || {}).locked;
+  const senderOk = !ruleObj || !ruleObj.sender || actingLocked || s.actingRole === ruleObj.sender;
+  const ruleNeeds = !!(ruleObj && ruleObj.on && ruleObj.approver && ruleObj.approver !== 'none');
   const wallAllowed = !ruleTo || ruleTo.indexOf('wall') !== -1;
   const cmNeedsApproval = ruleNeeds || (cmS.type === 'Announcement' && f1 && f1.levels > 0);
   const cm = {

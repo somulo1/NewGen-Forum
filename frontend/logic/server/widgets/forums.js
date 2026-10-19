@@ -73,50 +73,51 @@ async function allMessages(srv, conv) {
 }
 
 // ---- posting rules ----
-// The server limits who may post by system role; the forum screens talk about forum roles. These two tables connect them.
-const ROLE_KEYS = { Admin: ['admin', 'superadmin'], Moderator: ['hod', 'sector', 'branch', 'unit'], Member: ['staff', 'it', 'finance'], Guest: ['guest'] };
-const FORUM_ROLE = Object.fromEntries(Object.entries(ROLE_KEYS).flatMap(([r, keys]) => keys.map((k) => [k, r])));
+// The server limits who may post by the organization's roles (keys); the screens show role names. Which roles exist is data.
+const roleNames = (logic) => Object.fromEntries((logic.state.serverRoles || []).map((r) => [r.id, r.name]));
 const forumRoleOf = (role) => (role === 'owner' || role === 'admin' ? 'Admin' : role === 'moderator' ? 'Moderator' : role === 'guest' ? 'Guest' : 'Member');
 
-// Same decision the server makes (it enforces it on every send).
-export function mayPost(rules, person, roleKey) {
+// Same decision the server makes (it enforces it on every send). names: role key -> role name, for the message.
+export function mayPost(rules, person, roleKey, names = {}) {
   const r = rules || { post_mode: 'everyone', roles: [], blocked: [], allowed: [] };
   if ((r.blocked || []).includes(person)) return { allowed: false, reason: 'You have been blocked from chatting in this forum.' };
   if ((r.allowed || []).includes(person)) return { allowed: true, reason: '' };
   if (r.post_mode === 'list') return { allowed: false, reason: 'Chat is locked in this forum. Only admins can post.' };
   if (r.post_mode === 'roles' && !(r.roles || []).includes(roleKey)) {
-    const names = [...new Set((r.roles || []).map((k) => FORUM_ROLE[k]).filter(Boolean))];
-    return { allowed: false, reason: 'Chat in this forum is limited to ' + (names.length ? names.join(', ') : 'nobody') + '.' };
+    const list = (r.roles || []).map((k) => names[k]).filter(Boolean);
+    return { allowed: false, reason: 'Chat in this forum is limited to ' + (list.length ? list.join(', ') : 'nobody') + '.' };
   }
   return { allowed: true, reason: '' };
 }
 
-// The rules as the chat-rules screen shows them: { mode: everyone | roles | locked, roles: [forum roles], blocked: [names], allowed: [names] }.
-export function policyOf(f) {
+// The rules as the chat-rules screen shows them: { mode: everyone | roles | locked, roles: [role names], blocked: [names], allowed: [names] }.
+export function policyOf(f, names = {}) {
   const r = f.rules || { post_mode: 'everyone', roles: [], blocked: [], allowed: [] };
   const name = (id) => (f.memberList.find((m) => m.person === id) || {}).name;
   const admins = new Set(f.memberList.filter((m) => m.role === 'owner' || m.role === 'admin').map((m) => m.person));
   return {
     mode: r.post_mode === 'list' ? 'locked' : r.post_mode,
-    roles: [...new Set((r.roles || []).map((k) => FORUM_ROLE[k]).filter(Boolean))],
+    roles: (r.roles || []).map((k) => names[k]).filter(Boolean),
     blocked: (r.blocked || []).map(name).filter(Boolean),
     // in a locked forum the admins are written into the list; the screen shows only the people allowed beyond them
     allowed: (r.allowed || []).filter((id) => r.post_mode !== 'list' || !admins.has(id)).map(name).filter(Boolean)
   };
 }
 
-// patch = any of { mode, roles, blocked, allowed } in the screen's terms. Saves the whole rule set.
+// patch = any of { mode, roles (role names), blocked, allowed } in the screen's terms. Saves the whole rule set.
 export async function saveRules(logic, srv, local, patch) {
   const f = liveForum(logic, local);
   if (!f) return;
-  const cur = policyOf(f);
+  const names = roleNames(logic);
+  const keyOf = Object.fromEntries(Object.entries(names).map(([k, n]) => [n, k]));
+  const cur = policyOf(f, names);
   const next = { ...cur, ...patch };
   const id = (n) => (f.memberList.find((m) => m.name === n) || {}).person;
   const admins = f.memberList.filter((m) => m.role === 'owner' || m.role === 'admin').map((m) => m.person);
   const allowed = [...new Set([...next.allowed.map(id).filter(Boolean), ...(next.mode === 'locked' ? admins : [])])];
   const body = {
     post_mode: next.mode === 'locked' ? 'list' : next.mode,
-    roles: next.mode === 'roles' ? [...new Set(next.roles.flatMap((r) => ROLE_KEYS[r] || []))] : [],
+    roles: next.mode === 'roles' ? next.roles.map((n) => keyOf[n]).filter(Boolean) : [],
     blocked: next.blocked.map(id).filter(Boolean), allowed
   };
   logic.setState((st) => ({ forumsLive: st.forumsLive.map((x) => (x.id === local ? { ...x, rules: body } : x)) }));

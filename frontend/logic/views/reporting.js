@@ -1,24 +1,18 @@
 import * as rolesW from '~/logic/server/widgets/roles.js';
 // Reporting lines: a role reports to another role, and a person reports to whoever holds that role in their own scope.
 // Step 1 builds the lookup (used by profiles and the people drawer); step 2 builds the Roles page tab.
-export const DEFAULT_REPORTS = { staff: 'hod', it: 'hod', finance: 'hod', hod: 'branch', unit: 'branch', branch: 'sector', sector: 'admin', guest: '' };
-const ME = 'Samwel Okoth Omulo';
-const SCOPE = { hod: 'dept', unit: 'unit', branch: 'loc', sector: 'sector' };
-const DEFAULT_ROLE = { [ME]: 'admin', 'Brian Kiprop': 'it', 'David Otieno': 'staff', 'Amina Wanjiru': 'finance', 'Grace Njeri': 'hod', 'Faith Achieng': 'staff', 'Kevin Mutua': 'staff', 'Mercy Wambui': 'staff', 'John Kamau': 'staff', 'Lilian Chebet': 'staff' };
-
+// Nothing here is built in: which roles exist, who holds them and who reports to whom are all data (Roles & rights).
 export function buildReporting(ctx) {
   const { has, s, visibleRoles } = ctx;
   const vis = (id) => visibleRoles.some((r) => r.id === id);
   const roleName = (id) => (visibleRoles.find((r) => r.id === id) || {}).name || id;
-  const ridOf = (n) => {
-    const d = this.dir.find((x) => x.name === n);
-    const rid = s.memberRoles[n] || DEFAULT_ROLE[n] || (d && /Lead|Supervisor/.test(d.title) ? (has.branches ? 'branch' : 'hod') : 'staff');
-    return vis(rid) ? rid : 'staff';
-  };
-  const meDir = { name: ME, title: 'Cybersecurity & Technology Risk Officer', dept: 'Risk & Compliance', loc: 'Head Office', sector: 'Corporate', unit: 'Service Desk' };
+  const ridOf = (n) => { const rid = s.memberRoles[n] || ''; return vis(rid) ? rid : ''; };
+  const mi = s.meInfo || {};
+  const ME = (this.srv && this.srv.me && this.srv.me.name) || mi.name || '';
+  const meDir = { name: ME, title: mi.title || '', dept: mi.dept || '', loc: mi.branch || '', sector: mi.sector || '', unit: mi.unit || '' };
   const personOf = (n) => (n === ME ? meDir : this.dir.find((x) => x.name === n));
   const holdersOf = (rid) => this.dir.map((d) => d).concat([meDir]).filter((d, i, a) => a.findIndex((x) => x.name === d.name) === i).filter((d) => ridOf(d.name) === rid);
-  const reportsMap = { ...DEFAULT_REPORTS, ...s.reportsTo };
+  const reportsMap = { ...s.reportsTo };
   // The role a person reports to under a map. If the mapped role is not in use here, it climbs to that role's own reporting role.
   const targetRoleWith = (map) => (name) => {
     let rid = ridOf(name);

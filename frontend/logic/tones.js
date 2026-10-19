@@ -1,7 +1,7 @@
 // The app's sounds, played with the Web Audio API from parameters the server serves (GET /v1/tones), so no sound files are
 // needed and every tone can be changed in the database. Until the server's set has loaded, the built-in copy below plays.
 // Browsers only allow sound after the person has clicked or typed once; before that these do nothing.
-let ctx = null, ringTimer = null, ringStop = null;
+let ctx = null, ringTimer = null, backTimer = null, ringStop = null;
 
 const BUILT_IN = {
   chime: { notes: [{ freqs: [880], at: 0, len: 0.14, vol: 0.18 }, { freqs: [1320], at: 0.15, len: 0.22, vol: 0.16 }] },
@@ -10,6 +10,8 @@ const BUILT_IN = {
   connected: { notes: [{ freqs: [660], at: 0, len: 0.1, vol: 0.16 }, { freqs: [880], at: 0.12, len: 0.14, vol: 0.16 }] },
   hangup: { notes: [{ freqs: [480], at: 0, len: 0.18, vol: 0.16 }, { freqs: [480], at: 0.26, len: 0.18, vol: 0.16 }] },
   message: { notes: [{ freqs: [990], at: 0, len: 0.09, vol: 0.08 }] },
+  joined: { notes: [{ freqs: [587], at: 0, len: 0.1, vol: 0.16 }, { freqs: [784], at: 0.11, len: 0.1, vol: 0.16 }, { freqs: [1175], at: 0.22, len: 0.18, vol: 0.16 }] },
+  hand: { wave: 'triangle', notes: [{ freqs: [1319], at: 0, len: 0.08, vol: 0.2 }, { freqs: [1319], at: 0.12, len: 0.08, vol: 0.2 }, { freqs: [1760], at: 0.24, len: 0.16, vol: 0.2 }] },
   alert: { wave: 'triangle', notes: [{ freqs: [784], at: 0, len: 0.12, vol: 0.2 }, { freqs: [1047], at: 0.14, len: 0.12, vol: 0.2 }, { freqs: [1319], at: 0.28, len: 0.22, vol: 0.18 }] }
 };
 let tones = { ...BUILT_IN };
@@ -30,9 +32,19 @@ function audio() {
   if (typeof window === 'undefined') return null;
   try {
     if (!ctx) { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return null; ctx = new AC(); }
-    if (ctx.state === 'suspended') ctx.resume();
     return ctx;
   } catch (e) { return null; }
+}
+
+// Browsers keep audio switched off until the person clicks or types. Calls ring from the network, not from a click, so
+// the audio is switched on at the first click or key anywhere in the app; after that every tone can play.
+if (typeof window !== 'undefined') {
+  const unlock = () => {
+    const a = audio();
+    if (a && a.state !== 'running') a.resume().catch(() => {});
+    if (a && a.state === 'running') ['pointerdown', 'keydown', 'touchstart'].forEach((t) => window.removeEventListener(t, unlock, true));
+  };
+  ['pointerdown', 'keydown', 'touchstart'].forEach((t) => window.addEventListener(t, unlock, true));
 }
 
 // One note: the frequencies play together, shaped by the tone's attack and release so it does not click.
@@ -50,8 +62,11 @@ function note(p, n) {
 }
 
 export function play(key) {
-  const p = tones[key];
-  if (p) p.notes.forEach((n) => note(p, n));
+  const p = tones[key] || BUILT_IN[key];
+  const a = audio();
+  if (!p || !a) return;
+  const go = () => p.notes.forEach((n) => note(p, n));
+  if (a.state === 'running') go(); else a.resume().then(() => { if (a.state === 'running') go(); }).catch(() => {});
 }
 
 // A new notification.
@@ -64,18 +79,22 @@ export function alertTone() { play('alert'); }
 // Incoming call: repeats until answered or declined.
 export function startRing() {
   stopRing();
-  play('ring'); ringTimer = setInterval(() => play('ring'), tones.ring.repeat_ms || 2400);
+  play('ring'); ringTimer = setInterval(() => play('ring'), (tones.ring && tones.ring.repeat_ms) || 2400);
 }
 export function stopRing() { if (ringTimer) { clearInterval(ringTimer); ringTimer = null; } }
 
 // Outgoing call: ringing until the other side answers. Without `ms` it rings until stopRingback() is called.
 export function startRingback(ms) {
   stopRingback();
-  play('ringback'); ringTimer = setInterval(() => play('ringback'), tones.ringback.repeat_ms || 3000);
+  play('ringback'); backTimer = setInterval(() => play('ringback'), (tones.ringback && tones.ringback.repeat_ms) || 3000);
   if (ms) ringStop = setTimeout(() => { stopRingback(); connected(); }, ms);
 }
-export function stopRingback() { stopRing(); if (ringStop) { clearTimeout(ringStop); ringStop = null; } }
+export function stopRingback() { if (backTimer) { clearInterval(backTimer); backTimer = null; } if (ringStop) { clearTimeout(ringStop); ringStop = null; } }
 
 export function connected() { play('connected'); }
 export function hangup() { play('hangup'); }
-export function stopAll() { stopRingback(); }
+// Someone joined the call you are in.
+export function joinedTone() { play('joined'); }
+// Someone in the call raised their hand.
+export function handTone() { play('hand'); }
+export function stopAll() { stopRingback(); stopRing(); }

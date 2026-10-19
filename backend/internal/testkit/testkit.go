@@ -12,7 +12,9 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
+	"hub/internal/access"
 	"hub/internal/app"
 	"hub/internal/config"
 	"hub/internal/crypto"
@@ -119,5 +121,18 @@ func (e *Env) NewOrg(ownerName string) (*User, string) {
 	u := e.Login(email, "")
 	slug := "t-" + strings.ToLower(strings.ReplaceAll(uuid.NewString(), "-", "")[:14])
 	e.MustDo(201, "POST", "/orgs", map[string]any{"name": ownerName + " Co", "slug": slug}, u.Access)
+	// tests lean on a sample set of roles (a real organization makes its own on the Roles page)
+	org, err := uuid.Parse(e.OrgID(slug))
+	if err != nil {
+		e.T.Fatal(err)
+	}
+	if err := e.A.DB.WithOrg(context.Background(), org, func(tx pgx.Tx) error {
+		_, err := access.InstallDemoRoles(context.Background(), tx, org, app.NewID, func(table, where string, args ...any) error {
+			return e.A.Sign.Seal(context.Background(), tx, table, where, args...)
+		})
+		return err
+	}); err != nil {
+		e.T.Fatal(err)
+	}
 	return e.Login(email, slug), slug
 }

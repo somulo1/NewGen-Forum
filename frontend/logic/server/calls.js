@@ -4,7 +4,7 @@
 //   start/join   -> POST /calls or /calls/{id}/join -> { call, token, url }
 //   room socket  -> welcome { you, peers } | peer-joined | peer-left | offer/answer/ice (relayed) | state | chat | mod | ended
 import { connectRealtime } from './realtime.js';
-import { startRing, stopRing, startRingback, stopRingback, connected, hangup } from '../tones.js';
+import { startRing, stopRing, startRingback, stopRingback, connected, hangup, joinedTone, handTone } from '../tones.js';
 
 const ICE = [{ urls: 'stun:stun.l.google.com:19302' }];
 
@@ -58,13 +58,16 @@ function peerView(p) {
   return { id: p.id, person: p.person, name: p.name, role: p.role, mic: p.mic !== false, cam: !!p.cam, hand: !!p.hand, sharing: !!p.sharing };
 }
 
-async function connectRoom(logic, srv, entry) {
+// opts.ringback: this is a private call I started, so I hear it ringing until the other person answers.
+async function connectRoom(logic, srv, entry, opts = {}) {
   leaveRoom(false);
+  if (opts.ringback) startRingback();
+  const ctx = entry.call.context || 'meeting';
   media.local = await getMedia(entry.call.kind);
   if (!media.local) logic.notify('Hub cannot use your microphone. Check the browser permission; you can still listen.', '#FFB86B');
   changed();
   const ws = new WebSocket(entry.url + '?token=' + encodeURIComponent(entry.token));
-  room = { ws, me: null, pcs: new Map(), callId: entry.call.id, host: entry.call.host };
+  room = { ws, me: null, pcs: new Map(), callId: entry.call.id, host: entry.call.host, ctx };
   setCall(logic, { callId: entry.call.id, peers: [], me: null });
   ws.onmessage = async (e) => {
     let m; try { m = JSON.parse(e.data); } catch (x) { return; }
@@ -80,12 +83,16 @@ async function connectRoom(logic, srv, entry) {
           await pc.setLocalDescription(offer);
           send({ type: 'offer', to: p.id, data: offer });
         }
+        // joining a call that is already going: you hear that you are in
         if ((m.peers || []).length) { stopRingback(); connected(); }
         sendState(logic);
         break;
       case 'peer-joined':
         setCall(logic, { peers: peers().filter((p) => p.id !== m.peer.id).concat([peerView(m.peer)]) });
-        stopRingback(); connected();
+        stopRingback();
+        // a private call: they answered. A forum call or meeting: someone joined, with a notice saying who.
+        if (ctx === 'dm') connected();
+        else { joinedTone(); logic.notify((m.peer.name || 'Someone') + ' joined the call.', '#B8F36B'); }
         break;
       case 'peer-left':
         dropPeer(m.id);
@@ -102,9 +109,15 @@ async function connectRoom(logic, srv, entry) {
       }
       case 'answer': { const pc = room.pcs.get(m.from); if (pc) await pc.setRemoteDescription(m.data); break; }
       case 'ice': { const pc = room.pcs.get(m.from); if (pc && m.data) await pc.addIceCandidate(m.data).catch(() => {}); break; }
-      case 'state':
+      case 'state': {
+        const before = peers().find((p) => p.id === m.peer.id);
         setCall(logic, { peers: peers().map((p) => (p.id === m.peer.id ? peerView(m.peer) : p)) });
+        if (m.peer.id !== room.me && m.peer.hand && !(before && before.hand)) {
+          handTone();
+          logic.notify((m.peer.name || (before && before.name) || 'Someone') + ' raised their hand.', '#FFD66B');
+        }
         break;
+      }
       case 'chat': {
         const who = (peers().find((p) => p.id === m.from) || {}).name || 'Someone';
         let text = ''; try { text = (typeof m.data === 'string' ? JSON.parse(m.data) : m.data).text; } catch (x) { /* ignore */ }
@@ -202,8 +215,7 @@ export async function start(logic, srv, { kind, context, ref }) {
   const conversation = await conversationFor(logic, srv, context, ref);
   const ctx = context === 'dm' ? 'dm' : context === 'forum' ? 'forum' : 'meeting';
   const entry = await srv.request('POST', '/calls', { kind, context: ctx, ...(conversation ? { conversation } : {}) });
-  if (ctx === 'dm') startRingback();
-  await connectRoom(logic, srv, entry);
+  await connectRoom(logic, srv, entry, { ringback: ctx === 'dm' });
 }
 
 export async function join(logic, srv, callId) {
@@ -226,7 +238,9 @@ export function listen(logic, srv) {
     const pr = (logic.state.dmPrivacy || {})[d.from_name] || {};
     if (d.context === 'dm' && (pr.blocked || pr.noCall || (d.kind === 'video' && pr.noVideo))) { decline(srv, d.call); return; }
     logic.setState({ incoming: { name: d.from_name, kind: d.kind, callId: d.call, context: d.context, conversation: d.conversation } });
-    startRing();
+    // a private call rings until answered; a forum call or meeting shows the banner (and meetings a notice) without ringing
+    if (d.context === 'dm') startRing();
+    else if (d.context !== 'forum') logic.notify((d.from_name || 'A colleague') + ' started a ' + (d.context === 'standup' ? 'standup' : 'meeting') + '. Join from the banner.', '#7CC4FF');
     clearTimeout(srv.ringT);
     srv.ringT = setTimeout(() => { if (logic.state.incoming && logic.state.incoming.callId === d.call) { stopRing(); logic.setState({ incoming: null }); logic.notify('Missed ' + (d.kind === 'video' ? 'video call' : 'call') + ' from ' + d.from_name + '.', '#FFB86B'); loadHistory(logic, srv); } }, 45000);
   };

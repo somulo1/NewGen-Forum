@@ -14,7 +14,7 @@ func TestUnitDashboardIsBuiltFromRealRecords(t *testing.T) {
 	ownerU, slug := e.NewOrg("Olivia Owner")
 	org := e.OrgID(slug)
 	o := e.Owner(ownerU)
-	e.MustDo(204, "PUT", "/approvals/flows/f11", map[string]any{"levels": 0, "approvers": []string{"a", "b", "c"}}, ownerU.Access)
+	e.MustDo(204, "PUT", "/approvals/flows/f11", map[string]any{"levels": 0}, ownerU.Access)
 	dept := e.MustDo(201, "POST", "/org/units", map[string]any{"kind": "department", "name": "Finance"}, ownerU.Access)["id"].(string)
 	amy := e.Join(ownerU, slug, "Amy", "hod")
 	bob := e.Join(ownerU, slug, "Bob", "staff")
@@ -47,8 +47,11 @@ func TestUnitDashboardIsBuiltFromRealRecords(t *testing.T) {
 	}
 	e.MustDo(200, "POST", "/tickets/"+conv+"/act", map[string]any{"do": "escalate", "to_type": "department", "to_ref": dept, "person": amy.Person, "why": "Back to Finance"}, ownerU.Access)
 
-	// an approval request waiting for an "HR Manager" (Amy's title) shows up as received by Finance
-	e.MustDo(204, "PUT", "/approvals/flows/f11", map[string]any{"levels": 1, "approvers": []string{"HR Manager", "b", "c"}}, ownerU.Access)
+	// an approval request waiting for someone who holds the level-1 approval right (Amy, through a personal grant) shows up as received by Finance
+	e.MustDo(204, "PUT", "/approvals/flows/f8", map[string]any{"levels": 0}, ownerU.Access)
+	e.MustDo(204, "PUT", "/approvals/flows/f11", map[string]any{"levels": 0}, ownerU.Access)
+	e.MustDo(200, "PUT", "/people/"+amy.Person+"/rights", map[string]any{"module": "people", "right": "Approve level 1", "allowed": true}, ownerU.Access)
+	e.MustDo(204, "PUT", "/approvals/flows/f11", map[string]any{"levels": 1}, ownerU.Access)
 	e.MustDo(202, "PATCH", "/people/"+bob.Person, map[string]any{"title": "Clerk"}, ownerU.Access)
 
 	// a memo Amy sends to the whole organization

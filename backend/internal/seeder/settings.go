@@ -6,7 +6,11 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/jackc/pgx/v5"
+
+	"hub/internal/access"
 	"hub/internal/crypto"
+	"hub/internal/integrity"
 	"hub/internal/modules/comms"
 	"hub/internal/modules/settings"
 	"hub/internal/modules/tickets"
@@ -16,15 +20,7 @@ import (
 var fastPW = crypto.PasswordParams{Time: 1, MemoryKiB: 8 * 1024, Threads: 1}
 
 func (s *Seeder) setFlow(ctx context.Context, key string, levels int) {
-	approvers := []string{"x", "y", "z"}
-	flows, err := s.Ap.Flows(ctx, s.Owner.P)
-	s.must(err, "flows")
-	for _, f := range flows {
-		if f.Key == key {
-			approvers = f.Approvers
-		}
-	}
-	s.must(s.Ap.SetFlow(ctx, s.Owner.P, key, levels, approvers), "set flow")
+	s.must(s.Ap.SetFlow(ctx, s.Owner.P, key, levels), "set flow")
 }
 
 func (s *Seeder) seedSettings(ctx context.Context) {
@@ -33,6 +29,7 @@ func (s *Seeder) seedSettings(ctx context.Context) {
 	var acc struct {
 		Flows []struct {
 			ID        string   `json:"id"`
+			Mod       string   `json:"mod"`
 			Levels    int      `json:"levels"`
 			Approvers []string `json:"approvers"`
 		}
@@ -40,7 +37,22 @@ func (s *Seeder) seedSettings(ctx context.Context) {
 	b, _ := json.Marshal(map[string]json.RawMessage{"Flows": s.data.state["flows"]})
 	s.must(json.Unmarshal(b, &acc), "flows")
 	for _, f := range acc.Flows {
-		s.must(s.Ap.SetFlow(ctx, o, f.ID, f.Levels, f.Approvers), "flow "+f.ID)
+		s.must(s.Ap.SetFlow(ctx, o, f.ID, f.Levels), "flow "+f.ID)
+		// the mock names who approves each level; the demo gives that level's approval right to the role of that name
+		for lvl, who := range f.Approvers {
+			if lvl >= f.Levels {
+				break
+			}
+			s.must(s.A.DB.WithOrg(ctx, s.OrgID, func(tx pgx.Tx) error {
+				tag, err := tx.Exec(ctx, `insert into hub.role_rights (org_id, role_id, module, right_name, allowed)
+					select $1, id, $3, $4, true from hub.roles where lower(name)=lower($2) and not locked
+					on conflict (org_id, role_id, module, right_name) do update set allowed=true, `+integrity.BumpOn("role_rights"), s.OrgID, who, f.Mod, access.ApproveRight(lvl+1))
+				if err != nil || tag.RowsAffected() == 0 {
+					return err
+				}
+				return s.A.Sign.Seal(ctx, tx, "role_rights", "module=$1 and right_name=$2", f.Mod, access.ApproveRight(lvl+1))
+			}), "approver right")
+		}
 	}
 
 	var prof settings.Profile

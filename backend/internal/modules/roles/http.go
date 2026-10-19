@@ -7,7 +7,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"hub/internal/access"
 	"hub/internal/httpx"
 	"hub/internal/tenant"
 )
@@ -79,10 +78,113 @@ func (s *Service) Private(r chi.Router) {
 		return nil
 	}))
 	r.Get("/access/catalog", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
-		if _, err := tenant.MustOrg(r.Context()); err != nil {
+		p, err := tenant.MustOrg(r.Context())
+		if err != nil {
 			return err
 		}
-		httpx.JSON(w, 200, access.Default())
+		c, err := s.Catalog(r.Context(), p)
+		if err != nil {
+			return err
+		}
+		httpx.JSON(w, 200, c)
+		return nil
+	}))
+	r.Post("/access/modules", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
+		p, err := tenant.MustOrg(r.Context())
+		if err != nil {
+			return err
+		}
+		var in RightIn
+		if err := httpx.Decode(r, &in, 2<<10); err != nil {
+			return err
+		}
+		if err := s.AddModule(r.Context(), p, in); err != nil {
+			return err
+		}
+		w.WriteHeader(204)
+		return nil
+	}))
+	r.Post("/access/rights", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
+		p, err := tenant.MustOrg(r.Context())
+		if err != nil {
+			return err
+		}
+		var in RightIn
+		if err := httpx.Decode(r, &in, 2<<10); err != nil {
+			return err
+		}
+		if err := s.AddRight(r.Context(), p, in); err != nil {
+			return err
+		}
+		w.WriteHeader(204)
+		return nil
+	}))
+	r.Patch("/access/rights", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
+		p, err := tenant.MustOrg(r.Context())
+		if err != nil {
+			return err
+		}
+		var in RightIn
+		if err := httpx.Decode(r, &in, 2<<10); err != nil {
+			return err
+		}
+		if err := s.UpdateRight(r.Context(), p, in); err != nil {
+			return err
+		}
+		w.WriteHeader(204)
+		return nil
+	}))
+	r.Delete("/access/rights", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
+		p, err := tenant.MustOrg(r.Context())
+		if err != nil {
+			return err
+		}
+		if err := s.RemoveRight(r.Context(), p, r.URL.Query().Get("module"), r.URL.Query().Get("name")); err != nil {
+			return err
+		}
+		w.WriteHeader(204)
+		return nil
+	}))
+	r.Post("/roles", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
+		p, err := tenant.MustOrg(r.Context())
+		if err != nil {
+			return err
+		}
+		var in RoleIn
+		if err := httpx.Decode(r, &in, 4<<10); err != nil {
+			return err
+		}
+		key, err := s.CreateRole(r.Context(), p, in)
+		if err != nil {
+			return err
+		}
+		httpx.JSON(w, 201, map[string]any{"id": key})
+		return nil
+	}))
+	r.Patch("/roles/{key}", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
+		p, err := tenant.MustOrg(r.Context())
+		if err != nil {
+			return err
+		}
+		var in RoleIn
+		if err := httpx.Decode(r, &in, 4<<10); err != nil {
+			return err
+		}
+		if err := s.UpdateRole(r.Context(), p, chi.URLParam(r, "key"), in); err != nil {
+			return err
+		}
+		w.WriteHeader(204)
+		return nil
+	}))
+	r.Delete("/roles/{key}", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
+		p, err := tenant.MustOrg(r.Context())
+		if err != nil {
+			return err
+		}
+		if err := s.DeleteRole(r.Context(), p, chi.URLParam(r, "key")); err != nil {
+			return err
+		}
+		w.WriteHeader(204)
 		return nil
 	}))
 	r.Get("/roles", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
