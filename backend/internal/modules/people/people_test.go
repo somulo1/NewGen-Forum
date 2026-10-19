@@ -225,3 +225,39 @@ func TestDirectoryPagingPrivacyAndEncryption(t *testing.T) {
 		t.Fatalf("phone is stored readable: %q", raw)
 	}
 }
+
+// A person's "reports to" is read from the organization's reporting lines, and the Roles list shows the same lines.
+func TestReportsToFollowsReportingLines(t *testing.T) {
+	e := testkit.New(t)
+	owner, slug := e.NewOrg("Olivia Owner")
+	_, aID := join(t, e, owner, slug, "Alice", "Analyst")
+	ownerID := e.MustDo(200, "GET", "/me", nil, owner.Access)["person"].(string)
+
+	reports := func() map[string]any {
+		return e.MustDo(200, "GET", "/people/"+aID, nil, owner.Access)["reports_to"].(map[string]any)
+	}
+	// nobody holds the roles above staff yet, so there is no one to report to
+	if r := reports(); r["kind"] != "none" {
+		t.Fatalf("expected no one, got %v", r)
+	}
+	// the organization says staff report to the Super admin role
+	e.MustDo(204, "PUT", "/roles/reporting", map[string]any{"role": "staff", "reports_to_role": "superadmin"}, owner.Access)
+	if r := reports(); r["kind"] != "role" || r["role_key"] != "superadmin" {
+		t.Fatalf("expected the Super admin role, got %v", r)
+	}
+	// naming a person in that role makes it that person
+	e.MustDo(204, "PUT", "/roles/reporting", map[string]any{"role": "staff", "reports_to_role": "superadmin", "reports_to_person": ownerID}, owner.Access)
+	if r := reports(); r["kind"] != "person" || r["person"].(map[string]any)["id"] != ownerID {
+		t.Fatalf("expected Olivia, got %v", r)
+	}
+	// and the roles list carries the line
+	var staff map[string]any
+	for _, x := range e.MustDo(200, "GET", "/roles", nil, owner.Access)["roles"].([]any) {
+		if x.(map[string]any)["id"] == "staff" {
+			staff = x.(map[string]any)
+		}
+	}
+	if staff["reports_to_role"] != "superadmin" || staff["reports_to_person"] != ownerID {
+		t.Fatalf("roles list lost the reporting line: %v", staff)
+	}
+}

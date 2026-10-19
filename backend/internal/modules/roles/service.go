@@ -43,6 +43,9 @@ type RoleInfo struct {
 	Locked  bool   `json:"locked"`
 	Needs   string `json:"needs,omitempty"`
 	Members int    `json:"count"`
+	// who this role reports to: a role, and optionally one named person in it
+	ReportsToRole   string     `json:"reports_to_role,omitempty"`
+	ReportsToPerson *uuid.UUID `json:"reports_to_person,omitempty"`
 }
 
 func (s *Service) Roles(ctx context.Context, p *tenant.Principal) ([]RoleInfo, error) {
@@ -51,8 +54,10 @@ func (s *Service) Roles(ctx context.Context, p *tenant.Principal) ([]RoleInfo, e
 		if err := authz.Require(ctx, tx, p.Person, "roles", "View roles"); err != nil {
 			return err
 		}
-		rs, err := tx.Query(ctx, `select r.key, r.name, r.description, r.scope, r.locked, coalesce(r.needs_level,''), count(pp.person_id) filter (where x.status <> 'deleted')
+		rs, err := tx.Query(ctx, `select r.key, r.name, r.description, r.scope, r.locked, coalesce(r.needs_level,''), count(pp.person_id) filter (where x.status <> 'deleted'),
+			coalesce(min(rt.key),''), (array_agg(rr.reports_to_person))[1]
 			from hub.roles r left join hub.person_roles pp on pp.role_id = r.id left join hub.people x on x.id = pp.person_id
+			left join hub.role_reports rr on rr.role_id = r.id left join hub.roles rt on rt.id = rr.reports_to_role
 			group by r.id order by r.locked desc, min(r.key)`)
 		if err != nil {
 			return err
@@ -60,7 +65,7 @@ func (s *Service) Roles(ctx context.Context, p *tenant.Principal) ([]RoleInfo, e
 		defer rs.Close()
 		for rs.Next() {
 			var x RoleInfo
-			if err := rs.Scan(&x.Key, &x.Name, &x.Desc, &x.Scope, &x.Locked, &x.Needs, &x.Members); err != nil {
+			if err := rs.Scan(&x.Key, &x.Name, &x.Desc, &x.Scope, &x.Locked, &x.Needs, &x.Members, &x.ReportsToRole, &x.ReportsToPerson); err != nil {
 				return err
 			}
 			out = append(out, x)

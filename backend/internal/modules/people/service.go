@@ -47,24 +47,25 @@ type Ref struct {
 }
 
 type Person struct {
-	ID           uuid.UUID `json:"id"`
-	Name         string    `json:"name"`
-	First        string    `json:"first_name"`
-	Last         string    `json:"last_name"`
-	Initials     string    `json:"initials"`
-	Title        string    `json:"title"`
-	Status       string    `json:"status"`
-	Availability string    `json:"availability"`
-	Color        string    `json:"color"`
-	Sector       *Ref      `json:"sector,omitempty"`
-	Branch       *Ref      `json:"branch,omitempty"`
-	Unit         *Ref      `json:"unit,omitempty"`
-	Department   *Ref      `json:"department,omitempty"`
-	Role         string    `json:"role,omitempty"`
-	RoleName     string    `json:"role_name,omitempty"`
-	Manager      *Ref      `json:"manager,omitempty"`
-	Joined       string    `json:"joined_on,omitempty"`
-	HasAccount   bool      `json:"has_account"`
+	ID           uuid.UUID  `json:"id"`
+	Name         string     `json:"name"`
+	First        string     `json:"first_name"`
+	Last         string     `json:"last_name"`
+	Initials     string     `json:"initials"`
+	Title        string     `json:"title"`
+	Status       string     `json:"status"`
+	Availability string     `json:"availability"`
+	Color        string     `json:"color"`
+	Sector       *Ref       `json:"sector,omitempty"`
+	Branch       *Ref       `json:"branch,omitempty"`
+	Unit         *Ref       `json:"unit,omitempty"`
+	Department   *Ref       `json:"department,omitempty"`
+	Role         string     `json:"role,omitempty"`
+	RoleName     string     `json:"role_name,omitempty"`
+	Manager      *Ref       `json:"manager,omitempty"`
+	ReportsTo    *ReportsTo `json:"reports_to,omitempty"` // single-person reads only
+	Joined       string     `json:"joined_on,omitempty"`
+	HasAccount   bool       `json:"has_account"`
 	// personal data, present only when the viewer may see contact details (or it is their own profile)
 	Email  *string `json:"email,omitempty"`
 	Phone  *string `json:"phone,omitempty"`
@@ -281,6 +282,9 @@ func (s *Service) Get(ctx context.Context, p *tenant.Principal, id uuid.UUID) (*
 			return err
 		}
 		s.reveal(dek, p.Org, x, contact || self, full || self)
+		if x.ReportsTo, err = s.reportsTo(ctx, tx, x.ID, x.Manager); err != nil {
+			return err
+		}
 		if full || self {
 			if err := s.loadProfile(ctx, tx, dek, p.Org, &x.Person); err != nil {
 				return err
