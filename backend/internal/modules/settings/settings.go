@@ -3,6 +3,7 @@ package settings
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math"
 	"net/http"
@@ -153,6 +154,28 @@ func (m *Module) SetSecurity(ctx context.Context, p *tenant.Principal, in orgset
 			return err
 		}
 		return m.A.Audit(ctx, tx, p.Org, &p.Person, p.Name, "Changed the organization's security settings", "Settings", p.IP, in)
+	})
+}
+
+// Widgets is the organization-wide configuration of the home widgets (titles, who sees them, who manages them).
+func (m *Module) Widgets(ctx context.Context, p *tenant.Principal) (map[string]any, error) {
+	out := map[string]any{}
+	err := m.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error { return orgsettings.Get(ctx, m.A, tx, p.Org, "widgets", &out) })
+	return out, err
+}
+
+func (m *Module) SetWidgets(ctx context.Context, p *tenant.Principal, in map[string]any) error {
+	if raw, _ := json.Marshal(in); len(raw) > 32<<10 {
+		return httpx.Bad("That is too much widget configuration.")
+	}
+	return m.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
+		if err := authz.Require(ctx, tx, p.Person, "home", "Manage widget settings"); err != nil {
+			return err
+		}
+		if err := orgsettings.Set(ctx, m.A, tx, p.Org, "widgets", in); err != nil {
+			return err
+		}
+		return m.A.Audit(ctx, tx, p.Org, &p.Person, p.Name, "Changed the home widget settings", "Settings", p.IP, nil)
 	})
 }
 
@@ -437,6 +460,25 @@ func (m *Module) Private(r chi.Router) {
 			return err
 		}
 		httpx.JSON(w, 200, a)
+		return nil
+	}))
+	r.Get("/settings/widgets", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
+		a, err := m.Widgets(r.Context(), p)
+		if err != nil {
+			return err
+		}
+		httpx.JSON(w, 200, a)
+		return nil
+	}))
+	r.Put("/settings/widgets", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
+		var in map[string]any
+		if err := httpx.Decode(r, &in, 40<<10); err != nil {
+			return err
+		}
+		if err := m.SetWidgets(r.Context(), p, in); err != nil {
+			return err
+		}
+		w.WriteHeader(204)
 		return nil
 	}))
 	r.Put("/settings/profile", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {

@@ -77,6 +77,9 @@ type Ticket struct {
 	Sync         string      `json:"sync,omitempty"`
 	CreatedAt    time.Time   `json:"created_at"`
 	Events       []Event     `json:"events,omitempty"`
+	// ElapsedHours is how much of the TAT's running clock has been used (pauses and off-hours excluded); above TATHours means overdue.
+	ElapsedHours float64 `json:"elapsed_hours"`
+	holdSince    *time.Time
 }
 
 type Event struct {
@@ -259,13 +262,13 @@ func (s *Service) pickHandler(ctx context.Context, tx pgx.Tx, c *Category) (*uui
 }
 
 const ticketSelect = `select t.conversation_id, t.ref, t.category, t.priority, t.step, t.hold, t.raised_by, coalesce(rp.first_name || ' ' || rp.last_name,''), t.handler, coalesce(hp.first_name || ' ' || hp.last_name,''),
-	t.handler_since, t.to_type, t.to_ref, t.tat_hours, t.due_at, t.solved_at, t.escalated, t.late, t.sync, t.created_at,
+	t.handler_since, t.to_type, t.to_ref, t.tat_hours, t.due_at, t.solved_at, t.escalated, t.late, t.sync, t.created_at, t.hold_since,
 	coalesce((select array_agg(person_id) from hub.ticket_assignees a where a.ticket_id = t.conversation_id), '{}')
 	from hub.tickets t join hub.people rp on rp.id = t.raised_by left join hub.people hp on hp.id = t.handler`
 
 func scanTicket(r pgx.Row) (*Ticket, error) {
 	t := &Ticket{}
-	err := r.Scan(&t.ID, &t.Ref, &t.Category, &t.Priority, &t.Step, &t.Hold, &t.RaisedBy, &t.RaisedByName, &t.Handler, &t.HandlerName, &t.HandlerSince, &t.ToType, &t.ToRef, &t.TATHours, &t.DueAt, &t.SolvedAt, &t.Escalated, &t.Late, &t.Sync, &t.CreatedAt, &t.Assignees)
+	err := r.Scan(&t.ID, &t.Ref, &t.Category, &t.Priority, &t.Step, &t.Hold, &t.RaisedBy, &t.RaisedByName, &t.Handler, &t.HandlerName, &t.HandlerSince, &t.ToType, &t.ToRef, &t.TATHours, &t.DueAt, &t.SolvedAt, &t.Escalated, &t.Late, &t.Sync, &t.CreatedAt, &t.holdSince, &t.Assignees)
 	if t.Assignees == nil {
 		t.Assignees = []uuid.UUID{}
 	}
@@ -276,6 +279,25 @@ func scanTicket(r pgx.Row) (*Ticket, error) {
 	return t, err
 }
 
+// withElapsed fills ElapsedHours from the due time, so it follows the same pauses the due time was built with.
+func (c Config) withElapsed(t *Ticket) {
+	if t.DueAt == nil {
+		return
+	}
+	end := app.Now()
+	if t.SolvedAt != nil {
+		end = *t.SolvedAt
+	} else if t.Hold && t.holdSince != nil && c.Pause.Onhold {
+		end = *t.holdSince
+	}
+	tat := float64(t.TATHours)
+	if end.Before(*t.DueAt) {
+		t.ElapsedHours = max(0, tat-c.Running(end, *t.DueAt).Hours())
+	} else {
+		t.ElapsedHours = tat + c.Running(*t.DueAt, end).Hours()
+	}
+}
+
 func (s *Service) get(ctx context.Context, tx pgx.Tx, org, id uuid.UUID) (*Ticket, error) {
 	t, err := scanTicket(tx.QueryRow(ctx, ticketSelect+` where t.conversation_id=$1`, id))
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -283,6 +305,9 @@ func (s *Service) get(ctx context.Context, tx pgx.Tx, org, id uuid.UUID) (*Ticke
 	}
 	if err != nil {
 		return nil, err
+	}
+	if cfg, err := s.config(ctx, tx); err == nil {
+		cfg.withElapsed(t)
 	}
 	rs, err := tx.Query(ctx, `select at, actor_name, kind, text from hub.ticket_events where ticket_id=$1 order by at, id`, id)
 	if err != nil {
@@ -334,6 +359,7 @@ func (s *Service) List(ctx context.Context, p *tenant.Principal, q ListQuery) ([
 		if q.Cursor != nil {
 			add("t.created_at < $%d", *q.Cursor)
 		}
+		cfg, cerr := s.config(ctx, tx)
 		rs, err := tx.Query(ctx, ticketSelect+" where "+strings.Join(where, " and ")+fmt.Sprintf(" order by t.created_at desc, t.conversation_id desc limit %d", q.Limit), args...)
 		if err != nil {
 			return err
@@ -343,6 +369,9 @@ func (s *Service) List(ctx context.Context, p *tenant.Principal, q ListQuery) ([
 			t, err := scanTicket(rs)
 			if err != nil {
 				return err
+			}
+			if cerr == nil {
+				cfg.withElapsed(t)
 			}
 			out = append(out, t)
 		}

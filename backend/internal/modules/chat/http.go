@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"hub/internal/httpx"
 	"hub/internal/tenant"
@@ -68,6 +69,32 @@ func (s *Service) Private(r chi.Router) {
 			return err
 		}
 		httpx.JSON(w, 200, map[string]any{"conversations": l})
+		return nil
+	}))
+	// Who a wall audience would cover (so a client can wrap the key for them before creating the wall).
+	r.Get("/conversations/audience-members", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
+		p, err := tenant.MustOrg(r.Context())
+		if err != nil {
+			return err
+		}
+		var ref *uuid.UUID
+		if v := r.URL.Query().Get("ref"); v != "" {
+			u, err := uuid.Parse(v)
+			if err != nil {
+				return httpx.Bad("Bad reference.")
+			}
+			ref = &u
+		}
+		var ids []uuid.UUID
+		err = s.A.DB.WithOrg(r.Context(), p.Org, func(tx pgx.Tx) error {
+			var e error
+			ids, e = s.audienceMembers(r.Context(), tx, r.URL.Query().Get("audience"), ref)
+			return e
+		})
+		if err != nil {
+			return err
+		}
+		httpx.JSON(w, 200, map[string]any{"people": ids})
 		return nil
 	}))
 	r.Get("/conversations/{id}", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {

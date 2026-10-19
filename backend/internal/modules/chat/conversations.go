@@ -98,6 +98,8 @@ type Conversation struct {
 	Members     []Member   `json:"members,omitempty"`
 	MemberCount int        `json:"member_count"`
 	CreatedAt   time.Time  `json:"created_at"`
+	Audience    string     `json:"audience,omitempty"`     // walls: org | sector | branch | unit | department
+	AudienceRef *uuid.UUID `json:"audience_ref,omitempty"` // the structure unit the audience covers
 }
 
 func convCtx(org, id uuid.UUID, col string) crypto.Context {
@@ -434,7 +436,7 @@ func (s *Service) members(ctx context.Context, tx pgx.Tx, id uuid.UUID) ([]Membe
 
 const convSelect = `
 	select c.id, c.kind, c.name_enc, c.about_enc, coalesce(c.color,''), coalesce(c.initials,''), c.privacy, c.epoch, c.created_at,
-	       coalesce(me.role,''), coalesce(me.first_epoch,0), st.last_message, st.last_at,
+	       coalesce(c.audience,''), c.audience_ref, coalesce(me.role,''), coalesce(me.first_epoch,0), st.last_message, st.last_at,
 	       (select count(*) from hub.conversation_members x where x.conversation_id = c.id and x.left_at is null),
 	       case when me.account_id is null then 0 else (select count(*) from (select 1 from hub.messages mm where mm.org_id = c.org_id and mm.conversation_id = c.id and mm.sender_account <> $1
 	            and mm.deleted_at is null and mm.id > coalesce(rc.last_read, '00000000-0000-0000-0000-000000000000'::uuid) limit 100) z) end
@@ -448,7 +450,7 @@ func (s *Service) scanConv(ctx context.Context, tx pgx.Tx, org uuid.UUID, dek []
 	for rs.Next() {
 		c := &Conversation{}
 		var name, about []byte
-		if err := rs.Scan(&c.ID, &c.Kind, &name, &about, &c.Color, &c.Initials, &c.Privacy, &c.Epoch, &c.CreatedAt, &c.MyRole, &c.FirstEpoch, &c.LastMessage, &c.LastAt, &c.MemberCount, &c.Unread); err != nil {
+		if err := rs.Scan(&c.ID, &c.Kind, &name, &about, &c.Color, &c.Initials, &c.Privacy, &c.Epoch, &c.CreatedAt, &c.Audience, &c.AudienceRef, &c.MyRole, &c.FirstEpoch, &c.LastMessage, &c.LastAt, &c.MemberCount, &c.Unread); err != nil {
 			return nil, err
 		}
 		if len(name) > 0 {
