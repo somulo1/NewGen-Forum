@@ -4,7 +4,8 @@ export function buildAwards(ctx) {
   const { can, chip, chipS, flowById, fmtDay, forums, has, makeRequest, openPersonName, personOf, roleDefs, s, set, todayISO, visibleRoles } = ctx;
   // =============== Performance awards ===============
   const awardsOn = s.widgets.indexOf('awards') !== -1;
-  const approvedAwards = s.awardList.filter((a) => a.status === 'Approved');
+  // Connected: only awards approved in the current weekly cycle are on the board (see logic/server/widgets/awards.js).
+  const approvedAwards = s.awardList.filter((a) => a.status === 'Approved' && (!this.srv || a.inCycle));
   const stripBase = [];
   approvedAwards.forEach((a) => a.people.forEach((n) => {
     const isMe = n === 'Samwel Okoth Omulo';
@@ -14,9 +15,9 @@ export function buildAwards(ctx) {
   const awardStrip = {
     hidden: s.hiddenWidgets.indexOf('awards') !== -1, hideLabel: s.hiddenWidgets.indexOf('awards') !== -1 ? 'Show' : 'Hide',
     toggleHide: () => this.setState((st) => ({ hiddenWidgets: st.hiddenWidgets.indexOf('awards') !== -1 ? st.hiddenWidgets.filter((x) => x !== 'awards') : st.hiddenWidgets.concat(['awards']) })),
-    title: 'Performance awards', sub: stripBase.length + ' people recognised recently · tap anyone to see their profile',
+    title: 'Performance awards', sub: this.srv ? (stripBase.length ? stripBase.length + (stripBase.length === 1 ? ' person' : ' people') + ' recognised this week · tap anyone to see their profile' : 'Waiting for the next award · the board starts afresh every Saturday at 12:00 AM') : stripBase.length + ' people recognised recently · tap anyone to see their profile',
     items: stripBase.length ? stripBase.concat(stripBase) : [],
-    empty: stripBase.length === 0,
+    empty: stripBase.length === 0, emptyText: this.srv ? 'No one has been awarded this week yet. Awards appear here once they are approved, and the board starts afresh every Saturday at 12:00 AM.' : 'No approved awards yet. Awards show here once they are approved.',
     trackStyle: 'display:flex;gap:14px;width:max-content;padding:0 7px;animation:hubMarquee ' + Math.max(30, stripBase.length * 6) + 's linear infinite',
     canGive: can('awards', 'Nominate') || can('awards', 'Approve awards'),
     openSettings: () => this.setState({ settingsFor: 'awards' }),

@@ -24,6 +24,7 @@ import (
 	"hub/internal/modules/approvals"
 	"hub/internal/modules/chat"
 	"hub/internal/notify"
+	"hub/internal/orgsettings"
 	"hub/internal/realtime"
 	"hub/internal/tenant"
 )
@@ -344,6 +345,9 @@ type Award struct {
 	Status   string      `json:"status"`
 	By       string      `json:"by"`
 	ByPerson uuid.UUID   `json:"by_person"`
+	// when it was approved, and whether that was in the current weekly cycle (the Home board shows only those)
+	ApprovedAt *time.Time `json:"approved_at,omitempty"`
+	InCycle    bool       `json:"in_cycle"`
 	// where it still has to be announced ("wall" or a forum's conversation id); only the nominator sees these
 	Targets []string `json:"targets,omitempty"`
 }
@@ -436,6 +440,10 @@ func (s *Service) award(ctx context.Context, tx pgx.Tx, org uuid.UUID, dek []byt
 	err := tx.QueryRow(ctx, `select a.id, a.ref, a.type, a.people, a.citation_enc, a.on_date::text, a.status, n.first_name || ' ' || n.last_name, a.nominated_by,
 		coalesce((select array_agg(p.first_name || ' ' || p.last_name order by p.first_name) from hub.people p where p.id = any(a.people)), '{}')
 		from hub.awards a join hub.people n on n.id = a.nominated_by where a.id=$1`, id).Scan(&a.ID, &a.Ref, &a.Type, &a.People, &enc, &a.Date, &a.Status, &a.By, &a.ByPerson, &a.Names)
+	if err == nil && a.Status == "Approved" {
+		// an award that needed no approval was approved when it was given
+		err = tx.QueryRow(ctx, `select coalesce((select approved_at from hub.award_approvals where award_id=$1), (select created_at from hub.awards where id=$1))`, id).Scan(&a.ApprovedAt)
+	}
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, httpx.ErrNotFound
 	}
@@ -508,6 +516,9 @@ func (s *Service) applyAward(ctx context.Context, tx pgx.Tx, a approvals.Applied
 	if err := s.A.Sign.Seal(ctx, tx, "awards", "id=$1", pl.Award); err != nil {
 		return err
 	}
+	if _, err := tx.Exec(ctx, `insert into hub.award_approvals (org_id, award_id) values ($1,$2) on conflict do nothing`, a.Org, pl.Award); err != nil {
+		return err
+	}
 	var nb notify.Batch
 	for _, id := range people {
 		if err := nb.Add(ctx, tx, a.Org, id, "award", "You received an award: "+typ+".", "#FFD66B", ""); err != nil {
@@ -518,7 +529,48 @@ func (s *Service) applyAward(ctx context.Context, tx pgx.Tx, a approvals.Applied
 	return nil
 }
 
+// Cycle is the Performance awards board's weekly cycle: it starts at Saturday 00:00 in the organization's time zone, shows the
+// awards approved since, and starts afresh (empty, waiting for the next award) at the next Saturday 00:00.
+type Cycle struct {
+	Start time.Time `json:"start"`
+	Next  time.Time `json:"next"`
+}
+
+func cycleAt(now time.Time, loc *time.Location) Cycle {
+	n := now.In(loc)
+	back := (int(n.Weekday()) - int(time.Saturday) + 7) % 7
+	start := time.Date(n.Year(), n.Month(), n.Day()-back, 0, 0, 0, 0, loc)
+	return Cycle{Start: start.UTC(), Next: time.Date(start.Year(), start.Month(), start.Day()+7, 0, 0, 0, 0, loc).UTC()}
+}
+
+func (s *Service) orgLoc(ctx context.Context, tx pgx.Tx, org uuid.UUID) *time.Location {
+	var prof struct {
+		Timezone string `json:"timezone"`
+	}
+	_ = orgsettings.Get(ctx, s.A, tx, org, "profile", &prof)
+	if l, err := time.LoadLocation(prof.Timezone); err == nil && prof.Timezone != "" {
+		return l
+	}
+	l, _ := time.LoadLocation("Africa/Nairobi")
+	if l == nil {
+		l = time.UTC
+	}
+	return l
+}
+
 func (s *Service) Awards(ctx context.Context, p *tenant.Principal) ([]*Award, error) {
+	out, _, err := s.AwardsCycle(ctx, p)
+	return out, err
+}
+
+// AwardsCycle lists the awards and the current cycle.
+func (s *Service) AwardsCycle(ctx context.Context, p *tenant.Principal) ([]*Award, Cycle, error) {
+	var cyc Cycle
+	out, err := s.awards(ctx, p, &cyc)
+	return out, cyc, err
+}
+
+func (s *Service) awards(ctx context.Context, p *tenant.Principal, cyc *Cycle) ([]*Award, error) {
 	out := []*Award{}
 	err := s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
 		if err := authz.Require(ctx, tx, p.Person, "awards", "View"); err != nil {
@@ -532,6 +584,7 @@ func (s *Service) Awards(ctx context.Context, p *tenant.Principal) ([]*Award, er
 		if err != nil {
 			return err
 		}
+		*cyc = cycleAt(time.Now(), s.orgLoc(ctx, tx, p.Org))
 		rs, err := tx.Query(ctx, `select id from hub.awards where (status='Approved' or $2::boolean or nominated_by=$1) order by created_at desc limit 200`, p.Person, approver)
 		if err != nil {
 			return err
@@ -551,6 +604,7 @@ func (s *Service) Awards(ctx context.Context, p *tenant.Principal) ([]*Award, er
 			if err != nil {
 				return err
 			}
+			a.InCycle = a.Status == "Approved" && a.ApprovedAt != nil && !a.ApprovedAt.Before(cyc.Start)
 			if a.ByPerson == p.Person && a.Status == "Approved" {
 				a.Targets = s.unposted(ctx, tx, id)
 			}
@@ -671,11 +725,11 @@ func (s *Service) Private(r chi.Router) {
 		return nil
 	}))
 	r.Get("/awards", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
-		l, err := s.Awards(r.Context(), p)
+		l, cyc, err := s.AwardsCycle(r.Context(), p)
 		if err != nil {
 			return err
 		}
-		httpx.JSON(w, 200, map[string]any{"awards": l})
+		httpx.JSON(w, 200, map[string]any{"awards": l, "cycle": cyc})
 		return nil
 	}))
 }

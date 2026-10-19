@@ -129,7 +129,7 @@ export async function saveRules(logic, srv, local, patch) {
 // A shared wall post carries copies of its pictures (made when it was shared); they open like any attachment here.
 function sharedOf(sh, todo) {
   if (!sh || !sh.snap || !sh.snap.media) return sh || null;
-  return { ...sh, snap: { ...sh.snap, media: sh.snap.media.map((f) => { if (!f.fileId) return f; todo.push(f); return { ...f, url: '', ref: f }; }) } };
+  return { ...sh, snap: { ...sh.snap, media: sh.snap.media.filter((f) => f.fileId || !/^blob:/.test(f.url || '')).map((f) => { if (!f.fileId) return f; todo.push(f); return { ...f, url: '', ref: f }; }) } };
 }
 
 // Turns the sealed messages of one forum (newest first) into the chat items the panels show (newest first).
