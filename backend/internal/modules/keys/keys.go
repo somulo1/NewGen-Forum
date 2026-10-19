@@ -203,6 +203,51 @@ func (m *Module) Private(r chi.Router) {
 		httpx.JSON(w, 200, map[string]any{"person": pid, "account": acct, "devices": active})
 		return nil
 	}))
+	// Public keys of several colleagues' devices in one call (to wrap a conversation key for a whole group).
+	r.Post("/e2ee/people/devices", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
+		p, err := tenant.MustOrg(r.Context())
+		if err != nil {
+			return err
+		}
+		var in struct {
+			People []uuid.UUID `json:"people"`
+		}
+		if err := httpx.Decode(r, &in, 64<<10); err != nil {
+			return err
+		}
+		if len(in.People) == 0 || len(in.People) > 5000 {
+			return httpx.Bad("Give between 1 and 5000 people.")
+		}
+		type row struct {
+			Person uuid.UUID `json:"person"`
+			Device
+		}
+		out := []row{}
+		err = m.A.DB.WithOrg(r.Context(), p.Org, func(tx pgx.Tx) error {
+			rs, err := tx.Query(r.Context(), `select pe.id, d.id, d.account_id, d.label, d.identity_key, d.signing_key, d.created_at
+				from hub.people pe join hub.devices d on d.account_id = pe.account_id and d.revoked_at is null
+				where pe.id = any($1) and pe.status='active' order by pe.id, d.created_at`, in.People)
+			if err != nil {
+				return err
+			}
+			defer rs.Close()
+			for rs.Next() {
+				var x row
+				var id, sg []byte
+				if err := rs.Scan(&x.Person, &x.ID, &x.Account, &x.Label, &id, &sg, &x.CreatedAt); err != nil {
+					return err
+				}
+				x.Identity, x.Signing, x.Fingerprint = base64.StdEncoding.EncodeToString(id), base64.StdEncoding.EncodeToString(sg), Fingerprint(id, sg)
+				out = append(out, x)
+			}
+			return rs.Err()
+		})
+		if err != nil {
+			return err
+		}
+		httpx.JSON(w, 200, map[string]any{"devices": out})
+		return nil
+	}))
 	r.Put("/e2ee/backup", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
 		p, err := tenant.Must(r.Context())
 		if err != nil {

@@ -230,6 +230,36 @@ func (s *Service) List(ctx context.Context, p *tenant.Principal, typ string) ([]
 	return out, err
 }
 
+// Content returns the sealed envelope of a communication (same visibility rule as List), plus who sealed it.
+func (s *Service) Content(ctx context.Context, p *tenant.Principal, id uuid.UUID) (map[string]any, error) {
+	var out map[string]any
+	err := s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
+		all, err := authz.Can(ctx, tx, p.Person, "announcements", "See who read")
+		if err != nil {
+			return err
+		}
+		var conv, msg, device uuid.UUID
+		var epoch int
+		var env []byte
+		var acct *uuid.UUID
+		var by uuid.UUID
+		err = tx.QueryRow(ctx, `select c.conversation_id, c.message_id, c.device, c.epoch, c.envelope, c.by_person, pe.account_id
+			from hub.comms c join hub.people pe on pe.id = c.by_person
+			where c.id=$2 and ($3::boolean or c.by_person = $1 or (c.status = 'Published' and exists (select 1 from hub.conversation_members m where m.conversation_id = c.conversation_id and m.account_id = $4 and m.left_at is null)))`,
+			p.Person, id, all, p.Account).Scan(&conv, &msg, &device, &epoch, &env, &by, &acct)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return httpx.ErrNotFound
+		}
+		if err != nil {
+			return err
+		}
+		out = map[string]any{"id": id, "conversation": conv, "message": msg, "epoch": epoch, "device": device,
+			"envelope": base64.StdEncoding.EncodeToString(env), "sender_person": by, "sender_account": acct}
+		return nil
+	})
+	return out, err
+}
+
 // MarkRead records that the person read a communication (once).
 func (s *Service) MarkRead(ctx context.Context, p *tenant.Principal, id uuid.UUID) error {
 	return s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
@@ -492,6 +522,19 @@ func (s *Service) Private(r chi.Router) {
 			return err
 		}
 		httpx.JSON(w, 200, map[string]any{"comms": l})
+		return nil
+	}))
+	// The sealed content of one communication the caller may see, for a client to open with the audience's key.
+	r.Get("/comms/{id}/content", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
+		id, err := uuid.Parse(chi.URLParam(r, "id"))
+		if err != nil {
+			return httpx.ErrNotFound
+		}
+		out, err := s.Content(r.Context(), p, id)
+		if err != nil {
+			return err
+		}
+		httpx.JSON(w, 200, out)
 		return nil
 	}))
 	r.Post("/comms/{id}/read", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {

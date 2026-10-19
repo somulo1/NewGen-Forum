@@ -56,7 +56,8 @@ func (s *Service) SetSettings(ctx context.Context, p *tenant.Principal, c Config
 	})
 }
 
-// Categories lists the categories a recipient offers: its own, or the desk's when it has none.
+// Categories lists the categories a recipient offers: its own, or the desk's when it has none. toType "all" lists every
+// category of the organization (for the settings pages).
 func (s *Service) Categories(ctx context.Context, p *tenant.Principal, toType string, toRef *uuid.UUID) ([]Category, error) {
 	out := []Category{}
 	err := s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
@@ -65,6 +66,21 @@ func (s *Service) Categories(ctx context.Context, p *tenant.Principal, toType st
 		}
 		q := func(t string, r *uuid.UUID) error {
 			rs, err := tx.Query(ctx, `select id, unit_type, unit_ref, name, tat_hours, priority, members from hub.ticket_categories where unit_type=$1 and unit_ref is not distinct from $2 order by name`, t, r)
+			if err != nil {
+				return err
+			}
+			defer rs.Close()
+			for rs.Next() {
+				var c Category
+				if err := rs.Scan(&c.ID, &c.UnitType, &c.UnitRef, &c.Name, &c.TAT, &c.Priority, &c.Members); err != nil {
+					return err
+				}
+				out = append(out, c)
+			}
+			return rs.Err()
+		}
+		if toType == "all" {
+			rs, err := tx.Query(ctx, `select id, unit_type, unit_ref, name, tat_hours, priority, members from hub.ticket_categories order by unit_type, name`)
 			if err != nil {
 				return err
 			}

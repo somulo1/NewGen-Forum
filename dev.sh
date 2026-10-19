@@ -6,6 +6,7 @@
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")" && pwd)
 cd "$ROOT/backend"
+mkdir -p bin "$HOME/.cache/gotmp"; export GOTMPDIR="$HOME/.cache/gotmp"   # /tmp is small on some machines
 set -a; source .env; set +a
 
 PIDS=()  # (all children share this script's process group, so cleanup kills the group)
@@ -25,11 +26,11 @@ fi
 
 [[ "${1:-}" == seed ]] && go run ./cmd/seed
 
-go build -o /tmp/hub-api ./cmd/api; go build -o /tmp/hub-calls ./cmd/calls; go build -o /tmp/hub-worker ./cmd/worker
+go build -o bin/hub-api ./cmd/api; go build -o bin/hub-calls ./cmd/calls; go build -o bin/hub-worker ./cmd/worker
 prefix() { sed -u "s/^/[$1] /"; }
-/tmp/hub-api    2>&1 | prefix api    & PIDS+=($!)
-/tmp/hub-calls  2>&1 | prefix calls  & PIDS+=($!)
-/tmp/hub-worker 2>&1 | prefix worker & PIDS+=($!)
+bin/hub-api    2>&1 | prefix api    & PIDS+=($!)
+bin/hub-calls  2>&1 | prefix calls  & PIDS+=($!)
+bin/hub-worker 2>&1 | prefix worker & PIDS+=($!)
 (cd "$ROOT/frontend" && npm run dev 2>&1 | prefix web) & PIDS+=($!)
 
 echo "api :8080  calls :8090  web :3000   (Ctrl+C to stop)"

@@ -40,6 +40,7 @@ var collections = map[string]collection{
 	"risk":      {kinds: []string{"project"}, create: [2]string{"projects", "Manage team"}, edit: [2]string{"projects", "Manage team"}, meta: map[string]string{"level": "enum:Low,Medium,High"}},
 	"activity":  {kinds: []string{"project"}, authorOwn: true},
 	"standup":   {kinds: []string{"project"}, create: [2]string{"projects", "View"}, authorOwn: true, meta: map[string]string{"day": "date"}},
+	"rsvp":      {kinds: []string{"event"}, create: [2]string{"calendar", "View"}, authorOwn: true, meta: map[string]string{"going": "bool"}},
 	"comment":   {kinds: []string{"project", "event", "folder"}, authorOwn: true},
 	"entry":     {kinds: []string{"event"}, create: [2]string{"calendar", "Add events"}, edit: [2]string{"calendar", "Schedule meetings"}, authorOwn: true, meta: map[string]string{"date": "date", "start": "str", "end": "str", "type": "enum:Meeting,Standup,Task,Event,Personal,Reminder", "repeat": "str"}},
 }
@@ -89,19 +90,20 @@ func validMeta(spec map[string]string, meta map[string]any) error {
 }
 
 type Record struct {
-	ID         uuid.UUID      `json:"id"`
-	Collection string         `json:"collection"`
-	Container  uuid.UUID      `json:"container"`
-	Parent     *uuid.UUID     `json:"parent,omitempty"`
-	Author     uuid.UUID      `json:"author_account"`
-	AuthorName string         `json:"author_name,omitempty"`
-	Device     *uuid.UUID     `json:"author_device,omitempty"`
-	Epoch      int            `json:"epoch"`
-	Envelope   string         `json:"envelope,omitempty"`
-	Meta       map[string]any `json:"meta"`
-	CreatedAt  time.Time      `json:"created_at"`
-	UpdatedAt  time.Time      `json:"updated_at"`
-	Deleted    bool           `json:"deleted,omitempty"`
+	ID           uuid.UUID      `json:"id"`
+	Collection   string         `json:"collection"`
+	Container    uuid.UUID      `json:"container"`
+	Parent       *uuid.UUID     `json:"parent,omitempty"`
+	Author       uuid.UUID      `json:"author_account"`
+	AuthorName   string         `json:"author_name,omitempty"`
+	AuthorPerson *uuid.UUID     `json:"author_person,omitempty"`
+	Device       *uuid.UUID     `json:"author_device,omitempty"`
+	Epoch        int            `json:"epoch"`
+	Envelope     string         `json:"envelope,omitempty"`
+	Meta         map[string]any `json:"meta"`
+	CreatedAt    time.Time      `json:"created_at"`
+	UpdatedAt    time.Time      `json:"updated_at"`
+	Deleted      bool           `json:"deleted,omitempty"`
 }
 
 type RecordIn struct {
@@ -268,7 +270,7 @@ func (s *Service) Records(ctx context.Context, p *tenant.Principal, container uu
 		if err := tx.QueryRow(ctx, `select first_epoch from hub.conversation_members where conversation_id=$1 and account_id=$2`, container, p.Account).Scan(&first); err != nil {
 			return err
 		}
-		q := `select r.id, r.collection, r.parent_id, r.author_account, coalesce(pe.first_name || ' ' || pe.last_name,''), r.author_device, r.epoch, r.ciphertext, r.meta, r.created_at, r.updated_at, r.deleted_at is not null
+		q := `select r.id, r.collection, r.parent_id, r.author_account, coalesce(pe.first_name || ' ' || pe.last_name,''), r.author_person, r.author_device, r.epoch, r.ciphertext, r.meta, r.created_at, r.updated_at, r.deleted_at is not null
 			from hub.records r left join hub.people pe on pe.id = r.author_person
 			where r.org_id=$1 and r.container_id=$2 and r.epoch >= $3`
 		args := []any{p.Org, container, first}
@@ -288,7 +290,7 @@ func (s *Service) Records(ctx context.Context, p *tenant.Principal, container uu
 		for rs.Next() {
 			r := Record{Container: container}
 			var ct, meta []byte
-			if err := rs.Scan(&r.ID, &r.Collection, &r.Parent, &r.Author, &r.AuthorName, &r.Device, &r.Epoch, &ct, &meta, &r.CreatedAt, &r.UpdatedAt, &r.Deleted); err != nil {
+			if err := rs.Scan(&r.ID, &r.Collection, &r.Parent, &r.Author, &r.AuthorName, &r.AuthorPerson, &r.Device, &r.Epoch, &ct, &meta, &r.CreatedAt, &r.UpdatedAt, &r.Deleted); err != nil {
 				return err
 			}
 			_ = json.Unmarshal(meta, &r.Meta)
@@ -316,11 +318,11 @@ func (s *Service) Calendar(ctx context.Context, p *tenant.Principal, from, to st
 		if err := authz.Require(ctx, tx, p.Person, "calendar", "View"); err != nil {
 			return err
 		}
-		rs, err := tx.Query(ctx, `select r.id, r.container_id, r.author_account, coalesce(pe.first_name || ' ' || pe.last_name,''), r.author_device, r.epoch, r.ciphertext, r.meta, r.created_at, r.updated_at
+		rs, err := tx.Query(ctx, `select r.id, r.container_id, r.author_account, coalesce(pe.first_name || ' ' || pe.last_name,''), r.author_person, r.author_device, r.epoch, r.ciphertext, r.meta, r.created_at, r.updated_at
 			from hub.records r
 			join hub.conversation_members m on m.conversation_id = r.container_id and m.account_id = $2 and m.left_at is null and m.first_epoch <= r.epoch
 			left join hub.people pe on pe.id = r.author_person
-			where r.org_id = $1 and r.collection = 'entry' and r.deleted_at is null and r.meta->>'date' between $3 and $4
+			where r.org_id = $1 and r.collection = 'entry' and r.deleted_at is null and (r.meta->>'date' between $3 and $4 or (coalesce(r.meta->>'repeat','None') <> 'None' and r.meta->>'date' <= $4))
 			order by r.meta->>'date', r.meta->>'start', r.id limit 2000`, p.Org, p.Account, from, to)
 		if err != nil {
 			return err
@@ -329,7 +331,7 @@ func (s *Service) Calendar(ctx context.Context, p *tenant.Principal, from, to st
 		for rs.Next() {
 			r := Record{Collection: "entry"}
 			var ct, meta []byte
-			if err := rs.Scan(&r.ID, &r.Container, &r.Author, &r.AuthorName, &r.Device, &r.Epoch, &ct, &meta, &r.CreatedAt, &r.UpdatedAt); err != nil {
+			if err := rs.Scan(&r.ID, &r.Container, &r.Author, &r.AuthorName, &r.AuthorPerson, &r.Device, &r.Epoch, &ct, &meta, &r.CreatedAt, &r.UpdatedAt); err != nil {
 				return err
 			}
 			_ = json.Unmarshal(meta, &r.Meta)
