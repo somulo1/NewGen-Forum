@@ -104,17 +104,11 @@
 <div style="display: flex; gap: 10px; align-items: center"><UserAvatar :name="tk.handler" :initials="tk.handlerInitials" :color="tk.handlerColor" :size="42"/><div style="display: flex; flex-direction: column"><strong style="font-size: 15px">{{ tk.handler }}</strong><span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Since {{ tk.handlerSince }}</span></div></div>
 </template>
 <template v-if="tk.noHandler"><span style="font-size: 14px; color: var(--k-FFB86B,#FFB86B)">Not assigned yet</span></template>
-<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">{{ tk.handoverLabel }}
+<template v-if="tk.canHandover"><label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">{{ tk.handoverLabel }}
 <select :value="tk.handlerValue" :disabled="tk.closed" @change="handover" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px">
 <option value="">Choose a person…</option>
-<option value="Sam">Me (Sam)</option>
-<option value="Brian Kiprop">Brian Kiprop · IT</option>
-<option value="David Otieno">David Otieno · Development</option>
-<option value="Amina Wanjiru">Amina Wanjiru · Finance</option>
-<option value="Grace Njeri">Grace Njeri · HR</option>
-<option value="Faith Achieng">Faith Achieng · Customer Care</option>
-<option value="Kevin Mutua">Kevin Mutua · Sales</option>
-</select></label>
+<template v-for="o in tk.handoverOpts" :key="o.value"><option :value="o.value">{{ o.label }}</option></template>
+</select></label></template>
 <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--k-9DB0A6,#9DB0A6); margin-top: 4px">Everyone assigned</span>
 <div style="display: flex; flex-wrap: wrap; gap: 6px"><template v-for="(as, as__i) in tk.assignees" :key="as__i"><span style="height: 30px; padding: 0 10px 0 4px; border-radius: 15px; background: var(--k-121B17,#121B17); border: 1px solid var(--k-2A3832,#2A3832); display: flex; align-items: center; gap: 6px; font-size: 12px"><UserAvatar :name="as.name" :initials="as.initials" :color="as.color" :size="22" :font-size="9"/>{{ as.name }}</span></template></div>
 <span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Raised by {{ tk.raisedBy }}</span>
@@ -122,6 +116,7 @@
 
 <div style="padding: 18px; border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 8px">
 <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--k-9DB0A6,#9DB0A6)">Actions</span>
+<template v-if="tk.ownNote"><span style="font-size: 13px; color: var(--k-FFB86B,#FFB86B); line-height: 1.5">{{ tk.ownNote }}</span></template>
 <template v-for="(act, act__i) in tk.actions" :key="act__i"><button @click="act.run" :style="act.style">{{ act.label }}</button></template>
 <template v-if="tk.noActions"><span style="font-size: 13px; color: var(--k-9DB0A6,#9DB0A6)">Assign someone above to start this ticket.</span></template>
 </div>
