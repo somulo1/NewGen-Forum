@@ -158,7 +158,7 @@ export function buildHomeWidgets(ctx) {
       return { widgets: w };
     })
   }));
-  const gallery = Object.keys(catalog).filter((id) => (id !== 'performance' || has.structure) && (!this.srv || LEVELS.indexOf(id) === -1)).map((id) => {
+  const gallery = Object.keys(catalog).filter((id) => (id !== 'performance' || has.structure) && (LEVELS.indexOf(id) === -1 || has[id])).map((id) => {
     const added = ids.indexOf(id) !== -1;
     return { ...catalog[id], added, hidden: added && isHidden(id), hideLabel: isHidden(id) ? 'Show on Home' : 'Hide on Home', toggleHide: toggleHide(id), remove: () => removeWidget(id), btnLabel: added ? 'Added' : 'Add to home',
       openSettings: () => this.setState({ settingsFor: id }),

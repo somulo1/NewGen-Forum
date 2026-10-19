@@ -1,6 +1,7 @@
 import { ADDONS, PLANS } from '~/logic/state/settings.js';
 import { buildXlsx, downloadBlob } from '~/logic/xlsx.js';
 import { buildDoc } from '~/logic/etr.js';
+import * as settingsW from '~/logic/server/widgets/settings.js';
 
 // renderVals step: settings. Organization profile, subscription, billing, security and data. Kept to what an org needs.
 export function buildSettings(ctx) {
@@ -10,7 +11,9 @@ export function buildSettings(ctx) {
   const draft = s.setDraft || {};
   const money = (n) => 'KES ' + Math.round(n).toLocaleString('en-US');
   const dayLabel = (d) => (d ? new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
-  const audit = (action) => this.setState((st) => ({ extraLogs: [{ id: 'x' + Date.now() + Math.random().toString(36).slice(2, 5), ago: 0, user: 'Samwel Okoth Omulo', action, module: 'Settings', ip: '10.0.4.21', loc: 'Office network', result: 'Success', rule: '' }].concat(st.extraLogs) }));
+  const audit = (action) => this.srv ? null : this.setState((st) => ({ extraLogs: [{ id: 'x' + Date.now() + Math.random().toString(36).slice(2, 5), ago: 0, user: 'Samwel Okoth Omulo', action, module: 'Settings', ip: '10.0.4.21', loc: 'Office network', result: 'Success', rule: '' }].concat(st.extraLogs) }));
+  // Connected: the server stores the change (and writes its own audit entry); the screen then shows what it kept.
+  const srvDo = (fn, okText) => fn().then(() => { if (okText) this.notify(okText, '#B8F36B'); }).catch((e) => this.notify((e && e.message) || 'That did not save.', '#FF9B8A'));
   const setDraft = (part, patch) => this.setState((st) => ({ setDraft: { ...(st.setDraft || {}), [part]: { ...((st.setDraft || {})[part] || {}), ...patch }, errs: { ...((st.setDraft || {}).errs || {}), ...Object.keys(patch).reduce((m, k) => { m[k] = ''; return m; }, {}) } } }));
   const clearPart = (part) => this.setState((st) => { const d = { ...(st.setDraft || {}) }; delete d[part]; return { setDraft: Object.keys(d).filter((k) => k !== 'errs').length ? d : null }; });
   const errs = draft.errs || {};
@@ -45,6 +48,7 @@ export function buildSettings(ctx) {
       if (v.website && !/^https?:\/\/\S+\.\S+/.test(v.website)) e.website = 'Start with http:// or https://';
       if (v.phone && !/^\+?[\d\s()-]{7,20}$/.test(v.phone)) e.phone = 'Use 7 to 20 digits, with an optional + at the start.';
       if (Object.keys(e).length) { this.setState((st) => ({ setDraft: { ...(st.setDraft || {}), errs: e } })); return; }
+      if (this.srv) { const body = { ...P, ...(draft.profile || {}), name: v.name.trim() }; srvDo(() => settingsW.saveProfile(this, this.srv, body), 'Organization profile saved.').then(() => clearPart('profile')); return; }
       this.setState((st) => ({ orgProfile: { ...st.orgProfile, ...(st.setDraft || {}).profile, name: v.name.trim() } }));
       clearPart('profile'); audit('Updated the organization profile'); this.notify('Organization profile saved.', '#B8F36B');
     } };
@@ -58,20 +62,22 @@ export function buildSettings(ctx) {
   const total = (p, seats, cycle, ad) => seatsCost(p, seats, cycle) + ad.reduce((n, a) => n + a.price * 10, 0);
   const people = this.dir.length;
   const ask = (c) => this.setState({ setConfirm: c });
+  // every subscription change sends the whole subscription; the server checks seats against the plan and the people in
+  const subSave = (patch, text) => { if (!this.srv) return false; srvDo(() => settingsW.saveSubscription(this, this.srv, { ...S, ...patch }), text); return true; };
   const done = (text) => { this.setState({ setConfirm: null }); audit(text); this.notify(text + '.', '#B8F36B'); };
   const cf = s.setConfirm;
   const sub = { canSub, statusLabel: S.status === 'Cancelling' ? 'Cancels on ' + dayLabel(S.cancelAt) : S.status, statusColor: S.status === 'Cancelling' ? '#FFB86B' : '#B8F36B', cancelling: S.status === 'Cancelling',
     planName: plan.name, planBlurb: plan.blurb, cycle: S.cycle, cycleLabel: S.cycle === 'annual' ? 'Billed yearly' : 'Billed monthly', renews: dayLabel(S.renews), autoRenew: S.autoRenew,
     seats: S.seats, seatLimit: plan.seats, peopleNow: people, seatPct: Math.min(100, Math.round(S.seats / plan.seats * 100)), seatNote: people > S.seats ? people + ' people are in Hub but only ' + S.seats + ' seats are paid for.' : people + ' of ' + S.seats + ' seats in use.', seatWarn: people > S.seats,
     total: money(total(plan, S.seats, S.cycle, addonsOn)) + ' / month', totalNote: S.seats + ' seats × ' + money(perSeat(plan, S.cycle) * 100) + (addonsOn.length ? ' + ' + addonsOn.length + ' add-on' + (addonsOn.length > 1 ? 's' : '') : ''),
-    setSeats: (d) => () => { const v = Math.max(1, Math.min(plan.seats, S.seats + d)); if (v !== S.seats) { this.setState((st) => ({ orgSub: { ...st.orgSub, seats: v } })); audit('Changed paid seats to ' + v); } },
-    toggleCycle: () => { this.setState((st) => ({ orgSub: { ...st.orgSub, cycle: st.orgSub.cycle === 'annual' ? 'monthly' : 'annual' } })); audit('Switched billing to ' + (S.cycle === 'annual' ? 'monthly' : 'yearly')); },
-    toggleAuto: () => { this.setState((st) => ({ orgSub: { ...st.orgSub, autoRenew: !st.orgSub.autoRenew } })); audit('Turned auto-renew ' + (S.autoRenew ? 'off' : 'on')); },
+    setSeats: (d) => { const v = Math.max(1, Math.min(plan.seats, S.seats + d)); if (v !== S.seats && subSave({ seats: v })) return; if (v !== S.seats) { this.setState((st) => ({ orgSub: { ...st.orgSub, seats: v } })); audit('Changed paid seats to ' + v); } },
+    toggleCycle: () => { if (subSave({ cycle: S.cycle === 'annual' ? 'monthly' : 'annual' })) return; this.setState((st) => ({ orgSub: { ...st.orgSub, cycle: st.orgSub.cycle === 'annual' ? 'monthly' : 'annual' } })); audit('Switched billing to ' + (S.cycle === 'annual' ? 'monthly' : 'yearly')); },
+    toggleAuto: () => { if (subSave({ autoRenew: !S.autoRenew })) return; this.setState((st) => ({ orgSub: { ...st.orgSub, autoRenew: !st.orgSub.autoRenew } })); audit('Turned auto-renew ' + (S.autoRenew ? 'off' : 'on')); },
     plans: PLANS.map((p) => ({ id: p.id, name: p.name, blurb: p.blurb, features: p.features, price: money(perSeat(p, S.cycle) * 100) + ' / seat / month', current: p.id === S.plan, canChoose: canSub && p.id !== S.plan, action: PLANS.indexOf(p) > PLANS.indexOf(plan) ? 'Upgrade' : 'Switch',
       choose: () => ask({ kind: 'plan', id: p.id, text: (PLANS.indexOf(p) > PLANS.indexOf(plan) ? 'Upgrade' : 'Switch') + ' to ' + p.name + '? New total: ' + money(total(p, Math.min(S.seats, p.seats), S.cycle, addonsOn)) + ' / month.', confirmLabel: 'Confirm ' + p.name }) })),
-    addons: ADDONS.map((a) => ({ ...a, priceLabel: money(a.price * 10) + ' / month', on: !!S.addons[a.id], toggle: () => { this.setState((st) => ({ orgSub: { ...st.orgSub, addons: { ...st.orgSub.addons, [a.id]: !st.orgSub.addons[a.id] } } })); audit((S.addons[a.id] ? 'Removed' : 'Added') + ' add-on: ' + a.name); } })),
+    addons: ADDONS.map((a) => ({ ...a, priceLabel: money(a.price * 10) + ' / month', on: !!S.addons[a.id], toggle: () => { if (subSave({ addons: { ...S.addons, [a.id]: !S.addons[a.id] } })) return; this.setState((st) => ({ orgSub: { ...st.orgSub, addons: { ...st.orgSub.addons, [a.id]: !st.orgSub.addons[a.id] } } })); audit((S.addons[a.id] ? 'Removed' : 'Added') + ' add-on: ' + a.name); } })),
     cancel: () => ask({ kind: 'cancel', text: 'Cancel the subscription? Everyone keeps access until ' + dayLabel(S.renews) + ', then the organization moves to read-only.', confirmLabel: 'Cancel subscription' }),
-    resume: () => { this.setState((st) => ({ orgSub: { ...st.orgSub, status: 'Active', cancelAt: '' } })); audit('Resumed the subscription'); this.notify('Subscription resumed.', '#B8F36B'); } };
+    resume: () => { if (subSave({ status: 'Active', cancelAt: '' }, 'Subscription resumed.')) return; this.setState((st) => ({ orgSub: { ...st.orgSub, status: 'Active', cancelAt: '' } })); audit('Resumed the subscription'); this.notify('Subscription resumed.', '#B8F36B'); } };
 
   // ---- Billing ----
   const B = s.orgBilling;
@@ -80,7 +86,7 @@ export function buildSettings(ctx) {
   const billing = { canSub, cardLabel: B.cardBrand + ' ending ' + B.cardLast4, cardExp: 'Expires ' + B.cardExp, holder: B.holder,
     contact: [bf('contactEmail', 'Billing email (invoices go here)', 'email', { wide: true }), bf('holder', 'Name on invoices', 'text'), bf('vat', 'VAT / tax number', 'text')],
     dirty: dirtyOf('billing', B), discard: () => clearPart('billing'),
-    save: () => { const v = { ...B, ...(draft.billing || {}) }; if (v.contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v.contactEmail)) { this.setState((st) => ({ setDraft: { ...(st.setDraft || {}), errs: { contactEmail: 'That email does not look right.' } } })); return; } this.setState((st) => ({ orgBilling: { ...st.orgBilling, ...(st.setDraft || {}).billing } })); clearPart('billing'); audit('Updated billing details'); this.notify('Billing details saved.', '#B8F36B'); },
+    save: () => { const v = { ...B, ...(draft.billing || {}) }; if (v.contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v.contactEmail)) { this.setState((st) => ({ setDraft: { ...(st.setDraft || {}), errs: { contactEmail: 'That email does not look right.' } } })); return; } if (this.srv) { srvDo(() => settingsW.saveBilling(this, this.srv, { ...B, ...(draft.billing || {}) }), 'Billing details saved.').then(() => clearPart('billing')); return; } this.setState((st) => ({ orgBilling: { ...st.orgBilling, ...(st.setDraft || {}).billing } })); clearPart('billing'); audit('Updated billing details'); this.notify('Billing details saved.', '#B8F36B'); },
     cardOpen: !!draft.cardOpen, toggleCard: () => this.setState((st) => ({ setDraft: { ...(st.setDraft || {}), cardOpen: !(st.setDraft || {}).cardOpen, card: { number: '', exp: '', name: '' }, cardErr: '' } })),
     card: { number: card.number, exp: card.exp, name: card.name, err: draft.cardErr || '', hasErr: !!draft.cardErr,
       onNumber: (e) => this.setState((st) => ({ setDraft: { ...st.setDraft, card: { ...st.setDraft.card, number: e.target.value.replace(/[^\d ]/g, '').slice(0, 19) }, cardErr: '' } })),
@@ -91,6 +97,12 @@ export function buildSettings(ctx) {
         if (digits.length < 13 || digits.length > 19) { this.setState((st) => ({ setDraft: { ...st.setDraft, cardErr: 'Enter the full card number.' } })); return; }
         if (!/^(0[1-9]|1[0-2])\/\d{2}$/.test(c.exp)) { this.setState((st) => ({ setDraft: { ...st.setDraft, cardErr: 'Expiry must look like 08/28.' } })); return; }
         const brand = digits[0] === '4' ? 'Visa' : digits[0] === '5' ? 'Mastercard' : 'Card';
+        if (this.srv) {
+          // only the brand, the last four digits and the expiry are sent and kept; the full number never leaves this form
+          srvDo(() => settingsW.saveBilling(this, this.srv, { ...B, cardBrand: brand, cardLast4: digits.slice(-4), cardExp: c.exp }), 'Payment card updated.')
+            .then(() => this.setState((st) => { const d = { ...(st.setDraft || {}) }; delete d.cardOpen; delete d.card; delete d.cardErr; return { setDraft: Object.keys(d).filter((k) => k !== 'errs').length ? d : null }; }));
+          return;
+        }
         this.setState((st) => ({ orgBilling: { ...st.orgBilling, cardBrand: brand, cardLast4: digits.slice(-4), cardExp: c.exp }, setDraft: (() => { const d = { ...(st.setDraft || {}) }; delete d.cardOpen; delete d.card; delete d.cardErr; return Object.keys(d).filter((k) => k !== 'errs').length ? d : null; })() }));
         audit('Changed the payment card to ' + brand + ' ending ' + digits.slice(-4)); this.notify('Payment card updated.', '#B8F36B');
       } },
@@ -106,7 +118,7 @@ export function buildSettings(ctx) {
   const security = { canEdit, flags: [flag('mfa', 'Require two-step sign-in (MFA)', 'Everyone must confirm sign-in with a second step.'), flag('externalSharing', 'Allow sharing posts outside Hub', 'Turn off to stop WhatsApp, email and social sharing.')],
     fields: [xf('session', 'Sign out inactive people after', 'select', { options: ['1', '4', '8', '24'] }), xf('retention', 'Keep audit logs for', 'select', { options: ['3', '6', '12', '24'] }), xf('domains', 'Allowed sign-in email domains', 'text', { placeholder: 'e.g. acme.com, acme.co.ke', wide: true })],
     dirty: dirtyOf('security', X) , discard: () => clearPart('security'),
-    save: () => { this.setState((st) => ({ orgSecurity: { ...st.orgSecurity, ...(st.setDraft || {}).security } })); clearPart('security'); audit('Updated security and data settings'); this.notify('Security and data settings saved.', '#B8F36B'); },
+    save: () => { if (this.srv) { srvDo(() => settingsW.saveSecurity(this, this.srv, { ...X, ...(draft.security || {}) }), 'Security and data settings saved.').then(() => clearPart('security')); return; } this.setState((st) => ({ orgSecurity: { ...st.orgSecurity, ...(st.setDraft || {}).security } })); clearPart('security'); audit('Updated security and data settings'); this.notify('Security and data settings saved.', '#B8F36B'); },
     exportData: () => { const data = { exportedAt: new Date().toISOString(), organization: P, people: this.dir.map((p) => ({ name: p.name, title: p.title, department: p.dept, branch: p.loc, email: p.email || '' })), subscription: S }; downloadBlob(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), 'organization-data.json'); audit('Exported all organization data'); this.notify('Organization data exported.', '#7CC4FF'); },
     del: () => ask({ kind: 'delete', text: 'Request deletion of ' + P.name + ' and all its data? Type the organization name to confirm.', confirmLabel: 'Request deletion', needsName: true }) };
   security.dirtyAny = security.dirty;
@@ -114,6 +126,13 @@ export function buildSettings(ctx) {
   const confirm = cf ? { open: true, text: cf.text, label: cf.confirmLabel, needsName: !!cf.needsName, typed: draft.typed || '', onTyped: (e) => this.setState((st) => ({ setDraft: { ...(st.setDraft || {}), typed: e.target.value } })), ready: !cf.needsName || (draft.typed || '').trim() === P.name,
     cancel: () => { this.setState((st) => { const d = { ...(st.setDraft || {}) }; delete d.typed; return { setConfirm: null, setDraft: Object.keys(d).filter((k) => k !== 'errs').length ? d : null }; }); },
     run: () => {
+      if (this.srv && (cf.kind === 'plan' || cf.kind === 'cancel')) {
+        const p = PLANS.find((x) => x.id === cf.id);
+        const patch = cf.kind === 'plan' ? { plan: p.id, seats: Math.min(S.seats, p.seats) } : { status: 'Cancelling', cancelAt: S.renews || new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10) };
+        this.setState({ setConfirm: null });
+        subSave(patch, cf.kind === 'plan' ? 'Subscription changed to ' + p.name + '.' : 'Subscription cancelled. Access continues until ' + dayLabel(patch.cancelAt) + '.');
+        return;
+      }
       if (cf.kind === 'plan') { const p = PLANS.find((x) => x.id === cf.id); this.setState((st) => ({ orgSub: { ...st.orgSub, plan: p.id, seats: Math.min(st.orgSub.seats, p.seats) } })); done('Subscription changed to ' + p.name); }
       if (cf.kind === 'cancel') { this.setState((st) => ({ orgSub: { ...st.orgSub, status: 'Cancelling', cancelAt: st.orgSub.renews } })); done('Subscription cancelled. Access continues until ' + dayLabel(S.renews)); }
       if (cf.kind === 'delete') { this.setState((st) => { const d = { ...(st.setDraft || {}) }; delete d.typed; return { setConfirm: null, setDraft: Object.keys(d).filter((k) => k !== 'errs').length ? d : null }; }); audit('Requested deletion of the organization'); this.notify('Deletion requested. An admin will confirm within 7 days.', '#FF9B8A'); }
@@ -122,9 +141,13 @@ export function buildSettings(ctx) {
   // ---- ETR tax invoice / receipt ----
   const EO = s.etrOpen;
   const inv = EO ? s.invoices.find((x) => x.no === EO.no) : null;
-  const etr = inv ? { open: true, ...buildDoc({ invoice: inv, kind: EO.kind, plan, seats: S.seats, cycle: S.cycle, addons: addonsOn,
-    buyer: { name: P.name, pin: P.taxId || 'Not provided', address: [P.address, P.city, P.country].filter(Boolean).join(', ') || '—', email: B.contactEmail || P.email || '—', phone: P.phone || '' },
-    method: B.cardBrand + ' •••• ' + B.cardLast4 }),
+  // Connected: the document is the server's (its numbers, VAT split and fiscal details). Otherwise the sample layout.
+  const serverDoc = inv && this.srv ? settingsW.ensureDoc(this, this.srv, inv.no) : null;
+  const doc = !inv ? null : this.srv ? (serverDoc ? { ...serverDoc, kind: EO.kind, title: EO.kind === 'receipt' ? 'PAYMENT RECEIPT' : 'TAX INVOICE', method: B.cardBrand + ' •••• ' + B.cardLast4 } : null)
+    : buildDoc({ invoice: inv, kind: EO.kind, plan, seats: S.seats, cycle: S.cycle, addons: addonsOn,
+      buyer: { name: P.name, pin: P.taxId || 'Not provided', address: [P.address, P.city, P.country].filter(Boolean).join(', ') || '—', email: B.contactEmail || P.email || '—', phone: P.phone || '' },
+      method: B.cardBrand + ' •••• ' + B.cardLast4 });
+  const etr = doc ? { open: true, ...doc,
     dateLabel: new Date(inv.date + 'T10:30:00').toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }),
     switchKind: (k) => this.setState({ etrOpen: { no: EO.no, kind: k } }), close: () => this.setState({ etrOpen: null }) } : { open: false };
   const tabDefs = [['profile', 'Organization profile'], ['subscription', 'Subscription'], ['billing', 'Billing & invoices'], ['security', 'Security & data']];
