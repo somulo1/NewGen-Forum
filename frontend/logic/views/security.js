@@ -1,10 +1,11 @@
+import * as securityW from '~/logic/server/widgets/security.js';
 import { buildXlsx, downloadBlob } from '~/logic/xlsx.js';
 // renderVals step: security. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildSecurity(ctx) {
   const { badge, chipS, nowMs, s, segS, set, ts } = ctx;
   const iso9 = (m) => new Date(nowMs - m * 60000).toLocaleDateString('en-CA', { timeZone: 'Africa/Nairobi' });
   // ---- Security & logs ----
-  const ruleDefs = [
+  const ruleDefs = s.secRuleDefs && s.secRuleDefs.length ? s.secRuleDefs : [
     { id: 'r1', name: 'Repeated failed sign-ins', desc: '5 or more failed sign-ins on one account within 10 minutes.', sev: 'High' },
     { id: 'r2', name: 'Sign-in from a new country', desc: 'Someone signs in from a country they have never used before.', sev: 'High' },
     { id: 'r3', name: 'Mass file download', desc: 'More than 50 files downloaded within 15 minutes.', sev: 'High' },
@@ -27,9 +28,10 @@ export function buildSecurity(ctx) {
     { id: 'AL-113', rule: 'r6', ago: 300, title: 'Secure link "Payroll login" opened from 185.220.101.4', detail: 'Created by Grace Njeri. The IP is outside the usual ranges.' },
     { id: 'AL-112', rule: 'r4', ago: 1220, title: 'Brian Kiprop reset MFA for Peter Kamau at 23:40', detail: 'Admin action outside working hours (' + ts.start + '–' + ts.end + ').' }
   ];
-  const newRightsAlerts = s.extraLogs.filter((l) => l.rule === 'r5').slice(0, 3).map((l, i) => ({ id: 'AL-' + (119 + i), rule: 'r5', ago: 0, title: l.action, detail: 'Made by ' + l.user + '. Logged automatically.' }));
-  const alertsAll = newRightsAlerts.concat(alertDefs).filter((a) => ruleOn(a.rule)).map((a) => {
-    const r = ruleDefs.find((x) => x.id === a.rule);
+  const alertList = s.alertsLive || alertDefs;
+  const newRightsAlerts = this.srv ? [] : s.extraLogs.filter((l) => l.rule === 'r5').slice(0, 3).map((l, i) => ({ id: 'AL-' + (119 + i), rule: 'r5', ago: 0, title: l.action, detail: 'Made by ' + l.user + '. Logged automatically.' }));
+  const alertsAll = newRightsAlerts.concat(alertList).filter((a) => ruleOn(a.rule)).map((a) => {
+    const r = ruleDefs.find((x) => x.id === a.rule) || { name: a.rule, sev: 'Medium' };
     const sv = ruleSev(r);
     const st = s.alertSt[a.id] || 'Open';
     const stC = st === 'Open' ? '#FF9B8A' : st === 'Investigating' ? '#FFB86B' : '#9DB0A6';
@@ -77,7 +79,8 @@ export function buildSecurity(ctx) {
     const day = (d) => d || '';
     const rangeTag = tab === 'rules' ? 'all' : R.preset === 'custom' ? (day(R.from) || 'start') + '_to_' + (day(R.to) || 'today') : R.preset;
     downloadBlob(buildXlsx(name, [head].concat(body)), 'security-' + tab + '-' + rangeTag + '.xlsx');
-    this.setState((x) => ({ extraLogs: [{ id: 'x' + Date.now(), ago: 0, user: 'Samwel Okoth Omulo', action: 'Exported ' + body.length + ' ' + name.toLowerCase() + ' rows to Excel (' + range.label + ')', module: 'Security', ip: '10.0.4.21', loc: 'Office network', result: 'Success', rule: '' }].concat(x.extraLogs) }));
+    if (this.srv) this.srv.request('GET', '/security/logs/export?limit=1').catch(() => {});   // records the export in the audit log
+    if (!this.srv) this.setState((x) => ({ extraLogs: [{ id: 'x' + Date.now(), ago: 0, user: 'Samwel Okoth Omulo', action: 'Exported ' + body.length + ' ' + name.toLowerCase() + ' rows to Excel (' + range.label + ')', module: 'Security', ip: '10.0.4.21', loc: 'Office network', result: 'Success', rule: '' }].concat(x.extraLogs) }));
     this.notify('Exported ' + body.length + ' ' + name.toLowerCase() + (tab === 'rules' ? '' : ' (' + range.label.toLowerCase() + ')') + ' to Excel. The export was logged.', '#7CC4FF');
   };
   // ---- Status change dialog: every change needs a comment; Open -> Investigating -> Closed ----
@@ -95,6 +98,7 @@ export function buildSecurity(ctx) {
       const c = (this.state.alertDlg.comment || '').trim();
       if (c.length < 3) { setDlg({ err: 'Add a comment explaining this change.' }); return; }
       const to = AD.mode === 'investigate' ? 'Investigating' : AD.mode === 'falsepos' ? 'False positive' : AD.outcome;
+      if (this.srv) { this.setState({ alertDlg: null }); securityW.setAlert(this, this.srv, adAlert.id, to, c).then(() => this.notify(adAlert.id + ' ' + (to === 'Investigating' ? 'is now being investigated.' : 'closed as ' + to.toLowerCase() + '.'), '#7CC4FF')).catch((e) => this.notify(e.message || 'That did not work.', '#FF9B8A')); return; }
       this.setState((x) => ({ alertDlg: null, alertSt: { ...x.alertSt, [adAlert.id]: to }, alertNotes: { ...x.alertNotes, [adAlert.id]: (x.alertNotes[adAlert.id] || []).concat([{ status: to, comment: c, who: 'Sam', at: Date.now() }]) },
         extraLogs: [{ id: 'x' + Date.now(), ago: 0, user: 'Samwel Okoth Omulo', action: adAlert.id + ' moved to ' + to + ': ' + c, module: 'Security', ip: '10.0.4.21', loc: 'Office network', result: 'Success', rule: '' }].concat(x.extraLogs) }));
       this.notify(adAlert.id + ' ' + (to === 'Investigating' ? 'is now being investigated.' : 'closed as ' + to.toLowerCase() + '.'), '#7CC4FF');
@@ -105,9 +109,9 @@ export function buildSecurity(ctx) {
       { label: 'Open alerts', n: openAlerts.length, color: '#FF9B8A', sub: openAlerts.filter((a) => a.sev === 'High').length + ' high severity' },
       { label: 'Failed sign-ins (24 h)', n: allLogs.filter((l) => l.result === 'Failed' && l.ago < 1440).length, color: '#FFB86B', sub: 'Across ' + new Set(allLogs.filter((l) => l.result === 'Failed').map((l) => l.user)).size + ' account' },
       { label: 'Blocked attempts', n: allLogs.filter((l) => l.result === 'Blocked').length, color: '#7CC4FF', sub: 'Country and lockout rules' },
-      { label: 'Active sessions', n: 186, color: '#B8F36B', sub: '3 on new devices' }
+      this.srv ? { label: 'Sign-ins (24 h)', n: allLogs.filter((l) => l.action === 'Signed in' && l.ago < 1440).length, color: '#B8F36B', sub: new Set(allLogs.filter((l) => l.action === 'Signed in' && l.ago < 1440).map((l) => l.user)).size + ' people' } : { label: 'Active sessions', n: 186, color: '#B8F36B', sub: '3 on new devices' }
     ],
-    bars: Array.from({ length: 24 }, (_, i) => { const h = 23 - i; const v = [3, 2, 2, 1, 1, 2, 4, 9, 14, 16, 15, 13, 12, 14, 15, 13, 11, 8, 6, 5, 4, 4, 3, 3][(i + 5) % 24]; return { style: 'flex:1;border-radius:3px 3px 0 0;height:' + (12 + v * 4.6) + '%;background:' + (flaggedHours[h] ? '#FF9B8A' : '#2C3D34') }; }),
+    bars: Array.from({ length: 24 }, (_, i) => { const h = 23 - i; const v = this.srv ? Math.min(18, allLogs.filter((l) => Math.floor(l.ago / 60) === h).length) : [3, 2, 2, 1, 1, 2, 4, 9, 14, 16, 15, 13, 12, 14, 15, 13, 11, 8, 6, 5, 4, 4, 3, 3][(i + 5) % 24]; return { style: 'flex:1;border-radius:3px 3px 0 0;height:' + (12 + v * 4.6) + '%;background:' + (flaggedHours[h] ? '#FF9B8A' : '#2C3D34') }; }),
     alerts: (s.openOnly ? openAlerts : alertsAll), noAlerts: (s.openOnly ? openAlerts : alertsAll).length === 0,
     toggleOpenOnly: () => this.setState((x) => ({ openOnly: !x.openOnly })), openOnlyStyle: chipS(s.openOnly),
     lq: s.lq, onLq: (e) => this.setState({ lq: e.target.value, lshow: 25 }),
@@ -126,8 +130,8 @@ export function buildSecurity(ctx) {
     }),
     hasMore: logsF.length > s.lshow, more: () => this.setState((x) => ({ lshow: x.lshow + 25 })),
     rules: ruleDefs.map((r) => ({ ...r, on: ruleOn(r.id), sev: ruleSev(r), hits: allLogs.filter((l) => l.rule === r.id).length + ' matches today',
-      toggle: () => this.setState((x) => ({ rulesOn: { ...x.rulesOn, [r.id]: !x.rulesOn[r.id] } })),
-      setSev: (e) => { const v = e.target.value; this.setState((x) => ({ ruleSev: { ...x.ruleSev, [r.id]: v } })); } }))
+      toggle: () => { const next = !ruleOn(r.id); this.setState((x) => ({ rulesOn: { ...x.rulesOn, [r.id]: next } })); if (this.srv) securityW.setRule(this, this.srv, r.id, next, ruleSev(r)).catch((e) => this.notify(e.message || 'That did not work.', '#FF9B8A')); },
+      setSev: (e) => { const v = e.target.value; this.setState((x) => ({ ruleSev: { ...x.ruleSev, [r.id]: v } })); if (this.srv) securityW.setRule(this, this.srv, r.id, ruleOn(r.id), v).catch((e) => this.notify(e.message || 'That did not work.', '#FF9B8A')); } }))
   };
   const secTab = { alerts: tabS(s.secTab === 'alerts'), logs: tabS(s.secTab === 'logs'), rules: tabS(s.secTab === 'rules'),
     alertsGo: set({ secTab: 'alerts' }), logsGo: set({ secTab: 'logs' }), rulesGo: set({ secTab: 'rules' }),

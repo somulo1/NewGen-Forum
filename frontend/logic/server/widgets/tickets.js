@@ -2,6 +2,7 @@
 // description and comments are sealed for the people on it) plus plain operational facts the server acts on (category,
 // priority, step, due time). The clock (TAT) runs on the server; the frontend shows what it reports.
 import { newConversationKey, wrap, b64, unb64 } from '../e2ee.js';
+import * as files from '../files.js';
 
 export const name = 'tickets';
 
@@ -36,7 +37,7 @@ async function mapTicket(srv, t) {
   opened.slice(1).forEach(({ m, pl }) => {
     if (m.deleted || !pl) return;
     if (pl.text !== undefined) activity.push({ who: me(srv, m.sender_name), kind: 'comment', text: pl.text, time: when(m.created_at), at: m.created_at, mid: m.id });
-    else if (pl.name) activity.push({ who: me(srv, m.sender_name), kind: 'file', text: pl.name, meta: pl.meta || '', time: when(m.created_at), at: m.created_at, mid: m.id });
+    else if (pl.name) activity.push({ who: me(srv, m.sender_name), kind: 'file', text: pl.name, meta: pl.meta || '', isImg: !!pl.isImg, url: '', ref: pl.fileId ? { fileId: pl.fileId, key: pl.key, type: pl.type || '', isImg: !!pl.isImg, isVideo: !!pl.isVideo } : null, time: when(m.created_at), at: m.created_at, mid: m.id });
   });
   activity.sort((a, b) => (a.at < b.at ? -1 : 1));
   const toType = TYPE[t.to_type] || 'desk';
@@ -67,12 +68,22 @@ async function loadSettings(logic, srv) {
 }
 const hm = (v) => { const p = String(v || '0:0').split(':'); return (Number(p[0]) || 0) * 60 + (Number(p[1]) || 0); };
 
+// Attachments are encrypted files: fetch and open each one, then show it on its ticket.
+function showFiles(logic, srv, rows) {
+  rows.forEach((t) => (t.activity || []).filter((a) => a.ref && !a.url).forEach((a) => {
+    files.openUrl(srv, a.ref).then((url) => {
+      logic.setState((st) => ({ tickets: st.tickets.map((x) => (x.uid !== t.uid ? x : { ...x, activity: x.activity.map((y) => (y.mid === a.mid ? { ...y, url } : y)) })) }));
+    }).catch(() => { /* the file is gone or sealed for someone else */ });
+  }));
+}
+
 export async function load(logic, srv) {
   await loadSettings(logic, srv);
   const { tickets } = await srv.request('GET', '/tickets?limit=100');
   const rows = [];
   for (let i = 0; i < tickets.length; i += 10) rows.push(...await Promise.all(tickets.slice(i, i + 10).map((t) => mapTicket(srv, t))));
   logic.setState({ tickets: rows });
+  showFiles(logic, srv, rows);
   watchSettings(logic, srv);
 }
 
@@ -80,6 +91,7 @@ export async function reload(logic, srv, uid) {
   const t = await srv.request('GET', `/tickets/${uid}`);
   const row = await mapTicket(srv, t);
   logic.setState((st) => ({ tickets: st.tickets.some((x) => x.uid === uid) ? st.tickets.map((x) => (x.uid === uid ? row : x)) : [row].concat(st.tickets) }));
+  showFiles(logic, srv, [row]);
   return row;
 }
 
@@ -99,19 +111,45 @@ export async function comment(logic, srv, t, text) {
   return reload(logic, srv, t.uid);
 }
 
+// Gives a person a key to the ticket's conversation if they are not on it yet.
+async function ensureMember(srv, t, pid) {
+  const conv = await srv.vault.conversation(t.uid, true);
+  if ((conv.members || []).some((m) => m.person === pid)) return;
+  const key = await srv.vault.keyFor(t.uid, conv.epoch);
+  const { devices } = await srv.request('POST', '/e2ee/people/devices', { people: [pid] });
+  const keys = await srv.vault.wrapFor(t.uid, conv.epoch, key, devices);
+  await srv.request('POST', `/conversations/${t.uid}/members`, { people: [pid], device: srv.vault.deviceId, keys });
+  srv.vault.convs.delete(t.uid);
+}
+const personId = (srv, name) => (name === 'Sam' || name === srv.me.name ? srv.me.person : srv.personOf.get(name));
+
 // Gives a person a key to the ticket's conversation (if they are not on it yet), then makes them the handler.
 export async function assign(logic, srv, t, personName) {
-  const pid = personName === 'Sam' || personName === srv.me.name ? srv.me.person : srv.personOf.get(personName);
+  const pid = personId(srv, personName);
   if (!pid) throw new Error('Choose someone from the directory.');
-  const conv = await srv.vault.conversation(t.uid, true);
-  if (!(conv.members || []).some((m) => m.person === pid)) {
-    const key = await srv.vault.keyFor(t.uid, conv.epoch);
-    const { devices } = await srv.request('POST', '/e2ee/people/devices', { people: [pid] });
-    const keys = await srv.vault.wrapFor(t.uid, conv.epoch, key, devices);
-    await srv.request('POST', `/conversations/${t.uid}/members`, { people: [pid], device: srv.vault.deviceId, keys });
-    srv.vault.convs.delete(t.uid);
-  }
+  await ensureMember(srv, t, pid);
   return act(logic, srv, t, { do: 'assign', handler: pid });
+}
+
+// Moves a ticket to another sector, branch, unit, department or the desk, under one of that place's categories, and hands it
+// to a named person there. e = { type: 'departments' | ... | 'desk', name, cat, person, why }
+export async function escalate(logic, srv, t, e) {
+  const toType = TYPE_BACK[e.type] || 'desk';
+  const toRef = toType === 'desk' ? undefined : srv.structure[e.type].get(e.name);
+  const pid = e.person ? personId(srv, e.person) : undefined;
+  if (e.person && !pid) throw new Error('Choose someone from the directory.');
+  if (pid) await ensureMember(srv, t, pid);
+  return act(logic, srv, t, { do: 'escalate', to_type: toType, to_ref: toRef, person: pid, category: e.cat || undefined, why: e.why || undefined });
+}
+
+// Attaches files (evidence, screenshots) to a ticket: each is encrypted on this device and shared with the people on it.
+export async function attach(logic, srv, t, list) {
+  for (const f of list) {
+    const up = await files.upload(srv, t.uid, f);
+    const sealed = await srv.vault.seal(t.uid, { name: up.name, meta: up.meta, type: up.type, isImg: up.isImg, isVideo: up.isVideo, fileId: up.fileId, key: up.key });
+    await srv.request('POST', `/conversations/${t.uid}/messages`, { ...sealed, type: 'text' });
+  }
+  return reload(logic, srv, t.uid);
 }
 
 // nt = { title, desc }, cat = { name, prio }, target = { type: 'desk' | 'departments' ... , name }
@@ -127,6 +165,11 @@ export async function raise(logic, srv, nt, cat, target) {
   const conv = await srv.request('POST', '/conversations', { kind: 'ticket', members: members.filter((m) => m !== srv.me.person), keys });
   const sealed = await srv.vault.seal(conv.id, { title: nt.title, desc: nt.desc || '', category: cat.name });
   await srv.request('POST', `/conversations/${conv.id}/messages`, { ...sealed, type: 'text' });
+  for (const f of (nt.files || []).map((x) => x.file).filter(Boolean)) {
+    const up = await files.upload(srv, conv.id, f);
+    const fs = await srv.vault.seal(conv.id, { name: up.name, meta: up.meta, type: up.type, isImg: up.isImg, isVideo: up.isVideo, fileId: up.fileId, key: up.key });
+    await srv.request('POST', `/conversations/${conv.id}/messages`, { ...fs, type: 'text' });
+  }
   await srv.request('POST', '/tickets', { conversation: conv.id, category: cat.name, priority: cat.prio || nt.prio, to_type: toType, to_ref: toRef });
   return reload(logic, srv, conv.id);
 }

@@ -25,6 +25,7 @@
 <template v-if="ac.isComment"><div style="padding: 8px 12px; border-radius: 4px 12px 12px 12px; background: var(--k-1F2C26,#1F2C26); font-size: 14px; line-height: 1.45; overflow-wrap: anywhere">{{ ac.text }}</div></template></div></div>
 </template>
 <template v-if="ou.detail.closed"><div role="status" style="padding: 12px 14px; border-radius: 12px; background: var(--k-121B17,#121B17); color: var(--k-9DB0A6,#9DB0A6); font-size: 14px">This is closed. Status changes and comments are turned off.</div></template>
+<template v-else-if="ou.detail.noComments"><div role="status" style="padding: 12px 14px; border-radius: 12px; background: var(--k-121B17,#121B17); color: var(--k-9DB0A6,#9DB0A6); font-size: 14px">{{ ou.detail.noCommentsText }}</div></template>
 <template v-else><CommentBox placeholder="Write a comment…" send-label="Comment" @send="ou.detail.comment"/></template>
 </div>
 </div>

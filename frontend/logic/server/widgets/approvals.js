@@ -29,6 +29,7 @@ export async function decide(logic, srv, rq, approve, comment = '') {
   if (rq.kind === 'comm') await comms.load(logic, srv);
   if (rq.kind === 'award') await awards.load(logic, srv);
   if (rq.kind === 'project') await projects.load(logic, srv);
+  if (rq.kind === 'rights' || rq.kind === 'personEdit') { const r = await import('./roles.js'); await r.load(logic, srv); }
 }
 
 // Roles & rights > Approval flows edits state.flows in place; save each changed flow.

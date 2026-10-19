@@ -1,3 +1,4 @@
+import * as forumsW from '~/logic/server/widgets/forums.js';
 // Values and handlers the templates read through hubBindings: panels.
 export function valsPanels(ctx) {
   const { chatCtl, chatGate, dmPerson, dmPriv, dmStatusCol, forums, incomingView, isDM, panelStyle, pollView, s, set } = ctx;
@@ -55,6 +56,28 @@ export function valsPanels(ctx) {
     toggleMenu: () => this.setState({ menu: !s.menu }),
     toggleInvite: () => this.setState({ invite: !s.invite }),
     toggleCreate: () => this.setState({ create: !s.create }),
+    // Make a forum (named, with the people to start with) and invite more people into the one that is open. Both need the server.
+    forumForm: s.forumForm,
+    onForumName: (e) => this.setState({ forumForm: { ...s.forumForm, name: e.target.value, err: '' } }),
+    onForumMembers: (e) => this.setState({ forumForm: { ...s.forumForm, members: e.target.value, err: '' } }),
+    createForumNow: () => {
+      const f = this.state.forumForm;
+      if (!this.srv) { this.notify('Sign in to an organization to create forums.', '#FFB86B'); return; }
+      this.setState({ forumForm: { ...f, busy: true, err: '' } });
+      forumsW.createForum(this, this.srv, f).then((id) => {
+        this.setState({ forumForm: { name: '', members: '', err: '', busy: false }, create: false, forum: id, panelKind: 'forum', mode: this.isMobileViewport() ? 'page' : 'docked', menu: false, tab: 'discussions', forumsOpen: true });
+        this.notify('Forum created.', '#B8F36B');
+      }).catch((e) => this.setState({ forumForm: { ...f, busy: false, err: e.message || 'Could not create the forum.' } }));
+    },
+    inviteText: s.inviteText, inviteErr: s.inviteErr, inviteBusy: s.inviteBusy,
+    onInviteText: (e) => this.setState({ inviteText: e.target.value, inviteErr: '' }),
+    sendInvites: () => {
+      if (!this.srv || !forumsW.isLive(this.srv, this.state.forum)) { this.notify('This forum is not on the server.', '#FFB86B'); return; }
+      this.setState({ inviteBusy: true, inviteErr: '' });
+      forumsW.invite(this, this.srv, this.state.forum, this.state.inviteText)
+        .then((n) => { this.setState({ inviteBusy: false, inviteText: '', invite: false }); this.notify(n + (n === 1 ? ' person' : ' people') + ' added to the forum.', '#B8F36B'); })
+        .catch((e) => this.setState({ inviteBusy: false, inviteErr: e.message || 'Could not add them.' }));
+    },
     genLink: set({ link: true })
   };
 }

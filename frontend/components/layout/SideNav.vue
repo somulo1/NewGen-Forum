@@ -65,10 +65,11 @@
 <div style="margin: 4px 4px 10px; padding: 12px; border-radius: 12px; background: var(--k-1A2520,#1A2520); border: 1px solid var(--k-2A3832,#2A3832); display: flex; flex-direction: column; gap: 10px">
 <div style="display: flex; gap: 10px; align-items: center">
 <button aria-label="Upload forum logo" style="width: 44px; height: 44px; border-radius: 12px; border: 1px dashed var(--k-4A5C54,#4A5C54); background: transparent; color: var(--k-9DB0A6,#9DB0A6); cursor: pointer; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg></button>
-<label style="flex: 1; display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Forum name<input type="text" placeholder="e.g. Finance Team" style="height: 34px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA)"></label>
+<label style="flex: 1; display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Forum name<input type="text" :value="forumForm.name" @input="onForumName" placeholder="e.g. Finance Team" style="height: 34px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA)"></label>
 </div>
-<label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Invite members<input type="text" placeholder="Names or emails" style="height: 34px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA)"></label>
-<button data-keep="1" @click="toggleCreate" style="height: 38px; border-radius: 9px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">Create forum</button>
+<label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Invite members<input type="text" :value="forumForm.members" @input="onForumMembers" placeholder="Names or emails, separated by commas" style="height: 34px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA)"></label>
+<span v-if="forumForm.err" role="alert" style="font-size: 12px; color: #FF9B8A">{{ forumForm.err }}</span>
+<button data-keep="1" :disabled="forumForm.busy" @click="createForumNow" style="height: 38px; border-radius: 9px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">{{ forumForm.busy ? 'Creating…' : 'Create forum' }}</button>
 </div>
 </template>
 
@@ -104,6 +105,6 @@ import { hubBindings } from '~/composables/useHub';
 export default {
   name: 'SideNav',
   methods: { signOut() { useAuth().signOut(); } },
-  ...hubBindings(["canSettings","navSearch","canRoles","canSecurity","canSeeAdmin","createOpen","dmList","dmMatches","dmUnreadLabel","dmq","dmsChevron","dmsOpen","forumCount","forums","forumsChevron","forumsOpen","go","has","hasOpenAlerts","hasPendingApprovals","me","myUnits","nav","navClass","navClick","newDmOpen","onDmq","openAlertCount","orgChevron","orgOpen","pendingApprovals","ticketDeskOk","toggleCreate","toggleDms","toggleForums","toggleNewDm","toggleOrg"])
+  ...hubBindings(["canSettings","navSearch","canRoles","canSecurity","canSeeAdmin","createOpen","forumForm","onForumName","onForumMembers","createForumNow","dmList","dmMatches","dmUnreadLabel","dmq","dmsChevron","dmsOpen","forumCount","forums","forumsChevron","forumsOpen","go","has","hasOpenAlerts","hasPendingApprovals","me","myUnits","nav","navClass","navClick","newDmOpen","onDmq","openAlertCount","orgChevron","orgOpen","pendingApprovals","ticketDeskOk","toggleCreate","toggleDms","toggleForums","toggleNewDm","toggleOrg"])
 };
 </script>

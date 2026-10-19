@@ -1,19 +1,24 @@
 import { FORUM_ROLES, MY_FORUM_ROLE, MY_NAME, agoLabel, chatAllowed, defaultPolicy, policySummary, pollCount, pollTotal } from '~/logic/polls.js';
 import { richTextHtml } from '~/logic/richText.js';
+import * as forumsW from '~/logic/server/widgets/forums.js';
 
 // renderVals step: forumExtras. Polls, forum chat rules and private-chat privacy for whatever is open in the chat panel.
 export function buildForumExtras(ctx) {
-  const { can, cur, curDm, isDM, people, s, set } = ctx;
+  const { can, cur, curDm, isDM, people: sampleMembers, s, set } = ctx;
   const nowMs = Date.now();
   const fid = cur.id;
-  const myRole = MY_FORUM_ROLE[fid] || 'Member';
-  const policy = s.forumChat[fid] || defaultPolicy();
+  // A forum on the server has real members, posting rules (enforced by the server on every send) and polls; otherwise the samples.
+  const liveF = !curDm && cur.live ? cur : null;
+  const people = liveF ? liveF.memberList.map((m) => ({ name: m.name, initials: m.initials, color: m.color, role: m.title || m.role, forumRole: m.forumRole, person: m.person, roleKey: m.roleKey })) : sampleMembers;
+  const myRole = liveF ? liveF.myForumRole : (MY_FORUM_ROLE[fid] || 'Member');
+  const policy = liveF ? forumsW.policyOf(liveF) : (s.forumChat[fid] || defaultPolicy());
+  const gateOf = (m) => (liveF ? forumsW.mayPost(liveF.rules, m.person, m.roleKey) : chatAllowed(policy, m.name, m.forumRole));
   const priv = curDm ? (s.dmPrivacy[curDm.with] || {}) : {};
 
   // postMsg() reads this, so a blocked chat can never send, whichever composer is used.
   const chatGate = isDM
     ? (priv.blocked ? { allowed: false, reason: 'You blocked ' + curDm.with + '. Unblock them to send messages.' } : { allowed: true, reason: '' })
-    : chatAllowed(policy, MY_NAME, myRole);
+    : liveF ? forumsW.mayPost(liveF.rules, this.srv.me.person, this.srv.me.role) : chatAllowed(policy, MY_NAME, myRole);
   this._chatGate = chatGate;
 
   const canManage = !isDM && (myRole === 'Admin' || myRole === 'Moderator' || can('forums', 'Moderate'));
@@ -24,7 +29,7 @@ export function buildForumExtras(ctx) {
     setMode: (e) => this.setForumChat(fid, { mode: e.target.value }), isRoles: policy.mode === 'roles',
     roles: FORUM_ROLES.map((r) => ({ name: r, on: policy.roles.indexOf(r) !== -1, toggle: () => this.toggleChatRole(fid, r) })),
     members: people.map((m) => {
-      const g = chatAllowed(policy, m.name, m.forumRole);
+      const g = gateOf(m);
       const listed = policy.blocked.indexOf(m.name) !== -1;
       return { name: m.name, initials: m.initials, color: m.color, forumRole: m.forumRole, can: g.allowed,
         stateLabel: g.allowed ? (policy.allowed.indexOf(m.name) !== -1 ? 'Allowed by name' : 'Can chat') : listed ? 'Blocked' : 'Not allowed',
@@ -33,7 +38,7 @@ export function buildForumExtras(ctx) {
     }) };
 
   // ---- Polls in the open forum ----
-  const forumPolls = isDM ? [] : s.polls.filter((p) => p.forum === fid).sort((a, b) => b.at - a.at);
+  const forumPolls = isDM ? [] : (liveF ? liveF.polls : s.polls.filter((p) => p.forum === fid)).slice().sort((a, b) => b.at - a.at);
   const pf = s.pollForm;
   const setOpt = (i) => (e) => { const v = typeof e === 'string' ? e : e.target.value; this.setState((st) => ({ pollForm: { ...st.pollForm, err: '', options: st.pollForm.options.map((o, j) => (j === i ? v : o)) } })); };
   const pollView = { count: forumPolls.length, noPolls: forumPolls.length === 0, canCreate: chatGate.allowed, createHint: chatGate.allowed ? '' : chatGate.reason,
@@ -63,7 +68,7 @@ export function buildForumExtras(ctx) {
         }),
         canControl: canManage || p.by === 'You', lockLabel: p.locked ? 'Allow voting' : 'Block voting', toggleLock: () => this.togglePollLock(p.id), remove: () => this.deletePoll(p.id),
         blockedCount: p.blocked.length, menuOpen: s.pollMenu === p.id, toggleMenu: () => this.setState((st) => ({ pollMenu: st.pollMenu === p.id ? null : p.id })),
-        voters: people.map((m) => { const b = p.blocked.indexOf(m.name) !== -1; return { name: m.name, initials: m.initials, color: m.color, blocked: b, label: b ? 'Unblock' : 'Block from voting', toggle: () => this.toggleBlockVoter(p.id, m.name) }; }) };
+        voters: p.live ? [] : people.map((m) => { const b = p.blocked.indexOf(m.name) !== -1; return { name: m.name, initials: m.initials, color: m.color, blocked: b, label: b ? 'Unblock' : 'Block from voting', toggle: () => this.toggleBlockVoter(p.id, m.name) }; }) };
     }) };
 
   // ---- Private chat privacy ----

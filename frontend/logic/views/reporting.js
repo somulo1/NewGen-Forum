@@ -1,3 +1,4 @@
+import * as rolesW from '~/logic/server/widgets/roles.js';
 // Reporting lines: a role reports to another role, and a person reports to whoever holds that role in their own scope.
 // Step 1 builds the lookup (used by profiles and the people drawer); step 2 builds the Roles page tab.
 export const DEFAULT_REPORTS = { staff: 'hod', it: 'hod', finance: 'hod', hod: 'branch', unit: 'branch', branch: 'sector', sector: 'admin', guest: '' };
@@ -88,6 +89,7 @@ export function buildReportingTab(ctx) {
         return { reportsTo: roles, reportsPerson: people, reportDraft: null, reportPDraft: null,
           extraLogs: [{ id: 'x' + Date.now(), ago: 0, user: 'Samwel Okoth Omulo', action: 'Updated reporting lines between roles', module: 'Roles', ip: '10.0.4.21', loc: 'Office network', result: 'Success', rule: 'r5' }].concat(st.extraLogs) };
       });
+      if (this.srv) { rolesW.saveReporting(this, this.srv).then(() => this.notify('Reporting lines saved. Profiles now show the new managers.', '#B8F36B')).catch((e) => this.notify(e.message || 'Could not save the reporting lines.', '#FF9B8A')); return; }
       this.notify('Reporting lines saved. Profiles now show the new managers.', '#B8F36B');
     } };
   return { reportingTable, reportingBar };

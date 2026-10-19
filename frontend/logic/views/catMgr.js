@@ -1,3 +1,4 @@
+import * as orgW from '~/logic/server/widgets/org.js';
 import { catsFor } from '~/logic/ticketRouting.js';
 
 // renderVals step: catMgr. Ticket categories for whatever is open: a unit dashboard, or the ticket desk.
@@ -34,7 +35,7 @@ export function buildCatMgr(ctx) {
   const thrNum = Math.max(50, Math.min(100, Number(thr) || 0));
   const threshold = { show: !!unitKey && target.type !== 'desk', current: curThr, value: thr, canEdit: target.canManage, dirty: String(thr) !== String(curThr) && !!thr,
     onInput: (e) => this.setState({ ouThr: { key: unitKey, value: e.target.value } }),
-    save: () => { const v = Number(thr); if (!(v >= 50 && v <= 100)) { this.notify('Choose a threshold between 50 and 100%.', '#FFB86B'); return; } this.setState((st) => ({ targets: { ...st.targets, [unitKey]: Math.round(v) }, ouThr: null })); this.notify('Performance threshold saved at ' + Math.round(v) + '%.', '#B8F36B'); },
+    save: () => { const v = Number(thr); if (!(v >= 50 && v <= 100)) { this.notify('Choose a threshold between 50 and 100%.', '#FFB86B'); return; } if (this.srv) { orgW.setTarget(this, this.srv, unitKey, Math.round(v)).then(() => { this.setState({ ouThr: null }); this.notify('Performance threshold saved at ' + Math.round(v) + '%.', '#B8F36B'); }).catch((e) => this.notify(e.message || 'Could not save the threshold.', '#FF9B8A')); return; } this.setState((st) => ({ targets: { ...st.targets, [unitKey]: Math.round(v) }, ouThr: null })); this.notify('Performance threshold saved at ' + Math.round(v) + '%.', '#B8F36B'); },
     discard: () => this.setState({ ouThr: null }), note: thrNum + '% of what ' + target.name + ' receives should be resolved within its time limit.' };
   return { catMgr: { active: true, threshold, editor, dirty, save: () => this.saveWork(), discard: () => this.discardWork(), noAccessNote: target.canManage ? '' : 'You can view these categories. Ask an admin to give your role the "Set up ticket categories" right to change them.', key, canManage: target.canManage, title: target.type === 'desk' ? 'Ticket desk categories' : 'Ticket categories for ' + target.name,
     usingDefaults: !own.length && !working, startOwn: () => this.startOwnCats(key, defaultCats),
