@@ -1,0 +1,7 @@
+# Runtime data: encrypted file blobs written by the API, tests and the seeder
+/data/
+# Local env files may hold real keys
+.env
+.env.*
+# Built binaries
+/bin/

@@ -18,3 +18,20 @@ dump('dir', L.dir);
 dump('org', L.org);
 dump('baseLogs', L.baseLogs || []);
 dump('forums', (vals.forums || []).map((f) => { const { open, rowStyle, chipStyle, ...rest } = f; return rest; }));
+
+// Roles, rights catalog and the default rights of every role, computed by the frontend's own rules.
+{
+  const { buildAccess } = await import(path.join(ROOT, 'logic/views/access.js'));
+  const all = ['departments', 'sectors', 'branches', 'units', 'chat', 'calendar', 'memos', 'newsletter', 'announcements', 'tickets', 'projects', 'files', 'secureshare', 'sessions', 'awards', 'notes'];
+  const saved = L.state;
+  L.state = { ...L.state, widgets: all, rightsOv: {}, actingRole: 'admin' };
+  const a = buildAccess.call(L, {});
+  L.state = saved;
+  const modules = Object.keys(a.rightsDef).map((k) => ({ key: k, label: a.modInfo[k][0], tint: a.modInfo[k][1], rights: a.rightsDef[k] }));
+  const defaults = {};
+  for (const r of a.roleDefs) {
+    defaults[r.id] = {};
+    for (const m of modules) defaults[r.id][m.key] = m.rights.filter((x) => a.rightOf(r.id, m.key, x));
+  }
+  dump('access', { modules, roles: a.roleDefs.map((r) => ({ ...r, scope: a.roleScope[r.id] })), defaults, flows: saved.flows });
+}
