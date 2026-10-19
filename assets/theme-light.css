@@ -1,0 +1,33 @@
+/* Light theme values for colours that flip. Accent colours used as fills keep their dark-mode colour. */
+.hub-light{--k-0A100D:#ECF2EF;--k-0F1714:#E4ECE9;--k-121B17:#DFE8E4;--k-131D19:#DDE7E3;--k-16201C:#DAE4E0;--k-17231D:#D6E2DC;--k-1A2520:#D4DFDA;--k-1B1A12:#E7E6DE;--k-1B2822:#D0DDD7;--k-1B2A1E:#CEDDD1;--k-1B2A33:#CBDAE3;--k-1C2924:#CFDCD7;--k-1D2A25:#CEDBD6;--k-1E2B1A:#CFDCCB;--k-1F2C26:#CCD9D3;--k-22302A:#C8D6D0;--k-24220F:#E1DFCC;--k-24322C:#C6D4CE;--k-24405A:#ABC7E1;--k-26361A:#C4D4B8;--k-2A2314:#E2DBCC;--k-2A2418:#E0DACE;--k-2A2716:#DCD9C8;--k-2A2F3A:#CCD1DC;--k-2A3832:#C0CEC8;--k-2C3D34:#BACBC2;--k-33443B:#B3C4BB;--k-34453D:#B1C2BA;--k-3A1E1A:#F2D6D2;--k-3A211F:#EDD4D2;--k-3A2420:#E8D2CE;--k-3A3016:#D8CEB4;--k-3A3416:#D3CDAF;--k-3A3418:#D2CCB0;--k-3A3620:#CECAB4;--k-3A4A42:#ADBDB5;--k-3F2A26:#E2CDC9;--k-3F5249:#A3B6AD;--k-3F524A:#A3B6AE;--k-405047:#A7B7AE;--k-4A2A2A:#E7C7C7;--k-4A4426:#C3BD9F;--k-4A5C54:#9AACA4;--k-526259:#95A59C;--k-536A46:#8DA480;--k-55645C:#94A39B;--k-5A3A33:#D8B8B1;--k-5A3A36:#D8B8B4;--k-5A4A1E:#C5B589;--k-5A4A22:#C4B48C;--k-66736C:#86938C;--k-6A3A34:#E1B1AB;--k-6B7A72:#7E8D85;--k-6C7B73:#7D8C84;--k-6EE7C8:#168367;--k-6F8178:#75877E;--k-7CC4FF:#005499;--k-8A4842:#DE9C96;--k-8A988F:#606E65;--k-9A9066:#7B7147;--k-9DB0A6:#46594F;--k-9DB0C6:#41546A;--k-AEBDB4:#3B4A41;--k-B7C6BD:#324138;--k-B8F36B:#558E0B;--k-C4D0C9:#29352E;--k-C9B6FF:#280099;--k-C9BE8F:#4E4314;--k-C9D6CF:#233029;--k-D4FA9E:#599208;--k-DCE5DF:#161F19;--k-E3D9AE:#322800;--k-E8EFEA:#0D140F;--k-F3EBC8:#7E6B1B;--k-FF6B81:#990017;--k-FF9B8A:#991600;--k-FFB86B:#995000;--k-FFD66B:#996F00;--k-FFE066:#997A00;--k-FFFFFF:#000000}
+/* Accent colours that arrive as data are darkened when used as text in light mode. */
+.hub-light [style*="color: rgb(184, 243, 107)"]:not([style*="background-color: rgb(184, 243, 107)"]){color:#558E0B !important}
+.hub-light [style*="color: rgb(255, 214, 107)"]:not([style*="background-color: rgb(255, 214, 107)"]){color:#996F00 !important}
+.hub-light [style*="color: rgb(255, 184, 107)"]:not([style*="background-color: rgb(255, 184, 107)"]){color:#995000 !important}
+.hub-light [style*="color: rgb(124, 196, 255)"]:not([style*="background-color: rgb(124, 196, 255)"]){color:#005499 !important}
+.hub-light [style*="color: rgb(201, 182, 255)"]:not([style*="background-color: rgb(201, 182, 255)"]){color:#280099 !important}
+.hub-light [style*="color: rgb(110, 231, 200)"]:not([style*="background-color: rgb(110, 231, 200)"]){color:#168367 !important}
+.hub-light [style*="color: rgb(244, 154, 193)"]:not([style*="background-color: rgb(244, 154, 193)"]){color:#8A0F44 !important}
+.hub-light [style*="color: rgb(255, 155, 138)"]:not([style*="background-color: rgb(255, 155, 138)"]){color:#991600 !important}
+.hub-light [style*="color: rgb(255, 107, 129)"]:not([style*="background-color: rgb(255, 107, 129)"]){color:#990017 !important}
+.hub-light [style*="color: rgb(255, 224, 102)"]:not([style*="background-color: rgb(255, 224, 102)"]){color:#997A00 !important}
+.hub-light [style*="color: rgb(212, 250, 158)"]:not([style*="background-color: rgb(212, 250, 158)"]){color:#599208 !important}
+.hub-light [style*="color: rgb(243, 235, 200)"]:not([style*="background-color: rgb(243, 235, 200)"]){color:#7E6B1B !important}
+/* Light neutral colours that arrive as data in a text colour flip too. (Dark ink on accent fills is left alone.) */
+.hub-light [style*=" color: rgb(108, 123, 115)"],.hub-light [style^="color: rgb(108, 123, 115)"]{color:#7D8C84 !important}
+.hub-light [style*=" color: rgb(111, 129, 120)"],.hub-light [style^="color: rgb(111, 129, 120)"]{color:#75877E !important}
+.hub-light [style*=" color: rgb(138, 152, 143)"],.hub-light [style^="color: rgb(138, 152, 143)"]{color:#606E65 !important}
+.hub-light [style*=" color: rgb(154, 144, 102)"],.hub-light [style^="color: rgb(154, 144, 102)"]{color:#7B7147 !important}
+.hub-light [style*=" color: rgb(157, 176, 166)"],.hub-light [style^="color: rgb(157, 176, 166)"]{color:#46594F !important}
+.hub-light [style*=" color: rgb(157, 176, 198)"],.hub-light [style^="color: rgb(157, 176, 198)"]{color:#41546A !important}
+.hub-light [style*=" color: rgb(174, 189, 180)"],.hub-light [style^="color: rgb(174, 189, 180)"]{color:#3B4A41 !important}
+.hub-light [style*=" color: rgb(183, 198, 189)"],.hub-light [style^="color: rgb(183, 198, 189)"]{color:#324138 !important}
+.hub-light [style*=" color: rgb(196, 208, 201)"],.hub-light [style^="color: rgb(196, 208, 201)"]{color:#29352E !important}
+.hub-light [style*=" color: rgb(201, 190, 143)"],.hub-light [style^="color: rgb(201, 190, 143)"]{color:#4E4314 !important}
+.hub-light [style*=" color: rgb(201, 214, 207)"],.hub-light [style^="color: rgb(201, 214, 207)"]{color:#233029 !important}
+.hub-light [style*=" color: rgb(220, 229, 223)"],.hub-light [style^="color: rgb(220, 229, 223)"]{color:#161F19 !important}
+.hub-light [style*=" color: rgb(227, 217, 174)"],.hub-light [style^="color: rgb(227, 217, 174)"]{color:#322800 !important}
+.hub-light [style*=" color: rgb(232, 239, 234)"],.hub-light [style^="color: rgb(232, 239, 234)"]{color:#0D140F !important}
+.hub-light [style*=" color: rgb(255, 255, 255)"],.hub-light [style^="color: rgb(255, 255, 255)"]{color:#000000 !important}
+/* The profile cover is a dark picture the name sits on; in light mode it is lightened so the name stays readable. */
+.hub-light section[aria-label="Profile header"] > div:first-child{filter:invert(1) hue-rotate(180deg)}

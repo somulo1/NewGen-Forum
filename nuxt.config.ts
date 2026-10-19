@@ -4,7 +4,7 @@ export default defineNuxtConfig({
   ssr: false,
   devtools: { enabled: false },
   components: [{ path: '~/components', pathPrefix: false }],
-  css: ['~/assets/hub.css'],
+  css: ['~/assets/hub.css', '~/assets/theme-light.css'],
   runtimeConfig: { public: { apiBase: '' } }, // set NUXT_PUBLIC_API_BASE when the backend exists
   vue: { compilerOptions: { whitespace: 'preserve' } },
   app: {

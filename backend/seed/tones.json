@@ -1,0 +1,17 @@
+[
+  {"key": "chime", "kind": "notification", "description": "A new notification or message: two short rising notes.",
+   "params": {"wave": "sine", "attack": 0.02, "release": 0.04, "floor": 0.0001, "repeat_ms": 0,
+     "notes": [{"freqs": [880], "at": 0, "len": 0.14, "vol": 0.18}, {"freqs": [1320], "at": 0.15, "len": 0.22, "vol": 0.16}]}},
+  {"key": "ring", "kind": "call", "description": "Incoming call: a repeating two-burst ring, like a desk phone.",
+   "params": {"wave": "sine", "attack": 0.02, "release": 0.04, "floor": 0.0001, "repeat_ms": 2400,
+     "notes": [{"freqs": [440, 480], "at": 0, "len": 0.4, "vol": 0.2}, {"freqs": [440, 480], "at": 0.5, "len": 0.4, "vol": 0.2}]}},
+  {"key": "ringback", "kind": "call", "description": "Outgoing call: the long ringing tone the caller hears until the other side answers.",
+   "params": {"wave": "sine", "attack": 0.02, "release": 0.04, "floor": 0.0001, "repeat_ms": 3000, "then": "connected", "then_after_ms": 3200,
+     "notes": [{"freqs": [440, 480], "at": 0, "len": 1.4, "vol": 0.16}]}},
+  {"key": "connected", "kind": "call", "description": "Answered or connected: a short up-blip.",
+   "params": {"wave": "sine", "attack": 0.02, "release": 0.04, "floor": 0.0001, "repeat_ms": 0,
+     "notes": [{"freqs": [660], "at": 0, "len": 0.1, "vol": 0.16}, {"freqs": [880], "at": 0.12, "len": 0.14, "vol": 0.16}]}},
+  {"key": "hangup", "kind": "call", "description": "Hang up or declined: a low double beep.",
+   "params": {"wave": "sine", "attack": 0.02, "release": 0.04, "floor": 0.0001, "repeat_ms": 0,
+     "notes": [{"freqs": [480], "at": 0, "len": 0.18, "vol": 0.16}, {"freqs": [480], "at": 0.26, "len": 0.18, "vol": 0.16}]}}
+]
