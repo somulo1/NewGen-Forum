@@ -4,6 +4,7 @@ import { shallowReactive, computed, watch, onMounted, onBeforeUnmount } from 'vu
 import { useRoute, useRouter } from 'vue-router';
 import { HubLogic } from '~/logic/HubLogic.js';
 import { sectionRoutes } from '~/logic/routes.js';
+import { startServerSync } from '~/logic/server/boot.js';
 
 let hub = null;
 
@@ -59,6 +60,9 @@ export function useHubShell() {
   };
 
   onMounted(() => {
+    const be = useBackend();
+    const session = be.session();
+    if (session && session.org) startServerSync(logic, be.request, session).catch((e) => console.error('Could not connect to the server:', e));
     if (logic.componentDidMount) logic.componentDidMount();
     document.addEventListener('click', openInAppSecureShare, true);
   });

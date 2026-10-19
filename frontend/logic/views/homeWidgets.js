@@ -1,3 +1,4 @@
+import * as announcementsW from '~/logic/server/widgets/announcements.js';
 // renderVals step: homeWidgets. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildHomeWidgets(ctx) {
   const { calItems, files, fmtDay, sharedNotes, forums, has, ini, myUnits, nOpen, nOver, nSoon, openCm, openEv, orgWidgetItems, people, projStats, projects, s, sessions, tickets } = ctx;
@@ -54,11 +55,7 @@ export function buildHomeWidgets(ctx) {
   const itemsFor = {
     chat: s.dms.slice(0, 4).map((d) => { const pr = this.dir.find((x) => x.name === d.with) || { initials: ini(d.with), color: '#C9B6FF' }; const last = d.msgs[d.msgs.length - 1];
       return { name: d.with, initials: pr.initials, color: pr.color, unread: d.unread, hasUnread: d.unread > 0, last: last ? (last.from === 'me' ? 'You: ' : '') + (last.text || 'Sent a file') : 'Say hello', open: () => this.openDm(d.with) }; }),
-    announcements: [
-      { id: 'a1', tag: 'Policy', title: 'Updated leave policy takes effect 1 November', meta: 'HR · 2 days ago' },
-      { id: 'a2', tag: 'Office', title: 'Office closed Friday for maintenance', meta: 'Admin · Today' },
-      { id: 'a3', tag: 'IT', title: 'Planned downtime Saturday 8 to 10pm', meta: 'IT Operations · Yesterday' }
-    ].map((a) => ({ ...a, ackLabel: s.acked[a.id] ? 'Read' : 'Mark read', ackStyle: pillBtn(!!s.acked[a.id]), ack: () => this.setState((st) => ({ acked: { ...st.acked, [a.id]: true } })) })),
+    announcements: (s.announcementItems || []).slice(0, 3).map((a) => ({ ...a, ackLabel: a.read ? 'Read' : 'Mark read', ackStyle: pillBtn(!!a.read), ack: () => announcementsW.markRead(this, this.srv, a.id) })),
     links: [['Email', 'E', '#7CC4FF'], ['Payroll', 'P', '#B8F36B'], ['HR system', 'H', '#F49AC1'], ['IT helpdesk', 'I', '#FFB86B'], ['Policies', 'P', '#6EE7C8'], ['Leave request', 'L', '#C9B6FF']].map(([label, letter, color]) => ({ label, letter, color })),
     events: [
       { id: 'e1', mon: 'OCT', day: '18', title: 'Team building', meta: 'Saturday · Karura Forest' },
