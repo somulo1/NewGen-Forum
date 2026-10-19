@@ -1,6 +1,6 @@
 # Quick Start Guide
 
-Get the Hub Intranet system up and running in minutes.
+Get the NewGen Hub system up and running in minutes.
 
 ## Prerequisites
 
@@ -235,7 +235,7 @@ Create `.env.local` (copy from `.env.example`):
 
 ```bash
 NUXT_PUBLIC_API_BASE_URL=https://api.example.com
-NUXT_PUBLIC_APP_NAME=Hub Intranet
+NUXT_PUBLIC_APP_NAME=NewGen Hub
 NUXT_PUBLIC_DEFAULT_THEME=dark
 ```
 
@@ -427,7 +427,7 @@ Use: `<Icon name="my-icon" />`
 
 ## Congratulations! 🎉
 
-You're ready to build with Hub Intranet. Start by:
+You're ready to build with NewGen Hub. Start by:
 1. Creating your first widget
 2. Adding a custom module
 3. Customizing the design

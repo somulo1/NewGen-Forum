@@ -1,6 +1,6 @@
 # Widget Development Guide
 
-This guide explains how to create, register, and integrate custom widgets into the Hub Intranet system.
+This guide explains how to create, register, and integrate custom widgets into the NewGen Hub system.
 
 ## Overview
 
