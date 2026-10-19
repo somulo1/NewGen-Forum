@@ -1,4 +1,4 @@
-# Hub Intranet - Nuxt 3 Widget System
+# NewGen Hub - Nuxt 3 Widget System
 
 A comprehensive intranet platform built with Nuxt 3 featuring a pluggable widget architecture. This system is designed to be flexible, extensible, and easy to customize.
 

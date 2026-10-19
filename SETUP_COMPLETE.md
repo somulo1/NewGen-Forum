@@ -1,4 +1,4 @@
-# ✅ Hub Intranet Nuxt.js System - Setup Complete
+# ✅ NewGen Hub Nuxt.js System - Setup Complete
 
 Your comprehensive Nuxt 3 intranet system with a pluggable widget architecture has been successfully created.
 
