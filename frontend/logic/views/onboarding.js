@@ -75,7 +75,7 @@ const KINDS = [
 ];
 const PARENTS = { sector: [], branch: ['sector'], unit: ['branch', 'sector'], department: ['branch', 'unit', 'sector'] };
 
-const FRESH_ED = { kind: 'sector', name: '', parent: '', err: '', ok: '', busy: false, edit: null, del: null, move: {}, sel: {}, into: {}, mergeAsk: null };
+const FRESH_ED = { kind: 'sector', name: '', parent: '', err: '', ok: '', busy: false, edit: null, del: null, move: {}, sel: {}, into: {}, mergeAsk: null, tab: 'sector', q: {} };
 
 // The Manage organization structure page (People > Organization structure): add, rename, move and merge sectors,
 // branches, units and departments, and remove empty ones. Everything is checked again by the server.
@@ -131,8 +131,12 @@ function buildStructureEd(s, can) {
     const into = sel.includes(se.into[K.kind]) ? se.into[K.kind] : (sel[0] || '');
     const target = byId.get(into);
     const others = sel.filter((id) => id !== into).map((id) => byId.get(id)).filter(Boolean);
+    const q = ((se.q || {})[K.kind] || '').trim().toLowerCase();
+    const shown = q ? rows.filter((r) => (r.name + ' ' + r.under).toLowerCase().includes(q)) : rows;
     return {
-      ...K, rows, count: rows.length, none: rows.length === 0,
+      ...K, rows: shown, count: rows.length, none: rows.length === 0, noMatch: rows.length > 0 && shown.length === 0, q: (se.q || {})[K.kind] || '',
+      onQ: (e) => { const v = e.target.value; set((cur) => ({ q: { ...cur.q, [K.kind]: v } })); },
+      selectShown: () => set((cur) => ({ sel: { ...cur.sel, [K.kind]: shown.map((r) => r.id) }, mergeAsk: null })),
       canMerge: sel.length >= 2, picked: sel.length,
       mergeOpts: sel.map((id) => ({ id, label: (byId.get(id) || {}).name })), mergeInto: into,
       onInto: (e) => set((cur) => ({ into: { ...cur.into, [K.kind]: e.target.value }, mergeAsk: null })),
@@ -148,7 +152,7 @@ function buildStructureEd(s, can) {
   return {
     canEdit, open: true, openIt, close: () => this.setState({ section: 'people', structEd: null }), busy: se.busy,
     err: se.err, hasErr: !!se.err, ok: se.ok, hasOk: !!se.ok && !se.err,
-    levels,
+    levels, tabs: levels.map((l) => ({ kind: l.kind, label: l.plural, count: l.count, on: l.kind === se.tab, pick: () => set({ tab: l.kind, mergeAsk: null, err: '', ok: '' }) })), cur: levels.find((l) => l.kind === se.tab) || levels[0],
     summary: levels.filter((l) => l.count).map((l) => l.count + ' ' + (l.count === 1 ? l.label.toLowerCase() : l.plural.toLowerCase())).join(' · ') || 'No structure yet. Everyone works at one level.',
     kinds: KINDS.map((x) => ({ kind: x.kind, label: x.label })), kind: se.kind, onKind: (e) => set({ kind: e.target.value, parent: '', err: '' }),
     kindBlurb: K.blurb, name: se.name, onName: (e) => set({ name: e.target.value, err: '' }),
