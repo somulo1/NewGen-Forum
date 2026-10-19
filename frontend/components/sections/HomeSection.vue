@@ -22,7 +22,7 @@
 <template v-if="customizing"><button @click="awardStrip.toggleHide" style="height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--k-4A4426,#4A4426); background: transparent; color: var(--k-F3EBC8,#F3EBC8); cursor: pointer; font-size: 13px">{{ awardStrip.hideLabel }}</button><button @click="awardStrip.openSettings" style="height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--k-4A4426,#4A4426); background: transparent; color: var(--k-F3EBC8,#F3EBC8); cursor: pointer; font-size: 12px">Settings</button><button @click="awardStrip.remove" aria-label="Remove awards from Home" style="height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--k-5A3A36,#5A3A36); background: transparent; color: var(--k-FF9B8A,#FF9B8A); cursor: pointer; font-size: 12px">Remove</button></template>
 <template v-if="awardStrip.canGive"><button @click="openAward" style="height: 36px; padding: 0 16px; border-radius: 18px; border: 0; background: #FFD66B; color: #0F1714; font-weight: 700; cursor: pointer; font-size: 13px">Give an award</button></template>
 </div>
-<template v-if="awardStrip.empty"><div style="padding: 20px 18px 22px; color: var(--k-C9BE8F,#C9BE8F); font-size: 13px">No approved awards yet. Awards show here once they are approved.</div></template>
+<template v-if="awardStrip.empty"><div style="padding: 20px 18px 22px; color: var(--k-C9BE8F,#C9BE8F); font-size: 13px">{{ awardStrip.emptyText }}</div></template>
 <div style="overflow: hidden; padding: 10px 0 16px">
 <div class="hub-marquee" :style="awardStrip.trackStyle">
 <template v-for="(ap, ap__i) in awardStrip.items" :key="ap__i">

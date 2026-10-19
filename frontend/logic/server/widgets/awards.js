@@ -9,13 +9,15 @@ export const name = 'awards';
 
 const mapAward = (a) => ({
   id: a.ref, uid: a.id, type: a.type, people: a.names || [], citation: a.citation || '', date: a.date,
-  status: a.status === 'Pending approval' ? 'Pending' : a.status, by: a.by, byPerson: a.by_person, targets: a.targets || []
+  status: a.status === 'Pending approval' ? 'Pending' : a.status, by: a.by, byPerson: a.by_person, targets: a.targets || [],
+  approvedAt: a.approved_at || '', inCycle: !!a.in_cycle
 });
 
 export async function load(logic, srv) {
-  const { awards } = await srv.request('GET', '/awards');
+  const { awards, cycle } = await srv.request('GET', '/awards');
   const list = awards.map(mapAward);
   logic.setState({ awardList: list });
+  scheduleReset(logic, srv, cycle);
   if (!srv.awardsWatch) {
     srv.awardsWatch = true;
     const rt = srv.rt || (srv.rt = connectRealtime(srv));
@@ -24,6 +26,17 @@ export async function load(logic, srv) {
   }
   // announce my approved awards that still have places to go (an approval came in while I was away, or I just gave one)
   list.filter((a) => a.status === 'Approved' && a.targets.length && a.byPerson === srv.me.person).forEach((a) => announce(logic, srv, a).catch(() => {}));
+}
+
+// The Home board shows the awards approved this week (the server decides which: it starts at Saturday 00:00 and begins empty,
+// waiting for the next award). At the next Saturday 00:00 the board is read again, so it clears without a reload.
+function scheduleReset(logic, srv, cycle) {
+  clearTimeout(srv.awardReset);
+  if (!cycle || !cycle.next) return;
+  const wait = new Date(cycle.next).getTime() - Date.now() + 1500;
+  if (wait <= 0) return;
+  // browsers cap a timer at about 24 days; a week is well inside that
+  srv.awardReset = setTimeout(() => load(logic, srv).catch(() => {}), Math.min(wait, 2 ** 31 - 1));
 }
 
 const wordsFor = (a) => 'Congratulations ' + a.people.map((n) => '@' + n).join(', ') + ' on the ' + a.type + ' award!' + (a.citation ? '\n' + a.citation : '');
