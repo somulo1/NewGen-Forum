@@ -96,7 +96,7 @@ func (m *Module) Register(ctx context.Context, p *tenant.Principal, label, ident
 }
 
 func (m *Module) Devices(r *http.Request, account uuid.UUID) ([]Device, error) {
-	var out []Device
+	out := []Device{}
 	err := m.A.DB.Tx(r.Context(), func(tx pgx.Tx) error {
 		rs, err := tx.Query(r.Context(), `select id, label, identity_key, signing_key, created_at, revoked_at is not null from hub.devices where account_id=$1 order by created_at`, account)
 		if err != nil {
