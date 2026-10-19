@@ -2,6 +2,7 @@ package org
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -81,6 +82,44 @@ func (s *Service) Private(r chi.Router) {
 			return err
 		}
 		httpx.JSON(w, 200, u)
+		return nil
+	}))
+	r.Get("/org/units/{id}/dashboard", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
+		p, err := tenant.MustOrg(r.Context())
+		if err != nil {
+			return err
+		}
+		id, err := uuid.Parse(chi.URLParam(r, "id"))
+		if err != nil {
+			return httpx.ErrNotFound
+		}
+		days, _ := strconv.Atoi(r.URL.Query().Get("days"))
+		d, err := s.Dashboard(r.Context(), p, id, days)
+		if err != nil {
+			return err
+		}
+		httpx.JSON(w, 200, d)
+		return nil
+	}))
+	r.Put("/org/units/{id}/target", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
+		p, err := tenant.MustOrg(r.Context())
+		if err != nil {
+			return err
+		}
+		id, err := uuid.Parse(chi.URLParam(r, "id"))
+		if err != nil {
+			return httpx.ErrNotFound
+		}
+		var in struct {
+			Target int `json:"target"`
+		}
+		if err := httpx.Decode(r, &in, 1<<10); err != nil {
+			return err
+		}
+		if err := s.SetTarget(r.Context(), p, id, in.Target); err != nil {
+			return err
+		}
+		w.WriteHeader(204)
 		return nil
 	}))
 }

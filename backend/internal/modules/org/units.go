@@ -19,6 +19,8 @@ type Unit struct {
 	Parent *uuid.UUID `json:"parent_id"`
 	Name   string     `json:"name"`
 	Code   string     `json:"code"`
+	// Target is the performance threshold (percent); sent with the structure so every dashboard card can colour itself.
+	Target int `json:"target,omitempty"`
 }
 
 // parentKinds says what a unit of each kind may sit under (nil = top level, or any of the listed kinds).
@@ -32,14 +34,14 @@ var parentKinds = map[string][]string{
 func (s *Service) Structure(ctx context.Context, p *tenant.Principal) ([]Unit, error) {
 	out := []Unit{}
 	err := s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
-		rs, err := tx.Query(ctx, `select id, kind, parent_id, name, coalesce(code,'') from hub.org_units order by kind, name`)
+		rs, err := tx.Query(ctx, `select u.id, u.kind, u.parent_id, u.name, coalesce(u.code,''), coalesce(t.target_pct, 0) from hub.org_units u left join hub.unit_targets t on t.unit_id = u.id order by u.kind, u.name`)
 		if err != nil {
 			return err
 		}
 		defer rs.Close()
 		for rs.Next() {
 			var u Unit
-			if err := rs.Scan(&u.ID, &u.Kind, &u.Parent, &u.Name, &u.Code); err != nil {
+			if err := rs.Scan(&u.ID, &u.Kind, &u.Parent, &u.Name, &u.Code, &u.Target); err != nil {
 				return err
 			}
 			out = append(out, u)
