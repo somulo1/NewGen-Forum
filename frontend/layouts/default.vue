@@ -49,6 +49,8 @@
 
 <OnboardDialog />
 
+<StructureDialog />
+
 <WidgetSettingsDrawer />
 
 <IncomingCall />
