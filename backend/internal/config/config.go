@@ -41,7 +41,7 @@ type Config struct {
 	RateIP     int      // requests per minute from one address (everything)
 	RateAuthIP int      // requests per minute from one address to the sign-in, sign-up, reset and invite routes
 	Proxies    []string // proxies whose X-Forwarded-For is believed (CIDRs)
-	DocsOff    bool     // hide /v1/docs
+	DocsEnvs   []string // environments (HUB_ENV values) in which /v1/docs is served
 	DBGuard    string   // proves to the database that a write comes from the Hub system
 
 	BlobDir string // this server's own disk for encrypted file contents (used when no file server is configured or answers)
@@ -78,7 +78,6 @@ func Load() (*Config, error) {
 		RateRPS:     int(num("HUB_RATE_RPS", 50)),
 		RateIP:      int(num("HUB_RATE_IP", 600)),
 		RateAuthIP:  int(num("HUB_RATE_AUTH_IP", 30)),
-		DocsOff:     os.Getenv("HUB_DOCS") == "off",
 		DBGuard:     get("HUB_DB_GUARD", "dev-db-guard-token-change-me"),
 		BlobDir:     get("HUB_BLOB_DIR", "./data/blobs"),
 		MaxUpload:   num("HUB_MAX_UPLOAD", 100<<20),
@@ -97,6 +96,7 @@ func Load() (*Config, error) {
 			c.EmailDomains = append(c.EmailDomains, d)
 		}
 	}
+	c.DocsEnvs = strings.FieldsFunc(strings.ToLower(get("HUB_DOCS_ENVS", "dev,staging,prod")), func(r rune) bool { return r == ',' || r == ' ' })
 	c.Proxies = strings.FieldsFunc(get("HUB_TRUSTED_PROXIES", "127.0.0.0/8,::1/128"), func(r rune) bool { return r == ',' || r == ' ' })
 	c.CallsURLs = strings.Split(get("HUB_CALLS_URL", "http://127.0.0.1:8090"), ",")
 	// HUB_SFU_NODES="https://media-eu.example.com|APIKEY|SECRET,https://media-af.example.com|APIKEY|SECRET"
@@ -164,4 +164,26 @@ func dur(k string, d time.Duration) time.Duration {
 		return v
 	}
 	return d
+}
+
+// DocsOn reports whether the API reference is served in this environment. HUB_ENV names the environment (dev, staging or prod;
+// development, stage and production are accepted too) and HUB_DOCS_ENVS lists the ones that get the reference.
+func (c *Config) DocsOn() bool {
+	norm := func(e string) string {
+		switch strings.ToLower(strings.TrimSpace(e)) {
+		case "development", "develop", "local":
+			return "dev"
+		case "stage":
+			return "staging"
+		case "production":
+			return "prod"
+		}
+		return strings.ToLower(strings.TrimSpace(e))
+	}
+	for _, e := range c.DocsEnvs {
+		if norm(e) == norm(c.Env) {
+			return true
+		}
+	}
+	return false
 }

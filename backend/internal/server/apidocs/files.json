@@ -1,0 +1,250 @@
+{
+ "POST /v1/folders/{id}/files": {
+  "summary": "Start a file upload",
+  "description": "Files are encrypted on the device with a key of their own; the name, type and that key are sealed for the folder's members and sent as `envelope`. This registers the file; the content follows with PUT /v1/files/{id}/content. `{id}` is the conversation (folder, forum, chat, wall, ticket, project or event) the file belongs to.",
+  "access": "a role with Files: Upload",
+  "status": 201,
+  "request": {
+   "id": "uuid, required. UUID v7 chosen by the uploader",
+   "epoch": "integer, required. Key generation of the folder",
+   "device": "uuid, required. Your device",
+   "envelope": "base64, required. Sealed name, type and file key"
+  },
+  "response": {
+   "id": "uuid",
+   "folder": "uuid. The container it is in (folder, forum, private chat, wall, ticket, project or event)",
+   "uploader": "uuid. Person id",
+   "uploader_name": "string",
+   "author_device": "uuid",
+   "epoch": "integer. Key generation of the folder's key",
+   "envelope": "base64. The file's name, type and its own key, sealed for the folder's members",
+   "size": "integer. Bytes of ciphertext once uploaded",
+   "status": "string. uploading | ready | deleted",
+   "created_at": "timestamp"
+  },
+  "errors": {
+   "400": "Not a valid envelope, bad id, files cannot be attached to that kind of conversation",
+   "409": "epoch_changed: the folder key changed, fetch it and retry",
+   "413": "quota_exceeded: over the person's storage limit; too_large: over the maximum file size"
+  }
+ },
+ "PUT /v1/files/{id}/content": {
+  "summary": "Upload the file's encrypted bytes",
+  "description": "Send the ciphertext as the raw request body (`Content-Type: application/octet-stream`) with `Content-Length`. The server stores it without being able to read it. Only the uploader, once, before the file is ready.",
+  "access": "the person who started the upload",
+  "response": {
+   "id": "uuid",
+   "folder": "uuid. The container it is in (folder, forum, private chat, wall, ticket, project or event)",
+   "uploader": "uuid. Person id",
+   "uploader_name": "string",
+   "author_device": "uuid",
+   "epoch": "integer. Key generation of the folder's key",
+   "envelope": "base64. The file's name, type and its own key, sealed for the folder's members",
+   "size": "integer. Bytes of ciphertext once uploaded",
+   "status": "string. uploading | ready | deleted",
+   "created_at": "timestamp"
+  },
+  "errors": {
+   "400": "The upload was cut short",
+   "411": "length_required: send the file size",
+   "413": "too_large: larger than allowed or larger than announced; quota_exceeded"
+  }
+ },
+ "GET /v1/files/{id}/content": {
+  "summary": "Download a file's encrypted bytes",
+  "description": "Returns the ciphertext (supports range requests). Decrypt on the device with the file key from the sealed envelope.",
+  "access": "a member of the container the file is in, with Files: View",
+  "errors": {
+   "404": "Not visible, or deleted"
+  }
+ },
+ "GET /v1/folders/{id}/files": {
+  "summary": "List files in a container",
+  "access": "a role with Files: View, and membership of the container",
+  "response": {
+   "files": [
+    {
+     "id": "uuid",
+     "folder": "uuid. The container it is in (folder, forum, private chat, wall, ticket, project or event)",
+     "uploader": "uuid. Person id",
+     "uploader_name": "string",
+     "author_device": "uuid",
+     "epoch": "integer. Key generation of the folder's key",
+     "envelope": "base64. The file's name, type and its own key, sealed for the folder's members",
+     "size": "integer. Bytes of ciphertext once uploaded",
+     "status": "string. uploading | ready | deleted",
+     "created_at": "timestamp"
+    }
+   ]
+  }
+ },
+ "DELETE /v1/files/{id}": {
+  "summary": "Delete a file",
+  "description": "The stored bytes are removed.",
+  "access": "the uploader (Delete own files) or a role with Files: Delete",
+  "status": 204,
+  "response": null
+ },
+ "POST /v1/files/{id}/shares": {
+  "summary": "Create a link to share a file outside Hub",
+  "description": "The link works without signing in. The file key is wrapped with a key that lives only in the link (after the `#`), so the server cannot open what it serves. A link lasts 1 hour to 30 days, up to 1000 downloads, optionally with a password. May need approval (flows f3, f6): then `share.status` is pending.",
+  "access": "a role with Secure share: Create link or Files: Share outside Hub, unless the organization turned sharing off",
+  "status": 201,
+  "request": {
+   "expires_in_hours": "integer, required. 1 to 720",
+   "max_downloads": "integer, required. 1 to 1000",
+   "password": "string. 6 to 128 characters; optional",
+   "key_envelope": "base64, required. The file key wrapped with the link key, made on the device"
+  },
+  "response": {
+   "share": {
+    "id": "uuid",
+    "file": "uuid",
+    "status": "string. active | pending approval | revoked | expired",
+    "expires_at": "timestamp",
+    "max_downloads": "integer",
+    "downloads": "integer",
+    "password_protected": "boolean",
+    "created_by": "string",
+    "created_at": "timestamp",
+    "token": "string. The link token, shown once at creation"
+   },
+   "approval": "object. The approval request when one is needed"
+  },
+  "errors": {
+   "400": "Lifetime, download count or password out of range, or the key package is not valid",
+   "403": "sharing_off: the organization turned off sharing outside Hub"
+  }
+ },
+ "GET /v1/shares": {
+  "summary": "Links created in the organization",
+  "description": "Link history. Tokens are not shown again.",
+  "access": "a role with Secure share: View link history",
+  "response": {
+   "shares": [
+    {
+     "id": "uuid",
+     "file": "uuid",
+     "status": "string. active | pending approval | revoked | expired",
+     "expires_at": "timestamp",
+     "max_downloads": "integer",
+     "downloads": "integer",
+     "password_protected": "boolean",
+     "created_by": "string",
+     "created_at": "timestamp",
+     "token": "string. The link token, shown once at creation"
+    }
+   ]
+  }
+ },
+ "DELETE /v1/shares/{id}": {
+  "summary": "Revoke a link",
+  "access": "the creator, or a role with Secure share: View link history",
+  "status": 204,
+  "response": null
+ },
+ "GET /v1/share/{token}": {
+  "summary": "Open a shared link",
+  "description": "What a recipient sees before downloading. Public and rate-limited by address.",
+  "response": {
+   "size": "integer. Bytes",
+   "password_protected": "boolean",
+   "key_envelope": "base64. Present only when there is no password; otherwise it comes from /unlock"
+  },
+  "errors": {
+   "404": "link_gone: expired, used up or removed",
+   "429": "Too many requests"
+  }
+ },
+ "POST /v1/share/{token}/unlock": {
+  "summary": "Unlock a password-protected link",
+  "description": "Five wrong passwords per link and address block it for 15 minutes.",
+  "request": {
+   "password": "string, required"
+  },
+  "response": {
+   "download_pass": "string. Valid for 2 minutes, pass it to /content as `pass`",
+   "key_envelope": "base64",
+   "size": "integer"
+  },
+  "errors": {
+   "401": "wrong_password",
+   "429": "Too many wrong passwords"
+  }
+ },
+ "GET /v1/share/{token}/content": {
+  "summary": "Download a shared file's encrypted bytes",
+  "description": "The recipient decrypts it in the browser with the key after the `#` in the link. Counts one download.",
+  "query": {
+   "pass": "string. The `download_pass` from /unlock, for protected links"
+  },
+  "errors": {
+   "404": "link_gone",
+   "401": "wrong or expired pass"
+  }
+ },
+ "GET /v1/storage/usage": {
+  "summary": "My storage use and limit",
+  "access": "any signed-in member of the organization (token issued with `org`)",
+  "response": {
+   "used_bytes": "integer",
+   "quota_mb": "integer. 0 means no limit",
+   "custom": "boolean. true when this person has their own limit"
+  }
+ },
+ "GET /v1/storage/files": {
+  "summary": "My largest files",
+  "description": "Files I uploaded, largest first.",
+  "access": "any signed-in member of the organization (token issued with `org`)",
+  "query": {
+   "limit": "integer"
+  },
+  "response": {
+   "files": [
+    {
+     "id": "uuid",
+     "folder": "uuid",
+     "kind": "string. folder | forum | dm | wall | ticket | project | event",
+     "size": "integer",
+     "author_account": "uuid",
+     "author_device": "uuid",
+     "epoch": "integer",
+     "envelope": "base64",
+     "created_at": "timestamp"
+    }
+   ]
+  }
+ },
+ "GET /v1/storage/people": {
+  "summary": "Who stores the most",
+  "description": "The people using the most space and everyone with their own limit.",
+  "access": "a role with Settings: Edit organization profile",
+  "query": {
+   "limit": "integer"
+  },
+  "response": {
+   "people": [
+    {
+     "used_bytes": "integer",
+     "quota_mb": "integer. 0 means no limit",
+     "custom": "boolean. true when this person has their own limit",
+     "person": "uuid",
+     "name": "string"
+    }
+   ]
+  }
+ },
+ "PUT /v1/storage/people/{id}": {
+  "summary": "Set one person's storage limit",
+  "description": "Send `quota_mb` null to go back to the organization's default.",
+  "access": "a role with Settings: Edit organization profile",
+  "status": 204,
+  "request": {
+   "quota_mb": "integer. 0 (no limit) to 10 TB, or null for the default"
+  },
+  "response": null,
+  "errors": {
+   "400": "Not between 0 and 10 TB"
+  }
+ }
+}

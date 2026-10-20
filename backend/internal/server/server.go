@@ -60,7 +60,7 @@ func Router(d Deps) http.Handler {
 			}
 		})
 	})
-	if !d.App.Cfg.DocsOff {
+	if d.App.Cfg.DocsOn() {
 		d.mountDocs(r)
 	}
 	return r

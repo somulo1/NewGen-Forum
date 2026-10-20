@@ -1,0 +1,1001 @@
+{
+ "GET /v1/people": {
+  "summary": "List people in the organization",
+  "description": "Filtered, paged directory. Contact details appear only when the caller's role may see them.",
+  "access": "a role with People: View directory",
+  "query": {
+   "q": "Search by name",
+   "department": "uuid. Only this department",
+   "branch": "uuid. Only this branch",
+   "status": "active | inactive | blocked | invited",
+   "available": "1 for people who are available now",
+   "cursor": "Page marker from `next`",
+   "limit": "integer. Page size"
+  },
+  "response": {
+   "people": [
+    {
+     "id": "uuid. Person id (not the account id)",
+     "name": "string",
+     "first_name": "string",
+     "last_name": "string",
+     "initials": "string",
+     "title": "string. Job title",
+     "status": "string. active | inactive | blocked | invited",
+     "availability": "string. Available | Busy | Away ...",
+     "color": "string. Hex colour for the avatar",
+     "sector": {
+      "id": "uuid",
+      "name": "string"
+     },
+     "branch": {
+      "id": "uuid",
+      "name": "string"
+     },
+     "unit": {
+      "id": "uuid",
+      "name": "string"
+     },
+     "department": {
+      "id": "uuid",
+      "name": "string"
+     },
+     "role": "string. Role key",
+     "role_name": "string",
+     "manager": {
+      "id": "uuid",
+      "name": "string"
+     },
+     "reports_to": "object. Single-person reads only",
+     "joined_on": "date",
+     "has_account": "boolean. true once the person accepted their invitation",
+     "email": "string. Only when the caller may see contact details (or it is their own profile)",
+     "phone": "string. Same rule",
+     "date_of_birth": "date. Same rule",
+     "gender": "string. Same rule",
+     "bio": "string. Only with the full-profile right",
+     "skills": [
+      "string"
+     ],
+     "cover": "string. Hex colour of the profile cover"
+    }
+   ],
+   "next": "string. Pass as `cursor` for the next page; absent on the last",
+   "total": "integer. Matches in all pages"
+  }
+ },
+ "GET /v1/people/{id}": {
+  "summary": "Get one person",
+  "description": "The single-person read also carries who they report to.",
+  "access": "a role with People: View directory",
+  "response": {
+   "id": "uuid. Person id (not the account id)",
+   "name": "string",
+   "first_name": "string",
+   "last_name": "string",
+   "initials": "string",
+   "title": "string. Job title",
+   "status": "string. active | inactive | blocked | invited",
+   "availability": "string. Available | Busy | Away ...",
+   "color": "string. Hex colour for the avatar",
+   "sector": {
+    "id": "uuid",
+    "name": "string"
+   },
+   "branch": {
+    "id": "uuid",
+    "name": "string"
+   },
+   "unit": {
+    "id": "uuid",
+    "name": "string"
+   },
+   "department": {
+    "id": "uuid",
+    "name": "string"
+   },
+   "role": "string. Role key",
+   "role_name": "string",
+   "manager": {
+    "id": "uuid",
+    "name": "string"
+   },
+   "reports_to": "object. Single-person reads only",
+   "joined_on": "date",
+   "has_account": "boolean. true once the person accepted their invitation",
+   "email": "string. Only when the caller may see contact details (or it is their own profile)",
+   "phone": "string. Same rule",
+   "date_of_birth": "date. Same rule",
+   "gender": "string. Same rule",
+   "bio": "string. Only with the full-profile right",
+   "skills": [
+    "string"
+   ],
+   "cover": "string. Hex colour of the profile cover"
+  },
+  "errors": {
+   "404": "No such person"
+  }
+ },
+ "POST /v1/people": {
+  "summary": "Onboard people",
+  "description": "Adds 1 to 500 people at once (one at a time or a bulk import). Each gets an invitation by email. Every person is answered separately, so a bad row does not stop the others. Fails with 402 when the plan's seats are used up.",
+  "access": "a role with People: Onboard people",
+  "status": 201,
+  "request": {
+   "people": [
+    {
+     "first_name": "string, required",
+     "last_name": "string, required",
+     "email": "string, required. Work email",
+     "phone": "string",
+     "date_of_birth": "date. YYYY-MM-DD",
+     "gender": "string. From the list the profile form offers",
+     "title": "string",
+     "sector_id": "uuid. Only when the organization has sectors",
+     "branch_id": "uuid",
+     "unit_id": "uuid",
+     "department_id": "uuid",
+     "role": "string. Role key; the default role when absent",
+     "color": "string. Hex colour"
+    }
+   ]
+  },
+  "response": {
+   "results": [
+    {
+     "id": "uuid. The new person",
+     "email": "string",
+     "status": "string. invited | error",
+     "error": "string. Why this row failed"
+    }
+   ]
+  },
+  "errors": {
+   "400": "Not 1 to 500 people",
+   "402": "seat_limit: the plan has no free seats; add seats in Settings"
+  }
+ },
+ "PATCH /v1/people/{id}": {
+  "summary": "Change a person's details, role or rights",
+  "description": "Name, title, phone, birth date, gender, place in the structure, manager and role. Changing a role also needs the Manage roles & rights right. Whether it applies at once or waits for approval depends on the organization's approval flow f11: 200 means applied, 202 means an approval request was raised.",
+  "access": "a role with People: Edit profiles",
+  "request": {
+   "first_name": "string",
+   "last_name": "string",
+   "title": "string",
+   "phone": "string",
+   "date_of_birth": "date",
+   "gender": "string",
+   "sector_id": "uuid",
+   "branch_id": "uuid",
+   "unit_id": "uuid",
+   "department_id": "uuid",
+   "role": "string. Role key",
+   "manager_id": "uuid. Nobody reports to themselves"
+  },
+  "response": {
+   "applied": "boolean. true when it took effect now",
+   "request": "object. The approval request when one was raised (see GET /v1/approvals)"
+  },
+  "errors": {
+   "403": "protected: only a super admin can change another super admin",
+   "404": "No such person"
+  }
+ },
+ "POST /v1/people/{id}/status": {
+  "summary": "Activate, deactivate, block, unblock or delete a person",
+  "access": "a role with People: Edit profiles",
+  "status": 204,
+  "request": {
+   "action": "string, required. activate | deactivate | block | unblock | delete"
+  },
+  "response": null,
+  "errors": {
+   "400": "Unknown action",
+   "403": "protected: the last super admin cannot be changed this way",
+   "409": "self_action: you cannot do this to your own account; no_change: already in that state; deleted: this person was deleted"
+  }
+ },
+ "POST /v1/people/{id}/reset-password": {
+  "summary": "Set a temporary password",
+  "description": "Gives the person a one-time temporary password; they must change it at their next sign-in (`must_change_password`).",
+  "access": "a role with People: Edit profiles",
+  "response": {
+   "temporary_password": "string. Show it once to the administrator"
+  },
+  "errors": {
+   "409": "no_account: the person has not joined yet, send the invitation again; self_action: use Change password in your profile"
+  }
+ },
+ "POST /v1/invites/accept": {
+  "summary": "Accept an invitation",
+  "description": "A signed-in account joins the organization it was invited to, with the token from the invitation email.",
+  "access": "any signed-in account",
+  "request": {
+   "token": "string, required. From the invitation link"
+  },
+  "response": {
+   "org": "uuid. The organization joined"
+  },
+  "errors": {
+   "400": "invite_invalid: not valid, expired or already used"
+  }
+ },
+ "POST /v1/orgs": {
+  "summary": "Create an organization",
+  "description": "The caller becomes its super admin. Five organizations a day per account.",
+  "access": "any signed-in account",
+  "status": 201,
+  "request": {
+   "name": "string, required",
+   "slug": "string. Web name: lowercase letters, numbers and dashes, 2 to 41 characters; made from the name when absent"
+  },
+  "response": {
+   "id": "uuid",
+   "slug": "string",
+   "name": "string",
+   "person": "uuid. The caller's person id in it"
+  },
+  "errors": {
+   "409": "slug_taken: that web name is already taken",
+   "429": "Too many organizations created today"
+  }
+ },
+ "GET /v1/org/structure": {
+  "summary": "The organization's structure",
+  "description": "All sectors, branches, units and departments. Every level is optional: an organization may have only departments, or sectors and units but no branches. A branch sits under a sector; a unit under a branch or sector; a department under a unit, branch or sector.",
+  "access": "any signed-in member of the organization (token issued with `org`)",
+  "response": {
+   "units": [
+    {
+     "id": "uuid",
+     "kind": "string. sector | branch | unit | department",
+     "parent_id": "uuid. The unit it sits under; null at the top",
+     "name": "string",
+     "code": "string",
+     "target": "integer. Performance threshold in percent"
+    }
+   ]
+  }
+ },
+ "POST /v1/org/units": {
+  "summary": "Add a unit",
+  "access": "a role with Settings: Edit organization profile",
+  "status": 201,
+  "request": {
+   "kind": "string, required. sector | branch | unit | department",
+   "name": "string, required",
+   "code": "string",
+   "parent_id": "uuid. Must be of a kind this one may sit under"
+  },
+  "response": {
+   "id": "uuid",
+   "kind": "string. sector | branch | unit | department",
+   "parent_id": "uuid. The unit it sits under; null at the top",
+   "name": "string",
+   "code": "string",
+   "target": "integer. Performance threshold in percent"
+  },
+  "errors": {
+   "400": "A kind cannot sit under that parent",
+   "409": "duplicate: there is already one of that kind with that name"
+  }
+ },
+ "PATCH /v1/org/units/{id}": {
+  "summary": "Rename or recode a unit",
+  "access": "a role with Settings: Edit organization profile",
+  "request": {
+   "name": "string",
+   "code": "string"
+  },
+  "response": {
+   "id": "uuid",
+   "kind": "string. sector | branch | unit | department",
+   "parent_id": "uuid. The unit it sits under; null at the top",
+   "name": "string",
+   "code": "string",
+   "target": "integer. Performance threshold in percent"
+  }
+ },
+ "POST /v1/org/units/{id}/move": {
+  "summary": "Move a unit under another parent",
+  "description": "Moving a unit to the top level: send `parent_id` null.",
+  "access": "a role with Settings: Edit organization profile",
+  "status": 204,
+  "request": {
+   "parent_id": "uuid. The new parent, or null for the top level"
+  },
+  "response": null,
+  "errors": {
+   "400": "A unit cannot sit under itself, under one of its own parts, or under that kind of parent"
+  }
+ },
+ "POST /v1/org/units/merge": {
+  "summary": "Merge units of one kind into another",
+  "description": "People, tickets and everything placed in the merged units move into `into`, and the merged units are removed. At most 100 at a time; all must be the same kind.",
+  "access": "a role with Settings: Edit organization profile",
+  "status": 204,
+  "request": {
+   "into": "uuid, required",
+   "from": [
+    "uuid, required. Units to fold in"
+   ]
+  },
+  "response": null
+ },
+ "DELETE /v1/org/units/{id}": {
+  "summary": "Delete a unit",
+  "description": "Refused while anything is still placed in it.",
+  "access": "a role with Settings: Edit organization profile",
+  "status": 204,
+  "response": null,
+  "errors": {
+   "409": "in_use: it has units under it, people placed in it, or open tickets sent to it"
+  }
+ },
+ "GET /v1/org/units/{id}/dashboard": {
+  "summary": "A unit's performance dashboard",
+  "description": "Built from real records over the last `days` days: what the unit received and sent (memos and announcements, approval requests, tickets), how much of what it received was handled on time, and its projects.",
+  "access": "a role with View dashboard on that kind of unit (sector, branch, unit or department)",
+  "query": {
+   "days": "integer. 1 to 365; 30 when absent"
+  },
+  "response": {
+   "unit": {
+    "id": "uuid",
+    "kind": "string. sector | branch | unit | department",
+    "parent_id": "uuid. The unit it sits under; null at the top",
+    "name": "string",
+    "code": "string",
+    "target": "integer. Performance threshold in percent"
+   },
+   "target": "integer. Threshold in percent (95 by default)",
+   "perf": "integer. Overall percent handled on time",
+   "parts": {
+    "<area>": {
+     "pct": "integer",
+     "received": "integer",
+     "ok": "integer. Handled on time"
+    }
+   },
+   "members": "integer. Active people in the unit",
+   "comms": [
+    {
+     "id": "uuid",
+     "ref": "string",
+     "type": "string",
+     "date": "string",
+     "dir": "string. Received | Sent",
+     "status": "string",
+     "ok": "boolean",
+     "cp": "string. Who it came from or went to",
+     "conversation": "uuid",
+     "message": "uuid. Open this message to read the sealed subject"
+    }
+   ],
+   "requests": [
+    {
+     "id": "uuid",
+     "ref": "string",
+     "date": "string",
+     "dir": "string",
+     "subject": "string",
+     "status": "string",
+     "ok": "boolean",
+     "cp": "string",
+     "by": "string",
+     "level": "integer",
+     "levels": "integer",
+     "approvers": [
+      "string"
+     ],
+     "history": [
+      {
+       "level": "integer",
+       "who": "string",
+       "decision": "string",
+       "at": "string"
+      }
+     ],
+     "closed": "boolean"
+    }
+   ],
+   "tickets": [
+    {
+     "id": "uuid",
+     "ref": "string",
+     "date": "string",
+     "dir": "string. Received | Sent | Escalated",
+     "category": "string",
+     "priority": "string",
+     "step": "integer",
+     "status": "string",
+     "ok": "boolean",
+     "cp": "string"
+    }
+   ],
+   "projects": [
+    {
+     "id": "uuid",
+     "code": "string",
+     "status": "string"
+    }
+   ]
+  },
+  "errors": {
+   "403": "Your role cannot view that kind of dashboard",
+   "404": "No such unit"
+  }
+ },
+ "PUT /v1/org/units/{id}/target": {
+  "summary": "Set a unit's performance threshold",
+  "description": "The percent a unit must reach to count as on target.",
+  "access": "a role with Performance: Set targets",
+  "status": 204,
+  "request": {
+   "target": "integer, required. 50 to 100"
+  },
+  "response": null,
+  "errors": {
+   "400": "Not between 50 and 100"
+  }
+ },
+ "GET /v1/org/performance": {
+  "summary": "Performance of every unit I may see",
+  "description": "Up to 200 units, last 30 days. Units whose dashboard the caller may not view are left out.",
+  "access": "any signed-in member of the organization (token issued with `org`)",
+  "response": {
+   "units": [
+    {
+     "id": "uuid",
+     "kind": "string",
+     "perf": "integer",
+     "target": "integer",
+     "parts": {
+      "<area>": {
+       "pct": "integer",
+       "received": "integer",
+       "ok": "integer"
+      }
+     }
+    }
+   ]
+  }
+ },
+ "GET /v1/approvals": {
+  "summary": "List approval requests",
+  "description": "People see the requests they raised, the ones they may decide and the ones they took part in; a role with Configure approvals sees all.",
+  "access": "any signed-in member of the organization (token issued with `org`)",
+  "query": {
+   "status": "Pending | Approved | Rejected | Cancelled",
+   "limit": "integer. Up to 200, 50 when absent"
+  },
+  "response": {
+   "requests": [
+    {
+     "id": "uuid",
+     "ref": "string. Human reference such as AP-20",
+     "flow": "string. Flow key (f1 ... f11)",
+     "kind": "string. What kind of change, e.g. person.update, project.activate, award.grant, rights.role, rights.person",
+     "title": "string",
+     "note": "string",
+     "by": "string. Requester's name",
+     "requester": "uuid. Requester's person id",
+     "level": "integer. The approval level it is waiting at",
+     "levels": "integer. How many levels the flow has",
+     "waiting_for": "string. Who must decide next",
+     "status": "string. Pending | Approved | Rejected | Cancelled",
+     "history": [
+      {
+       "level": "integer",
+       "who": "string",
+       "decision": "string",
+       "comment": "string",
+       "at": "timestamp"
+      }
+     ],
+     "created_at": "timestamp",
+     "decided_at": "timestamp",
+     "can_decide": "boolean. true when the caller may decide it now"
+    }
+   ]
+  }
+ },
+ "POST /v1/approvals/{id}/approve": {
+  "summary": "Approve a request",
+  "description": "Moves it to the next level, or applies the change when this was the last level. The approver needs the module's `Approve level N` right for the level the request is at.",
+  "access": "a role with Approve level N on the flow's module",
+  "request": {
+   "comment": "string. Optional note"
+  },
+  "response": {
+   "id": "uuid",
+   "ref": "string. Human reference such as AP-20",
+   "flow": "string. Flow key (f1 ... f11)",
+   "kind": "string. What kind of change, e.g. person.update, project.activate, award.grant, rights.role, rights.person",
+   "title": "string",
+   "note": "string",
+   "by": "string. Requester's name",
+   "requester": "uuid. Requester's person id",
+   "level": "integer. The approval level it is waiting at",
+   "levels": "integer. How many levels the flow has",
+   "waiting_for": "string. Who must decide next",
+   "status": "string. Pending | Approved | Rejected | Cancelled",
+   "history": [
+    {
+     "level": "integer",
+     "who": "string",
+     "decision": "string",
+     "comment": "string",
+     "at": "timestamp"
+    }
+   ],
+   "created_at": "timestamp",
+   "decided_at": "timestamp",
+   "can_decide": "boolean. true when the caller may decide it now"
+  },
+  "errors": {
+   "403": "not_your_turn: it is waiting for someone else",
+   "409": "already_decided"
+  }
+ },
+ "POST /v1/approvals/{id}/reject": {
+  "summary": "Reject a request",
+  "access": "a role with Approve level N on the flow's module",
+  "request": {
+   "comment": "string. Optional reason"
+  },
+  "response": {
+   "id": "uuid",
+   "ref": "string. Human reference such as AP-20",
+   "flow": "string. Flow key (f1 ... f11)",
+   "kind": "string. What kind of change, e.g. person.update, project.activate, award.grant, rights.role, rights.person",
+   "title": "string",
+   "note": "string",
+   "by": "string. Requester's name",
+   "requester": "uuid. Requester's person id",
+   "level": "integer. The approval level it is waiting at",
+   "levels": "integer. How many levels the flow has",
+   "waiting_for": "string. Who must decide next",
+   "status": "string. Pending | Approved | Rejected | Cancelled",
+   "history": [
+    {
+     "level": "integer",
+     "who": "string",
+     "decision": "string",
+     "comment": "string",
+     "at": "timestamp"
+    }
+   ],
+   "created_at": "timestamp",
+   "decided_at": "timestamp",
+   "can_decide": "boolean. true when the caller may decide it now"
+  },
+  "errors": {
+   "403": "not_your_turn",
+   "409": "already_decided"
+  }
+ },
+ "POST /v1/approvals/{id}/cancel": {
+  "summary": "Cancel my request",
+  "description": "Only the requester, and only while it is pending.",
+  "access": "the requester",
+  "status": 204,
+  "response": null
+ },
+ "GET /v1/approvals/flows": {
+  "summary": "List approval flows",
+  "description": "A flow decides who must approve an action: f1 publish an announcement, f2 create a project, f3 share a file outside Hub, f4 share a wall post outside Hub, f5 close a High priority ticket, f6 create a 7-day link, f7 give an award, f8 change a role's rights, f9 upload to the Finance folder, f10 send a memo under a communication rule, f11 change a person's details, role or rights. With 0 levels the action happens at once; with 1 to 3 levels each level's approvers must agree in turn.",
+  "access": "any signed-in member of the organization (token issued with `org`)",
+  "response": {
+   "flows": [
+    {
+     "id": "string. Flow key, f1 to f11",
+     "mod": "string. The module it guards",
+     "action": "string. What it guards",
+     "levels": "integer. 0 to 3",
+     "approvers": [
+      "string. Role names that may approve at each level"
+     ],
+     "designees": [
+      {
+       "level": "integer",
+       "person": "uuid",
+       "name": "string",
+       "role": "string",
+       "role_id": "string"
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "PUT /v1/approvals/flows/{key}": {
+  "summary": "Set how many levels a flow has",
+  "access": "a role with Roles: Configure approvals",
+  "status": 204,
+  "request": {
+   "levels": "integer, required. 0 to 3"
+  },
+  "response": null,
+  "errors": {
+   "400": "A flow has between 0 and 3 levels"
+  }
+ },
+ "PUT /v1/approvals/flows/{key}/approvers/{level}": {
+  "summary": "Choose the person who approves at a level",
+  "description": "Instead of anyone with the level's right, only this person decides at that level. Send null to go back to anyone with the right.",
+  "access": "a role with Roles: Configure approvals",
+  "status": 204,
+  "request": {
+   "person": "uuid. An active person, or null to clear"
+  },
+  "response": null,
+  "errors": {
+   "400": "The flow has fewer levels, or the person is not active"
+  }
+ },
+ "POST /v1/realtime/ticket": {
+  "summary": "Get a one-time ticket for the realtime socket",
+  "description": "Browsers cannot send an Authorization header on a WebSocket, so a signed-in client asks for a ticket first and connects with it. A ticket works once and lasts 30 seconds.",
+  "access": "any signed-in member of the organization (token issued with `org`)",
+  "response": {
+   "ticket": "string",
+   "expires_in": "integer. Seconds: 30"
+  }
+ },
+ "GET /v1/realtime": {
+  "summary": "Realtime event socket (WebSocket)",
+  "description": "Upgrade to a WebSocket with `?ticket=` from POST /v1/realtime/ticket. You receive JSON events `{id, type, channel, org, actor, ts, data}` for the organization (`presence`, `person.updated`, `person.status`, `rights.changed`, `approval.changed`, `ticket.updated`) and for your own account (`notification`, `conversation.new`, `conversation.removed`, `call.incoming`, `call.started`, `call.answered`, `call.declined`, `call.ended`, `session.ended`, `session.replaced`). To get a conversation's events send `{\"op\":\"sub\",\"conv\":\"<uuid>\"}` (you must be a member; up to 500 at a time) and receive `message.new`, `message.deleted`, `member.added`, `member.joined`, `member.removed`, `keys.updated`, `keys.rotated`, `record.saved`, `record.deleted`, `file.added`, `comm.published`, `project.updated`, `ticket.updated` and `typing`. Other frames you may send: `{\"op\":\"unsub\",\"conv\":...}`, `{\"op\":\"typing\",\"conv\":...}` and `{\"op\":\"ping\"}` every 30 seconds (answered with `{\"type\":\"pong\"}`). Message bodies in events are sealed envelopes.",
+  "access": "a ticket from POST /v1/realtime/ticket (no Authorization header)",
+  "errors": {
+   "401": "The ticket is missing, already used, expired, or the session was ended"
+  }
+ },
+ "GET /v1/presence": {
+  "summary": "Who is online",
+  "access": "any signed-in member of the organization (token issued with `org`)",
+  "query": {
+   "id": "uuid, repeatable. Person ids to check, up to 200"
+  },
+  "response": {
+   "online": {
+    "<person id>": "boolean. true when the person has a socket open"
+   }
+  }
+ },
+ "GET /v1/notifications": {
+  "summary": "My notifications",
+  "description": "Newest first. The same items arrive live as `notification` events on the socket.",
+  "access": "any signed-in member of the organization (token issued with `org`)",
+  "query": {
+   "limit": "integer. 1 to 100, 30 when absent"
+  },
+  "response": {
+   "notifications": [
+    {
+     "id": "uuid",
+     "kind": "string",
+     "text": "string",
+     "color": "string",
+     "ref": "string. What it is about",
+     "created_at": "timestamp",
+     "read_at": "timestamp. Absent while unread"
+    }
+   ],
+   "unread": "integer. Count of unread in all"
+  }
+ },
+ "POST /v1/notifications/read": {
+  "summary": "Mark all my notifications read",
+  "access": "any signed-in member of the organization (token issued with `org`)",
+  "status": 204,
+  "response": null
+ },
+ "DELETE /v1/notifications": {
+  "summary": "Clear my notifications",
+  "access": "any signed-in member of the organization (token issued with `org`)",
+  "status": 204,
+  "response": null
+ },
+ "GET /v1/me": {
+  "summary": "Who I am in this organization",
+  "description": "My person, role and every right the role gives me, so a client can show or hide what the person may use.",
+  "access": "any signed-in member of the organization (token issued with `org`)",
+  "response": {
+   "account": "uuid",
+   "person": "uuid",
+   "name": "string",
+   "role": "string. Role key",
+   "role_name": "string",
+   "status": "string",
+   "rights": {
+    "<module>": [
+     "string. Right names the person holds in that module"
+    ]
+   },
+   "profile": {
+    "status": "string. Availability",
+    "cover": "string. Hex colour",
+    "photo": "string. Data URL",
+    "phone": "string",
+    "bio": "string",
+    "skills": [
+     "string"
+    ]
+   }
+  }
+ },
+ "PATCH /v1/me": {
+  "summary": "Edit my profile",
+  "description": "Send only what changes.",
+  "access": "any signed-in member of the organization (token issued with `org`)",
+  "status": 204,
+  "request": {
+   "status": "string. Availability from the list the app offers",
+   "cover": "string. Hex colour like #1F3A2B",
+   "photo": "string. PNG, JPEG, WebP or GIF data URL up to 512 KB; empty string removes it",
+   "phone": "string",
+   "bio": "string. Up to 2000 characters",
+   "skills": [
+    "string. Up to 30"
+   ]
+  },
+  "response": null
+ },
+ "GET /v1/me/prefs": {
+  "summary": "My saved settings",
+  "description": "Free-form settings the app keeps per person (layout, theme, ...), stored encrypted.",
+  "access": "any signed-in member of the organization (token issued with `org`)",
+  "response": {
+   "<key>": "any. Whatever the client saved"
+  }
+ },
+ "PUT /v1/me/prefs": {
+  "summary": "Save my settings",
+  "description": "Replaces the whole object.",
+  "access": "any signed-in member of the organization (token issued with `org`)",
+  "status": 204,
+  "request": {
+   "<key>": "any. A JSON object under 16 KB"
+  },
+  "response": null,
+  "errors": {
+   "400": "Not a JSON object under 16 KB"
+  }
+ },
+ "GET /v1/tones": {
+  "summary": "Call and notification sounds",
+  "description": "The same for everyone and nothing private, so the sign-in screen can use them. Cached for an hour.",
+  "response": {
+   "tones": [
+    {
+     "key": "string",
+     "kind": "string",
+     "description": "string",
+     "params": "object. How the sound is synthesised"
+    }
+   ]
+  }
+ },
+ "GET /v1/access/catalog": {
+  "summary": "The organization's modules and rights",
+  "description": "Every module (Home, Forums, Tickets, Projects, Files, People, Roles ...) and the rights inside it. Roles are made of these rights.",
+  "access": "any signed-in member of the organization (token issued with `org`)",
+  "response": {
+   "modules": [
+    {
+     "key": "string",
+     "label": "string",
+     "tint": "string. Hex colour",
+     "builtin": "boolean. true for modules Hub ships",
+     "rights": [
+      {
+       "name": "string",
+       "label": "string",
+       "kind": "string. view | create | edit | delete | export | approve | manage | other",
+       "builtin": "boolean"
+      }
+     ]
+    }
+   ],
+   "kinds": [
+    "string"
+   ]
+  }
+ },
+ "POST /v1/access/modules": {
+  "summary": "Add a module",
+  "description": "For custom areas an organization wants to control access to.",
+  "access": "a role with Roles: Manage roles & rights",
+  "status": 204,
+  "request": {
+   "module": "string, required. Key",
+   "label": "string, required",
+   "tint": "string. Hex colour like #7CC4FF"
+  },
+  "response": null,
+  "errors": {
+   "409": "exists: that module already exists"
+  }
+ },
+ "POST /v1/access/rights": {
+  "summary": "Add a right to a module",
+  "access": "a role with Roles: Manage roles & rights",
+  "status": 204,
+  "request": {
+   "module": "string, required",
+   "name": "string, required. Up to 60 characters",
+   "label": "string",
+   "kind": "string. view | create | edit | delete | export | approve | manage | other"
+  },
+  "response": null,
+  "errors": {
+   "409": "exists: the module does not exist or already has that right"
+  }
+ },
+ "PATCH /v1/access/rights": {
+  "summary": "Change a right's label or kind",
+  "access": "a role with Roles: Manage roles & rights",
+  "status": 204,
+  "request": {
+   "module": "string, required",
+   "name": "string, required",
+   "label": "string",
+   "kind": "string"
+  },
+  "response": null
+ },
+ "DELETE /v1/access/rights": {
+  "summary": "Remove a right",
+  "access": "a role with Roles: Manage roles & rights",
+  "status": 204,
+  "query": {
+   "module": "string, required",
+   "name": "string, required"
+  },
+  "response": null,
+  "errors": {
+   "409": "builtin: Hub itself uses that right, so it cannot be removed"
+  }
+ },
+ "GET /v1/roles": {
+  "summary": "List roles",
+  "access": "a role with Roles: View roles",
+  "response": {
+   "roles": [
+    {
+     "id": "string. Role key",
+     "name": "string",
+     "desc": "string",
+     "scope": "string",
+     "locked": "boolean. A locked role (super admin) cannot be limited or deleted",
+     "needs": "string. The structure level people in this role must be placed at",
+     "count": "integer. People holding it",
+     "default": "boolean. The role new people get when none is chosen",
+     "reports_to_role": "string",
+     "reports_to_person": "uuid"
+    }
+   ]
+  }
+ },
+ "POST /v1/roles": {
+  "summary": "Create a role",
+  "description": "Optionally copying the rights of another role.",
+  "access": "a role with Roles: Manage roles & rights",
+  "status": 201,
+  "request": {
+   "name": "string, required. Up to 60 characters",
+   "desc": "string",
+   "scope": "string",
+   "default": "boolean",
+   "copy_from": "string. Role key to copy rights from"
+  },
+  "response": {
+   "id": "string. The new role's key"
+  },
+  "errors": {
+   "409": "name_taken"
+  }
+ },
+ "GET /v1/roles/{key}": {
+  "summary": "Get a role and its rights",
+  "access": "a role with Roles: View roles",
+  "response": {
+   "id": "string. Role key",
+   "name": "string",
+   "desc": "string",
+   "scope": "string",
+   "locked": "boolean. A locked role (super admin) cannot be limited or deleted",
+   "needs": "string. The structure level people in this role must be placed at",
+   "count": "integer. People holding it",
+   "default": "boolean. The role new people get when none is chosen",
+   "reports_to_role": "string",
+   "reports_to_person": "uuid",
+   "rights": {
+    "<module>": {
+     "<right>": "boolean. Whether the role holds it"
+    }
+   },
+   "pending": {
+    "<module>|<right>": "boolean. A change to this right is waiting for approval"
+   }
+  },
+  "errors": {
+   "404": "No such role"
+  }
+ },
+ "PATCH /v1/roles/{key}": {
+  "summary": "Edit a role",
+  "access": "a role with Roles: Manage roles & rights",
+  "status": 204,
+  "request": {
+   "name": "string",
+   "desc": "string",
+   "scope": "string",
+   "default": "boolean"
+  },
+  "response": null,
+  "errors": {
+   "409": "name_taken"
+  }
+ },
+ "DELETE /v1/roles/{key}": {
+  "summary": "Delete a role",
+  "access": "a role with Roles: Manage roles & rights",
+  "status": 204,
+  "response": null,
+  "errors": {
+   "409": "locked_role: it cannot be deleted; role_in_use: people still hold it"
+  }
+ },
+ "PUT /v1/roles/{key}/rights": {
+  "summary": "Allow or deny a right for a role",
+  "description": "May need approval (flow f8): 200 applied, 202 an approval request was raised.",
+  "access": "a role with Roles: Manage roles & rights",
+  "request": {
+   "module": "string, required",
+   "right": "string, required",
+   "allowed": "boolean, required"
+  },
+  "response": {
+   "applied": "boolean",
+   "request": "object. The approval request when one was raised"
+  },
+  "errors": {
+   "409": "locked_role: a super admin cannot be limited"
+  }
+ },
+ "PUT /v1/people/{id}/rights": {
+  "summary": "Give or take a right for one person",
+  "description": "A personal override on top of their role. Send `allowed` null to remove the override. May need approval (flow f8).",
+  "access": "a role with Roles: Manage roles & rights",
+  "request": {
+   "module": "string, required",
+   "right": "string, required",
+   "allowed": "boolean. null removes the person's override"
+  },
+  "response": {
+   "applied": "boolean",
+   "request": "object"
+  },
+  "errors": {
+   "409": "locked_role: a super admin cannot be limited"
+  }
+ },
+ "PUT /v1/roles/reporting": {
+  "summary": "Set who a role reports to",
+  "access": "a role with Roles: Manage roles & rights",
+  "status": 204,
+  "request": {
+   "role": "string, required. Role key",
+   "reports_to_role": "string. Role key, or null",
+   "reports_to_person": "uuid. Or a person, or null"
+  },
+  "response": null,
+  "errors": {
+   "400": "A role cannot report to itself"
+  }
+ }
+}

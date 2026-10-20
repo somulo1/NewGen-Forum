@@ -1,0 +1,237 @@
+{
+ "POST /v1/comms": {
+  "summary": "Send a memo, announcement, newsletter or job post",
+  "description": "The content is a sealed message already placed in a wall audience or forum by the device; this call registers it as a communication. It is published at once or held for approval, depending on the communication rule and approval flows (f1 announcements, f10 memos). The sender picks the message id (a UUID v7) and the key generation.",
+  "access": "a role with the matching right (Memos: Send memos; Announcements: Post; Newsletter: Publish newsletters; Job posts: Post job posts)",
+  "status": 201,
+  "request": {
+   "type": "string, required. Memo | Announcement | Newsletter | Job post",
+   "conversation": "uuid, required. The wall or forum it goes to",
+   "message": "uuid, required. UUID v7 chosen by the sender; the content is bound to it",
+   "epoch": "integer, required",
+   "device": "uuid, required",
+   "envelope": "base64, required. The sealed content, up to about 600 KB",
+   "batch": "uuid. Shared by the copies sent together to several places"
+  },
+  "response": {
+   "comm": {
+    "id": "uuid",
+    "ref": "string. Human reference",
+    "type": "string. Memo | Announcement | Newsletter | Job post",
+    "status": "string. Published | Pending approval | Rejected",
+    "by": "uuid. Sender's person id",
+    "by_name": "string",
+    "conversation": "uuid. The wall or forum it is posted in",
+    "message": "uuid. The sealed message that carries the content",
+    "created_at": "timestamp",
+    "published_at": "timestamp",
+    "read": "integer. People who have read it",
+    "i_read": "boolean"
+   },
+   "approval": "object. The approval request when it was held (see GET /v1/approvals), otherwise null"
+  },
+  "errors": {
+   "400": "Unknown type, not a valid envelope, bad message id, or not a wall or forum",
+   "409": "epoch_changed: fetch the new key and send again"
+  }
+ },
+ "GET /v1/comms": {
+  "summary": "List communications I can see",
+  "description": "Published ones in conversations I am in, plus mine; people with the See who read right see all.",
+  "access": "any signed-in member of the organization (token issued with `org`)",
+  "query": {
+   "type": "Memo | Announcement | Newsletter | Job post"
+  },
+  "response": {
+   "comms": [
+    {
+     "id": "uuid",
+     "ref": "string. Human reference",
+     "type": "string. Memo | Announcement | Newsletter | Job post",
+     "status": "string. Published | Pending approval | Rejected",
+     "by": "uuid. Sender's person id",
+     "by_name": "string",
+     "conversation": "uuid. The wall or forum it is posted in",
+     "message": "uuid. The sealed message that carries the content",
+     "created_at": "timestamp",
+     "published_at": "timestamp",
+     "read": "integer. People who have read it",
+     "i_read": "boolean"
+    }
+   ]
+  }
+ },
+ "GET /v1/comms/{id}/content": {
+  "summary": "The sealed content of one communication",
+  "description": "Returns the envelope for a client to open with the conversation key.",
+  "access": "any signed-in member of the organization (token issued with `org`)",
+  "response": {
+   "id": "uuid",
+   "conversation": "uuid",
+   "message": "uuid",
+   "epoch": "integer",
+   "device": "uuid",
+   "envelope": "base64",
+   "sender_person": "uuid",
+   "sender_account": "uuid"
+  },
+  "errors": {
+   "404": "Not visible to you"
+  }
+ },
+ "POST /v1/comms/{id}/read": {
+  "summary": "Mark a communication read",
+  "description": "Counted once per person.",
+  "access": "any signed-in member of the organization (token issued with `org`)",
+  "status": 204,
+  "response": null
+ },
+ "GET /v1/comms/{id}/insights": {
+  "summary": "How a communication was received",
+  "description": "For every place it was posted: audience size, how many read it, and how many reacted or replied (contents stay sealed).",
+  "access": "a role with View insights on that type's page",
+  "response": {
+   "places": [
+    {
+     "comm": "uuid",
+     "place": "string",
+     "conversation": "uuid",
+     "kind": "string. wall | forum",
+     "status": "string",
+     "audience": "integer",
+     "read": "integer",
+     "likes": "integer",
+     "replies": "integer"
+    }
+   ]
+  }
+ },
+ "GET /v1/comms/rules": {
+  "summary": "Communication rules",
+  "description": "Who may send memos and announcements to which audiences at each level, and who approves them. Keyed by level (departments, branches, sectors, units) then type (Memo, Announcement).",
+  "access": "any signed-in member of the organization (token issued with `org`)",
+  "response": {
+   "rules": {
+    "<level>": {
+     "<type>": {
+      "on": "boolean",
+      "to": [
+       "string. Audiences it may be sent to"
+      ],
+      "sender": "string. Role that may send",
+      "approver": "string. Role that approves"
+     }
+    }
+   }
+  }
+ },
+ "PUT /v1/comms/rules/{level}/{type}": {
+  "summary": "Set a communication rule",
+  "description": "`level` is departments, branches, sectors or units; `type` is Memo or Announcement.",
+  "access": "a role with Roles: Configure approvals",
+  "status": 204,
+  "request": {
+   "on": "boolean",
+   "to": [
+    "string. Audiences it may be sent to"
+   ],
+   "sender": "string. Role that may send",
+   "approver": "string. Role that approves"
+  },
+  "response": null,
+  "errors": {
+   "400": "Unknown level or type, or more than 8 audiences"
+  }
+ },
+ "GET /v1/awards": {
+  "summary": "Performance awards",
+  "description": "The awards approved in the current weekly cycle, which runs from Saturday 00:00 to the next Saturday 00:00 in the organization's time zone, plus the cycle's dates.",
+  "access": "a role with Awards: View",
+  "response": {
+   "awards": [
+    {
+     "id": "uuid",
+     "ref": "string",
+     "type": "string. The award",
+     "people": [
+      "uuid. Recipients"
+     ],
+     "names": [
+      "string"
+     ],
+     "citation": "string",
+     "date": "string",
+     "status": "string. Pending | Approved | Rejected",
+     "by": "string. Nominator",
+     "by_person": "uuid",
+     "approved_at": "timestamp",
+     "in_cycle": "boolean. true when approved in the current weekly cycle",
+     "targets": [
+      "string. Places it may be announced"
+     ]
+    }
+   ],
+   "cycle": {
+    "start": "timestamp. This cycle began",
+    "next": "timestamp. The next cycle begins"
+   }
+  }
+ },
+ "POST /v1/awards": {
+  "summary": "Nominate people for an award",
+  "description": "Up to 20 people and 20 places to announce it. It becomes visible once approved (flow f7).",
+  "access": "a role with Awards: Nominate",
+  "status": 201,
+  "request": {
+   "type": "string, required. The award",
+   "people": [
+    "uuid, required. Up to 20 active people"
+   ],
+   "citation": "string, required. Up to 600 characters",
+   "targets": [
+    "string. Up to 20 places to announce it"
+   ]
+  },
+  "response": {
+   "award": {
+    "id": "uuid",
+    "ref": "string",
+    "type": "string. The award",
+    "people": [
+     "uuid. Recipients"
+    ],
+    "names": [
+     "string"
+    ],
+    "citation": "string",
+    "date": "string",
+    "status": "string. Pending | Approved | Rejected",
+    "by": "string. Nominator",
+    "by_person": "uuid",
+    "approved_at": "timestamp",
+    "in_cycle": "boolean. true when approved in the current weekly cycle",
+    "targets": [
+     "string. Places it may be announced"
+    ]
+   },
+   "approval": "object. The approval request when one is needed"
+  },
+  "errors": {
+   "400": "Missing fields, too many people or places, or someone nominated is not an active member"
+  }
+ },
+ "POST /v1/awards/{id}/claim": {
+  "summary": "Mark one place of an award as announced",
+  "description": "Succeeds for the first call per place and answers 409 afterwards, so an award is announced once.",
+  "access": "the nominator, after the award is approved",
+  "status": 204,
+  "request": {
+   "target": "string, required. The place"
+  },
+  "response": null,
+  "errors": {
+   "403": "You are not the nominator",
+   "409": "not_approved: not approved yet; already_posted: that place is already announced"
+  }
+ }
+}

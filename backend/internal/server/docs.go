@@ -1,6 +1,7 @@
 package server
 
 import (
+	"embed"
 	"encoding/json"
 	"net/http"
 	"regexp"
@@ -11,42 +12,47 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-// The API reference is built from the running router, so it lists every route that exists and cannot fall behind. Each
-// operation says whether it needs a token, which rate limit applies (read from the same table that enforces it), and the
-// errors every route can return. Request and response examples come from apiNotes, which is added to as integrations need it.
+// The API reference is built from the running router, so it lists every route that exists. What each route does, who may
+// call it, what it takes and what it returns is written in apidocs/*.json (one file per area); a test fails if any route has
+// no entry, so a new route cannot ship undocumented.
+
+//go:embed apidocs/*.json
+var notesFS embed.FS
 
 var braceRe = regexp.MustCompile(`\{([^}/:]+)(:[^}]*)?\}`)
 
+// note is the written description of one route. Request, Response and Query are example objects: each field's value says
+// what it is ("uuid, required. The person to add"). Request null means the route takes no body.
 type note struct {
-	Summary  string
-	Detail   string
-	Request  map[string]any
-	Response map[string]any
+	Summary     string            `json:"summary"`
+	Description string            `json:"description"`
+	Access      string            `json:"access"` // who may call it
+	Status      int               `json:"status"` // success status, 200 when absent
+	Query       map[string]string `json:"query"`
+	Request     json.RawMessage   `json:"request"`
+	Response    json.RawMessage   `json:"response"`
+	Errors      map[string]string `json:"errors"` // status -> when it happens
 }
 
-var apiNotes = map[string]note{
-	"POST /v1/auth/login": {Summary: "Sign in", Detail: "Returns a short-lived access token and a refresh token. Add `org` (the organization slug) to get a token for that organization, which the organization routes require. Five wrong passwords from one address block it for a while.",
-		Request:  map[string]any{"email": "amani@example.com", "password": "…", "totp": "123456 (when two-step sign-in is on)", "org": "acme"},
-		Response: map[string]any{"access_token": "…", "refresh_token": "…", "expires_in": 900, "account": "uuid", "org": "uuid"}},
-	"POST /v1/auth/refresh": {Summary: "Get a new access token", Detail: "Refresh tokens are single use: each answer carries the next one. Presenting an old one signs the account out everywhere.",
-		Request: map[string]any{"refresh_token": "…", "org": "acme"}},
-	"POST /v1/auth/signup": {Summary: "Create an account", Request: map[string]any{"name": "Amani Kariuki", "email": "amani@example.com", "password": "at least 10 characters"}, Response: map[string]any{"account": "uuid"}},
-	"POST /v1/auth/logout": {Summary: "Sign out this session"},
-	"GET /v1/conversations": {Summary: "List conversations you are in", Detail: "Forums, private chats, ticket threads and wall posts. Message bodies are end-to-end encrypted; the server returns envelopes only.",
-		Response: map[string]any{"conversations": []any{map[string]any{"id": "uuid", "kind": "forum", "epoch": 1, "my_role": "member", "last_message": "uuid"}}}},
-	"POST /v1/conversations": {Summary: "Create a forum, private chat or other conversation", Detail: "The creator wraps the first conversation key for every member's devices and sends the wraps in `keys`.",
-		Request: map[string]any{"kind": "forum", "name": "Risk & Compliance", "privacy": "invite", "members": []string{"person uuid"}, "keys": []any{map[string]any{"person": "uuid", "device": "uuid", "epoch": 1, "wrapped": "base64"}}}},
-	"POST /v1/conversations/{id}/messages": {Summary: "Send an encrypted message", Detail: "The sender picks the message id (it is bound into the signature) and seals the text on the device. 120 messages a minute per account.",
-		Request: map[string]any{"id": "uuid", "epoch": 1, "device": "uuid", "envelope": "base64", "type": "text", "reply_to": nil}},
-	"POST /v1/calls": {Summary: "Start a voice or video call", Detail: "`mode` in the answer is `sfu` (a room on a media server: use `sfu.url` and `sfu.token` with a LiveKit client) or `mesh` (a small peer-to-peer room: use `url` and `token`). A full room is 409, too many rooms 429. See docs/CALLS_SCALE.md.",
-		Request:  map[string]any{"kind": "video", "context": "forum", "conversation": "uuid"},
-		Response: map[string]any{"mode": "sfu", "call": map[string]any{"id": "uuid"}, "sfu": map[string]any{"url": "wss://media.example.com", "token": "…", "can_speak": true, "limit": 800}}},
-	"POST /v1/calls/{id}/join":    {Summary: "Join a running call", Detail: "Same answer as starting one. In a big room newcomers beyond the open-mic size join as listeners (`sfu.can_speak` false)."},
-	"POST /v1/calls/{id}/control": {Summary: "Host and moderator controls for a big call", Request: map[string]any{"action": "mute | cam_off | remove | mute_all | lock | unlock | end | stage_on | stage_off", "identity": "participant id in the room"}},
-	"POST /v1/calls/sfu-hook":     {Summary: "Notices from the media servers", Detail: "Called by the media servers, signed with their API key. Not for integrations."},
-	"POST /v1/realtime/ticket":    {Summary: "Get a one-time ticket for the realtime socket", Detail: "Connect to `GET /v1/realtime?ticket=…` with it. Tickets work once and expire quickly."},
-	"GET /healthz":                {Summary: "Is the process up"},
-	"GET /readyz":                 {Summary: "Are the database and message bus reachable"},
+var apiNotes = loadNotes()
+
+func loadNotes() map[string]note {
+	out := map[string]note{}
+	files, _ := notesFS.ReadDir("apidocs")
+	for _, f := range files {
+		b, err := notesFS.ReadFile("apidocs/" + f.Name())
+		if err != nil {
+			panic(err)
+		}
+		var m map[string]note
+		if err := json.Unmarshal(b, &m); err != nil {
+			panic("apidocs/" + f.Name() + ": " + err.Error())
+		}
+		for k, v := range m {
+			out[k] = v
+		}
+	}
+	return out
 }
 
 func tagOf(route string) string {
@@ -64,6 +70,46 @@ func summaryOf(method, route string) string {
 	return strings.Join(strings.Fields(verb+" "+words), " ")
 }
 
+var typeWords = map[string]string{"string": "string", "uuid": "string", "email": "string", "timestamp": "string", "date": "string", "base64": "string", "url": "string",
+	"integer": "integer", "int": "integer", "number": "number", "boolean": "boolean", "bool": "boolean", "object": "object", "array": "array"}
+
+// schemaOf turns an example object, where each value says what the field is, into a JSON schema. A value that starts with a
+// type word ("uuid, required. The person") gets that type; the rest is its description.
+func schemaOf(raw json.RawMessage) map[string]any {
+	var v any
+	if json.Unmarshal(raw, &v) != nil {
+		return map[string]any{"type": "object"}
+	}
+	return schemaVal(v)
+}
+
+func schemaVal(v any) map[string]any {
+	switch x := v.(type) {
+	case map[string]any:
+		props := map[string]any{}
+		for k, c := range x {
+			props[k] = schemaVal(c)
+		}
+		return map[string]any{"type": "object", "properties": props}
+	case []any:
+		if len(x) == 0 {
+			return map[string]any{"type": "array", "items": map[string]any{}}
+		}
+		return map[string]any{"type": "array", "items": schemaVal(x[0])}
+	case string:
+		out := map[string]any{"description": x}
+		if w := strings.FieldsFunc(x, func(r rune) bool { return r == ' ' || r == ',' || r == '.' || r == ':' || r == '(' }); len(w) > 0 {
+			if t, ok := typeWords[strings.ToLower(w[0])]; ok {
+				out["type"] = t
+			}
+		}
+		return out
+	case nil:
+		return map[string]any{"nullable": true}
+	}
+	return map[string]any{"example": v}
+}
+
 func (d Deps) openAPI(r chi.Routes) map[string]any {
 	type route struct {
 		method, path string
@@ -72,7 +118,7 @@ func (d Deps) openAPI(r chi.Routes) map[string]any {
 	var rs []route
 	base := 1 << 30
 	_ = chi.Walk(r, func(method, p string, _ http.Handler, mws ...func(http.Handler) http.Handler) error {
-		if strings.HasPrefix(p, "/v1/docs") {
+		if strings.HasPrefix(p, "/v1/docs") || strings.HasPrefix(p, "/api/v1/docs") {
 			return nil
 		}
 		p = strings.TrimSuffix(p, "/")
@@ -91,47 +137,54 @@ func (d Deps) openAPI(r chi.Routes) map[string]any {
 		}
 		return rs[i].method < rs[j].method
 	})
-	cfg := d.App.Cfg
 	paths := map[string]any{}
 	tags := map[string]bool{}
-	errs := map[string]any{
-		"400": map[string]any{"description": "The request is not valid. Body: {\"error\":{\"code\",\"message\"}}"},
-		"401": map[string]any{"description": "Missing, expired or invalid token"},
-		"403": map[string]any{"description": "Signed in, but your role does not have the right"},
-		"404": map[string]any{"description": "Not found, or not visible to you"},
-		"429": map[string]any{"description": "Rate limited. Wait `Retry-After` seconds."},
+	generic := map[string]string{
+		"400": "The request is not valid. Body: {\"error\":{\"code\",\"message\"}}.",
+		"401": "Missing, expired or invalid token.",
+		"403": "Signed in, but your role does not have the right to do this.",
+		"404": "Not found, or not visible to you.",
 	}
 	for _, x := range rs {
 		public := x.mws == base
 		oapi := braceRe.ReplaceAllString(x.path, "{$1}")
-		key := x.method + " " + x.path
-		n := apiNotes[key]
+		n, documented := apiNotes[x.method+" "+x.path]
 		if n.Summary == "" {
 			n.Summary = summaryOf(x.method, x.path)
 		}
 		tag := tagOf(x.path)
 		tags[tag] = true
-		limit := "per account: " + itoa(cfg.RateRPS*10) + " requests per 10 s; per address: " + itoa(cfg.RateIP) + " per minute"
-		if public {
-			limit = "per address: " + itoa(cfg.RateIP) + " per minute"
-			if publicPath(x.path) {
-				limit += "; sign-in, sign-up, reset and invite routes " + itoa(cfg.RateAuthIP) + " per minute"
+		desc := n.Description
+		if n.Access != "" {
+			if desc != "" {
+				desc += "\n\n"
 			}
+			desc += "Who can call it: " + n.Access
+		} else if public {
+			desc += "\n\nWho can call it: anyone, no token needed."
 		}
-		if t, ok := Tiers[key]; ok {
-			limit += "; this route " + itoa(t.Limit) + " per " + t.Window.String()
+		status := n.Status
+		if status == 0 {
+			status = 200
 		}
-		desc := n.Detail
-		if desc != "" {
-			desc += "\n\n"
+		ok := map[string]any{"description": "Success."}
+		if len(n.Response) > 0 && string(n.Response) != "null" {
+			ok["content"] = map[string]any{"application/json": map[string]any{"schema": schemaOf(n.Response)}}
+		} else if status != 204 {
+			ok["description"] = "Success. No body."
 		}
-		desc += "Rate limit: " + limit + "."
-		op := map[string]any{"summary": n.Summary, "description": desc, "tags": []string{tag}, "operationId": strings.ToLower(x.method) + strings.NewReplacer("/", "_", "{", "", "}", "").Replace(x.path),
-			"x-rate-limit": limit, "responses": map[string]any{"200": map[string]any{"description": "Success. JSON body (201 when something was created, 204 when there is nothing to return)", "content": jsonExample(n.Response)}}}
-		resp := op["responses"].(map[string]any)
-		for k, v := range errs {
-			resp[k] = v
+		resp := map[string]any{itoa(status): ok}
+		for code, msg := range generic {
+			if code == "401" && public || code == "403" && public {
+				continue
+			}
+			resp[code] = map[string]any{"description": msg}
 		}
+		for code, msg := range n.Errors {
+			resp[code] = map[string]any{"description": msg}
+		}
+		op := map[string]any{"summary": n.Summary, "description": desc, "tags": []string{tag}, "x-documented": documented,
+			"operationId": strings.ToLower(x.method) + strings.NewReplacer("/", "_", "{", "", "}", "").Replace(x.path), "responses": resp}
 		if public {
 			op["security"] = []any{}
 		}
@@ -139,15 +192,19 @@ func (d Deps) openAPI(r chi.Routes) map[string]any {
 		for _, m := range braceRe.FindAllStringSubmatch(x.path, -1) {
 			params = append(params, map[string]any{"name": m[1], "in": "path", "required": true, "schema": map[string]any{"type": "string"}})
 		}
+		qn := make([]string, 0, len(n.Query))
+		for q := range n.Query {
+			qn = append(qn, q)
+		}
+		sort.Strings(qn)
+		for _, q := range qn {
+			params = append(params, map[string]any{"name": q, "in": "query", "description": n.Query[q], "schema": map[string]any{"type": "string"}})
+		}
 		if len(params) > 0 {
 			op["parameters"] = params
 		}
-		if x.method == "POST" || x.method == "PUT" || x.method == "PATCH" {
-			body := map[string]any{"type": "object"}
-			if n.Request != nil {
-				body["example"] = n.Request
-			}
-			op["requestBody"] = map[string]any{"content": map[string]any{"application/json": map[string]any{"schema": body}}}
+		if len(n.Request) > 0 && string(n.Request) != "null" {
+			op["requestBody"] = map[string]any{"required": true, "content": map[string]any{"application/json": map[string]any{"schema": schemaOf(n.Request)}}}
 		}
 		pm, _ := paths[oapi].(map[string]any)
 		if pm == nil {
@@ -168,7 +225,7 @@ func (d Deps) openAPI(r chi.Routes) map[string]any {
 	return map[string]any{
 		"openapi": "3.0.3",
 		"info": map[string]any{"title": "Hub API", "version": "v1",
-			"description": "Everything under /v1. Send `Authorization: Bearer <access token>`; organization routes need a token issued for an organization (`org` at sign-in). Errors are `{\"error\":{\"code\",\"message\"}}`. Answers carry `RateLimit-Limit` and `RateLimit-Remaining`; a 429 carries `Retry-After`. Message, file and note contents are end-to-end encrypted on the device: the API stores and returns envelopes it cannot read. This reference lists every route the server has; request and response examples are filled in where integrations need them."},
+			"description": "For anyone integrating with Hub. Every route is under /v1 and speaks JSON over HTTPS. Send `Authorization: Bearer <access token>` (get one from POST /v1/auth/login); routes that work inside an organization need a token issued for that organization (pass `org` at sign-in). Errors are `{\"error\":{\"code\",\"message\"}}` with the HTTP status. Ids are UUIDs and times are RFC 3339 UTC. Message, file, note and ticket-thread contents are end-to-end encrypted on the person's device: the API stores and returns sealed envelopes (base64) it cannot read, so an integration reads or writes them only with a device key, and works with the plain fields (ids, names, times, counts, statuses) otherwise."},
 		"servers":    []any{map[string]any{"url": "/"}},
 		"tags":       tl,
 		"paths":      paths,
@@ -178,13 +235,6 @@ func (d Deps) openAPI(r chi.Routes) map[string]any {
 }
 
 func itoa(n int) string { b, _ := json.Marshal(n); return string(b) }
-
-func jsonExample(v map[string]any) map[string]any {
-	if v == nil {
-		return map[string]any{"application/json": map[string]any{}}
-	}
-	return map[string]any{"application/json": map[string]any{"example": v}}
-}
 
 func (d Deps) mountDocs(r chi.Router) {
 	var once sync.Once
@@ -198,6 +248,11 @@ func (d Deps) mountDocs(r chi.Router) {
 		w.Header().Set("Cache-Control", "public, max-age=300")
 		_, _ = w.Write(build())
 	})
+	// the same pages under /api/v1/docs, for people who expect the /api prefix
+	r.Get("/api/v1/docs", func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, "/v1/docs", http.StatusFound) })
+	r.Get("/api/v1/docs/openapi.json", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/v1/docs/openapi.json", http.StatusFound)
+	})
 	r.Get("/v1/docs", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'")
@@ -209,25 +264,41 @@ const docsPage = `<!doctype html><html lang="en"><head><meta charset="utf-8"><me
 <style>
 :root{--bg:#fff;--fg:#14201a;--mut:#5d6f65;--card:#f5f8f6;--line:#dbe4df;--acc:#2f7d4f}
 @media (prefers-color-scheme:dark){:root{--bg:#0a100d;--fg:#e8efea;--mut:#9db0a6;--card:#121b17;--line:#24322c;--acc:#b8f36b}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,sans-serif}
-header,main{max-width:1000px;margin:0 auto;padding:16px}h1{margin:8px 0 4px;font-size:26px}p.lead{color:var(--mut);margin:0 0 12px;white-space:pre-line}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.55 system-ui,sans-serif}
+header,main{max-width:1040px;margin:0 auto;padding:16px}h1{margin:8px 0 4px;font-size:26px}p.lead{color:var(--mut);margin:0 0 12px}
 input{width:100%;height:40px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--fg);font:inherit}
 h2{font-size:15px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);margin:24px 0 8px}
 details{border:1px solid var(--line);border-radius:10px;background:var(--card);margin:6px 0}summary{cursor:pointer;padding:9px 12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .m{font:700 11px monospace;min-width:54px;text-align:center;padding:3px 6px;border-radius:6px;background:var(--acc);color:#0a100d}.m.GET{background:#5aa9e6}.m.DELETE{background:#e5484d;color:#fff}.m.PUT,.m.PATCH{background:#ffb86b}
-code,pre{font:13px/1.4 ui-monospace,monospace}pre{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;overflow:auto;margin:6px 0}
-.b{padding:0 12px 12px}.s{color:var(--mut);flex:1;min-width:140px}.pub{font-size:11px;color:var(--mut);border:1px solid var(--line);border-radius:10px;padding:1px 7px}
+code{font:13px/1.4 ui-monospace,monospace}.b{padding:0 14px 14px}.s{color:var(--mut);flex:1;min-width:140px}.pub{font-size:11px;color:var(--mut);border:1px solid var(--line);border-radius:10px;padding:1px 7px}
+h3{font-size:13px;margin:14px 0 4px;text-transform:uppercase;letter-spacing:.05em;color:var(--mut)}
+table{border-collapse:collapse;width:100%;font-size:13px}td{padding:5px 8px;border-top:1px solid var(--line);vertical-align:top}td:first-child{white-space:nowrap;font-family:ui-monospace,monospace}td.t{color:var(--acc);white-space:nowrap}
+.d{white-space:pre-line}
 </style></head><body><header><h1>Hub API reference</h1><p class="lead" id="lead"></p><input id="q" type="search" placeholder="Find a route, e.g. calls or /v1/tickets" aria-label="Find a route"><p><a id="raw" href="/v1/docs/openapi.json" style="color:var(--acc)">openapi.json</a> (OpenAPI 3) for code generators and tools</p></header><main id="out">Loading…</main>
 <script>
-const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const rows=(sc,ind,out)=>{if(!sc)return;
+ if(sc.type==='array'){out.push('<tr><td style="padding-left:'+(8+ind*16)+'px">[ ]</td><td class="t">array</td><td>list of:</td></tr>');rows(sc.items,ind+1,out);return}
+ for(const [k,v] of Object.entries(sc.properties||{})){const nested=v.type==='object'&&v.properties||v.type==='array';
+  out.push('<tr><td style="padding-left:'+(8+ind*16)+'px">'+esc(k)+'</td><td class="t">'+esc(v.type||'')+'</td><td class="d">'+esc(nested&&!v.description?'':v.description||'')+'</td></tr>');
+  if(nested)rows(v,ind+1,out)}};
+const table=sc=>{const o=[];rows(sc,0,o);return o.length?'<table>'+o.join('')+'</table>':''};
 fetch('/v1/docs/openapi.json').then(r=>r.json()).then(spec=>{
  document.getElementById('lead').textContent=spec.info.description;
  const by={};
  for(const [p,ms] of Object.entries(spec.paths))for(const [m,op] of Object.entries(ms))(by[op.tags[0]]=by[op.tags[0]]||[]).push({p,m:m.toUpperCase(),op});
  const out=document.getElementById('out');
- const draw=f=>{out.innerHTML=Object.keys(by).sort().map(t=>{const rows=by[t].filter(x=>!f||(x.m+' '+x.p+' '+x.op.summary).toLowerCase().includes(f));
-  return rows.length?'<h2>'+esc(t)+'</h2>'+rows.map(x=>{const rq=x.op.requestBody&&x.op.requestBody.content['application/json'].schema.example,rs=x.op.responses['200'].content&&x.op.responses['200'].content['application/json'].example;
-   return '<details><summary><span class="m '+x.m+'">'+x.m+'</span><code>'+esc(x.p)+'</code><span class="s">'+esc(x.op.summary)+'</span>'+(x.op.security&&!x.op.security.length?'<span class="pub">no token</span>':'')+'</summary><div class="b"><p style="white-space:pre-line">'+esc(x.op.description)+'</p>'+(rq?'<b>Request</b><pre>'+esc(JSON.stringify(rq,null,2))+'</pre>':'')+(rs?'<b>Response</b><pre>'+esc(JSON.stringify(rs,null,2))+'</pre>':'')+'</div></details>'}).join(''):''}).join('')||'Nothing matches.'};
+ const draw=f=>{out.innerHTML=Object.keys(by).sort().map(t=>{const rs=by[t].filter(x=>!f||(x.m+' '+x.p+' '+x.op.summary).toLowerCase().includes(f));
+  return rs.length?'<h2>'+esc(t)+'</h2>'+rs.map(x=>{const op=x.op,q=(op.parameters||[]).filter(a=>a.in==='query'),pp=(op.parameters||[]).filter(a=>a.in==='path');
+   const rq=op.requestBody&&op.requestBody.content['application/json'].schema;
+   const ok=Object.entries(op.responses).find(([c])=>c[0]==='2'),rsc=ok&&ok[1].content&&ok[1].content['application/json'].schema;
+   const errs=Object.entries(op.responses).filter(([c])=>c[0]!=='2').map(([c,v])=>'<tr><td>'+c+'</td><td class="d" colspan="2">'+esc(v.description)+'</td></tr>').join('');
+   return '<details><summary><span class="m '+x.m+'">'+x.m+'</span><code>'+esc(x.p)+'</code><span class="s">'+esc(op.summary)+'</span>'+(op.security&&!op.security.length?'<span class="pub">no token</span>':'')+'</summary><div class="b"><p class="d">'+esc(op.description)+'</p>'
+    +(pp.length?'<h3>In the address</h3><table>'+pp.map(a=>'<tr><td>'+esc(a.name)+'</td><td class="t">string</td><td>'+esc(a.description||'The '+a.name+' from the route')+'</td></tr>').join('')+'</table>':'')
+    +(q.length?'<h3>Query</h3><table>'+q.map(a=>'<tr><td>'+esc(a.name)+'</td><td class="t"></td><td class="d">'+esc(a.description)+'</td></tr>').join('')+'</table>':'')
+    +(rq?'<h3>Request body (JSON)</h3>'+table(rq):'')
+    +'<h3>Response '+(ok?ok[0]:'')+'</h3>'+(rsc?table(rsc):'<p>'+esc(ok?ok[1].description:'')+'</p>')
+    +'<h3>Errors</h3><table>'+errs+'</table></div></details>'}).join(''):''}).join('')||'Nothing matches.'};
  draw('');document.getElementById('q').addEventListener('input',e=>draw(e.target.value.trim().toLowerCase()));
 }).catch(()=>{document.getElementById('out').textContent='Could not load the reference.'});
 </script></body></html>`
