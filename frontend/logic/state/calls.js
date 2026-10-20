@@ -3,11 +3,11 @@ export function callsState() {
   return {
     callLog: [],
     callOff: {}, ouItem: null, ticketFrom: null, secRange: { preset: 'all', from: '', to: '' }, alertNotes: {}, alertDlg: null, ouRecs: {}, ouThr: null,
-    call: null, callMode: 'docked', mic: true, cam: true, sharing: false, hand: false, rec: false, callPanel: null, callDraft: '',
+    call: null, callMode: 'docked', mic: true, cam: true, sharing: false, hand: false, rec: false, callPanel: null, callDraft: '', callFind: '', callLocked: false,
     callMsgs: [],
     ticketOpen: null, escOpen: false, esc: { type: '', id: '', cat: '', person: '', why: '' }, tcomment: '', tagOpen: false, ntOpen: false, nt: { title: '', cat: '', prio: 'Medium', desc: '', files: [], toType: '', toName: '' }, unitCats: {}, catEdit: null, catWork: null, catDraft: { name: '', tat: '4', prio: 'Medium', err: '' },
     notifs: [],
-    notifSeen: false, notifGone: [], notifOpen: false, toast: '', toastColor: '#B8F36B',
+    notifSeen: false, notifGone: [], flowRole: {}, notifOpen: false, toast: '', toastColor: '#B8F36B',
     settingsFor: null, wcfg: {},
     tset: {
       cats: [],

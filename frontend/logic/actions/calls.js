@@ -49,10 +49,18 @@ export const callsActions = {
     this.notify((what === 'mic' ? 'Muted ' : 'Turned off the video of ') + name + '.', '#FFB86B');
   },
 
+  // Room controls in a big call (host or moderator): mute, mute_all, cam_off, remove, lock, unlock, end, stage_on, stage_off.
+  callCtl(action, identity) {
+    if (!this.srv) return;
+    if (action === 'lock' || action === 'unlock') this.setState({ callLocked: action === 'lock' });
+    callsW.roomControl(this, this.srv, action, identity || '');
+    if (action === 'mute_all') this.notify('Muted everyone.', '#FFB86B');
+  },
+
   endCall() {
     clearInterval(this._ct);
     const c = this.state.call;
-    if (this.srv) { callsW.leaveRoom(); this.setState({ call: null, callMode: 'docked', callOff: {}, sharing: false, hand: false }); setTimeout(() => callsW.loadHistory(this, this.srv).catch(() => {}), 1500); return; }
+    if (this.srv) { callsW.leaveRoom(); this.setState({ call: null, callMode: 'docked', callOff: {}, sharing: false, hand: false, callFind: '', callLocked: false }); setTimeout(() => callsW.loadHistory(this, this.srv).catch(() => {}), 1500); return; }
     stopRingback(); hangup();
     if (c && (c.context === 'dm' || c.context === 'forum')) this.logCall({ ctx: c.context, ref: c.ref, kind: c.mode === 'video' ? 'video' : 'voice', dir: c.dir || 'out', at: c.start, dur: Math.round((Date.now() - c.start) / 1000) });
     this.setState({ call: null, callMode: 'docked', callOff: {} });
