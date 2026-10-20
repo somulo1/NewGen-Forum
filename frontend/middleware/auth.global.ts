@@ -8,5 +8,9 @@ export default defineNuxtRouteMiddleware((to) => {
   const signedIn = !!useAuth().user();
   if (PUBLIC.indexOf(to.path) !== -1) return;
   if (!signedIn && OPEN.indexOf(to.path) === -1) return navigateTo(to.fullPath === '/' ? '/login' : { path: '/login', query: { next: to.fullPath } });
-  if (signedIn && OPEN.indexOf(to.path) !== -1) return navigateTo('/');
+  // a temporary password must be replaced before the app can be used
+  const mustChange = signedIn && !!useBackend().session()?.mustChange;
+  if (mustChange && to.path !== '/change-password') return navigateTo('/change-password');
+  if (!signedIn && to.path === '/change-password') return navigateTo('/login');
+  if (signedIn && !mustChange && (OPEN.indexOf(to.path) !== -1 || to.path === '/change-password')) return navigateTo('/');
 });
