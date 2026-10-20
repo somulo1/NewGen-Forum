@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"hub/internal/access"
 	"hub/internal/app"
 	"hub/internal/config"
 )
@@ -63,6 +64,32 @@ func protect(ctx context.Context, a *app.App, cfg *config.Config, slug string) i
 		fmt.Println("FAIL could not read the database:", err)
 		return 1
 	}
+	// every organization has the full catalog of pages and rights, so any right can be given to any role
+	var orgIDs []uuid.UUID
+	_ = a.DB.Tx(ctx, func(tx pgx.Tx) error {
+		rs, err := tx.Query(ctx, `select id from hub.orgs where status='active'`)
+		if err != nil {
+			return err
+		}
+		defer rs.Close()
+		for rs.Next() {
+			var id uuid.UUID
+			if rs.Scan(&id) == nil {
+				orgIDs = append(orgIDs, id)
+			}
+		}
+		return nil
+	})
+	incomplete := 0
+	for _, id := range orgIDs {
+		_ = a.DB.WithOrg(ctx, id, func(tx pgx.Tx) error {
+			if have, err := access.Installed(ctx, tx); err != nil || !have {
+				incomplete++
+			}
+			return nil
+		})
+	}
+	ok(incomplete == 0, fmt.Sprintf("all %d active organizations have the complete catalog of pages and rights (%d incomplete: run `bootstrap org -all`)", len(orgIDs), incomplete))
 	if slug != "" {
 		var org uuid.UUID
 		if err := a.DB.Tx(ctx, func(tx pgx.Tx) error {
