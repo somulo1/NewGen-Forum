@@ -27,7 +27,7 @@
 <div style="display: flex; flex-wrap: wrap; gap: 6px"><template v-for="(mr2, mr2__i) in sw.managerRoles" :key="mr2__i"><button :aria-pressed="mr2.on" @click="mr2.toggle" :disabled="mr2.locked" :style="mr2.style">{{ mr2.name }}</button></template></div>
 <template v-if="sw.managerGroups.length"><span style="font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">User groups <span style="color: var(--k-9DB0A6,#9DB0A6)">(every role in the group)</span></span>
 <div style="display: flex; flex-wrap: wrap; gap: 6px"><template v-for="(mg, mg__i) in sw.managerGroups" :key="'g' + mg__i"><button :aria-pressed="mg.on" @click="mg.toggle" :style="mg.style">{{ mg.name }}</button></template></div></template>
-<span style="font-size: 11px; color: var(--k-9DB0A6,#9DB0A6)">Super admin can always manage every widget.</span>
+<span style="font-size: 11px; color: var(--k-9DB0A6,#9DB0A6)">Tap a role or group to switch it on or off for this widget.</span>
 </div>
 </div>
 
