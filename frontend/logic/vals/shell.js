@@ -24,12 +24,14 @@ export function valsShell(ctx) {
   const headerSearch = makeSearch('hq', 8);
   return {
     navSearch, headerSearch, denied,
-    notifs: allNotifs, noNotifs: allNotifs.length === 0,
+    notifs: allNotifs.filter((n) => !(s.notifGone || []).includes(n.text)).map((n) => ({ ...n, unread: n.read === false || (n.read === undefined && !s.notifSeen) })), noNotifs: allNotifs.filter((n) => !(s.notifGone || []).includes(n.text)).length === 0,
+    markNotifsRead: () => { if (this.srv) notificationsW.markAllRead(this.srv, this).catch(() => {}); else this.setState((st) => ({ notifSeen: true, notifs: st.notifs.map((n) => ({ ...n, read: true })) })); },
+    clearNotifs: () => { const gone = allNotifs.map((n) => n.text); const local = () => this.setState((st) => ({ notifs: [], notifSeen: true, notifUnread: 0, notifGone: gone })); if (this.srv) notificationsW.clearAll(this.srv, this).then(() => this.setState({ notifGone: gone })).catch(() => {}); else local(); },
     notifOpen: s.notifOpen,
     // with the server connected the badge is the real unread count; offline it falls back to the sample list
     hasBadge: this.srv ? (s.notifUnread || 0) > 0 && !s.notifSeen : !s.notifSeen && allNotifs.length > 0,
     badgeCount: (() => { const n = this.srv ? (s.notifUnread || 0) : allNotifs.length; return n > 9 ? '9+' : String(n); })(),
-    toggleNotifs: () => { if (!this.state.notifSeen && this.srv) notificationsW.markAllRead(this.srv, this).catch(() => {}); this.setState((st) => ({ notifOpen: !st.notifOpen, notifSeen: true })); },
+    toggleNotifs: () => this.setState((st) => ({ notifOpen: !st.notifOpen })),
     hasToast: !!s.toast, toast: s.toast, toastColor: s.toastColor,
     inCall: !!s.call, call,
     navOpen: s.navOpen, navClass: 'hub-nav' + (s.navOpen ? ' open' : ''),

@@ -92,6 +92,10 @@ func (s *Service) Begin(ctx context.Context, p *tenant.Principal, folder uuid.UU
 		if in.Epoch != epoch {
 			return httpx.Err(409, "epoch_changed", "The folder's key changed. Fetch it and try again.")
 		}
+		// someone already at their storage limit is stopped before they send anything
+		if err := s.fits(ctx, tx, p.Org, p.Person, 1); err != nil {
+			return err
+		}
 		var ok bool
 		if err := tx.QueryRow(ctx, `select exists (select 1 from hub.devices where id=$1 and account_id=$2 and revoked_at is null)`, in.Device, p.Account).Scan(&ok); err != nil || !ok {
 			return httpx.Bad("That device is not yours or was removed.")
@@ -126,7 +130,8 @@ func (s *Service) Upload(ctx context.Context, p *tenant.Principal, id uuid.UUID,
 		if up != p.Person || status != "uploading" {
 			return httpx.ErrNotFound
 		}
-		return nil
+		// refuse before streaming the bytes when they cannot fit
+		return s.fits(ctx, tx, p.Org, p.Person, declared)
 	})
 	if err != nil {
 		return nil, err
@@ -145,6 +150,13 @@ func (s *Service) Upload(ctx context.Context, p *tenant.Principal, id uuid.UUID,
 	}
 	var out *File
 	err = s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
+		// checked again under a per-person lock: uploads running side by side cannot together pass the limit
+		if err := lockPerson(ctx, tx, p.Person); err != nil {
+			return err
+		}
+		if err := s.fits(ctx, tx, p.Org, p.Person, n); err != nil {
+			return err
+		}
 		tag, err := tx.Exec(ctx, `update hub.files set size=$2, sha256=$3, blob_key=$4, status='ready', updated_at=now(), `+integrity.Bump+` where id=$1 and uploader=$5 and status='uploading'`, id, n, sum, key, p.Person)
 		if err != nil {
 			return err
@@ -618,6 +630,7 @@ func (s *Service) Private(r chi.Router) {
 			return h(w, r, p)
 		})
 	}
+	s.quotaRoutes(r, org)
 	uid := func(r *http.Request, k string) (uuid.UUID, error) {
 		v, err := uuid.Parse(chi.URLParam(r, k))
 		if err != nil {

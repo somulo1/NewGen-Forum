@@ -128,3 +128,76 @@ func TestEncryptedFilesAndSecureShare(t *testing.T) {
 		t.Fatalf("deleted file still served: %d", code)
 	}
 }
+
+// A person's uploads stop at their storage limit: the organization's default, or their own limit when they have one.
+func TestStorageQuota(t *testing.T) {
+	e := testkit.New(t)
+	ownerU, slug := e.NewOrg("Olivia Owner")
+	org := e.OrgID(slug)
+	o := e.Owner(ownerU)
+	a := e.Join(ownerU, slug, "Amy", "staff")
+	for _, m := range []*testkit.Member{o, a} {
+		m.Register(e)
+	}
+	fk, _ := e2ee.NewConversationKey()
+	folder := e.MustDo(201, "POST", "/conversations", map[string]any{"kind": "folder", "name": "Team", "members": []string{a.Person}, "keys": o.WrapFor(e, fk, 1, o.Person, a.Person)}, ownerU.Access)["id"].(string)
+	upload := func(size int) int {
+		fid := uuid.Must(uuid.NewV7()).String()
+		if code, _ := e.Do("POST", "/folders/"+folder+"/files", map[string]any{"id": fid, "epoch": 1, "device": a.DevID, "envelope": a.Seal(org, folder, fid, 1, fk, `{"name":"x"}`)}, a.Access); code != 201 {
+			return code
+		}
+		code, _ := raw(t, e, "PUT", "/files/"+fid+"/content", make([]byte, size), a.Access)
+		return code
+	}
+	// the default is 5 GB, and Amy uses nothing yet
+	if u := e.MustDo(200, "GET", "/storage/usage", nil, a.Access); u["quota_mb"].(float64) != 5120 || u["used_bytes"].(float64) != 0 {
+		t.Fatalf("usage: %v", u)
+	}
+	// staff cannot change limits
+	if code, _ := e.Do("PUT", "/storage/people/"+a.Person, map[string]any{"quota_mb": 0}, a.Access); code != 403 {
+		t.Fatalf("staff set a limit: %d", code)
+	}
+	// Amy gets 1 MB of her own: 700 KB fits, another 700 KB does not
+	e.MustDo(204, "PUT", "/storage/people/"+a.Person, map[string]any{"quota_mb": 1}, ownerU.Access)
+	if c := upload(700 << 10); c != 200 {
+		t.Fatalf("first upload: %d", c)
+	}
+	if c := upload(700 << 10); c != 413 {
+		t.Fatalf("over the limit: %d", c)
+	}
+	if u := e.MustDo(200, "GET", "/storage/usage", nil, a.Access); u["used_bytes"].(float64) != 700<<10 || u["custom"] != true {
+		t.Fatalf("usage after: %v", u)
+	}
+	// her biggest files are listed so she can pick what to delete; deleting one frees its space
+	mine := e.MustDo(200, "GET", "/storage/files", nil, a.Access)["files"].([]any)
+	if len(mine) != 1 || mine[0].(map[string]any)["size"].(float64) != 700<<10 || mine[0].(map[string]any)["envelope"] == "" {
+		t.Fatalf("my files: %v", mine)
+	}
+	e.MustDo(204, "DELETE", "/files/"+mine[0].(map[string]any)["id"].(string), nil, a.Access)
+	if u := e.MustDo(200, "GET", "/storage/usage", nil, a.Access); u["used_bytes"].(float64) != 0 {
+		t.Fatalf("usage after deleting: %v", u)
+	}
+	if c := upload(700 << 10); c != 200 {
+		t.Fatalf("after freeing space: %d", c)
+	}
+	// the owner sees her in the storage list
+	found := false
+	for _, x := range e.MustDo(200, "GET", "/storage/people", nil, ownerU.Access)["people"].([]any) {
+		found = found || x.(map[string]any)["person"] == a.Person
+	}
+	if !found {
+		t.Fatal("Amy is not in the storage list")
+	}
+	// back on the default (raised to the 100 MB choice), the upload fits
+	e.MustDo(204, "PUT", "/storage/people/"+a.Person, map[string]any{"quota_mb": nil}, ownerU.Access)
+	sec := e.MustDo(200, "GET", "/settings", nil, ownerU.Access)["security"].(map[string]any)
+	sec["userQuotaMB"] = "100"
+	e.MustDo(204, "PUT", "/settings/security", sec, ownerU.Access)
+	if c := upload(700 << 10); c != 200 {
+		t.Fatalf("on the default: %d", c)
+	}
+	sec["userQuotaMB"] = "7"
+	if code, _ := e.Do("PUT", "/settings/security", sec, ownerU.Access); code != 400 {
+		t.Fatalf("a limit not on the list: %d", code)
+	}
+}

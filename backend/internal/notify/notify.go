@@ -97,6 +97,19 @@ func (m *Module) Private(r chi.Router) {
 		httpx.JSON(w, 200, map[string]any{"notifications": out, "unread": unread})
 		return nil
 	}))
+	r.Delete("/notifications", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
+		p, err := tenant.MustOrg(r.Context())
+		if err != nil {
+			return err
+		}
+		return m.A.DB.WithOrg(r.Context(), p.Org, func(tx pgx.Tx) error {
+			_, err := tx.Exec(r.Context(), `delete from hub.notifications where person_id=$1`, p.Person)
+			if err == nil {
+				w.WriteHeader(204)
+			}
+			return err
+		})
+	}))
 	r.Post("/notifications/read", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
 		p, err := tenant.MustOrg(r.Context())
 		if err != nil {

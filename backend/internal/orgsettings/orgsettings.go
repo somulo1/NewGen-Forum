@@ -21,10 +21,16 @@ type Security struct {
 	Retention       string `json:"retention"` // months
 	ExternalSharing bool   `json:"externalSharing"`
 	MaxVideoMB      string `json:"maxVideoMB"` // largest video, in MB, that may be posted in forums, chats and the wall
+	// UserQuotaMB is how much each person may store in total (files, attachments, photos), in MB; "0" means no limit.
+	// One person can be given a different amount (hub.storage_quotas).
+	UserQuotaMB string `json:"userQuotaMB"`
 }
 
+// QuotaChoices are the per-person storage limits an administrator can pick, in MB.
+var QuotaChoices = []string{"0", "100", "250", "500", "1024", "2048", "5120", "10240", "20480", "51200", "102400"}
+
 func DefaultSecurity() Security {
-	return Security{Session: "8", Retention: "12", ExternalSharing: true, MaxVideoMB: "50"}
+	return Security{Session: "8", Retention: "12", ExternalSharing: true, MaxVideoMB: "50", UserQuotaMB: "5120"}
 }
 
 func cx(org uuid.UUID, section string) crypto.Context {
