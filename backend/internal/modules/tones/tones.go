@@ -78,7 +78,13 @@ func (m *Module) Install(ctx context.Context) error {
 				return err
 			}
 		}
-		return nil
+		// a tone taken out of tones.json goes from the database too
+		keys := make([]string, 0, len(list))
+		for _, t := range list {
+			keys = append(keys, t.Key)
+		}
+		_, err := tx.Exec(ctx, `delete from hub.tones where key <> all($1)`, keys)
+		return err
 	})
 }
 
