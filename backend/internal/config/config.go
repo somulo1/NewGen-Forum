@@ -4,6 +4,7 @@ package config
 import (
 	"encoding/base64"
 	"fmt"
+	"net"
 	"os"
 	"strconv"
 	"strings"
@@ -33,12 +34,31 @@ type Config struct {
 
 	CallsURLs   []string // base URLs of the calls microservice instances (a room is pinned to one by hashing its id)
 	CallsSecret []byte   // shared secret used to mint call-room tokens
-	RateRPS     int
-	DBGuard     string // proves to the database that a write comes from the Hub system
+	// Media servers (LiveKit SFU). Empty: calls fall back to the small peer-to-peer rooms on the calls service.
+	SFUNodes   []SFUNode
+	CallLimits CallLimits
+	RateRPS    int
+	DBGuard    string // proves to the database that a write comes from the Hub system
 
-	BlobDir     string   // this server's own disk for encrypted file contents (used when no file server is configured or answers)
-	FileServers []string // S3-compatible file servers, tried in order: s3://KEY:SECRET@host/bucket?region=..
-	MaxUpload   int64    // bytes of ciphertext per file
+	BlobDir string // this server's own disk for encrypted file contents (used when no file server is configured or answers)
+	// EmailDomains limits who can sign up and sign in to these email domains (HUB_ALLOWED_EMAIL_DOMAINS, comma separated);
+	// empty allows any domain.
+	EmailDomains []string
+	FileServers  []string // S3-compatible file servers, tried in order: s3://KEY:SECRET@host/bucket?region=..
+	MaxUpload    int64    // bytes of ciphertext per file
+}
+
+// SFUNode is one media server (or a load-balanced region of them): its HTTP base URL and the API key pair shared with it.
+type SFUNode struct{ URL, Key, Secret string }
+
+// CallLimits are the admission caps for calls. Zero never means "unlimited": a missing value takes the default.
+type CallLimits struct {
+	Voice      int // people in one voice room
+	Video      int // people in one video room
+	OpenMic    int // up to this many people everyone may speak; beyond it newcomers join as listeners until the host brings them on stage
+	Stage      int // people who may speak at the same time in a big room
+	RoomsOrg   int // rooms running at once in one organization
+	RoomsTotal int // rooms running at once on this deployment
 }
 
 func Load() (*Config, error) {
@@ -65,7 +85,32 @@ func Load() (*Config, error) {
 			return nil, fmt.Errorf("HUB_FILE_SERVERS: %w", err)
 		}
 	}
+	for _, d := range strings.Split(os.Getenv("HUB_ALLOWED_EMAIL_DOMAINS"), ",") {
+		if d = strings.ToLower(strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(d), "@"))); d != "" {
+			c.EmailDomains = append(c.EmailDomains, d)
+		}
+	}
 	c.CallsURLs = strings.Split(get("HUB_CALLS_URL", "http://127.0.0.1:8090"), ",")
+	// HUB_SFU_NODES="https://media-eu.example.com|APIKEY|SECRET,https://media-af.example.com|APIKEY|SECRET"
+	for _, n := range strings.Split(os.Getenv("HUB_SFU_NODES"), ",") {
+		if f := strings.Split(strings.TrimSpace(n), "|"); len(f) == 3 {
+			c.SFUNodes = append(c.SFUNodes, SFUNode{URL: strings.TrimRight(f[0], "/"), Key: f[1], Secret: f[2]})
+		} else if strings.TrimSpace(n) != "" {
+			return nil, fmt.Errorf("HUB_SFU_NODES: each node is url|key|secret")
+		}
+	}
+	if len(c.SFUNodes) == 0 && c.Env != "prod" {
+		// development: use the local media server from scripts/dev-media.sh when it is running
+		if conn, err := net.DialTimeout("tcp", "127.0.0.1:7880", 300*time.Millisecond); err == nil {
+			conn.Close()
+			c.SFUNodes = []SFUNode{{URL: "http://127.0.0.1:7880", Key: "hubkey", Secret: "hubsecret-hubsecret-hubsecret-hubsecret"}}
+		}
+	}
+	c.CallLimits = CallLimits{
+		Voice: int(num("HUB_CALL_MAX_VOICE", 800)), Video: int(num("HUB_CALL_MAX_VIDEO", 800)),
+		OpenMic: int(num("HUB_CALL_OPEN_MIC", 25)), Stage: int(num("HUB_CALL_STAGE", 25)),
+		RoomsOrg: int(num("HUB_CALL_ROOMS_ORG", 100)), RoomsTotal: int(num("HUB_CALL_ROOMS_TOTAL", 100000)),
+	}
 	c.AllowedOrigins = strings.Split(get("HUB_ALLOWED_ORIGINS", "http://localhost:3000"), ",")
 	var err error
 	for name, dst := range map[string]*[]byte{"HUB_KEK": &c.KEK, "HUB_MAC_KEY": &c.MACKey, "HUB_BLIND_KEY": &c.BlindKey, "HUB_TOKEN_KEY": &c.TokenKey, "HUB_LEDGER_KEY": &c.LedgerKey, "HUB_CALLS_SECRET": &c.CallsSecret} {

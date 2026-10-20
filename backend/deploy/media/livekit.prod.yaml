@@ -1,0 +1,50 @@
+# One media server in production. Run many of them, behind one address per region. They find each other through Redis, so
+# a room can have people on different servers and servers can be added or drained without dropping calls.
+port: 7880
+bind_addresses: [""]
+log_level: info
+
+rtc:
+  tcp_port: 7881
+  port_range_start: 50000     # one UDP port per connection: open this whole range in the firewall
+  port_range_end: 60000
+  use_external_ip: true
+  # Plenty of bandwidth headroom in the receive/send buffers for hundreds of listeners
+  packet_buffer_size: 500
+
+redis:
+  address: ${HUB_REDIS_ADDR}
+  password: ${HUB_REDIS_PASS}
+
+keys:
+  ${HUB_SFU_KEY}: ${HUB_SFU_SECRET}
+
+webhook:
+  api_key: ${HUB_SFU_KEY}
+  urls:
+    - ${HUB_API_URL}/v1/calls/sfu-hook
+
+room:
+  auto_create: false          # only the API opens rooms, so the people-per-room cap cannot be skipped
+  empty_timeout: 300
+  departure_timeout: 20
+  enable_remote_unmute: false # nobody can switch on another person's mic
+
+# Relay for people behind strict firewalls (often 10-20% of users). Needs its own public address and certificate.
+turn:
+  enabled: true
+  domain: ${HUB_TURN_DOMAIN}
+  tls_port: 5349
+  udp_port: 3478
+  cert_file: /etc/hub/turn.crt
+  key_file: /etc/hub/turn.key
+
+# Shed load before quality collapses: a node past these refuses new rooms and the API places them elsewhere.
+node_selector:
+  kind: cpuload
+  sysload_limit: 0.8
+  cpu_load_limit: 0.8
+
+limit:
+  num_tracks: 0
+  bytes_per_sec: 0
