@@ -74,9 +74,10 @@ export function valsHome(ctx) {
     onFDraftValue: (value) => this.setState({ fdraft: value }),
     sendForum: () => {
       const t = this.state.fdraft.trim();
-      if (!t) return;
-      this.postMsg(t, undefined, this.state.replyTo);
-      this.setState({ fdraft: '', emojiF: false, replyTo: null });
+      const files = this.state.cfiles || [];
+      if (!t && !files.length) return;
+      this.postMsg(t, files.length ? files : undefined, this.state.replyTo);
+      this.setState({ fdraft: '', cfiles: [], emojiF: false, replyTo: null });
     },
     replyBar: { active: !!s.replyTo && s.replyTo.key === this._replyKey, who: s.replyTo ? s.replyTo.who : '', snippet: s.replyTo ? s.replyTo.snippet : '', cancel: () => this.setState({ replyTo: null }) },
     fKey: (e) => {
@@ -84,15 +85,20 @@ export function valsHome(ctx) {
       if (e.shiftKey) return;
       e.preventDefault();
       const t = this.state.fdraft.trim();
-      if (!t) return;
-      this.postMsg(t, undefined, this.state.replyTo);
-      this.setState({ fdraft: '', emojiF: false, replyTo: null });
+      const files = this.state.cfiles || [];
+      if (!t && !files.length) return;
+      this.postMsg(t, files.length ? files : undefined, this.state.replyTo);
+      this.setState({ fdraft: '', cfiles: [], emojiF: false, replyTo: null });
     },
+    // Files are added to the message first (up to 5), then sent together with the text when the person presses Send.
+    cfiles: s.cfiles || [],
     attachForum: (e) => {
       const list = Array.from(e.target.files || []);
-      const ok = this.capFiles(0, list); if (ok.length) this.postMsg('', ok.map((f) => this.fileInfo(f)));
+      const ok = this.capFiles((this.state.cfiles || []).length, list).map((f) => this.fileInfo(f));
       e.target.value = '';
+      if (ok.length) this.setState((st) => ({ cfiles: (st.cfiles || []).concat(ok) }));
     },
+    removeCFile: (i) => this.setState((st) => ({ cfiles: (st.cfiles || []).filter((_, k) => k !== i) })),
     onWallFiles: (e) => {
       const list = this.capFiles(this.state.wfiles.length, Array.from(e.target.files || [])).map((f, i) => {
         const isImg = (f.type || '').indexOf('image/') === 0;
