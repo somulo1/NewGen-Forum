@@ -94,6 +94,7 @@ export class HubLogic extends DCLogic {
       }
     }
     super.setState(patch, done);
+    if (patch && typeof patch === 'object' && 'theme' in patch) { try { localStorage.setItem('hub-theme', patch.theme === 'light' ? 'light' : 'dark'); } catch (e) { /* not kept */ } }
     // A ringtone only plays while a call is incoming and not yet answered; a ringback only until the call connects.
     if (patch && ('incoming' in patch || 'call' in patch)) {
       const st = this.state;

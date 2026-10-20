@@ -12,7 +12,8 @@ function readPeopleAdmin() {
 export function adminState() {
   return {
     orgOpen: false, ou: null, ouTab: 'comms', targets: {}, rolesTab: 'roles', memberRoles: {}, reportsTo: {}, personRights: {}, personReports: {}, reportsPerson: {}, reportPDraft: null, reportDraft: null,
-    theme: 'dark',
+    // the last theme this browser used, so the page opens in it at once; the server's saved choice replaces it when it arrives
+    theme: (() => { try { return localStorage.getItem('hub-theme') === 'light' ? 'light' : 'dark'; } catch (e) { return 'dark'; } })(),
     commRules: {
       departments: { Memo: { on: true, to: ['own', 'departments'], sender: '', approver: 'none' }, Announcement: { on: true, to: ['own', 'wall'], sender: '', approver: 'none' } },
       branches: { Memo: { on: true, to: ['own', 'units', 'departments'], sender: '', approver: 'none' }, Announcement: { on: false, to: ['own'], sender: '', approver: 'none' } },
