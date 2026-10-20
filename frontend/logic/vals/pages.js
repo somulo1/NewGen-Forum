@@ -1,6 +1,6 @@
 // Values and handlers the templates read through hubBindings: pages.
 export function valsPages(ctx) {
-  const { newRoleForm, newRightForm, newModuleForm, structureEd, reportingTable, reportingBar, catMgr, ntCatSel, onb, deskCats, deskStats, deskTable, myTicketStats, addToRole, alertsTable, approvalsTable, cm, commNew, commsTable, commsTabs, commView, flowsTable, logsTable, blocksTable, blockHistory, meetingsSummary, meetingsTable, membersTable, myUnits, ntTargets, openEv, org, ou, ouTable, peopleSummary, peopleTable, userActions, rightsHint, rightsTable, roleBar, rolesTable, rolesTabs, rolesView, rulesTable, s, setRoleSel, ticketsTable } = ctx;
+  const { newRoleForm, newRightForm, newModuleForm, structureEd, reportingTable, reportingBar, catMgr, ntCatSel, onb, deskCats, deskStats, deskTable, myTicketStats, addToRole, alertsTable, approvalsTable, cm, commNew, commsTable, commsTabs, commView, engagement, engagementTable, flowsTable, logsTable, blocksTable, blockHistory, meetingsSummary, meetingsTable, membersTable, myUnits, ntTargets, openEv, org, ou, ouTable, peopleSummary, peopleTable, userActions, rightsHint, rightsTable, roleBar, rolesTable, rolesTabs, rolesView, rulesTable, s, setRoleSel, ticketsTable } = ctx;
   return {
     isDark: s.theme !== 'light', isLight: s.theme === 'light',
     themeClass: s.theme === 'light' ? 'hub-light' : 'hub-dark',
@@ -12,7 +12,7 @@ export function valsPages(ctx) {
     toggleOrg: () => this.setState((x) => ({ orgOpen: !x.orgOpen })),
     orgChevron: 'transition:transform 0.2s;transform:rotate(' + (s.orgOpen ? '0' : '-90') + 'deg)',
     ou, ouTable,
-    cm, cmOpen: s.cmOpen, commNew, commsTable, commsTabs, commView,
+    cm, cmOpen: s.cmOpen, commNew, commsTable, commsTabs, commView, engagement, engagementTable,
     structureEd, ticketsTable, peopleTable, peopleSummary, userActions, logsTable, blocksTable, blockHistory, alertsTable, rulesTable,
     newRoleForm, newRightForm, newModuleForm, reportingTable, reportingBar, rolesTable, rightsTable, membersTable, flowsTable, rolesTabs, rolesView, rightsHint, ntTargets, approvalsTable, roleBar, catMgr, ntCatSel, onb, deskCats, deskStats, deskTable, myTicketStats, setRoleSel, addToRole
   };

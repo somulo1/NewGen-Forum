@@ -101,9 +101,9 @@ export function buildComms(ctx) {
   const openComm = (c) => { this.setState({ commOpen: c.uid, commView: 'read', commIns: null }); if (this.srv && c.status === 'Published' && !c.iRead) commsW.markRead(this, this.srv, c).catch(() => {}); if (canInsights(c.type) && c.status === 'Published') loadInsights(c); };
   const commsShown = s.comms.filter((c) => (tab ? c.type === tab : commTypes.indexOf(c.type) !== -1));
   const commsTable = { id: 'comms-' + (tab || 'all'), pageSize: 10, minWidth: '1000px', emptyText: 'Nothing sent yet.',
-    cols: [{ label: 'Type', filter: 'select' }, { label: 'Title', filter: 'text' }, { label: 'Sent to', filter: 'text' }, { label: 'From', filter: 'select' }, { label: 'Date', filter: 'date' }, { label: 'Status', filter: 'select' }, { label: 'Read' }, { label: '', align: 'right' }],
-    rows: commsShown.map((c) => ({ cells: [C.b(c.type, commColor[c.type]), C.t(c.title, { strong: true, sub: c.summary || c.body }), C.t(c.to.join(', ')), C.t(c.by === 'Samwel Okoth Omulo' ? 'You' : c.by), C.t(fmtDay(c.date), { fv: c.date, nowrap: true }),
-      C.b(c.status, c.status === 'Published' ? '#B8F36B' : '#FFB86B'), C.bar(c.read, c.read >= 80 ? '#B8F36B' : '#FFB86B'),
+    cols: [{ label: 'Type', filter: 'select' }, { label: 'Title', filter: 'text' }, { label: 'Sent to', filter: 'text' }, { label: 'From', filter: 'select' }, { label: 'Date', filter: 'date' }, { label: 'Status', filter: 'select' }, { label: '', align: 'right' }],
+    rows: commsShown.map((c) => ({ cells: [C.b(c.type, commColor[c.type]), C.t(c.title, { strong: true, sub: c.summary || c.body }), C.t(c.to.length > 2 ? c.to.slice(0, 2).join(', ') + ' +' + (c.to.length - 2) + ' more' : c.to.join(', '), { fv: c.to.join(', ') }), C.t(c.by === 'Samwel Okoth Omulo' ? 'You' : c.by), C.t(fmtDay(c.date), { fv: c.date, nowrap: true }),
+      C.b(c.status, c.status === 'Published' ? '#B8F36B' : '#FFB86B'),
       C.a([{ label: 'View', kind: 'primary', run: () => openComm(c) }].concat(canInsights(c.type) && c.status === 'Published' ? [{ label: 'Insights', run: () => openComm(c) }] : []).concat(c.status === 'Published' ? [] : [{ label: 'See approval', run: () => this.setState({ section: 'approvals' }) }]))] })) };
   const loadInsights = (c) => {
     this.setState({ commIns: { loading: true, places: [], err: '' } });
@@ -115,7 +115,7 @@ export function buildComms(ctx) {
   const commView = oc ? {
     open: true, ref: oc.id, status: oc.status, statusColor: oc.status === 'Published' ? '#B8F36B' : '#FFB86B', close: () => this.setState({ commOpen: null, commIns: null }), type: oc.type, typeColor: commColor[oc.type], title: oc.title, summary: oc.summary, hasSummary: !!oc.summary, body: oc.body,
     meta: (oc.by === 'Samwel Okoth Omulo' ? 'You' : oc.by) + (oc.byDept ? ' · ' + oc.byDept : '') + ' · ' + fmtDay(oc.date) + ' · ' + oc.status,
-    to: oc.to.join(', '), hasTo: oc.to.length > 0,
+    to: oc.to.join(', '), toList: oc.to.slice(), hasTo: oc.to.length > 0, readNum: Number(oc.read) || 0, fromInitials: ((oc.by === 'Samwel Okoth Omulo' ? 'You' : oc.by) || '?').split(' ').map((x) => x[0]).join('').slice(0, 2).toUpperCase(),
     fields: (FORMS[oc.type] || []).filter((f) => (oc.fields || {})[f.key]).map((f) => ({ label: f.label, value: f.kind === 'date' ? fmtDay(oc.fields[f.key]) : oc.fields[f.key] })),
     files: (oc.files || []).map((f) => ({ name: f.name, meta: f.meta || '', open: () => commsW.openFile(this.srv, f).catch((e) => this.notify(e.message || 'Could not open it.', '#FF9B8A')) })),
     hasFiles: (oc.files || []).length > 0,
@@ -126,5 +126,44 @@ export function buildComms(ctx) {
     places: ((s.commIns && s.commIns.places) || []).map((x) => ({ ...x, place: x.place || ((forums.find((f) => this.srv && this.srv.forumConv && this.srv.forumConv[f.id] === x.conversation) || {}).name ? (forums.find((f) => this.srv.forumConv[f.id] === x.conversation).name + ' forum') : 'Forum'), kindLabel: x.kind === 'wall' ? 'Community wall' : 'Forum', readPct: x.audience ? Math.round((x.read / x.audience) * 100) + '%' : '0%' })),
     totals: { audience: sum('audience'), read: sum('read'), likes: sum('likes'), replies: sum('replies') }
   } : { open: false };
-  return { cm, commNew, commsTable, commsTabs, commView, openCm };
+  // ---- Engagement: how each published communication was received (its own page, for people who may see insights) ----
+  const engTypes = commTypes.filter((t) => canInsights(t));
+  const E = s.commEng || { loading: false, err: '', rows: [] };
+  const loadEngagement = async () => {
+    if (!this.srv || this.state.commEng.loading) return;
+    this.setState({ commEng: { loading: true, err: '', rows: this.state.commEng.rows || [], at: 0 } });
+    try {
+      const eligible = this.state.comms.filter((c) => c.status === 'Published' && engTypes.includes(c.type)).slice(0, 80);
+      const covered = new Set(), rows = [];
+      let next = 0;
+      // each answer covers every place the same communication went to, so a send to many places is one row
+      const worker = async () => {
+        while (next < eligible.length) {
+          const c = eligible[next++];
+          if (covered.has(c.uid)) continue;
+          let places;
+          try { places = await commsW.insights(this.srv, c); } catch (e) { continue; }
+          if (places.some((x) => covered.has(x.comm))) continue;
+          places.forEach((x) => covered.add(x.comm)); covered.add(c.uid);
+          const t = (k) => places.reduce((n, x) => n + x[k], 0);
+          rows.push({ c, places: places.length, audience: t('audience'), read: t('read'), likes: t('likes'), replies: t('replies') });
+        }
+      };
+      await Promise.all([worker(), worker(), worker()]);
+      rows.sort((a, b) => (a.c.at < b.c.at ? 1 : -1));
+      this.setState({ commEng: { loading: false, err: '', rows, at: Date.now() } });
+    } catch (e) { this.setState({ commEng: { loading: false, err: (e && e.message) || 'Could not load engagement.', rows: [], at: 0 } }); }
+  };
+  const pct = (r) => (r.audience ? Math.min(100, Math.round((r.read / r.audience) * 100)) : 0);
+  const engSum = (k) => E.rows.reduce((n, r) => n + r[k], 0);
+  const engagementTable = { id: 'engagement', pageSize: 10, minWidth: '960px', emptyText: E.loading ? 'Measuring…' : 'Nothing published yet.',
+    cols: [{ label: 'Type', filter: 'select' }, { label: 'Title', filter: 'text' }, { label: 'Date', filter: 'date' }, { label: 'People reached' }, { label: 'Read' }, { label: 'Likes' }, { label: 'Replies' }, { label: '', align: 'right' }],
+    rows: E.rows.map((r) => ({ cells: [C.b(r.c.type, commColor[r.c.type]), C.t(r.c.title, { strong: true, sub: r.places + (r.places === 1 ? ' place' : ' places') }), C.t(fmtDay(r.c.date), { fv: r.c.date, nowrap: true }),
+      C.t(String(r.audience), { fv: String(r.audience) }), C.bar(pct(r), pct(r) >= 80 ? '#B8F36B' : pct(r) >= 40 ? '#FFB86B' : '#9DB0A6', r.read + ' (' + pct(r) + '%)'), C.t(String(r.likes)), C.t(String(r.replies)),
+      C.a([{ label: 'View', kind: 'primary', run: () => { this.setState({ commPage: '' }); openComm(r.c); } }])] })) };
+  const engagement = { open: s.commPage === 'engagement' && engTypes.length > 0, canOpen: engTypes.length > 0, loading: E.loading, err: E.err, hasErr: !!E.err,
+    openIt: () => { this.setState({ commPage: 'engagement', commOpen: null }); loadEngagement(); }, close: () => this.setState({ commPage: '' }), refresh: loadEngagement,
+    kpis: [{ label: 'Published', n: E.rows.length }, { label: 'People reached', n: engSum('audience') }, { label: 'Read', n: engSum('read') }, { label: 'Likes', n: engSum('likes') }, { label: 'Replies', n: engSum('replies') }],
+    avgRead: E.rows.length ? Math.round(E.rows.reduce((n, r) => n + pct(r), 0) / E.rows.length) : 0 };
+  return { cm, commNew, commsTable, commsTabs, commView, engagement, engagementTable, openCm };
 }
