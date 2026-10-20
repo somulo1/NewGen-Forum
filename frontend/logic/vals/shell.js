@@ -60,7 +60,7 @@ export function valsShell(ctx) {
       items.push({ label: 'Approvals', icon: 'M9 3h6a1 1 0 0 1 1 1v1h2a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h2V4a1 1 0 0 1 1-1zM9 13l2 2 4-4', on: curSec === 'approvals', go: () => this.setState({ section: 'approvals', navOpen: false }) });
       return items.map((t) => ({ ...t, hasDot: !!t.dot, dot: t.dot || 0, style: st(t.on) }));
     })(),
-    startInstant: () => this.startCall('video', 'Instant meeting', 'S', '#F49AC1', []),
+    startInstant: () => this.startCall('video', 'Instant meeting', ((this.state.meInfo || {}).initials || 'M'), ((this.state.meInfo || {}).color || '#F49AC1'), []),
     voiceCall: isDM ? () => this.startDmCall('voice', curDm.with, dmView.initials, dmView.color) : () => this.startCall('voice', cur.name, cur.initials, cur.color, [], 'forum', cur.id),
     videoCall: isDM ? () => this.startDmCall('video', curDm.with, dmView.initials, dmView.color) : () => this.startCall('video', cur.name, cur.initials, cur.color, [], 'forum', cur.id),
     endCall: () => this.endCall(),

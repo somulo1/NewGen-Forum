@@ -8,8 +8,10 @@ export function valsWall(ctx) {
   const setOpts = (fn) => this.setState((st) => ({ wpoll: { ...st.wpoll, opts: fn(st.wpoll.opts) } }));
   const tags = ['CharityRun', 'NewJoiners', 'TournamentNight'];
   const m = s.momentOpen !== null && s.momentOpen !== undefined ? moments[s.momentOpen] : null;
+  const mi = s.meInfo || {};
+  const meAv = { name: mi.name || '', initials: mi.initials || ((mi.name || '').split(' ').map((x) => x[0]).join('').slice(0, 2).toUpperCase()), color: mi.color || '#C2185B', first: (mi.name || '').split(' ')[0] };
   return {
-    sharedViews, settingsPage, orgName, orgLogo, notesPage, noteWidget,
+    meAv, sharedViews, settingsPage, orgName, orgLogo, notesPage, noteWidget,
     onlineList: people.map((p) => ({ ...p, open: () => openPersonName(p.name) })),
     trending: tags.map((tg) => ({ tag: tg, on: s.wallTag === tg, pick: () => set({ wallTag: s.wallTag === tg ? '' : tg }) })),
     wallFilter: { active: !!s.wallTag, tag: s.wallTag, clear: () => set({ wallTag: '' }) },

@@ -21,7 +21,8 @@ export function buildCallState(ctx) {
       const c = (d && d.color) || '#C9B6FF';
       return { name: p.name, initials: d ? d.initials : ini(p.name), color: c, bg: c + '26', camBg: c + '40', muted: !p.mic, camOn: p.cam || p.sharing, hand: p.hand, speaking: !!p.speaking, videoKey: p.id };
     }) : null;
-    const me = { name: 'You', initials: 'S', color: '#F49AC1', bg: '#2B2A1E', camBg: '#3D3B29', muted: !s.mic, camOn: isVideo && (s.cam || s.sharing), you: true, videoKey: live ? 'local' : '' };
+    const mi = this.state.meInfo || {};
+    const me = { name: 'You', initials: mi.initials || 'Y', color: mi.color || '#F49AC1', bg: '#2B2A1E', camBg: '#3D3B29', muted: !s.mic, camOn: isVideo && (s.cam || s.sharing), you: true, videoKey: live ? 'local' : '' };
     // Moderator = the person who started a meeting, standup or forum call. One-to-one calls have no moderator.
     const big = !!s.call.sfu;
     const isMod = big ? s.call.myRole === 'host' || s.call.myRole === 'moderator' : s.call.context !== 'dm' && s.call.dir !== 'in';
