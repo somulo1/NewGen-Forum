@@ -34,7 +34,14 @@ export function buildWidgetSettings(ctx) {
       isGroups: isGroups, groupSets: groupSets,
       groupsHint: groups.length ? groups.length + (groups.length === 1 ? ' group selected. Only its members see this widget.' : ' groups selected. Only their members see this widget.') : 'Pick at least one group. You can\'t save until you do.',
       groupsHintColor: groups.length ? '#C9D6CF' : '#FFB86B', groupsBorder: groups.length ? '#24322C' : '#6A5426',
-      managerRoles: visibleRoles.map((r) => { const on = r.locked || managers.indexOf(r.id) !== -1; return { name: r.name, on: on, locked: r.locked, style: chipS(on), toggle: () => setW((c) => ({ managers: on ? c.managers.filter((x) => x !== r.id) : c.managers.concat([r.id]) })) }; }),
+      managerRoles: visibleRoles.map((r) => {
+        // the locked (super admin) role is on unless someone switched it off for this widget; the others are on only when ticked
+        const off = cfg.managersOff || [];
+        const on = r.locked ? off.indexOf(r.id) === -1 : managers.indexOf(r.id) !== -1;
+        return { name: r.name, on: on, locked: false, style: chipS(on), toggle: () => setW((c) => (r.locked
+          ? { managersOff: on ? (c.managersOff || []).concat([r.id]) : (c.managersOff || []).filter((x) => x !== r.id) }
+          : { managers: on ? c.managers.filter((x) => x !== r.id) : c.managers.concat([r.id]) })) };
+      }),
       // a user group can manage the widget too: every role in it does
       managerGroups: groupDefs.map((g) => { const on = managerGroups.indexOf(g.id) !== -1; return { name: g.name, on: on, locked: false, style: chipS(on), toggle: () => setW((c) => ({ managerGroups: on ? (c.managerGroups || []).filter((x) => x !== g.id) : (c.managerGroups || []).concat([g.id]) })) }; })
     });
