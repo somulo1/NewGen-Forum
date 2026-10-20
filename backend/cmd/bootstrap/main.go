@@ -41,6 +41,7 @@ func main() {
 	fs := flag.NewFlagSet(cmd, flag.ExitOnError)
 	slug := fs.String("slug", "", "organization web name")
 	roles := fs.String("roles", "", "role pack to add: starter")
+	all := fs.Bool("all", false, "every organization (use after a release that adds rights)")
 	dry := fs.Bool("dry-run", false, "show what would be added and change nothing")
 	_ = fs.Parse(os.Args[2:])
 
@@ -62,44 +63,63 @@ func main() {
 		}
 		fmt.Println("platform reference data installed (sounds).")
 	case "org":
-		if *slug == "" {
-			fail(fmt.Errorf("-slug is required"))
+		if *slug == "" && !*all {
+			fail(fmt.Errorf("-slug or -all is required"))
 		}
 		if *roles != "" && *roles != "starter" {
 			fail(fmt.Errorf("unknown role pack %q (available: starter)", *roles))
 		}
-		var org uuid.UUID
+		var orgs []uuid.UUID
 		if err := a.DB.Tx(ctx, func(tx pgx.Tx) error {
-			return tx.QueryRow(ctx, `select id from hub.orgs where slug=$1`, *slug).Scan(&org)
-		}); err != nil {
-			fail(fmt.Errorf("no organization with web name %q", *slug))
-		}
-		seal := func(tx pgx.Tx) func(table, where string, args ...any) error {
-			return func(table, where string, args ...any) error { return a.Sign.Seal(ctx, tx, table, where, args...) }
-		}
-		err := a.DB.WithOrg(ctx, org, func(tx pgx.Tx) error {
-			if err := access.Install(ctx, tx, org, seal(tx)); err != nil {
+			q, args := `select id from hub.orgs where slug=$1`, []any{*slug}
+			if *all {
+				q, args = `select id from hub.orgs where status='active' order by created_at`, nil
+			}
+			rs, err := tx.Query(ctx, q, args...)
+			if err != nil {
 				return err
 			}
-			fmt.Println("catalog of pages and rights: present")
-			if *roles == "starter" {
-				ids, err := access.InstallStarterRoles(ctx, tx, org, app.NewID, seal(tx))
-				if err != nil {
+			defer rs.Close()
+			for rs.Next() {
+				var id uuid.UUID
+				if err := rs.Scan(&id); err != nil {
 					return err
 				}
-				fmt.Printf("starter roles added: %d (existing roles were left as they are)\n", len(ids))
+				orgs = append(orgs, id)
 			}
-			if *dry {
-				return fmt.Errorf("dry run: rolled back")
+			return rs.Err()
+		}); err != nil || len(orgs) == 0 {
+			fail(fmt.Errorf("no organization found for %q", *slug))
+		}
+		for _, org := range orgs {
+			fmt.Println("organization", org)
+			seal := func(tx pgx.Tx) func(table, where string, args ...any) error {
+				return func(table, where string, args ...any) error { return a.Sign.Seal(ctx, tx, table, where, args...) }
 			}
-			return nil
-		})
-		if err != nil {
-			if *dry && err.Error() == "dry run: rolled back" {
-				fmt.Println("dry run: nothing was changed.")
-				return
+			err := a.DB.WithOrg(ctx, org, func(tx pgx.Tx) error {
+				if err := access.Install(ctx, tx, org, seal(tx)); err != nil {
+					return err
+				}
+				fmt.Println("catalog of pages and rights: present")
+				if *roles == "starter" {
+					ids, err := access.InstallStarterRoles(ctx, tx, org, app.NewID, seal(tx))
+					if err != nil {
+						return err
+					}
+					fmt.Printf("starter roles added: %d (existing roles were left as they are)\n", len(ids))
+				}
+				if *dry {
+					return fmt.Errorf("dry run: rolled back")
+				}
+				return nil
+			})
+			if err != nil {
+				if *dry && err.Error() == "dry run: rolled back" {
+					fmt.Println("dry run: nothing was changed.")
+					continue
+				}
+				fail(err)
 			}
-			fail(err)
 		}
 		fmt.Println("done.")
 	case "protect":
