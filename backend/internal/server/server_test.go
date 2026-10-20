@@ -149,3 +149,30 @@ func TestForwardedForOnlyBelievedFromTrustedProxies(t *testing.T) {
 		t.Fatalf("a forged entry was believed: %s", ip)
 	}
 }
+
+// Row-level security is declared on the parent tables, and PostgreSQL ignores it for a query that names a partition. The
+// application role must therefore have no direct access to any partition, or one injected query could read every organization.
+func TestApplicationRoleCannotReadPartitionsDirectly(t *testing.T) {
+	e := testkit.New(t)
+	ctx := t.Context()
+	rows, err := e.A.DB.Pool.Query(ctx, `select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'hub' and c.relispartition and c.relkind = 'r'`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for rows.Next() {
+		var n string
+		_ = rows.Scan(&n)
+		names = append(names, n)
+	}
+	rows.Close()
+	if len(names) < 40 {
+		t.Fatalf("expected the messages and records partitions, found %d", len(names))
+	}
+	for _, n := range names {
+		var c int
+		if err := e.A.DB.Pool.QueryRow(ctx, `select count(*) from hub.`+n).Scan(&c); err == nil {
+			t.Fatalf("the application role can read partition %s directly, bypassing row-level security", n)
+		}
+	}
+}
