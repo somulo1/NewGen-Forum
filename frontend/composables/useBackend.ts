@@ -6,6 +6,7 @@ export interface Session {
   access: string; refresh: string; expiresAt: number; at?: number;
   account: string; name: string; email: string;
   org: { id: string; slug: string; name: string; person?: string } | null;
+  mustChange?: boolean;   // an administrator or the setup gave a temporary password: it must be replaced before anything else
 }
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string) { super(message); }
@@ -49,7 +50,7 @@ export const useBackend = () => {
 
   const toSession = (t: any, email: string): Session => ({
     access: t.access_token, refresh: t.refresh_token, at: Date.now(), expiresAt: Date.now() + (t.expires_in - 30) * 1000,
-    account: t.account, name: t.name, email, org: t.org || null
+    account: t.account, name: t.name, email, org: t.org || null, mustChange: !!t.must_change_password
   });
 
   // One refresh at a time across every tab of this browser: a refresh token works once, and using it twice looks like theft
