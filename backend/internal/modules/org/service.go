@@ -118,6 +118,9 @@ func (s *Service) Create(ctx context.Context, account uuid.UUID, displayName, na
 		if _, err := tx.Exec(ctx, `insert into hub.account_orgs (account_id, org_id) values ($1,$2)`, account, org); err != nil {
 			return err
 		}
+		if err := s.A.Sign.Seal(ctx, tx, "account_orgs", "account_id=$1 and org_id=$2", account, org); err != nil {
+			return err
+		}
 		return s.A.Audit(ctx, tx, org, &person, displayName, "Created the organization", "Settings", ip, map[string]any{"org": org, "slug": slug})
 	})
 	if err != nil {

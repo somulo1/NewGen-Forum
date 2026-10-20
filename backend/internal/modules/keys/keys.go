@@ -86,8 +86,10 @@ func (m *Module) Register(ctx context.Context, p *tenant.Principal, label, ident
 		if n >= 10 {
 			return httpx.Err(409, "too_many_devices", "Remove an old device before adding another.")
 		}
-		_, err := tx.Exec(ctx, `insert into hub.devices (id, account_id, label, identity_key, signing_key, binding_sig) values ($1,$2,$3,$4,$5,$6)`, d.ID, p.Account, label, id, sg, bd)
-		return err
+		if _, err := tx.Exec(ctx, `insert into hub.devices (id, account_id, label, identity_key, signing_key, binding_sig) values ($1,$2,$3,$4,$5,$6)`, d.ID, p.Account, label, id, sg, bd); err != nil {
+			return err
+		}
+		return m.A.Sign.Seal(ctx, tx, "devices", "id=$1", d.ID)
 	})
 	if err != nil {
 		return nil, err
@@ -161,9 +163,14 @@ func (m *Module) Private(r chi.Router) {
 			return httpx.ErrNotFound
 		}
 		return m.A.DB.Tx(r.Context(), func(tx pgx.Tx) error {
-			tag, err := tx.Exec(r.Context(), `update hub.devices set revoked_at=now() where id=$1 and account_id=$2 and revoked_at is null`, id, p.Account)
+			tag, err := tx.Exec(r.Context(), `update hub.devices set revoked_at=now(), `+integrity.Bump+` where id=$1 and account_id=$2 and revoked_at is null`, id, p.Account)
 			if err != nil {
 				return err
+			}
+			if tag.RowsAffected() > 0 {
+				if err := m.A.Sign.Seal(r.Context(), tx, "devices", "id=$1", id); err != nil {
+					return err
+				}
 			}
 			if tag.RowsAffected() == 0 {
 				return httpx.ErrNotFound
