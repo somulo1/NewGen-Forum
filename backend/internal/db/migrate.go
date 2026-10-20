@@ -87,6 +87,9 @@ func applyGrants(ctx context.Context, conn *pgx.Conn, guardToken string) error {
 		`revoke all on all tables in schema hub from hub_dba`,
 		`alter default privileges for role hub_owner in schema hub grant select, insert, update, delete on tables to hub_app`,
 		`alter default privileges for role hub_owner in schema hub grant select on tables to hub_audit`,
+		// Partitions (messages_p0.., records_p0..) get no direct access: row-level security lives on the parent and PostgreSQL
+		// does not apply it to a query that names a partition. Access through the parent is unaffected.
+		`do $$ declare t record; begin for t in select n.nspname, c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'hub' and c.relispartition and c.relkind = 'r' loop execute format('revoke all on %I.%I from hub_app, hub_audit, hub_dba', t.nspname, t.relname); end loop; end $$`,
 	}
 	for _, s := range stmts {
 		if _, err := conn.Exec(ctx, s); err != nil {
