@@ -131,6 +131,8 @@ export const useBackend = () => {
       if (s) { try { await raw('POST', '/auth/logout', { refresh_token: s.refresh }, s.access); } catch (e) { /* already signed out server-side */ } }
     },
     request,
+    // routes that need no sign-in (account recovery)
+    open: (method: string, path: string, body?: unknown) => raw(method, path, body ?? {}),
     get: (path: string) => request('GET', path),
     post: (path: string, body?: unknown) => request('POST', path, body ?? {}),
     put: (path: string, body?: unknown) => request('PUT', path, body ?? {}),
