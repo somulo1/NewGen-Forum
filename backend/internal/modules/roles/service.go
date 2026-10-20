@@ -116,6 +116,25 @@ func (s *Service) Role(ctx context.Context, p *tenant.Principal, key string) (*R
 			d.Rights[m][r] = a || d.Locked
 		}
 		rs.Close()
+		if d.Locked {
+			// a locked role (the owner) holds every right in the catalog, including ones added after it was made
+			all, err := tx.Query(ctx, `select module, name from hub.rights`)
+			if err != nil {
+				return err
+			}
+			for all.Next() {
+				var m, r string
+				if err := all.Scan(&m, &r); err != nil {
+					all.Close()
+					return err
+				}
+				if d.Rights[m] == nil {
+					d.Rights[m] = map[string]bool{}
+				}
+				d.Rights[m][r] = true
+			}
+			all.Close()
+		}
 		return tx.QueryRow(ctx, `select count(*) from hub.person_roles where role_id=$1`, id).Scan(&d.Members)
 	})
 	if err != nil {
