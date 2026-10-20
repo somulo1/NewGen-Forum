@@ -97,13 +97,13 @@ export function buildComms(ctx) {
   const tab = s.commTab && commTypes.includes(s.commTab) ? s.commTab : '';
   const commsTabs = [{ label: 'All', type: '' }].concat(commTypes.map((t) => ({ label: t === 'Job post' ? 'Job posts' : t + 's', type: t }))).map((t) => ({ ...t, count: s.comms.filter((c) => !t.type ? commTypes.includes(c.type) : c.type === t.type).length, on: tab === t.type, pick: () => this.setState({ commTab: t.type }),
     style: 'height:40px;padding:0 16px;border:0;border-bottom:3px solid ' + (tab === t.type ? '#B8F36B' : 'transparent') + ';background:transparent;color:' + (tab === t.type ? 'var(--k-E8EFEA,#E8EFEA)' : 'var(--k-9DB0A6,#9DB0A6)') + ';font-weight:600;font-size:14px;cursor:pointer' }));
-  const openComm = (c) => { this.setState({ commOpen: c.uid, commView: 'read', commIns: null }); if (this.srv && c.status === 'Published' && !c.iRead) commsW.markRead(this, this.srv, c).catch(() => {}); };
+  const openComm = (c) => { this.setState({ commOpen: c.uid, commView: 'read', commIns: null }); if (this.srv && c.status === 'Published' && !c.iRead) commsW.markRead(this, this.srv, c).catch(() => {}); if (canInsights(c.type) && c.status === 'Published') loadInsights(c); };
   const commsShown = s.comms.filter((c) => (tab ? c.type === tab : commTypes.indexOf(c.type) !== -1));
   const commsTable = { id: 'comms-' + (tab || 'all'), pageSize: 10, minWidth: '1000px', emptyText: 'Nothing sent yet.',
     cols: [{ label: 'Type', filter: 'select' }, { label: 'Title', filter: 'text' }, { label: 'Sent to', filter: 'text' }, { label: 'From', filter: 'select' }, { label: 'Date', filter: 'date' }, { label: 'Status', filter: 'select' }, { label: 'Read' }, { label: '', align: 'right' }],
     rows: commsShown.map((c) => ({ cells: [C.b(c.type, commColor[c.type]), C.t(c.title, { strong: true, sub: c.summary || c.body }), C.t(c.to.join(', ')), C.t(c.by === 'Samwel Okoth Omulo' ? 'You' : c.by), C.t(fmtDay(c.date), { fv: c.date, nowrap: true }),
       C.b(c.status, c.status === 'Published' ? '#B8F36B' : '#FFB86B'), C.bar(c.read, c.read >= 80 ? '#B8F36B' : '#FFB86B'),
-      C.a([{ label: 'View', kind: 'primary', run: () => openComm(c) }].concat(canInsights(c.type) && c.status === 'Published' ? [{ label: 'Insights', run: () => { openComm(c); this.setState({ commView: 'insights' }); loadInsights(c); } }] : []).concat(c.status === 'Published' ? [] : [{ label: 'See approval', run: () => this.setState({ section: 'approvals' }) }]))] })) };
+      C.a([{ label: 'View', kind: 'primary', run: () => openComm(c) }].concat(canInsights(c.type) && c.status === 'Published' ? [{ label: 'Insights', run: () => openComm(c) }] : []).concat(c.status === 'Published' ? [] : [{ label: 'See approval', run: () => this.setState({ section: 'approvals' }) }]))] })) };
   const loadInsights = (c) => {
     this.setState({ commIns: { loading: true, places: [], err: '' } });
     commsW.insights(this.srv, c).then((places) => this.setState({ commIns: { loading: false, places, err: '' } })).catch((e) => this.setState({ commIns: { loading: false, places: [], err: e.message || 'Could not load.' } }));
@@ -112,7 +112,7 @@ export function buildComms(ctx) {
   const oc = s.commOpen ? s.comms.find((c) => c.uid === s.commOpen) : null;
   const sum = (k) => ((s.commIns && s.commIns.places) || []).reduce((n, x) => n + x[k], 0);
   const commView = oc ? {
-    open: true, close: () => this.setState({ commOpen: null, commIns: null }), type: oc.type, typeColor: commColor[oc.type], title: oc.title, summary: oc.summary, hasSummary: !!oc.summary, body: oc.body,
+    open: true, ref: oc.id, status: oc.status, statusColor: oc.status === 'Published' ? '#B8F36B' : '#FFB86B', close: () => this.setState({ commOpen: null, commIns: null }), type: oc.type, typeColor: commColor[oc.type], title: oc.title, summary: oc.summary, hasSummary: !!oc.summary, body: oc.body,
     meta: (oc.by === 'Samwel Okoth Omulo' ? 'You' : oc.by) + (oc.byDept ? ' · ' + oc.byDept : '') + ' · ' + fmtDay(oc.date) + ' · ' + oc.status,
     to: oc.to.join(', '), hasTo: oc.to.length > 0,
     fields: (FORMS[oc.type] || []).filter((f) => (oc.fields || {})[f.key]).map((f) => ({ label: f.label, value: f.kind === 'date' ? fmtDay(oc.fields[f.key]) : oc.fields[f.key] })),
@@ -120,6 +120,7 @@ export function buildComms(ctx) {
     hasFiles: (oc.files || []).length > 0,
     canInsights: canInsights(oc.type) && oc.status === 'Published', isRead: s.commView !== 'insights', isInsights: s.commView === 'insights',
     showRead: () => this.setState({ commView: 'read' }), showInsights: () => { this.setState({ commView: 'insights' }); loadInsights(oc); },
+    from: oc.by === 'Samwel Okoth Omulo' ? 'You' : oc.by, byDept: oc.byDept, hasDept: !!oc.byDept, dateLabel: fmtDay(oc.date), readPct: oc.read + '%',
     ins: s.commIns || { loading: false, places: [], err: '' }, hasPlaces: !!(s.commIns && s.commIns.places.length),
     places: ((s.commIns && s.commIns.places) || []).map((x) => ({ ...x, place: x.place || ((forums.find((f) => this.srv && this.srv.forumConv && this.srv.forumConv[f.id] === x.conversation) || {}).name ? (forums.find((f) => this.srv.forumConv[f.id] === x.conversation).name + ' forum') : 'Forum'), kindLabel: x.kind === 'wall' ? 'Community wall' : 'Forum', readPct: x.audience ? Math.round((x.read / x.audience) * 100) + '%' : '0%' })),
     totals: { audience: sum('audience'), read: sum('read'), likes: sum('likes'), replies: sum('replies') }
