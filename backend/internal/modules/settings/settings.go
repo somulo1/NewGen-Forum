@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"slices"
 	"regexp"
 	"strconv"
 	"strings"
@@ -145,6 +146,12 @@ func (m *Module) SetSecurity(ctx context.Context, p *tenant.Principal, in orgset
 	}
 	if v := in.MaxVideoMB; v != "5" && v != "10" && v != "25" && v != "50" && v != "100" {
 		return httpx.Bad("Choose a video size limit from the list.")
+	}
+	if in.UserQuotaMB == "" {
+		in.UserQuotaMB = orgsettings.DefaultSecurity().UserQuotaMB   // a client that does not know the field yet
+	}
+	if !slices.Contains(orgsettings.QuotaChoices, in.UserQuotaMB) {
+		return httpx.Bad("Choose a storage limit from the list.")
 	}
 	if len(in.Domains) > 500 {
 		return httpx.Bad("Too many domains.")

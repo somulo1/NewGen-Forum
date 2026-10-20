@@ -3,8 +3,10 @@
 <div style="width: 100%; display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start">
 
 <div style="flex: 999 1 460px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
-<div><h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; letter-spacing: -0.02em">Community wall</h1>
+<div style="position: relative; display: flex; align-items: flex-start; gap: 10px"><div style="flex: 1; min-width: 0"><h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; letter-spacing: -0.02em">Community wall</h1>
 <p style="margin: 4px 0 0; color: var(--k-9DB0A6,#9DB0A6)">Everyone's space to post freely: photos, news, shout-outs, polls.</p></div>
+<button type="button" class="wall-dots" aria-label="Birthdays and trending" :aria-expanded="hl" @click.stop="hl = !hl" style="flex: none; width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; align-items: center; justify-content: center"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button>
+<template v-if="hl"><div class="wall-backdrop" @click="hl = false"></div></template></div>
 
 <div style="display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px">
 <button @click="momentForm.toggle" :aria-expanded="momentForm.open" style="flex: none; width: 112px; height: 180px; border-radius: 14px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-16201C,#16201C); color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 8px; padding: 14px 8px; box-sizing: border-box">
@@ -152,13 +154,13 @@
 </template>
 </div>
 
-<aside aria-label="Wall highlights" class="hub-static" style="flex: 1 1 250px; min-width: 0; position: sticky; top: 0; align-self: flex-start; overflow: visible; display: flex; flex-direction: column; gap: 16px">
+<aside aria-label="Wall highlights" :class="['hub-static', 'wall-aside', { open: hl }]" @click="hl = false" style="flex: 1 1 250px; min-width: 0; position: sticky; top: 0; align-self: flex-start; overflow: visible; display: flex; flex-direction: column; gap: 16px">
 <div style="padding: 16px; border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 10px">
 <strong style="font-size: 15px">Birthdays today</strong>
 <span style="font-size: 14px; line-height: 1.5; color: var(--k-C9D6CF,#C9D6CF)">Faith Achieng and 2 others. Send them a wish on the wall.</span>
 <button @click="wish" style="height: 38px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer">Write a wish</button>
 </div>
-<div style="padding: 16px; border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 12px">
+<div class="wall-online" style="padding: 16px; border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 12px">
 <strong style="font-size: 15px">Online now</strong>
 <template v-for="(m, m__i) in onlineList" :key="m__i">
 <button @click="m.open" :aria-label="`View ${m.name}`" style="display: flex; gap: 10px; align-items: center; padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; text-align: left; font-family: inherit">
@@ -181,7 +183,7 @@ import { hubBindings } from '~/composables/useHub';
 
 export default {
   name: 'WallSection',
-  data() { return { momentCaption: '', momentBg: '#2B4A63', momentFile: null, postBg: '' }; },
+  data() { return { hl: false, momentCaption: '', momentBg: '#2B4A63', momentFile: null, postBg: '' }; },
   methods: {
     submitMoment() { if (this.addMoment(this.momentCaption, this.momentBg, this.momentFile)) { this.momentCaption = ''; this.momentFile = null; } },
     submitWallPost() { if (this.onPost(this.postBg)) this.postBg = ''; },
@@ -203,3 +205,15 @@ export default {
   ...hubBindings(["pickEmojiWall","addMoment","momentForm","momentView","wpollView","openEventFromWall","wallAudience","wallAudiences","onAudience","wishBirthday","onlineList","trending","wallFilter","canPostWall","cannotPostWall","draft","hasWFiles","moments","onDraftValue","onPost","onWallFiles","people","postBtnStyle","posts","show","wfiles"])
 };
 </script>
+
+<style scoped>
+.wall-dots { display: none; }
+.wall-backdrop { display: none; }
+@media (max-width: 760px) {
+  .wall-dots { display: flex; }
+  .wall-backdrop { display: block; position: fixed; inset: 0; z-index: 40; background: transparent; }
+  .wall-aside { display: none !important; }
+  .wall-aside.open { display: flex !important; position: fixed !important; z-index: 50; top: 120px; left: 16px; right: 16px; flex: none !important; max-height: 70vh; overflow-y: auto; box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45); }
+  .wall-online { display: none !important; }
+}
+</style>

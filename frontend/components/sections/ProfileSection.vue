@@ -49,6 +49,7 @@
 <span style="font-size: 12px; color: var(--k-C9D6CF,#C9D6CF)">{{ me.completeTip }}</span>
 </div>
 </section>
+<StorageCard v-if="!me.isOther" />
 
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px">
 <template v-for="(fc, fc__i) in me.facts" :key="fc__i">

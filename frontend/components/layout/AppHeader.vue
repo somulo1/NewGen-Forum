@@ -34,12 +34,12 @@
 </button>
 <template v-if="notifOpen">
 <div class="hub-notif" role="menu" aria-label="Notifications" style="position: absolute; right: 0; top: 48px; z-index: 70; width: 360px; max-width: 86vw; max-height: 440px; overflow-y: auto; padding: 8px; border-radius: 16px; background: var(--k-1D2A25,#1D2A25); border: 1px solid var(--k-34453D,#34453D); box-shadow: 0 18px 44px rgba(0,0,0,0.5)">
-<div style="padding: 6px 10px 8px; font-weight: 600; font-size: 14px">Notifications</div>
+<div style="display: flex; align-items: center; gap: 8px; padding: 6px 10px 8px"><span style="flex: 1; font-weight: 600; font-size: 14px">Notifications</span><template v-if="!noNotifs"><button type="button" @click="markNotifsRead" style="border: 0; background: transparent; color: #B8F36B; cursor: pointer; font-size: 12px; font-weight: 600">Mark all read</button><button type="button" @click="clearNotifs" style="border: 0; background: transparent; color: var(--k-FF9B8A,#FF9B8A); cursor: pointer; font-size: 12px; font-weight: 600">Clear all</button></template></div>
 <template v-if="noNotifs"><div style="padding: 16px 10px; color: var(--k-9DB0A6,#9DB0A6); font-size: 13px">You're all caught up.</div></template>
 <template v-for="(n, n__i) in notifs" :key="n__i">
 <button role="menuitem" @click="n.open" style="display: flex; gap: 10px; width: 100%; text-align: left; padding: 10px; border: 0; border-radius: 10px; background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer">
 <span :style="`width: 8px; height: 8px; margin-top: 6px; flex: none; border-radius: 50%; background: ${n.color}`"></span>
-<span style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 13px; line-height: 1.4">{{ n.text }}</span><span style="font-size: 11px; color: var(--k-9DB0A6,#9DB0A6)">{{ n.time }}</span></span>
+<span style="display: flex; flex-direction: column; gap: 2px"><span :style="`font-size: 13px; line-height: 1.4; font-weight: ${n.unread ? 700 : 400}`">{{ n.text }}</span><span style="font-size: 11px; color: var(--k-9DB0A6,#9DB0A6)">{{ n.time }}</span></span>
 </button>
 </template>
 </div>
@@ -68,6 +68,6 @@ export default {
   mounted() { this.fsSupported = !!document.documentElement.requestFullscreen; this._fs = () => { this.fs = !!document.fullscreenElement; }; document.addEventListener('fullscreenchange', this._fs); this._off = (e) => { if (this.acctOpen && this.$refs.acct && !this.$refs.acct.contains(e.target)) this.acctOpen = false; }; this._esc = (e) => { if (e.key === 'Escape') this.acctOpen = false; }; document.addEventListener('click', this._off); document.addEventListener('keydown', this._esc); },
   beforeUnmount() { document.removeEventListener('fullscreenchange', this._fs); document.removeEventListener('click', this._off); document.removeEventListener('keydown', this._esc); },
   methods: { toggleFs() { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch(() => {}); }, openProfile() { this.acctOpen = false; this.go.profile(); }, logout() { this.acctOpen = false; useAuth().signOut(); } },
-  ...hubBindings(["orgName","orgLogo","badgeCount","headerSearch","go","hasBadge","isDark","isLight","me","noNotifs","notifOpen","notifs","openNav","themeAria","toggleNotifs","toggleTheme"])
+  ...hubBindings(["orgName","orgLogo","badgeCount","headerSearch","go","hasBadge","isDark","isLight","me","noNotifs","notifOpen","notifs","openNav","themeAria","toggleNotifs","markNotifsRead","clearNotifs","toggleTheme"])
 };
 </script>
