@@ -1,130 +1,23 @@
-# API routes
+# API reference
 
-All under `/v1` unless shown. Everything except the public group needs `Authorization: Bearer <access token>`; organization routes need a token issued for an organization (`org` at login/refresh). Errors are `{"error":{"code","message"}}`.
+The reference is served by the API itself and built from the running router, so it lists every route and cannot go stale:
 
-```
-GET  /healthz
-GET  /readyz
-GET  /v1/access/catalog
-GET  /v1/approvals
-GET  /v1/approvals/flows
-PUT  /v1/approvals/flows/{key}
-POST  /v1/approvals/{id}/approve
-POST  /v1/approvals/{id}/cancel
-POST  /v1/approvals/{id}/reject
-POST  /v1/auth/login
-POST  /v1/auth/logout
-POST  /v1/auth/mfa/confirm
-POST  /v1/auth/mfa/setup
-POST  /v1/auth/password
-POST  /v1/auth/refresh
-POST  /v1/auth/reset/code
-POST  /v1/auth/reset/complete
-POST  /v1/auth/reset/quiz
-POST  /v1/auth/reset/start
-POST  /v1/auth/signup
-GET  /v1/awards
-POST  /v1/awards
-GET  /v1/billing/invoices
-GET  /v1/billing/invoices/{no}/etr
-GET  /v1/calendar
-POST  /v1/calls
-GET  /v1/calls/history
-POST  /v1/calls/{id}/decline
-POST  /v1/calls/{id}/join
-GET  /v1/comms
-POST  /v1/comms
-POST  /v1/comms/{id}/read
-GET  /v1/comms/rules
-PUT  /v1/comms/rules/{level}/{type}
-GET  /v1/containers/{id}/records
-POST  /v1/containers/{id}/records
-DELETE  /v1/containers/{id}/records/{rid}
-PUT  /v1/containers/{id}/records/{rid}
-GET  /v1/conversations
-POST  /v1/conversations
-GET  /v1/conversations/{id}
-POST  /v1/conversations/{id}/join
-GET  /v1/conversations/{id}/keys
-POST  /v1/conversations/{id}/keys
-POST  /v1/conversations/{id}/members
-DELETE  /v1/conversations/{id}/members/{person}
-GET  /v1/conversations/{id}/messages
-POST  /v1/conversations/{id}/messages
-DELETE  /v1/conversations/{id}/messages/{mid}
-GET  /v1/conversations/{id}/missing-keys
-POST  /v1/conversations/{id}/read
-POST  /v1/conversations/{id}/rotate
-GET  /v1/conversations/{id}/rules
-PUT  /v1/conversations/{id}/rules
-GET  /v1/dev/outbox
-GET  /v1/e2ee/backup
-PUT  /v1/e2ee/backup
-GET  /v1/e2ee/devices
-POST  /v1/e2ee/devices
-DELETE  /v1/e2ee/devices/{id}
-GET  /v1/e2ee/people/{id}/devices
-GET  /v1/e2ee/todo
-DELETE  /v1/files/{id}
-GET  /v1/files/{id}/content
-PUT  /v1/files/{id}/content
-POST  /v1/files/{id}/shares
-GET  /v1/folders/{id}/files
-POST  /v1/folders/{id}/files
-POST  /v1/invites/accept
-GET  /v1/me
-PATCH  /v1/me
-GET  /v1/me/prefs
-PUT  /v1/me/prefs
-GET  /v1/notifications
-POST  /v1/notifications/read
-POST  /v1/orgs
-GET  /v1/org/structure
-POST  /v1/org/units
-PATCH  /v1/org/units/{id}
-GET  /v1/people
-POST  /v1/people
-GET  /v1/people/{id}
-PATCH  /v1/people/{id}
-POST  /v1/people/{id}/reset-password
-PUT  /v1/people/{id}/rights
-POST  /v1/people/{id}/status
-GET  /v1/presence
-GET  /v1/projects
-POST  /v1/projects
-PATCH  /v1/projects/{id}
-GET  /v1/realtime
-POST  /v1/realtime/ticket
-GET  /v1/roles
-GET  /v1/roles/{key}
-PUT  /v1/roles/{key}/rights
-PUT  /v1/roles/reporting
-GET  /v1/security/alerts
-POST  /v1/security/alerts/{id}/status
-GET  /v1/security/integrity
-GET  /v1/security/logs
-GET  /v1/security/logs/export
-GET  /v1/security/rules
-PUT  /v1/security/rules/{id}
-GET  /v1/settings
-PUT  /v1/settings/billing
-PUT  /v1/settings/profile
-PUT  /v1/settings/security
-PUT  /v1/settings/subscription
-GET  /v1/shares
-DELETE  /v1/shares/{id}
-GET  /v1/share/{token}
-GET  /v1/share/{token}/content
-POST  /v1/share/{token}/unlock
-GET  /v1/tickets
-POST  /v1/tickets
-GET  /v1/tickets/categories
-POST  /v1/tickets/categories
-DELETE  /v1/tickets/categories/{id}
-PUT  /v1/tickets/categories/{id}
-GET  /v1/tickets/{id}
-POST  /v1/tickets/{id}/act
-GET  /v1/tickets/settings
-PUT  /v1/tickets/settings
-GET  /v1/tones
-```
+* `GET /v1/docs` is the readable reference (search, per-route auth and rate limit, examples).
+* `GET /v1/docs/openapi.json` is the OpenAPI 3 document for code generators and API tools.
+
+`HUB_DOCS=off` hides both. `go run ./cmd/routes` prints the bare route list.
+
+## Rate limits
+Every answer carries `RateLimit-Limit` and `RateLimit-Remaining`; a refusal is `429` with `Retry-After` (seconds).
+
+| Scope | Default | Setting |
+|---|---|---|
+| each address, all routes | 600 / minute | `HUB_RATE_IP` |
+| each address, sign-in / sign-up / reset / invite routes | 30 / minute (fails closed if Redis is down) | `HUB_RATE_AUTH_IP` |
+| each signed-in account | 500 / 10 seconds | `HUB_RATE_RPS` (x10) |
+| expensive routes (start a call, create a conversation, add people, upload, ...) | per account, see `/v1/docs` | `Tiers` in `internal/server/limits.go` |
+| wrong passwords, one address | 4 then blocked | |
+
+Counts are shared by every API node through Redis (sliding window). `X-Forwarded-For` is believed only when the connection
+comes from a proxy listed in `HUB_TRUSTED_PROXIES` (default: loopback); otherwise callers could choose their own address and
+walk around the per-address limits. Behind a load balancer, list its address range.

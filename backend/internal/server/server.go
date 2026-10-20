@@ -3,7 +3,6 @@ package server
 
 import (
 	"net/http"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -12,7 +11,6 @@ import (
 	"hub/internal/httpx"
 	"hub/internal/mail"
 	"hub/internal/modules/auth"
-	"hub/internal/tenant"
 )
 
 // Module mounts routes. Public ones need no sign-in; Private ones are mounted behind the auth middleware.
@@ -30,7 +28,10 @@ type Deps struct {
 
 func Router(d Deps) http.Handler {
 	r := chi.NewRouter()
-	r.Use(httpx.RequestIDMW, httpx.Recover, httpx.SecurityHeaders, httpx.CORS(d.App.Cfg.AllowedOrigins), httpx.AccessLog, compressExceptSockets, httpx.BodyLimit(16<<20))
+	if err := httpx.SetTrustedProxies(d.App.Cfg.Proxies); err != nil {
+		panic("HUB_TRUSTED_PROXIES: " + err.Error())
+	}
+	r.Use(httpx.RequestIDMW, httpx.Recover, httpx.SecurityHeaders, httpx.CORS(d.App.Cfg.AllowedOrigins), httpx.AccessLog, d.ipLimit, compressExceptSockets, httpx.BodyLimit(16<<20))
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) { httpx.JSON(w, 200, map[string]any{"ok": true}) })
 	r.Get("/readyz", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
 		if err := d.App.DB.Pool.Ping(r.Context()); err != nil {
@@ -59,21 +60,10 @@ func Router(d Deps) http.Handler {
 			}
 		})
 	})
+	if !d.App.Cfg.DocsOff {
+		d.mountDocs(r)
+	}
 	return r
-}
-
-// rateLimit caps each signed-in account (one bad client must not slow the others down).
-func (d Deps) rateLimit(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if p, ok := tenant.From(r.Context()); ok {
-			if ok, retry := d.App.Limit.Allow(r.Context(), "acct", p.Account.String(), d.App.Cfg.RateRPS*10, 10*time.Second, false); !ok {
-				w.Header().Set("Retry-After", retry.String())
-				httpx.JSON(w, 429, map[string]any{"error": httpx.Err(429, "rate_limited", "Slow down a little.")})
-				return
-			}
-		}
-		next.ServeHTTP(w, r)
-	})
 }
 
 // compressExceptSockets gzips responses but leaves WebSocket upgrades alone (a compressing writer cannot be hijacked).

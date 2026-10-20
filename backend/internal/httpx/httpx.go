@@ -87,15 +87,67 @@ func Decode(r *http.Request, dst any, maxBytes int64) error {
 func RequestID(ctx context.Context) string { s, _ := ctx.Value(reqIDKey).(string); return s }
 
 // ClientIP prefers the first hop set by a trusted proxy; direct callers fall back to the socket address.
-func ClientIP(r *http.Request) string {
-	if f := r.Header.Get("X-Forwarded-For"); f != "" {
-		return strings.TrimSpace(strings.Split(f, ",")[0])
+var trustedProxies []*net.IPNet
+
+// SetTrustedProxies names the proxies (CIDRs) whose X-Forwarded-For header may be believed. Anyone else can write that header
+// themselves, so without this an attacker would pick their own "address" and walk around every per-address limit.
+func SetTrustedProxies(cidrs []string) error {
+	var out []*net.IPNet
+	for _, c := range cidrs {
+		if c = strings.TrimSpace(c); c == "" {
+			continue
+		}
+		if !strings.Contains(c, "/") {
+			if strings.Contains(c, ":") {
+				c += "/128"
+			} else {
+				c += "/32"
+			}
+		}
+		_, n, err := net.ParseCIDR(c)
+		if err != nil {
+			return err
+		}
+		out = append(out, n)
 	}
+	trustedProxies = out
+	return nil
+}
+
+func trusted(ip string) bool {
+	a := net.ParseIP(ip)
+	if a == nil {
+		return false
+	}
+	for _, n := range trustedProxies {
+		if n.Contains(a) {
+			return true
+		}
+	}
+	return false
+}
+
+// ClientIP is the caller's address: the connection's, unless it comes from a trusted proxy, in which case it is the nearest
+// address in X-Forwarded-For that is not itself a trusted proxy.
+func ClientIP(r *http.Request) string {
 	h, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
-		return r.RemoteAddr
+		h = r.RemoteAddr
 	}
-	return h
+	if !trusted(h) {
+		return h
+	}
+	f := r.Header.Get("X-Forwarded-For")
+	if f == "" {
+		return h
+	}
+	parts := strings.Split(f, ",")
+	for i := len(parts) - 1; i >= 0; i-- {
+		if ip := strings.TrimSpace(parts[i]); ip != "" && !trusted(ip) {
+			return ip
+		}
+	}
+	return strings.TrimSpace(parts[0])
 }
 
 // --- middleware ---

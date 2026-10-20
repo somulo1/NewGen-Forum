@@ -38,7 +38,11 @@ type Config struct {
 	SFUNodes   []SFUNode
 	CallLimits CallLimits
 	RateRPS    int
-	DBGuard    string // proves to the database that a write comes from the Hub system
+	RateIP     int      // requests per minute from one address (everything)
+	RateAuthIP int      // requests per minute from one address to the sign-in, sign-up, reset and invite routes
+	Proxies    []string // proxies whose X-Forwarded-For is believed (CIDRs)
+	DocsOff    bool     // hide /v1/docs
+	DBGuard    string   // proves to the database that a write comes from the Hub system
 
 	BlobDir string // this server's own disk for encrypted file contents (used when no file server is configured or answers)
 	// EmailDomains limits who can sign up and sign in to these email domains (HUB_ALLOWED_EMAIL_DOMAINS, comma separated);
@@ -72,6 +76,9 @@ func Load() (*Config, error) {
 		AccessTTL:   dur("HUB_ACCESS_TTL", 15*time.Minute),
 		RefreshTTL:  dur("HUB_REFRESH_TTL", 30*24*time.Hour),
 		RateRPS:     int(num("HUB_RATE_RPS", 50)),
+		RateIP:      int(num("HUB_RATE_IP", 600)),
+		RateAuthIP:  int(num("HUB_RATE_AUTH_IP", 30)),
+		DocsOff:     os.Getenv("HUB_DOCS") == "off",
 		DBGuard:     get("HUB_DB_GUARD", "dev-db-guard-token-change-me"),
 		BlobDir:     get("HUB_BLOB_DIR", "./data/blobs"),
 		MaxUpload:   num("HUB_MAX_UPLOAD", 100<<20),
@@ -90,6 +97,7 @@ func Load() (*Config, error) {
 			c.EmailDomains = append(c.EmailDomains, d)
 		}
 	}
+	c.Proxies = strings.FieldsFunc(get("HUB_TRUSTED_PROXIES", "127.0.0.0/8,::1/128"), func(r rune) bool { return r == ',' || r == ' ' })
 	c.CallsURLs = strings.Split(get("HUB_CALLS_URL", "http://127.0.0.1:8090"), ",")
 	// HUB_SFU_NODES="https://media-eu.example.com|APIKEY|SECRET,https://media-af.example.com|APIKEY|SECRET"
 	for _, n := range strings.Split(os.Getenv("HUB_SFU_NODES"), ",") {
