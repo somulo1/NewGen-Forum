@@ -10,7 +10,7 @@ const BUILT_IN = {
   ringback: { repeat_ms: 3000, then: 'connected', then_after_ms: 3200, notes: [{ freqs: [440, 480], at: 0, len: 1.4, vol: 0.16 }] },
   connected: { notes: [{ freqs: [660], at: 0, len: 0.1, vol: 0.16 }, { freqs: [880], at: 0.12, len: 0.14, vol: 0.16 }] },
   hangup: { notes: [{ freqs: [480], at: 0, len: 0.18, vol: 0.16 }, { freqs: [480], at: 0.26, len: 0.18, vol: 0.16 }] },
-  message: { notes: [{ freqs: [990], at: 0, len: 0.09, vol: 0.08 }] },
+  message: { notes: [{ freqs: [740], at: 0, len: 0.1, vol: 0.2 }, { freqs: [988], at: 0.1, len: 0.16, vol: 0.2 }] },
   joined: { notes: [{ freqs: [587], at: 0, len: 0.1, vol: 0.16 }, { freqs: [784], at: 0.11, len: 0.1, vol: 0.16 }, { freqs: [1175], at: 0.22, len: 0.18, vol: 0.16 }] },
   hand: { wave: 'triangle', notes: [{ freqs: [1319], at: 0, len: 0.08, vol: 0.2 }, { freqs: [1319], at: 0.12, len: 0.08, vol: 0.2 }, { freqs: [1760], at: 0.24, len: 0.16, vol: 0.2 }] },
   alert: { wave: 'triangle', notes: [{ freqs: [784], at: 0, len: 0.12, vol: 0.2 }, { freqs: [1047], at: 0.14, len: 0.12, vol: 0.2 }, { freqs: [1319], at: 0.28, len: 0.22, vol: 0.18 }] }

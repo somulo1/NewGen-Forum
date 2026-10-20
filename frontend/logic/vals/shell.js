@@ -31,7 +31,16 @@ export function valsShell(ctx) {
     // with the server connected the badge is the real unread count; offline it falls back to the sample list
     hasBadge: this.srv ? (s.notifUnread || 0) > 0 && !s.notifSeen : !s.notifSeen && allNotifs.length > 0,
     badgeCount: (() => { const n = this.srv ? (s.notifUnread || 0) : allNotifs.length; return n > 9 ? '9+' : String(n); })(),
-    toggleNotifs: () => this.setState((st) => ({ notifOpen: !st.notifOpen })),
+    // unread messages across forums and private chats, with a way to open each
+    msgs: (() => {
+      const fo = forums.filter((f) => f.unread > 0).map((f) => ({ key: 'f' + f.id, kind: 'Forum', name: f.name, initials: f.initials, color: f.color, count: f.unread, open: () => { f.open(); this.setState({ msgOpen: false }); } }));
+      const dm = (s.dms || []).filter((d) => d.unread > 0).map((d) => { const p = this.dir.find((x) => x.name === d.with) || {}; return { key: 'd' + d.id, kind: 'Chat', name: d.with, initials: p.initials || (d.with || '?').slice(0, 2).toUpperCase(), color: p.color || '#9DB0A6', count: d.unread, open: () => { this.openDm(d.with); this.setState({ msgOpen: false }); } }; });
+      const items = fo.concat(dm).sort((a, b) => b.count - a.count);
+      const total = items.reduce((n, x) => n + x.count, 0);
+      return { total, label: total > 99 ? '99+' : String(total), has: total > 0, items, none: items.length === 0, open: !!s.msgOpen };
+    })(),
+    toggleMsgs: () => this.setState((st) => ({ msgOpen: !st.msgOpen, notifOpen: false })),
+    toggleNotifs: () => this.setState((st) => ({ notifOpen: !st.notifOpen, msgOpen: false })),
     hasToast: !!s.toast, toast: s.toast, toastColor: s.toastColor,
     inCall: !!s.call, call,
     navOpen: s.navOpen, navClass: 'hub-nav' + (s.navOpen ? ' open' : ''),

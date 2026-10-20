@@ -543,7 +543,7 @@ function watch(logic, srv) {
       const m = ev.data || {};
       // a complete message (it carries its sealed envelope) is applied right away; anything else falls back to a catch-up read
       if (m.id && m.envelope) reloadForum(logic, srv, f, { meta: false, incoming: [m] }).catch(() => {}); else later(f, false);
-      if (m.sender_account === srv.me.account || m.type !== 'text') return;
+      if (m.sender_account === srv.me.account || ['reaction', 'vote', 'poll_lock', 'typing', 'system'].includes(m.type)) return;
       const st = logic.state;
       const onScreen = st.forum === f && st.panelKind === 'forum' && !['closed', 'min'].includes(st.mode);
       try { (onScreen ? messageTone : alertTone)(); } catch (e) { /* sound is optional */ }
