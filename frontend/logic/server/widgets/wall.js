@@ -3,6 +3,7 @@
 // (reply_to), so counts come from real people. Photos and videos are encrypted attachments of the wall.
 import * as mentions from '../mentions.js';
 import * as files from '../files.js';
+import { newConversationKey, wrap, b64, unb64 } from '../e2ee.js';
 
 export const name = 'wall';
 
@@ -93,7 +94,30 @@ function build(logic, srv, items) {
   }).catch(() => {}));
 }
 
+// A new organization has no wall until someone first posts: the first post makes it, sealing its key for every person in the
+// organization (later members are added to it by the server). Someone without the right to make walls is told to ask.
+export async function ensureWall(srv) {
+  if (srv.wallId) return srv.wallId;
+  const { conversations } = await srv.request('GET', '/conversations?kind=wall&limit=200');
+  let wall = conversations.find((c) => c.audience === 'org') || conversations[0];
+  if (!wall) {
+    try {
+      const { people } = await srv.request('GET', '/conversations/audience-members?audience=org');
+      const { devices } = await srv.request('POST', '/e2ee/people/devices', { people: [...new Set([srv.me.person, ...people])] });
+      const key = newConversationKey();
+      const keys = await Promise.all(devices.map(async (d) => ({ epoch: 1, device: d.id, wrapped_key: b64(await wrap(key, unb64(d.identity_key))) })));
+      wall = await srv.request('POST', '/conversations', { kind: 'wall', name: 'Community wall', audience: 'org', color: '#F49AC1', keys });
+    } catch (e) {
+      if (e && (e.status === 403 || e.code === 'forbidden')) throw new Error('The community wall has not been set up yet. Ask an administrator to post first.');
+      throw e;
+    }
+  }
+  srv.wallId = wall.id;
+  return wall.id;
+}
+
 async function send(srv, type, payload, replyTo) {
+  await ensureWall(srv);
   const sealed = await srv.vault.seal(srv.wallId, payload);
   return srv.request('POST', `/conversations/${srv.wallId}/messages`, { ...sealed, type, ...(replyTo ? { reply_to: replyTo } : {}) });
 }
@@ -103,6 +127,7 @@ const del = (srv, id) => srv.request('DELETE', `/conversations/${srv.wallId}/mes
 
 // post = { text, postBg, files: [File], poll: [labels] | null, audience }
 export async function post(logic, srv, p) {
+  await ensureWall(srv);
   const media = [];
   for (const f of p.files || []) media.push(await files.upload(srv, srv.wallId, f));
   await send(srv, 'post', { text: p.text, department: p.audience && p.audience !== 'Everyone' ? p.audience : (logic.state.meInfo || {}).dept || '', postBg: p.postBg || undefined, media: media.map(({ fileId, name, meta, type, isImg, isVideo, key }) => ({ fileId, name, meta, type, isImg, isVideo, key })), poll: p.poll ? p.poll.map((label, i) => ({ id: 'o' + i, label })) : undefined, tags: p.tags || undefined, poster: p.poster || undefined });
