@@ -128,6 +128,7 @@
 </template>
 
 <template v-if="w.t.files">
+<span v-if="!w.items.length" style="font-size: 13px; color: var(--k-9DB0A6,#9DB0A6)">No files yet. Files shared with you appear here.</span>
 <div style="display: flex; flex-direction: column; gap: 8px">
 <template v-for="(d, d__i) in w.items" :key="d__i">
 <div style="display: flex; gap: 10px; align-items: center"><span :style="`width: 36px; height: 36px; flex: none; border-radius: 9px; background: var(--k-22302A,#22302A); color: ${d.color}; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 10px`">{{ d.kind }}</span><div style="min-width: 0; display: flex; flex-direction: column"><strong style="font-size: 14px; font-weight: 600">{{ d.name }}</strong><span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">{{ d.meta }}</span></div></div>
@@ -148,16 +149,18 @@
 </template>
 
 <template v-if="w.t.sessions">
+<span v-if="!w.items.length" style="font-size: 13px; color: var(--k-9DB0A6,#9DB0A6)">Nothing scheduled in the next 7 days.</span>
 <div style="display: flex; flex-direction: column; gap: 10px">
 <template v-for="(x, x__i) in w.items" :key="x__i">
 <div style="display: flex; gap: 10px; align-items: center">
 <span :style="`width: 36px; height: 36px; flex: none; border-radius: 10px; background: ${x.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 12px`">{{ x.initials }}</span>
 <div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><strong style="font-size: 14px; font-weight: 600">{{ x.title }}</strong><span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">{{ x.when }}</span></div>
 <template v-if="x.live"><span style="font-size: 11px; font-weight: 700; color: var(--k-FF9B8A,#FF9B8A)">LIVE</span></template>
+<template v-if="x.btn"><button @click="x.join" :style="x.btnStyle">{{ x.btn }}</button></template>
 </div>
 </template>
 </div>
-<div style="display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px"><button @click="w.goMeetings" style="height: 38px; border-radius: 10px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">Schedule a meeting</button></div>
+<div style="display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px"><button @click="w.goMeetings" style="height: 38px; border-radius: 10px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">Schedule or see all meetings</button></div>
 </template>
 
 <template v-if="w.t.awards">
@@ -302,11 +305,11 @@
 </template>
 
 <template v-if="w.t.performance">
-<span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Received items resolved on time. Target {{ w.target }}%.</span>
+<span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Received items resolved on time, against each one's own target.</span>
 <div style="display: flex; flex-direction: column; gap: 12px">
 <template v-for="(pf, pf__i) in w.items" :key="pf__i">
 <button @click="pf.open" style="padding: 0; border: 0; background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; text-align: left; display: flex; flex-direction: column; gap: 6px">
-<div style="display: flex; justify-content: space-between; gap: 8px; width: 100%; font-size: 13px"><span><span style="color: var(--k-9DB0A6,#9DB0A6)">{{ pf.type }} ·</span> {{ pf.name }}</span><strong :style="`color: ${pf.color}`">{{ pf.perf }}%</strong></div>
+<div style="display: flex; justify-content: space-between; gap: 8px; width: 100%; font-size: 13px"><span><span style="color: var(--k-9DB0A6,#9DB0A6)">{{ pf.type }} ·</span> {{ pf.name }}</span><strong :style="`color: ${pf.color}`">{{ pf.perf }}%<span style="font-weight: 400; color: var(--k-9DB0A6,#9DB0A6)"> · target {{ pf.target }}%</span></strong></div>
 <div style="position: relative; width: 100%; height: 8px; border-radius: 4px; background: var(--k-22302A,#22302A)"><div :style="pf.bar"></div><span :style="pf.marker"></span></div>
 </button>
 </template>
@@ -338,10 +341,6 @@
 </div>
 </template>
 
-<template v-if="w.t.embed">
-<div style="height: 140px; border-radius: 12px; border: 1px dashed var(--k-4A5C54,#4A5C54); display: flex; align-items: center; justify-content: center; text-align: center; padding: 12px; color: var(--k-9DB0A6,#9DB0A6); font-size: 13px">Paste a link to show a dashboard, video, form or another website here.</div>
-<div style="display: flex; gap: 8px"><label style="flex: 1; min-width: 0"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Link to embed</span><input type="url" placeholder="https://…" style="width: 100%; box-sizing: border-box; height: 38px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA)"></label><button style="height: 38px; padding: 0 14px; border-radius: 10px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">Embed</button></div>
-</template>
 </section>
 </template>
 </div>

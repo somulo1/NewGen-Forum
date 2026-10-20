@@ -27,7 +27,12 @@
 <strong style="font-size: 15px">Flagged alerts</strong>
 <DataTable :t="alertsTable" />
 </template>
-<template v-if="secTab.isBlocks"><p style="margin: 0 0 8px; font-size: 13px; color: var(--k-9DB0A6,#9DB0A6)">Sign-ins blocked this week: people of your organization locked out after wrong passwords, and addresses that kept trying (including emails that belong to nobody). Blocks lift by themselves after 2 minutes; this record stays.</p><DataTable :t="blocksTable" /></template>
+<template v-if="secTab.isBlocks"><p style="margin: 0 0 8px; font-size: 13px; color: var(--k-9DB0A6,#9DB0A6)">Sign-ins blocked this week: people of your organization locked out after wrong passwords, and addresses that kept trying (including emails that belong to nobody). Blocks lift by themselves after 2 minutes; this record stays.</p><div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start"><div style="flex: 3 1 560px; min-width: 0"><DataTable :t="blocksTable" /></div>
+<template v-if="blockHistory.open"><section aria-label="Blocked user history" style="flex: 1 1 300px; max-width: 420px; min-width: 0; position: sticky; top: 8px; max-height: 80vh; overflow-y: auto; padding: 14px 16px; border-radius: 14px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-16201C,#16201C); display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; align-items: flex-start; gap: 10px"><div style="flex: 1; min-width: 0"><strong style="font-size: 16px">History: {{ blockHistory.who }}</strong><div style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">{{ blockHistory.kind }} · {{ blockHistory.summary }}</div></div><button @click="blockHistory.close" aria-label="Close history" style="height: 34px; padding: 0 14px; border-radius: 17px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer">Close</button></div>
+<span v-if="blockHistory.none" style="font-size: 13px; color: var(--k-9DB0A6,#9DB0A6)">Nothing recorded.</span>
+<template v-for="(e, ei) in blockHistory.entries" :key="ei"><div style="display: flex; gap: 10px; align-items: flex-start"><span :style="`width: 8px; height: 8px; margin-top: 6px; flex: none; border-radius: 50%; background: ${e.color}`"></span><div style="display: flex; flex-direction: column"><span style="font-size: 13px">{{ e.text }}</span><span style="font-size: 11px; color: var(--k-9DB0A6,#9DB0A6)">{{ e.when }} · {{ e.sub }}</span></div></div></template>
+</section></template></div></template>
 <template v-if="secTab.isLogs">
 <DataTable :t="logsTable" />
 </template>
@@ -44,6 +49,6 @@ import { hubBindings } from '~/composables/useHub';
 
 export default {
   name: 'SecuritySection',
-  ...hubBindings(["alertsTable","logsTable","blocksTable","rulesTable","sec","secTab","show"])
+  ...hubBindings(["alertsTable","logsTable","blocksTable","blockHistory","rulesTable","sec","secTab","show"])
 };
 </script>

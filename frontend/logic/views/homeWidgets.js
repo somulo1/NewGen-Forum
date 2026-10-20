@@ -1,8 +1,9 @@
 import * as calendarW from '~/logic/server/widgets/calendar.js';
 import * as commsW from '~/logic/server/widgets/comms.js';
+import * as dmsW from '~/logic/server/widgets/dms.js';
 // renderVals step: homeWidgets. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildHomeWidgets(ctx) {
-  const { todayISO, calItems, files, fmtDay, sharedNotes, forums, has, ini, myUnits, nOpen, nOver, nSoon, openCm, openEv, orgWidgetItems, people, projStats, projects, s, sessions, tickets } = ctx;
+  const { todayISO, calItems, fmtDay, sharedNotes, forums, has, ini, myUnits, nOpen, nOver, nSoon, openCm, openEv, orgWidgetItems, people, projStats, projects, s, sessions, tickets } = ctx;
   // ---- Files ----
   const kindColor = { PDF: '#FF9B8A', DOC: '#7CC4FF', XLS: '#B8F36B', PPT: '#FFB86B', IMG: '#F49AC1', ZIP: '#C9B6FF' };
   // "Shared notes" is a built-in folder: notes shared with me (live links) and the notes I share.
@@ -33,12 +34,11 @@ export function buildHomeWidgets(ctx) {
     joiners: { title: 'New joiners', sub: 'This week', tint: '#B8F36B', desc: 'Welcome new colleagues and help them settle in.' },
     sessions: { title: 'Meetings & standups', sub: 'Live & upcoming', tint: '#6EE7C8', desc: 'Live meetings and daily standups you can join, plus a button to start one.' },
     notes: { title: 'My notes', sub: 'Only you can see this', tint: '#FFD66B', desc: 'A private sticky note for your own reminders.' },
-    embed: { title: 'Embed', sub: 'Any link', tint: '#C9B6FF', desc: 'Show a dashboard, video, form or website inside your home page.' },
     branches: { title: 'Branches', sub: 'Your locations', tint: '#7CC4FF', desc: 'For organizations with several locations: each branch, its head, staff count and contacts.' },
     sectors: { title: 'Sectors', sub: 'Top level of the structure', tint: '#FFB86B', desc: 'Groups branches (or departments) into sectors under the organization. Turns on sector dashboards and the Sector manager role.' },
     departments: { title: 'Departments', sub: 'Teams and how they perform', tint: '#B8F36B', desc: 'Departments sit under their branch or sector. Tickets go to departments, and each department gets a dashboard and a Head of department role.' },
     units: { title: 'Units', sub: 'Teams inside branches', tint: '#C9B6FF', desc: 'Units are the smallest level and sit inside a branch. Turns on unit dashboards and the Unit lead role.' },
-    performance: { title: 'Our performance', sub: 'Against a 95% target', tint: '#6EE7C8', desc: 'How your department, branch, sector or unit resolves what it receives on time, against its target.' },
+    performance: { title: 'Our performance', sub: 'Against its own target', tint: '#6EE7C8', desc: 'How your department, branch, sector or unit resolves what it receives on time, against its target.' },
     calendar: { title: 'Calendar', sub: 'Coming up', tint: '#7CC4FF', desc: 'Your meetings, standups, tasks and events, with project deadlines. Schedule straight from here.' },
     memos: { title: 'Memos', sub: 'Latest memos', tint: '#FFD66B', desc: 'Send formal memos to the wall, a forum or chosen departments, branches, sectors or units.' },
     jobposts: { title: 'Job posts', sub: 'Open roles', tint: '#7CC4FF', desc: 'Post open roles and see how many people read and reacted to each.' },
@@ -73,9 +73,32 @@ export function buildHomeWidgets(ctx) {
       rsvpLabel: s.rsvp[e.id] ? 'Going' : 'RSVP', rsvpStyle: pillBtn(!!s.rsvp[e.id]), rsvp: () => calendarW.toggleRsvp(this, this.srv, e).catch((x) => this.notify(x.message, '#FF9B8A')) })),
     clocks: [['Nairobi', 'Africa/Nairobi'], ['London', 'Europe/London'], ['New York', 'America/New_York'], ['Dubai', 'Asia/Dubai']].map(([city, zone]) => ({ city, time: tz(zone), day: tzDay(zone) })),
     // Celebrations and new joiners come from the people directory (birthdays only where the viewer may see them).
-    birthdays: celebrations.map((b) => ({ ...b, wishLabel: s.wished[b.id] ? 'Sent' : 'Send wish', wishStyle: pillBtn(!!s.wished[b.id]), wish: () => this.setState((st) => ({ wished: { ...st.wished, [b.id]: true } })) })),
+    // "Send wish" sends a real private message (end-to-end encrypted like any chat). Whether it was sent is read back from
+    // the chat itself, so it stays "Sent" after a reload and never goes twice on the same day.
+    birthdays: celebrations.map((b) => {
+      const mine = !!this.srv && b.name === this.srv.me.name;
+      const first = b.name.split(' ')[0];
+      const text = b.id.startsWith('b-') ? 'Happy birthday, ' + first + '! \uD83C\uDF82 Wishing you a wonderful day.' : 'Happy work anniversary, ' + first + '! \uD83C\uDF89 Congratulations on ' + b.what.replace(' with the team today', '') + ' with the team. Thank you for everything you do.';
+      const dm = this.srv ? (s.dms || []).find((d) => d.with === b.name && !String(d.id).startsWith('dm-')) : null;
+      const day = (iso) => new Date(iso).toLocaleDateString('en-CA', { timeZone: 'Africa/Nairobi' });
+      const sent = this.srv ? !!dm && dm.msgs.some((m) => m.from === 'me' && m.text === text && m.at && day(m.at) === todayISO) : !!s.wished[b.id];
+      const busy = !!(this._wishing && this._wishing.has(b.id));
+      return { ...b, wishLabel: mine ? 'Your day' : sent ? 'Sent' : busy ? 'Sending…' : 'Send wish', wishStyle: pillBtn(mine || sent || busy),
+        wish: () => {
+          if (mine || sent || busy) return;
+          if (!this.srv) { this.setState((st) => ({ wished: { ...st.wished, [b.id]: true } })); return; }
+          (this._wishing || (this._wishing = new Set())).add(b.id);
+          this.forceUpdate();
+          dmsW.ensure(this, this.srv, b.name)
+            .then((id) => dmsW.send(this, this.srv, id, { text }).then((conv) => dmsW.refresh(this, this.srv, conv)))
+            .then(() => this.notify('Your wish was sent to ' + first + '.', '#B8F36B'))
+            .catch((e) => this.notify((e && e.message) || 'Could not send your wish.', '#FF9B8A'))
+            .finally(() => { this._wishing.delete(b.id); this.forceUpdate(); });
+        } };
+    }),
     tickets: [{ n: nOpen, label: 'Open', color: '#E8EFEA' }, { n: nOver, label: 'Overdue', color: '#FF9B8A' }, { n: nSoon, label: 'Due soon', color: '#FFB86B' }],
-    files: (s.folders.some((f) => /^[0-9a-f]{8}-/.test(f.id)) ? s.folders.flatMap((f) => f.files.map((x) => ({ kind: x.kind, color: kindColor[x.kind] || '#9DB0A6', name: x.name, meta: f.name + ' · ' + x.when, at: x.at }))).sort((a, b) => (a.at < b.at ? 1 : -1)) : files).slice(0, 4),
+    // only files that really exist in the folders this person can open, newest first
+    files: s.folders.flatMap((f) => f.files.map((x) => ({ kind: x.kind, color: kindColor[x.kind] || '#9DB0A6', name: x.name, meta: f.name + ' · ' + x.when, at: x.at }))).sort((a, b) => (a.at < b.at ? 1 : -1)).slice(0, 4),
     joiners: newJoiners,
     sessions: sessions,
     projects: projects,
@@ -111,7 +134,7 @@ export function buildHomeWidgets(ctx) {
     isOrgList: id === 'departments' || id === 'units',
     orgNote: id === 'departments' ? 'Each sits under ' + (has.branches ? 'its branch' : has.sectors ? 'its sector' : 'the organization') + '. % = received items resolved on time.' : 'Units sit inside ' + (has.branches ? 'their branch' : 'the organization') + '.',
     goStructure: () => this.setState({ section: 'structure' }),
-    target: 95, noUnits: id === 'performance' && myUnits.length === 0,
+    noUnits: id === 'performance' && myUnits.length === 0,
     customizing: s.customize,
     note: s.note,
     onNote: (e) => this.setState({ note: e.target.value }),

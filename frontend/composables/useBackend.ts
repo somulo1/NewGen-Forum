@@ -3,7 +3,7 @@
 const KEY = 'hub-session';
 
 export interface Session {
-  access: string; refresh: string; expiresAt: number;
+  access: string; refresh: string; expiresAt: number; at?: number;
   account: string; name: string; email: string;
   org: { id: string; slug: string; name: string; person?: string } | null;
 }
@@ -48,18 +48,29 @@ export const useBackend = () => {
   };
 
   const toSession = (t: any, email: string): Session => ({
-    access: t.access_token, refresh: t.refresh_token, expiresAt: Date.now() + (t.expires_in - 30) * 1000,
+    access: t.access_token, refresh: t.refresh_token, at: Date.now(), expiresAt: Date.now() + (t.expires_in - 30) * 1000,
     account: t.account, name: t.name, email, org: t.org || null
   });
 
-  const refresh = (): Promise<Session | null> => {
-    const s = read();
-    if (!s) return Promise.resolve(null);
+  // One refresh at a time across every tab of this browser: a refresh token works once, and using it twice looks like theft
+  // (the server ends the whole session). The token is read again inside the lock, so a second tab uses the new one.
+  // maxAge: skip when this browser already rotated that recently.
+  const refresh = (maxAge = 0): Promise<Session | null> => {
     if (!refreshing) {
-      refreshing = raw('POST', '/auth/refresh', { refresh_token: s.refresh, org: s.org?.slug || '' })
-        .then((t) => { const n = toSession(t, s.email); write(n); return n; })
-        .catch((e) => { if (e instanceof ApiError && ENDED.includes(e.code)) ended(e.code); else write(null); return null; })
-        .finally(() => { refreshing = null; });
+      const go = async (): Promise<Session | null> => {
+        const s = read();
+        if (!s) return null;
+        if (maxAge && s.at && Date.now() - s.at < maxAge) return s;
+        try {
+          const t = await raw('POST', '/auth/refresh', { refresh_token: s.refresh, org: s.org?.slug || '' });
+          const n = toSession(t, s.email); write(n); return n;
+        } catch (e) {
+          if (e instanceof ApiError && ENDED.includes(e.code)) ended(e.code); else write(null);
+          return null;
+        }
+      };
+      const locks: any = typeof navigator !== 'undefined' ? (navigator as any).locks : null;
+      refreshing = (locks ? locks.request('hub-refresh', go) : go()).finally(() => { refreshing = null; });
     }
     return refreshing;
   };
@@ -73,7 +84,9 @@ export const useBackend = () => {
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
         if (ENDED.includes(e.code)) { ended(e.code); throw e; }
-        const n = await refresh();
+        // another request or tab may already have rotated the token: use the newest one before refreshing again
+        const cur = read();
+        const n = cur && cur.access !== s.access ? cur : await refresh();
         if (n) return raw(method, path, body, n.access);
       }
       throw e;
@@ -96,6 +109,8 @@ export const useBackend = () => {
 
   return {
     session: read,
+    // A new access and refresh token on each page change; the old ones stop working at once.
+    rotate: () => refresh(4000),
     bytes,
     signedIn: () => !!read(),
     async login(email: string, password: string, totp = ''): Promise<Session> {
