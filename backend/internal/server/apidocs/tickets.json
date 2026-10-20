@@ -1,0 +1,351 @@
+{
+ "POST /v1/tickets": {
+  "summary": "Raise a ticket",
+  "description": "Two steps: the device first creates a conversation of kind `ticket` (POST /v1/conversations) with keys for the requester and the people who may handle it, then calls this with that conversation's id. The ticket's text lives in the sealed conversation. The server picks a handler, starts the TAT clock and notifies them.",
+  "access": "a role with Tickets: Raise",
+  "status": 201,
+  "request": {
+   "conversation": "uuid, required. The ticket conversation",
+   "category": "string. Category name for the recipient",
+   "priority": "string. Low | Medium | High",
+   "to_type": "string. desk (default) | department | unit | branch | sector",
+   "to_ref": "uuid. The unit when to_type is not desk",
+   "sync": "string"
+  },
+  "response": {
+   "id": "uuid. Same as the ticket's conversation id",
+   "ref": "string. Human reference",
+   "category": "string",
+   "priority": "string. Low | Medium | High",
+   "step": "integer. 0 Raised, 1 Assigned, 2 In progress, 3 Resolved, 4 Closed",
+   "step_name": "string",
+   "hold": "boolean. true while the TAT clock is paused on hold",
+   "raised_by": "uuid. Person id",
+   "raised_by_name": "string",
+   "handler": "uuid. The person working on it",
+   "handler_name": "string",
+   "handler_since": "timestamp",
+   "assignees": [
+    "uuid. Everyone assigned"
+   ],
+   "to_type": "string. desk | department | unit | branch | sector",
+   "to_ref": "uuid. The unit it was sent to",
+   "tat_hours": "integer. Turnaround target",
+   "due_at": "timestamp. When it is due, counting working hours",
+   "solved_at": "timestamp",
+   "escalated": "boolean",
+   "late": "boolean. Past due",
+   "sync": "string",
+   "created_at": "timestamp",
+   "events": [
+    {
+     "at": "timestamp",
+     "who": "string",
+     "kind": "string",
+     "text": "string"
+    }
+   ],
+   "participant": "boolean. In lists: whether I am in the ticket's conversation and can read its sealed thread"
+  },
+  "errors": {
+   "400": "Unknown priority or recipient, the category does not exist for that recipient, or the conversation was not created first"
+  }
+ },
+ "GET /v1/tickets": {
+  "summary": "List tickets",
+  "description": "Ticket facts are visible to anyone with the View right; the sealed text needs the conversation key, which only participants hold.",
+  "access": "a role with Tickets: View",
+  "query": {
+   "mine": "1 for tickets I raised",
+   "open": "1 for tickets not yet closed",
+   "late": "1 for tickets past their due time",
+   "handler": "uuid. Tickets this person is working on"
+  },
+  "response": {
+   "tickets": [
+    {
+     "id": "uuid. Same as the ticket's conversation id",
+     "ref": "string. Human reference",
+     "category": "string",
+     "priority": "string. Low | Medium | High",
+     "step": "integer. 0 Raised, 1 Assigned, 2 In progress, 3 Resolved, 4 Closed",
+     "step_name": "string",
+     "hold": "boolean. true while the TAT clock is paused on hold",
+     "raised_by": "uuid. Person id",
+     "raised_by_name": "string",
+     "handler": "uuid. The person working on it",
+     "handler_name": "string",
+     "handler_since": "timestamp",
+     "assignees": [
+      "uuid. Everyone assigned"
+     ],
+     "to_type": "string. desk | department | unit | branch | sector",
+     "to_ref": "uuid. The unit it was sent to",
+     "tat_hours": "integer. Turnaround target",
+     "due_at": "timestamp. When it is due, counting working hours",
+     "solved_at": "timestamp",
+     "escalated": "boolean",
+     "late": "boolean. Past due",
+     "sync": "string",
+     "created_at": "timestamp",
+     "events": [
+      {
+       "at": "timestamp",
+       "who": "string",
+       "kind": "string",
+       "text": "string"
+      }
+     ],
+     "participant": "boolean. In lists: whether I am in the ticket's conversation and can read its sealed thread"
+    }
+   ]
+  }
+ },
+ "GET /v1/tickets/{id}": {
+  "summary": "Get one ticket with its event history",
+  "access": "a role with Tickets: View",
+  "response": {
+   "id": "uuid. Same as the ticket's conversation id",
+   "ref": "string. Human reference",
+   "category": "string",
+   "priority": "string. Low | Medium | High",
+   "step": "integer. 0 Raised, 1 Assigned, 2 In progress, 3 Resolved, 4 Closed",
+   "step_name": "string",
+   "hold": "boolean. true while the TAT clock is paused on hold",
+   "raised_by": "uuid. Person id",
+   "raised_by_name": "string",
+   "handler": "uuid. The person working on it",
+   "handler_name": "string",
+   "handler_since": "timestamp",
+   "assignees": [
+    "uuid. Everyone assigned"
+   ],
+   "to_type": "string. desk | department | unit | branch | sector",
+   "to_ref": "uuid. The unit it was sent to",
+   "tat_hours": "integer. Turnaround target",
+   "due_at": "timestamp. When it is due, counting working hours",
+   "solved_at": "timestamp",
+   "escalated": "boolean",
+   "late": "boolean. Past due",
+   "sync": "string",
+   "created_at": "timestamp",
+   "events": [
+    {
+     "at": "timestamp",
+     "who": "string",
+     "kind": "string",
+     "text": "string"
+    }
+   ],
+   "participant": "boolean. In lists: whether I am in the ticket's conversation and can read its sealed thread"
+  },
+  "errors": {
+   "404": "No such ticket"
+  }
+ },
+ "POST /v1/tickets/{id}/act": {
+  "summary": "Work a ticket",
+  "description": "One endpoint for every step. `do` chooses: assign (set handler/assignees), step (move to Raised, Assigned, In progress, Resolved or Closed), hold, resume, escalate (move to another unit, with a reason) and priority. A person cannot work on a ticket they raised, but may close it. Closing a High priority ticket needs approval (flow f5): resolve it first.",
+  "access": "a role with the matching Tickets right (Assign & hand over, Solve, Close, ...)",
+  "request": {
+   "do": "string, required. assign | step | hold | resume | escalate | priority",
+   "handler": "uuid. assign: who takes it",
+   "assignees": [
+    "uuid. assign: everyone assigned"
+   ],
+   "step": "integer. step: 0 to 4",
+   "priority": "string. priority: Low | Medium | High",
+   "to_type": "string. escalate: department | unit | branch | sector",
+   "to_ref": "uuid. escalate: where to",
+   "person": "uuid. escalate: who takes it there",
+   "why": "string. escalate: reason, up to 300 characters",
+   "category": "string. escalate: the category at the new place"
+  },
+  "response": {
+   "id": "uuid. Same as the ticket's conversation id",
+   "ref": "string. Human reference",
+   "category": "string",
+   "priority": "string. Low | Medium | High",
+   "step": "integer. 0 Raised, 1 Assigned, 2 In progress, 3 Resolved, 4 Closed",
+   "step_name": "string",
+   "hold": "boolean. true while the TAT clock is paused on hold",
+   "raised_by": "uuid. Person id",
+   "raised_by_name": "string",
+   "handler": "uuid. The person working on it",
+   "handler_name": "string",
+   "handler_since": "timestamp",
+   "assignees": [
+    "uuid. Everyone assigned"
+   ],
+   "to_type": "string. desk | department | unit | branch | sector",
+   "to_ref": "uuid. The unit it was sent to",
+   "tat_hours": "integer. Turnaround target",
+   "due_at": "timestamp. When it is due, counting working hours",
+   "solved_at": "timestamp",
+   "escalated": "boolean",
+   "late": "boolean. Past due",
+   "sync": "string",
+   "created_at": "timestamp",
+   "events": [
+    {
+     "at": "timestamp",
+     "who": "string",
+     "kind": "string",
+     "text": "string"
+    }
+   ],
+   "participant": "boolean. In lists: whether I am in the ticket's conversation and can read its sealed thread"
+  },
+  "errors": {
+   "400": "Unknown action, nobody chosen, the person is not in the ticket's conversation, or it is not in the state that action needs",
+   "403": "own_ticket: you raised it so someone else must work on it",
+   "409": "already_escalated; needs_approval: closing a High priority ticket needs approval"
+  }
+ },
+ "GET /v1/tickets/settings": {
+  "summary": "Ticket turnaround settings",
+  "description": "Working hours, when the clock pauses, when to warn and who to escalate to.",
+  "access": "a role with Tickets: View",
+  "response": {
+   "start": "string. Working day start, 08:00",
+   "end": "string. Working day end, 17:00",
+   "timezone": "string. IANA zone, Africa/Nairobi by default",
+   "pause": {
+    "weekends": "boolean",
+    "holidays": "boolean",
+    "offhours": "boolean",
+    "onhold": "boolean",
+    "awaiting": "boolean"
+   },
+   "notify": {
+    "solved": "boolean",
+    "overdue": "boolean",
+    "nearing": "boolean",
+    "assigned": "boolean"
+   },
+   "nearPct": "integer. Warn at this percent of the TAT, 10 to 99",
+   "escalate": "string. Who overdue tickets escalate to",
+   "holidays": [
+    "date. YYYY-MM-DD"
+   ]
+  }
+ },
+ "PUT /v1/tickets/settings": {
+  "summary": "Change ticket settings",
+  "access": "a role with Tickets: Manage TAT settings",
+  "status": 204,
+  "request": {
+   "start": "string. Working day start, 08:00",
+   "end": "string. Working day end, 17:00",
+   "timezone": "string. IANA zone, Africa/Nairobi by default",
+   "pause": {
+    "weekends": "boolean",
+    "holidays": "boolean",
+    "offhours": "boolean",
+    "onhold": "boolean",
+    "awaiting": "boolean"
+   },
+   "notify": {
+    "solved": "boolean",
+    "overdue": "boolean",
+    "nearing": "boolean",
+    "assigned": "boolean"
+   },
+   "nearPct": "integer. Warn at this percent of the TAT, 10 to 99",
+   "escalate": "string. Who overdue tickets escalate to",
+   "holidays": [
+    "date. YYYY-MM-DD"
+   ]
+  },
+  "response": null,
+  "errors": {
+   "400": "Warning point outside 10 to 99, working hours not like 08:00 to 17:00, or an unknown time zone"
+  }
+ },
+ "GET /v1/tickets/categories": {
+  "summary": "List ticket categories for a recipient",
+  "access": "a role with Tickets: View",
+  "query": {
+   "to_type": "desk (default) | department | unit | branch | sector",
+   "to_ref": "uuid. The unit"
+  },
+  "response": {
+   "categories": [
+    {
+     "id": "uuid",
+     "unit_type": "string. desk | department | unit | branch | sector",
+     "unit_ref": "uuid. The unit the category belongs to",
+     "name": "string",
+     "tat_hours": "integer. 1 hour to 90 days",
+     "priority": "string. Low | Medium | High",
+     "members": [
+      "uuid. People who handle this category"
+     ]
+    }
+   ]
+  }
+ },
+ "POST /v1/tickets/categories": {
+  "summary": "Add a category",
+  "access": "a role with Tickets: Set up ticket categories",
+  "status": 201,
+  "request": {
+   "unit_type": "string, required",
+   "unit_ref": "uuid",
+   "name": "string, required",
+   "tat_hours": "integer, required. 1 hour to 90 days",
+   "priority": "string. Low | Medium | High",
+   "members": [
+    "uuid"
+   ]
+  },
+  "response": {
+   "id": "uuid",
+   "unit_type": "string. desk | department | unit | branch | sector",
+   "unit_ref": "uuid. The unit the category belongs to",
+   "name": "string",
+   "tat_hours": "integer. 1 hour to 90 days",
+   "priority": "string. Low | Medium | High",
+   "members": [
+    "uuid. People who handle this category"
+   ]
+  },
+  "errors": {
+   "400": "Missing name or TAT outside 1 hour to 90 days"
+  }
+ },
+ "PUT /v1/tickets/categories/{id}": {
+  "summary": "Change a category",
+  "access": "a role with Tickets: Set up ticket categories",
+  "request": {
+   "unit_type": "string",
+   "unit_ref": "uuid",
+   "name": "string, required",
+   "tat_hours": "integer, required",
+   "priority": "string",
+   "members": [
+    "uuid"
+   ]
+  },
+  "response": {
+   "id": "uuid",
+   "unit_type": "string. desk | department | unit | branch | sector",
+   "unit_ref": "uuid. The unit the category belongs to",
+   "name": "string",
+   "tat_hours": "integer. 1 hour to 90 days",
+   "priority": "string. Low | Medium | High",
+   "members": [
+    "uuid. People who handle this category"
+   ]
+  }
+ },
+ "DELETE /v1/tickets/categories/{id}": {
+  "summary": "Delete a category",
+  "access": "a role with Tickets: Set up ticket categories",
+  "status": 204,
+  "response": null,
+  "errors": {
+   "404": "No such category"
+  }
+ }
+}

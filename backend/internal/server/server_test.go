@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"hub/internal/config"
 	"hub/internal/httpx"
 	"hub/internal/testkit"
 )
@@ -26,8 +27,8 @@ func get(t *testing.T, url string, hdr map[string]string) (int, http.Header, []b
 	return res.StatusCode, res.Header, b
 }
 
-// The reference is built from the router, so a route that exists must be in it, with its auth and rate limit.
-func TestAPIReferenceListsEveryRoute(t *testing.T) {
+// The reference is built from the router and every route needs a written entry, so a new route cannot ship undocumented.
+func TestAPIReferenceDescribesEveryRoute(t *testing.T) {
 	e := testkit.New(t)
 	code, _, b := get(t, e.Srv.URL+"/v1/docs/openapi.json", nil)
 	if code != 200 {
@@ -35,40 +36,55 @@ func TestAPIReferenceListsEveryRoute(t *testing.T) {
 	}
 	var spec struct {
 		Paths map[string]map[string]struct {
-			Security  []any          `json:"security"`
-			Limit     string         `json:"x-rate-limit"`
-			Responses map[string]any `json:"responses"`
+			Summary    string         `json:"summary"`
+			Documented bool           `json:"x-documented"`
+			Security   []any          `json:"security"`
+			Responses  map[string]any `json:"responses"`
+			Body       any            `json:"requestBody"`
 		} `json:"paths"`
 	}
 	if err := json.Unmarshal(b, &spec); err != nil {
 		t.Fatal(err)
 	}
-	for _, r := range []struct{ method, path string }{
-		{"post", "/v1/auth/login"}, {"get", "/v1/conversations"}, {"post", "/v1/conversations/{id}/messages"}, {"post", "/v1/calls/{id}/control"},
-		{"get", "/v1/tickets"}, {"post", "/v1/people"}, {"get", "/healthz"},
-	} {
-		op, ok := spec.Paths[r.path][r.method]
-		if !ok {
-			t.Fatalf("%s %s is missing from the reference", r.method, r.path)
-		}
-		if op.Limit == "" || op.Responses["429"] == nil || op.Responses["401"] == nil {
-			t.Fatalf("%s %s lacks rate limit or error docs: %+v", r.method, r.path, op)
+	ops := 0
+	for path, ms := range spec.Paths {
+		for method, op := range ms {
+			ops++
+			if !op.Documented {
+				t.Errorf("%s %s has no entry in internal/server/apidocs", strings.ToUpper(method), path)
+			}
+			if strings.Contains(strings.ToLower(op.Summary+path), "rate limit") {
+				t.Errorf("the reference should not describe rate limits: %s", path)
+			}
 		}
 	}
-	if op := spec.Paths["/v1/auth/login"]["post"]; op.Security == nil || len(op.Security) != 0 {
-		t.Fatalf("sign-in must be documented as needing no token: %+v", op.Security)
+	if ops < 100 {
+		t.Fatalf("only %d operations documented", ops)
+	}
+	if op := spec.Paths["/v1/auth/login"]["post"]; op.Security == nil || len(op.Security) != 0 || op.Body == nil {
+		t.Fatalf("sign-in must be documented as needing no token and taking a body: %+v", op)
 	}
 	if op := spec.Paths["/v1/conversations"]["get"]; len(op.Security) != 0 {
 		t.Fatalf("conversations must need a token: %+v", op.Security)
 	}
-	if !strings.Contains(spec.Paths["/v1/calls"]["post"].Limit, "30 per 1m0s") {
-		t.Fatalf("the documented limit must be the enforced one: %s", spec.Paths["/v1/calls"]["post"].Limit)
-	}
-	if n := len(spec.Paths); n < 100 {
-		t.Fatalf("only %d paths documented", n)
-	}
 	if code, _, page := get(t, e.Srv.URL+"/v1/docs", nil); code != 200 || !strings.Contains(string(page), "Hub API reference") {
 		t.Fatalf("docs page: %d", code)
+	}
+}
+
+func TestDocsOnlyInConfiguredEnvironments(t *testing.T) {
+	for env, listed := range map[string]string{"dev": "dev,staging,prod", "staging": "dev,staging,prod", "prod": "dev,staging,prod", "production": "prod", "development": "dev", "prod ": "dev,staging"} {
+		c := &config.Config{Env: env, DocsEnvs: strings.Split(listed, ",")}
+		want := strings.Contains(","+listed+",", ","+strings.TrimSpace(env)+",") || env == "production" && strings.Contains(listed, "prod") || env == "development" && strings.Contains(listed, "dev")
+		if c.DocsOn() != want {
+			t.Errorf("env %q with HUB_DOCS_ENVS=%q: DocsOn=%v want %v", env, listed, c.DocsOn(), want)
+		}
+	}
+	if (&config.Config{Env: "prod", DocsEnvs: []string{"dev", "staging"}}).DocsOn() {
+		t.Fatalf("docs must be off in an environment that is not listed")
+	}
+	if (&config.Config{Env: "staging", DocsEnvs: nil}).DocsOn() {
+		t.Fatalf("an empty list turns docs off everywhere")
 	}
 }
 

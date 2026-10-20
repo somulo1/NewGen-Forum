@@ -1,0 +1,128 @@
+{
+ "POST /v1/e2ee/devices": {
+  "summary": "Register this device's public keys",
+  "description": "Every browser or phone makes its own key pair on the device and registers only the public half. The binding signature proves the two public keys belong together and to this account. Private keys never reach the server.",
+  "access": "any signed-in account",
+  "status": 201,
+  "request": {
+   "label": "string, required. A name for the device",
+   "identity_key": "base64, required. X25519 public key",
+   "signing_key": "base64, required. Ed25519 public key",
+   "binding_sig": "base64, required. Ed25519 signature by signing_key over `hub/device/v1|` + identity_key + account id"
+  },
+  "response": {
+   "id": "uuid",
+   "account": "uuid",
+   "label": "string. e.g. \"Chrome on laptop\"",
+   "identity_key": "base64. Public key conversation keys are sealed to",
+   "signing_key": "base64. Public key that verifies this device's signatures",
+   "fingerprint": "string. Short code two people compare to be sure the directory did not swap a key",
+   "created_at": "timestamp",
+   "revoked": "boolean. true once the device was removed"
+  },
+  "errors": {
+   "400": "Keys are not valid base64 keys or the binding signature does not verify"
+  }
+ },
+ "GET /v1/e2ee/devices": {
+  "summary": "List my devices",
+  "description": "Including revoked ones, marked as such.",
+  "access": "any signed-in account",
+  "response": {
+   "devices": [
+    {
+     "id": "uuid",
+     "account": "uuid",
+     "label": "string. e.g. \"Chrome on laptop\"",
+     "identity_key": "base64. Public key conversation keys are sealed to",
+     "signing_key": "base64. Public key that verifies this device's signatures",
+     "fingerprint": "string. Short code two people compare to be sure the directory did not swap a key",
+     "created_at": "timestamp",
+     "revoked": "boolean. true once the device was removed"
+    }
+   ]
+  }
+ },
+ "DELETE /v1/e2ee/devices/{id}": {
+  "summary": "Remove one of my devices",
+  "description": "The device can no longer be sealed keys for. Rotate conversations afterwards if the device was lost.",
+  "access": "any signed-in account",
+  "status": 204,
+  "response": null,
+  "errors": {
+   "404": "Not your device, or already removed"
+  }
+ },
+ "GET /v1/e2ee/people/{id}/devices": {
+  "summary": "A colleague's device public keys",
+  "description": "Lets a client seal a conversation key to every device of a person in the same organization.",
+  "access": "any member of the organization",
+  "response": {
+   "person": "uuid",
+   "account": "uuid",
+   "devices": [
+    {
+     "id": "uuid",
+     "account": "uuid",
+     "label": "string. e.g. \"Chrome on laptop\"",
+     "identity_key": "base64. Public key conversation keys are sealed to",
+     "signing_key": "base64. Public key that verifies this device's signatures",
+     "fingerprint": "string. Short code two people compare to be sure the directory did not swap a key",
+     "created_at": "timestamp",
+     "revoked": "boolean. true once the device was removed"
+    }
+   ]
+  },
+  "errors": {
+   "404": "No such active person"
+  }
+ },
+ "POST /v1/e2ee/people/devices": {
+  "summary": "Device public keys of many colleagues",
+  "description": "One call for a whole group (1 to 5000 people).",
+  "access": "any member of the organization",
+  "request": {
+   "people": "array of uuid, required. Person ids"
+  },
+  "response": {
+   "devices": [
+    {
+     "id": "uuid",
+     "account": "uuid",
+     "label": "string. e.g. \"Chrome on laptop\"",
+     "identity_key": "base64. Public key conversation keys are sealed to",
+     "signing_key": "base64. Public key that verifies this device's signatures",
+     "fingerprint": "string. Short code two people compare to be sure the directory did not swap a key",
+     "created_at": "timestamp",
+     "revoked": "boolean. true once the device was removed",
+     "person": "uuid. The person this device belongs to"
+    }
+   ]
+  }
+ },
+ "PUT /v1/e2ee/backup": {
+  "summary": "Store my encrypted key backup",
+  "description": "An opaque blob the client encrypted with a key from the person's passphrase, so a new device can restore their keys. The server cannot open it.",
+  "access": "any signed-in account",
+  "status": 204,
+  "request": {
+   "blob": "base64, required. 48 bytes to 128 KB",
+   "kdf": "object, required. The key-derivation settings the client needs to reopen it (salt, cost)"
+  },
+  "response": null,
+  "errors": {
+   "400": "That backup is not valid"
+  }
+ },
+ "GET /v1/e2ee/backup": {
+  "summary": "Get my encrypted key backup",
+  "access": "any signed-in account",
+  "response": {
+   "blob": "base64",
+   "kdf": "object"
+  },
+  "errors": {
+   "404": "No backup stored"
+  }
+ }
+}

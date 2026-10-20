@@ -19,8 +19,7 @@ type Tier struct {
 }
 
 // Tiers are the routes that cost more than an ordinary request (they start calls, send mail, move files, fan out events).
-// Every route is also under the per-account and per-address caps below. The API reference (/v1/docs) is built from this
-// table, so what it says is what is enforced.
+// Every route is also under the per-account and per-address caps below.
 var Tiers = map[string]Tier{
 	"POST /v1/calls":                      {30, time.Minute},
 	"POST /v1/calls/{id}/join":            {60, time.Minute},

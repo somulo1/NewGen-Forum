@@ -1,0 +1,565 @@
+{
+ "POST /v1/conversations": {
+  "summary": "Create a conversation",
+  "description": "Makes a forum, private chat (dm), wall, note, project, event or folder. Every conversation is end-to-end encrypted: the creator makes the first conversation key on their device, seals a copy to each member device and sends those copies in `keys`. Creating a private chat that already exists answers 200 with the existing one. Who may create each kind depends on the role's rights (forum: Create forum, wall: Moderate posts, dm: Send private messages, project: Create project, ...). A wall's `audience` decides who is in it (a wall holds at most 5000 people).",
+  "access": "any signed-in member of the organization (token issued with `org`)",
+  "status": 201,
+  "request": {
+   "kind": "string, required. dm | forum | wall | note | ticket | project | event | folder",
+   "name": "string. Required for forums, walls, projects and folders",
+   "about": "string",
+   "color": "string. Hex colour",
+   "privacy": "string. open (anyone in the organization may join a forum) | invite",
+   "members": [
+    "uuid. Person ids to add; you are added automatically"
+   ],
+   "audience": "string. Walls: org | sector | branch | unit | department",
+   "audience_ref": "uuid. Walls: the unit the audience covers",
+   "keys": [
+    {
+     "epoch": "integer, required. Key generation this wrap is for",
+     "device": "uuid, required. The recipient device",
+     "wrapped_key": "base64, required. The conversation key sealed to that device's public key"
+    }
+   ]
+  },
+  "response": {
+   "id": "uuid",
+   "kind": "string. dm | forum | wall | note | sharednote | ticket | project | event | folder",
+   "name": "string. Forum, wall, project or folder name (absent for private chats)",
+   "about": "string. Description",
+   "color": "string. Hex colour",
+   "initials": "string",
+   "privacy": "string. open | invite",
+   "epoch": "integer. Current key generation; messages are sealed under it",
+   "my_role": "string. owner | admin | member | viewer, my role in it (absent if not a member)",
+   "first_epoch": "integer. The earliest key generation I can read",
+   "last_message": "uuid. Latest message id",
+   "last_at": "timestamp. When the latest message arrived",
+   "unread": "integer. Messages I have not read",
+   "members": [
+    {
+     "person": "uuid",
+     "account": "uuid",
+     "name": "string",
+     "initials": "string",
+     "color": "string",
+     "role": "string"
+    }
+   ],
+   "member_count": "integer",
+   "created_at": "timestamp",
+   "audience": "string. Walls only: org | sector | branch | unit | department",
+   "audience_ref": "uuid. Walls only: the structure unit the audience covers"
+  },
+  "errors": {
+   "400": "Unknown kind, missing name (up to 80 characters), a bad colour, or a person without an active account",
+   "403": "Your role lacks the right to create that kind",
+   "409": "keys_incomplete: every member device needs a key; no_devices: set up secure messaging on this device first",
+   "413": "audience_too_large: a wall holds up to 5000 people; make one per branch or department"
+  }
+ },
+ "GET /v1/conversations": {
+  "summary": "List conversations I am in",
+  "description": "Newest activity first. Message bodies are not included.",
+  "access": "any signed-in member of the organization (token issued with `org`)",
+  "query": {
+   "kind": "Only this kind: dm | forum | wall | ...",
+   "open": "1 to list open forums I could join instead of the ones I am in",
+   "limit": "integer. Page size",
+   "before": "timestamp. Page marker: only older than this"
+  },
+  "response": {
+   "conversations": [
+    {
+     "id": "uuid",
+     "kind": "string. dm | forum | wall | note | sharednote | ticket | project | event | folder",
+     "name": "string. Forum, wall, project or folder name (absent for private chats)",
+     "about": "string. Description",
+     "color": "string. Hex colour",
+     "initials": "string",
+     "privacy": "string. open | invite",
+     "epoch": "integer. Current key generation; messages are sealed under it",
+     "my_role": "string. owner | admin | member | viewer, my role in it (absent if not a member)",
+     "first_epoch": "integer. The earliest key generation I can read",
+     "last_message": "uuid. Latest message id",
+     "last_at": "timestamp. When the latest message arrived",
+     "unread": "integer. Messages I have not read",
+     "members": [
+      {
+       "person": "uuid",
+       "account": "uuid",
+       "name": "string",
+       "initials": "string",
+       "color": "string",
+       "role": "string"
+      }
+     ],
+     "member_count": "integer",
+     "created_at": "timestamp",
+     "audience": "string. Walls only: org | sector | branch | unit | department",
+     "audience_ref": "uuid. Walls only: the structure unit the audience covers"
+    }
+   ]
+  }
+ },
+ "GET /v1/conversations/audience-members": {
+  "summary": "Who a wall audience would cover",
+  "description": "Lets a client wrap the conversation key for everyone in the audience before creating the wall.",
+  "access": "any signed-in member of the organization (token issued with `org`)",
+  "query": {
+   "audience": "string. org | sector | branch | unit | department",
+   "ref": "uuid. The unit"
+  },
+  "response": {
+   "people": [
+    "uuid. Person ids in the audience"
+   ]
+  }
+ },
+ "GET /v1/conversations/{id}": {
+  "summary": "Get one conversation",
+  "description": "Includes the member list.",
+  "access": "any signed-in member of the organization (token issued with `org`)",
+  "response": {
+   "id": "uuid",
+   "kind": "string. dm | forum | wall | note | sharednote | ticket | project | event | folder",
+   "name": "string. Forum, wall, project or folder name (absent for private chats)",
+   "about": "string. Description",
+   "color": "string. Hex colour",
+   "initials": "string",
+   "privacy": "string. open | invite",
+   "epoch": "integer. Current key generation; messages are sealed under it",
+   "my_role": "string. owner | admin | member | viewer, my role in it (absent if not a member)",
+   "first_epoch": "integer. The earliest key generation I can read",
+   "last_message": "uuid. Latest message id",
+   "last_at": "timestamp. When the latest message arrived",
+   "unread": "integer. Messages I have not read",
+   "members": [
+    {
+     "person": "uuid",
+     "account": "uuid",
+     "name": "string",
+     "initials": "string",
+     "color": "string",
+     "role": "string"
+    }
+   ],
+   "member_count": "integer",
+   "created_at": "timestamp",
+   "audience": "string. Walls only: org | sector | branch | unit | department",
+   "audience_ref": "uuid. Walls only: the structure unit the audience covers"
+  },
+  "errors": {
+   "404": "Not a member, or it does not exist"
+  }
+ },
+ "POST /v1/conversations/{id}/join": {
+  "summary": "Join an open forum",
+  "description": "Only forums whose privacy is `open`. Afterwards a member with the key must wrap it to your devices (see GET /v1/e2ee/todo).",
+  "access": "any signed-in member of the organization (token issued with `org`)",
+  "status": 204,
+  "response": null,
+  "errors": {
+   "403": "The forum is invite-only"
+  }
+ },
+ "POST /v1/conversations/{id}/members": {
+  "summary": "Add people",
+  "description": "Adding someone means sealing the current conversation key to each of their devices; send those copies in `keys`.",
+  "access": "the conversation's owner or an admin, or a role with the Invite members right. In a shared note only its owner. Not possible for private chats, walls and personal notes",
+  "request": {
+   "people": "array of uuid, required. Person ids",
+   "device": "uuid, required. Your device that made the wraps",
+   "keys": [
+    {
+     "epoch": "integer, required. Key generation this wrap is for",
+     "device": "uuid, required. The recipient device",
+     "wrapped_key": "base64, required. The conversation key sealed to that device's public key"
+    }
+   ]
+  },
+  "response": {
+   "added": "integer. People added"
+  }
+ },
+ "DELETE /v1/conversations/{id}/members/{person}": {
+  "summary": "Remove a person",
+  "description": "Removes them and starts a new key generation: send copies of the new key sealed to the remaining members' devices in `keys`, so the removed person cannot read anything new.",
+  "access": "the conversation's owner or an admin, or a role with the Moderate right; anyone may remove themself (leave). Private chats cannot be left; in a shared note only the owner removes others",
+  "status": 204,
+  "request": {
+   "device": "uuid, required",
+   "keys": [
+    {
+     "epoch": "integer, required. Key generation this wrap is for",
+     "device": "uuid, required. The recipient device",
+     "wrapped_key": "base64, required. The conversation key sealed to that device's public key"
+    }
+   ]
+  },
+  "response": null
+ },
+ "PATCH /v1/conversations/{id}/members/{person}": {
+  "summary": "Change a member's role",
+  "access": "an owner or admin of the conversation",
+  "status": 204,
+  "request": {
+   "role": "string, required. admin | member | viewer"
+  },
+  "response": null
+ },
+ "GET /v1/conversations/{id}/keys": {
+  "summary": "Get my copies of the conversation key",
+  "description": "One copy per key generation, sealed to each of my devices. Open them with the device private key.",
+  "access": "any signed-in member of the organization (token issued with `org`)",
+  "response": {
+   "keys": [
+    {
+     "epoch": "integer",
+     "device": "uuid",
+     "wrapped_key": "base64",
+     "wrapped_by_signing_key": "base64. Signing key of the device that made the wrap, to verify it"
+    }
+   ]
+  }
+ },
+ "POST /v1/conversations/{id}/keys": {
+  "summary": "Store key copies for devices that lack them",
+  "description": "Used by a member who has the key to catch up another member's new device.",
+  "access": "any signed-in member of the organization (token issued with `org`)",
+  "request": {
+   "device": "uuid, required. The device making the wraps",
+   "keys": [
+    {
+     "epoch": "integer, required. Key generation this wrap is for",
+     "device": "uuid, required. The recipient device",
+     "wrapped_key": "base64, required. The conversation key sealed to that device's public key"
+    }
+   ]
+  },
+  "response": {
+   "stored": "integer. Copies stored"
+  }
+ },
+ "GET /v1/conversations/{id}/missing-keys": {
+  "summary": "Which devices still need the key",
+  "description": "Devices of members that have no copy of the current key yet.",
+  "access": "any signed-in member of the organization (token issued with `org`)",
+  "response": {
+   "missing": [
+    {
+     "device": "uuid",
+     "account": "uuid",
+     "identity_key": "base64. The device's public key to seal to",
+     "epoch": "integer"
+    }
+   ]
+  }
+ },
+ "POST /v1/conversations/{id}/rotate": {
+  "summary": "Start a new key generation",
+  "description": "Seals a fresh key to every member device. Do this after removing a person or on suspicion of a leaked key.",
+  "access": "an owner or admin of the conversation",
+  "status": 204,
+  "request": {
+   "device": "uuid, required",
+   "keys": [
+    {
+     "epoch": "integer, required. Key generation this wrap is for",
+     "device": "uuid, required. The recipient device",
+     "wrapped_key": "base64, required. The conversation key sealed to that device's public key"
+    }
+   ]
+  },
+  "response": null
+ },
+ "POST /v1/conversations/{id}/read": {
+  "summary": "Mark read up to a message",
+  "access": "any signed-in member of the organization (token issued with `org`)",
+  "status": 204,
+  "request": {
+   "message": "uuid, required. The newest message I have read"
+  },
+  "response": null
+ },
+ "POST /v1/conversations/{id}/messages": {
+  "summary": "Send a message",
+  "description": "The message is sealed on the device: the sender picks the id (it is part of what the signature covers), chooses the key generation and sends the base64 envelope. The server checks that the sender may post here (forum posting rules, mute, role) and that the bytes look like an envelope; it cannot read the text. An `edit` is a new message of type `edit` whose `reply_to` is the original.",
+  "access": "any signed-in member of the organization (token issued with `org`)",
+  "status": 201,
+  "request": {
+   "id": "uuid, required. Chosen by the sender: a time-ordered UUID v7 made from the device clock",
+   "epoch": "integer, required. The key generation used",
+   "device": "uuid, required. The sender's device",
+   "envelope": "base64, required. Ciphertext plus signature, up to 512 KB",
+   "type": "string, required. text | file | edit | ... 2-20 lowercase letters",
+   "reply_to": "uuid. A message this replies to or edits"
+  },
+  "response": {
+   "id": "uuid",
+   "conversation": "uuid",
+   "sender_account": "uuid",
+   "sender_person": "uuid",
+   "sender_device": "uuid",
+   "sender_name": "string",
+   "epoch": "integer. Key generation it is sealed under",
+   "envelope": "base64. Ciphertext plus the sender's signature; opened only on a member's device",
+   "type": "string. text | file | edit | system ... chosen by the sender, 2-20 lowercase letters",
+   "reply_to": "uuid. The message this answers (an `edit` points at the message it replaces)",
+   "created_at": "timestamp",
+   "deleted": "boolean. true when removed; the envelope is then empty"
+  },
+  "errors": {
+   "400": "Not a valid envelope, unknown type, or the id is not a UUID v7 with a believable time",
+   "403": "posting_limited: the forum rules do not let you post here",
+   "409": "epoch_changed: the key changed, fetch the new key and send again; duplicate: that id was already sent",
+   "429": "More than 120 messages a minute"
+  }
+ },
+ "GET /v1/conversations/{id}/messages": {
+  "summary": "Read message history",
+  "description": "Newest first, as sealed envelopes.",
+  "access": "any signed-in member of the organization (token issued with `org`)",
+  "query": {
+   "before": "uuid. Page marker: messages older than this one",
+   "limit": "integer. Page size"
+  },
+  "response": {
+   "messages": [
+    {
+     "id": "uuid",
+     "conversation": "uuid",
+     "sender_account": "uuid",
+     "sender_person": "uuid",
+     "sender_device": "uuid",
+     "sender_name": "string",
+     "epoch": "integer. Key generation it is sealed under",
+     "envelope": "base64. Ciphertext plus the sender's signature; opened only on a member's device",
+     "type": "string. text | file | edit | system ... chosen by the sender, 2-20 lowercase letters",
+     "reply_to": "uuid. The message this answers (an `edit` points at the message it replaces)",
+     "created_at": "timestamp",
+     "deleted": "boolean. true when removed; the envelope is then empty"
+    }
+   ]
+  }
+ },
+ "GET /v1/conversations/{id}/changes": {
+  "summary": "What changed since a point",
+  "description": "Cheap way to keep an open conversation current: new and removed messages after a marker.",
+  "access": "any signed-in member of the organization (token issued with `org`)",
+  "query": {
+   "since": "timestamp, required. The `next_since` of the previous answer",
+   "after": "uuid. The `next_after` of the previous answer",
+   "limit": "integer"
+  },
+  "response": {
+   "messages": [
+    {
+     "id": "uuid",
+     "conversation": "uuid",
+     "sender_account": "uuid",
+     "sender_person": "uuid",
+     "sender_device": "uuid",
+     "sender_name": "string",
+     "epoch": "integer. Key generation it is sealed under",
+     "envelope": "base64. Ciphertext plus the sender's signature; opened only on a member's device",
+     "type": "string. text | file | edit | system ... chosen by the sender, 2-20 lowercase letters",
+     "reply_to": "uuid. The message this answers (an `edit` points at the message it replaces)",
+     "created_at": "timestamp",
+     "deleted": "boolean. true when removed; the envelope is then empty"
+    }
+   ],
+   "more": "boolean. Ask again with the markers below",
+   "next_since": "timestamp",
+   "next_after": "uuid"
+  }
+ },
+ "DELETE /v1/conversations/{id}/messages/{mid}": {
+  "summary": "Delete a message",
+  "description": "Removes it for everyone: the ciphertext is erased and the message stays as a removed marker. Removing someone else's message is recorded in the audit log.",
+  "access": "the author, or a role with the Moderate right for that kind of conversation",
+  "status": 204,
+  "response": null
+ },
+ "GET /v1/conversations/{id}/rules": {
+  "summary": "Posting rules of a forum",
+  "access": "any signed-in member of the organization (token issued with `org`)",
+  "response": {
+   "post_mode": "string. everyone | roles | list",
+   "roles": [
+    "string. Role keys allowed to post when post_mode is roles"
+   ],
+   "blocked": [
+    "uuid. People who may not post"
+   ],
+   "allowed": [
+    "uuid. People who may post when post_mode is list"
+   ]
+  }
+ },
+ "PUT /v1/conversations/{id}/rules": {
+  "summary": "Set posting rules",
+  "access": "a forum moderator",
+  "status": 204,
+  "request": {
+   "post_mode": "string, required. everyone | roles | list",
+   "roles": [
+    "string"
+   ],
+   "blocked": [
+    "uuid"
+   ],
+   "allowed": [
+    "uuid"
+   ]
+  },
+  "response": null
+ },
+ "GET /v1/e2ee/todo": {
+  "summary": "Key work waiting for me",
+  "description": "Conversations where another member's device lacks the key, or a rotation is due. A client does this in the background when it opens.",
+  "access": "any signed-in member of the organization (token issued with `org`)",
+  "response": {
+   "todo": [
+    {
+     "conversation": "uuid",
+     "kind": "string",
+     "missing_devices": "integer",
+     "rotate": "boolean"
+    }
+   ]
+  }
+ },
+ "POST /v1/containers/{id}/records": {
+  "summary": "Add a record to a project, event, note or folder",
+  "description": "A record is one sealed item: a task, milestone, sprint, risk, standup, comment, calendar entry, RSVP or note. The server enforces who may write it and that the few plain `meta` fields are valid; the content stays sealed. Collections and their `meta`: task {column: backlog|todo|doing|review|done, due: date, assignee: uuid, sprint, priority: low|medium|high}, milestone {due, closed}, sprint {start, end, milestone}, risk {level: Low|Medium|High}, standup {day}, rsvp {going: boolean}, note {book: uuid, pinned: boolean}, entry {date, start, repeat, ...}.",
+  "access": "a member of the container, with the role's right for that collection (e.g. Edit tasks, Manage milestones, Add events)",
+  "status": 201,
+  "request": {
+   "id": "uuid, required. Chosen by the author",
+   "collection": "string, required. note | notebook | task | milestone | sprint | risk | activity | standup | rsvp | comment | entry",
+   "parent": "uuid. Parent record",
+   "epoch": "integer, required",
+   "device": "uuid, required",
+   "envelope": "base64, required. Sealed content",
+   "meta": "object. Plain fields allowed for that collection"
+  },
+  "response": {
+   "id": "uuid",
+   "collection": "string. note | notebook | task | milestone | sprint | risk | activity | standup | rsvp | comment | entry",
+   "container": "uuid. The conversation (project, event, note, folder) it lives in",
+   "parent": "uuid. Parent record, e.g. the task a comment belongs to",
+   "author_account": "uuid",
+   "author_name": "string",
+   "author_person": "uuid",
+   "author_device": "uuid",
+   "epoch": "integer",
+   "envelope": "base64. The sealed content",
+   "meta": "object. The few plain fields the server can see and filter on (see the collection)",
+   "created_at": "timestamp",
+   "updated_at": "timestamp",
+   "deleted": "boolean"
+  },
+  "errors": {
+   "400": "Unknown collection or invalid meta field",
+   "403": "Your role lacks the right for this collection"
+  }
+ },
+ "PUT /v1/containers/{id}/records/{rid}": {
+  "summary": "Replace a record",
+  "description": "Authors may change their own; changing someone else's needs the edit right for the collection (a shared note: the owner and people given edit access).",
+  "access": "the author, or a role with the edit right",
+  "request": {
+   "collection": "string, required",
+   "parent": "uuid",
+   "epoch": "integer, required",
+   "device": "uuid, required",
+   "envelope": "base64, required",
+   "meta": "object"
+  },
+  "response": {
+   "id": "uuid",
+   "collection": "string. note | notebook | task | milestone | sprint | risk | activity | standup | rsvp | comment | entry",
+   "container": "uuid. The conversation (project, event, note, folder) it lives in",
+   "parent": "uuid. Parent record, e.g. the task a comment belongs to",
+   "author_account": "uuid",
+   "author_name": "string",
+   "author_person": "uuid",
+   "author_device": "uuid",
+   "epoch": "integer",
+   "envelope": "base64. The sealed content",
+   "meta": "object. The few plain fields the server can see and filter on (see the collection)",
+   "created_at": "timestamp",
+   "updated_at": "timestamp",
+   "deleted": "boolean"
+  }
+ },
+ "DELETE /v1/containers/{id}/records/{rid}": {
+  "summary": "Delete a record",
+  "access": "the author, or a role with the edit right",
+  "status": 204,
+  "response": null
+ },
+ "GET /v1/containers/{id}/records": {
+  "summary": "List records",
+  "access": "any signed-in member of the organization (token issued with `org`)",
+  "query": {
+   "collection": "string. Only this collection",
+   "since": "timestamp. Only records changed after it",
+   "limit": "integer"
+  },
+  "response": {
+   "records": [
+    {
+     "id": "uuid",
+     "collection": "string. note | notebook | task | milestone | sprint | risk | activity | standup | rsvp | comment | entry",
+     "container": "uuid. The conversation (project, event, note, folder) it lives in",
+     "parent": "uuid. Parent record, e.g. the task a comment belongs to",
+     "author_account": "uuid",
+     "author_name": "string",
+     "author_person": "uuid",
+     "author_device": "uuid",
+     "epoch": "integer",
+     "envelope": "base64. The sealed content",
+     "meta": "object. The few plain fields the server can see and filter on (see the collection)",
+     "created_at": "timestamp",
+     "updated_at": "timestamp",
+     "deleted": "boolean"
+    }
+   ]
+  }
+ },
+ "GET /v1/calendar": {
+  "summary": "Calendar entries I can see between two dates",
+  "description": "Entries from every event I am part of, including repeating ones. Dates are plain; titles and notes are sealed.",
+  "access": "a role with Calendar: View",
+  "query": {
+   "from": "date, required. YYYY-MM-DD",
+   "to": "date, required. YYYY-MM-DD, at most 100 days after from"
+  },
+  "response": {
+   "entries": [
+    {
+     "id": "uuid",
+     "collection": "string. note | notebook | task | milestone | sprint | risk | activity | standup | rsvp | comment | entry",
+     "container": "uuid. The conversation (project, event, note, folder) it lives in",
+     "parent": "uuid. Parent record, e.g. the task a comment belongs to",
+     "author_account": "uuid",
+     "author_name": "string",
+     "author_person": "uuid",
+     "author_device": "uuid",
+     "epoch": "integer",
+     "envelope": "base64. The sealed content",
+     "meta": "object. The few plain fields the server can see and filter on (see the collection)",
+     "created_at": "timestamp",
+     "updated_at": "timestamp",
+     "deleted": "boolean"
+    }
+   ]
+  },
+  "errors": {
+   "400": "Missing dates, or the span is longer than 100 days"
+  }
+ }
+}

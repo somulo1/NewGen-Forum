@@ -1,0 +1,724 @@
+{
+ "POST /v1/projects": {
+  "summary": "Create a project",
+  "description": "Two steps: the device first creates a conversation of kind `project` (POST /v1/conversations) that holds the team and the sealed tasks, then calls this with its id. When the organization's flow f2 needs approval the project waits as `Pending approval` and goes live (`On track`) when the last approver agrees.",
+  "access": "a role with Projects: Create project",
+  "status": 201,
+  "request": {
+   "conversation": "uuid, required. The project conversation",
+   "color": "string. Hex colour",
+   "start": "date. YYYY-MM-DD",
+   "due": "date. YYYY-MM-DD",
+   "budget_pct": "integer. Budget used, percent",
+   "sync": "string",
+   "links": [
+    "string"
+   ]
+  },
+  "response": {
+   "project": {
+    "id": "uuid. Same as the project's conversation id",
+    "code": "string. Project code",
+    "color": "string",
+    "owner": "uuid. Person id",
+    "owner_name": "string",
+    "status": "string. Pending approval | On track | At risk | Off track | Delayed | Done | Cancelled",
+    "start": "date",
+    "due": "date",
+    "budget_pct": "integer. Percent of budget used",
+    "sync": "string",
+    "links": [
+     "string"
+    ],
+    "created_at": "timestamp"
+   },
+   "approval": "object. The approval request when one is needed"
+  },
+  "errors": {
+   "400": "Dates not like 2026-12-15, budget not a percentage, or the project conversation was not created first"
+  }
+ },
+ "GET /v1/projects": {
+  "summary": "My projects",
+  "description": "Projects I am part of.",
+  "access": "a role with Projects: View",
+  "response": {
+   "projects": [
+    {
+     "id": "uuid. Same as the project's conversation id",
+     "code": "string. Project code",
+     "color": "string",
+     "owner": "uuid. Person id",
+     "owner_name": "string",
+     "status": "string. Pending approval | On track | At risk | Off track | Delayed | Done | Cancelled",
+     "start": "date",
+     "due": "date",
+     "budget_pct": "integer. Percent of budget used",
+     "sync": "string",
+     "links": [
+      "string"
+     ],
+     "created_at": "timestamp"
+    }
+   ]
+  }
+ },
+ "PATCH /v1/projects/{id}": {
+  "summary": "Change a project",
+  "description": "Status, due date, budget used, sync and owner. Tasks, milestones, sprints and risks are sealed records: use POST /v1/containers/{id}/records.",
+  "access": "a role with Projects: Manage team to change the owner; Projects: View otherwise",
+  "request": {
+   "status": "string. On track | At risk | Off track | Delayed | Done | Cancelled",
+   "due": "date",
+   "budget_pct": "integer",
+   "sync": "string",
+   "owner": "uuid. The new owner; must be on the project team"
+  },
+  "response": {
+   "id": "uuid. Same as the project's conversation id",
+   "code": "string. Project code",
+   "color": "string",
+   "owner": "uuid. Person id",
+   "owner_name": "string",
+   "status": "string. Pending approval | On track | At risk | Off track | Delayed | Done | Cancelled",
+   "start": "date",
+   "due": "date",
+   "budget_pct": "integer. Percent of budget used",
+   "sync": "string",
+   "links": [
+    "string"
+   ],
+   "created_at": "timestamp"
+  },
+  "errors": {
+   "400": "Not a status from the list, bad date, or the new owner is not on the team",
+   "409": "pending: the project is waiting for approval"
+  }
+ },
+ "GET /v1/settings": {
+  "summary": "Organization settings",
+  "description": "Everything the Settings page shows: profile, security policy, subscription, billing contact, the plans and add-ons on offer, and seats in use.",
+  "access": "a role with Settings: View settings",
+  "response": {
+   "profile": {
+    "name": "string, required. Up to 120 characters",
+    "short": "string, required. Up to 20 characters",
+    "logo": "string. PNG, JPEG, WebP or SVG data URL up to 1 MB",
+    "industry": "string",
+    "size": "string",
+    "website": "string",
+    "email": "string. Contact email",
+    "phone": "string",
+    "address": "string",
+    "city": "string",
+    "country": "string",
+    "timezone": "string. IANA zone like Africa/Nairobi",
+    "language": "string",
+    "currency": "string. Three letter code like KES"
+   },
+   "security": {
+    "mfa": "boolean. Require two-step sign-in",
+    "session": "string. Minutes of inactivity before sign-out, from the list the app offers",
+    "domains": "string. Allowed email domains",
+    "retention": "string. Months to keep records, from the list",
+    "externalSharing": "boolean. Allow sharing outside Hub",
+    "maxFileMB": "string. Largest file attached to a communication, MB",
+    "fileTypes": "string. Allowed extensions, comma separated",
+    "maxVideoMB": "string. Largest video posted in forums, chats and the wall, MB",
+    "userQuotaMB": "string. Default storage per person, MB"
+   },
+   "subscription": {
+    "plan": "string. Plan id from `plans`",
+    "cycle": "string. monthly | annual",
+    "seats": "integer. 1 up to what the plan covers",
+    "autoRenew": "boolean",
+    "renews": "string. Date",
+    "status": "string",
+    "cancelAt": "string. Date like 2026-12-31",
+    "addons": {
+     "<addon id>": "boolean"
+    }
+   },
+   "billing": {
+    "cardBrand": "string",
+    "cardLast4": "string. Only the last four digits are kept",
+    "cardExp": "string. Like 08/28",
+    "holder": "string",
+    "contactEmail": "string",
+    "vat": "string. Tax number"
+   },
+   "plans": [
+    {
+     "id": "string",
+     "name": "string",
+     "price": "integer. Per seat per month in major units",
+     "seats": "integer. Most seats it covers",
+     "storage_gb": "integer"
+    }
+   ],
+   "addons": [
+    {
+     "id": "string",
+     "name": "string",
+     "price": "integer"
+    }
+   ],
+   "seats_in_use": "integer",
+   "delete_after": "timestamp. When a requested deletion will happen"
+  }
+ },
+ "PUT /v1/settings/profile": {
+  "summary": "Change the organization profile",
+  "access": "a role with Settings: Edit organization profile",
+  "status": 204,
+  "request": {
+   "name": "string, required. Up to 120 characters",
+   "short": "string, required. Up to 20 characters",
+   "logo": "string. PNG, JPEG, WebP or SVG data URL up to 1 MB",
+   "industry": "string",
+   "size": "string",
+   "website": "string",
+   "email": "string. Contact email",
+   "phone": "string",
+   "address": "string",
+   "city": "string",
+   "country": "string",
+   "timezone": "string. IANA zone like Africa/Nairobi",
+   "language": "string",
+   "currency": "string. Three letter code like KES"
+  },
+  "response": null,
+  "errors": {
+   "400": "Missing name, bad email, time zone or currency, or an invalid or oversized logo"
+  }
+ },
+ "PUT /v1/settings/security": {
+  "summary": "Change the security policy",
+  "description": "Values for `session`, `retention`, sizes and quotas must come from the lists the app offers.",
+  "access": "a role with Settings: Edit organization profile",
+  "status": 204,
+  "request": {
+   "mfa": "boolean. Require two-step sign-in",
+   "session": "string. Minutes of inactivity before sign-out, from the list the app offers",
+   "domains": "string. Allowed email domains",
+   "retention": "string. Months to keep records, from the list",
+   "externalSharing": "boolean. Allow sharing outside Hub",
+   "maxFileMB": "string. Largest file attached to a communication, MB",
+   "fileTypes": "string. Allowed extensions, comma separated",
+   "maxVideoMB": "string. Largest video posted in forums, chats and the wall, MB",
+   "userQuotaMB": "string. Default storage per person, MB"
+  },
+  "response": null,
+  "errors": {
+   "400": "A value is not one of the allowed choices"
+  }
+ },
+ "PUT /v1/settings/subscription": {
+  "summary": "Change the plan, seats or add-ons",
+  "access": "a role with Settings: Manage subscription",
+  "request": {
+   "plan": "string. Plan id from `plans`",
+   "cycle": "string. monthly | annual",
+   "seats": "integer. 1 up to what the plan covers",
+   "autoRenew": "boolean",
+   "renews": "string. Date",
+   "status": "string",
+   "cancelAt": "string. Date like 2026-12-31",
+   "addons": {
+    "<addon id>": "boolean"
+   }
+  },
+  "response": {
+   "subscription": {
+    "plan": "string. Plan id from `plans`",
+    "cycle": "string. monthly | annual",
+    "seats": "integer. 1 up to what the plan covers",
+    "autoRenew": "boolean",
+    "renews": "string. Date",
+    "status": "string",
+    "cancelAt": "string. Date like 2026-12-31",
+    "addons": {
+     "<addon id>": "boolean"
+    }
+   }
+  },
+  "errors": {
+   "400": "Unknown plan or add-on, seats outside what the plan covers, or a bad cancel date",
+   "409": "seats_in_use: more people are in the organization than the seats asked for"
+  }
+ },
+ "PUT /v1/settings/billing": {
+  "summary": "Change the billing contact and card details",
+  "description": "Only the card brand, last four digits and expiry are stored.",
+  "access": "a role with Settings: Manage subscription",
+  "status": 204,
+  "request": {
+   "cardBrand": "string",
+   "cardLast4": "string. Only the last four digits are kept",
+   "cardExp": "string. Like 08/28",
+   "holder": "string",
+   "contactEmail": "string",
+   "vat": "string. Tax number"
+  },
+  "response": null,
+  "errors": {
+   "400": "Card digits, expiry or email not valid"
+  }
+ },
+ "GET /v1/billing/invoices": {
+  "summary": "Invoices",
+  "access": "a role with Settings: Manage subscription",
+  "response": {
+   "invoices": [
+    {
+     "no": "string. Invoice number",
+     "date": "string",
+     "amount": "integer. Major units",
+     "status": "string"
+    }
+   ]
+  }
+ },
+ "GET /v1/billing/invoices/{no}/etr": {
+  "summary": "Tax invoice (ETR) for an invoice",
+  "description": "Lines, totals, VAT and fiscal fields. `fiscal.integrated` is true only when a fiscal device or KRA eTIMS issued the numbers.",
+  "access": "a role with Settings: Manage subscription",
+  "response": {
+   "kind": "string",
+   "title": "string",
+   "invoice_no": "string",
+   "date": "string",
+   "status": "string",
+   "seller": "object. Seller details",
+   "buyer": {
+    "name": "string, required. Up to 120 characters",
+    "short": "string, required. Up to 20 characters",
+    "logo": "string. PNG, JPEG, WebP or SVG data URL up to 1 MB",
+    "industry": "string",
+    "size": "string",
+    "website": "string",
+    "email": "string. Contact email",
+    "phone": "string",
+    "address": "string",
+    "city": "string",
+    "country": "string",
+    "timezone": "string. IANA zone like Africa/Nairobi",
+    "language": "string",
+    "currency": "string. Three letter code like KES"
+   },
+   "buyer_vat": "string",
+   "lines": [
+    {
+     "desc": "string",
+     "qty": "integer",
+     "net": "number",
+     "vat": "number",
+     "gross": "number"
+    }
+   ],
+   "net": "number",
+   "vat": "number",
+   "gross": "number",
+   "currency": "string",
+   "fiscal": {
+    "cu_serial": "string",
+    "cu_invoice": "string",
+    "signature": "string",
+    "integrated": "boolean",
+    "note": "string"
+   }
+  },
+  "errors": {
+   "404": "No such invoice"
+  }
+ },
+ "GET /v1/settings/widgets": {
+  "summary": "Home widget settings for the organization",
+  "description": "Free-form object the app keeps.",
+  "access": "any signed-in member of the organization (token issued with `org`)",
+  "response": {
+   "<key>": "any. Whatever was saved"
+  }
+ },
+ "PUT /v1/settings/widgets": {
+  "summary": "Save home widget settings",
+  "description": "Replaces the object.",
+  "access": "a role with Home: Manage widget settings",
+  "status": 204,
+  "request": {
+   "<key>": "any. A JSON object up to 32 KB"
+  },
+  "response": null,
+  "errors": {
+   "400": "Too much configuration"
+  }
+ },
+ "POST /v1/settings/deletion": {
+  "summary": "Ask for the organization to be deleted",
+  "description": "Everything is erased 30 days later unless cancelled with DELETE /v1/settings/deletion.",
+  "access": "a role with Settings: Manage subscription",
+  "request": {
+   "confirm": "string, required. The organization's name, exactly"
+  },
+  "response": {
+   "delete_after": "timestamp. When the erasure will happen"
+  },
+  "errors": {
+   "400": "The name does not match"
+  }
+ },
+ "DELETE /v1/settings/deletion": {
+  "summary": "Cancel a requested deletion",
+  "access": "a role with Settings: Manage subscription",
+  "status": 204,
+  "response": null
+ },
+ "GET /v1/security/activity": {
+  "summary": "Who used the system",
+  "description": "Today's active people and who has not been seen for one week or two.",
+  "access": "a role with Security: View alerts",
+  "response": {
+   "day": "string",
+   "today": "integer. People who used the system today",
+   "active": "integer. Active people in the organization",
+   "inactive_1w": [
+    {
+     "person": "uuid",
+     "name": "string",
+     "title": "string",
+     "last_seen": "timestamp. Absent when never"
+    }
+   ],
+   "inactive_2w": [
+    {
+     "person": "uuid",
+     "name": "string",
+     "title": "string",
+     "last_seen": "timestamp"
+    }
+   ]
+  }
+ },
+ "GET /v1/security/alerts": {
+  "summary": "Security alerts",
+  "description": "Raised by the detection rules (see /v1/security/rules).",
+  "access": "a role with Security: View alerts",
+  "query": {
+   "open": "1 for alerts that are not closed"
+  },
+  "response": {
+   "alerts": [
+    {
+     "id": "uuid",
+     "ref": "string",
+     "rule": "string. Rule id, r1 to r8",
+     "rule_name": "string",
+     "severity": "string. High | Medium | Low",
+     "title": "string",
+     "detail": "string",
+     "status": "string. Open | Investigating | Resolved | False alarm",
+     "created_at": "timestamp",
+     "closed_at": "timestamp",
+     "notes": [
+      {
+       "status": "string",
+       "comment": "string",
+       "who": "string",
+       "at": "timestamp"
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "POST /v1/security/alerts/{id}/status": {
+  "summary": "Update an alert",
+  "access": "a role with Security: Resolve alerts",
+  "status": 204,
+  "request": {
+   "status": "string, required. Investigating | Resolved | False alarm",
+   "comment": "string, required. What you found or did, 3 to 1000 characters"
+  },
+  "response": null,
+  "errors": {
+   "400": "Not an allowed status, or the comment is too short or long",
+   "409": "closed: the alert is already closed"
+  }
+ },
+ "GET /v1/security/rules": {
+  "summary": "Detection rules",
+  "description": "r1 repeated failed sign-ins, r2 sign-in from a new country, r3 mass file download, r4 after-hours admin action, r5 role or rights change, r6 secure link opened from an unusual IP, r7 outside sharing spike, r8 tampered records. Each can be switched off or have its severity changed.",
+  "access": "a role with Security: View alerts",
+  "response": {
+   "rules": [
+    {
+     "id": "string",
+     "name": "string",
+     "desc": "string",
+     "severity": "string. The default",
+     "default_on": "boolean",
+     "enabled": "boolean",
+     "sev": "string. The severity in force"
+    }
+   ]
+  }
+ },
+ "PUT /v1/security/rules/{id}": {
+  "summary": "Switch a rule on or off or change its severity",
+  "access": "a role with Security: Manage rules",
+  "status": 204,
+  "request": {
+   "enabled": "boolean, required",
+   "severity": "string, required. High | Medium | Low"
+  },
+  "response": null,
+  "errors": {
+   "400": "Unknown rule or severity"
+  }
+ },
+ "GET /v1/security/blocks": {
+  "summary": "Sign-in blocks",
+  "description": "Times sign-in was stopped after repeated wrong passwords: people of this organization, and addresses blocked for trying accounts that are not members (their email is masked). Blocks lift by themselves.",
+  "access": "a role with Security: View logs",
+  "query": {
+   "days": "integer. 1 to 90, 7 when absent"
+  },
+  "response": {
+   "blocks": [
+    {
+     "at": "timestamp",
+     "until": "timestamp",
+     "kind": "string. account | address",
+     "member": "boolean",
+     "who": "string",
+     "ip": "string",
+     "reason": "string"
+    }
+   ]
+  }
+ },
+ "GET /v1/security/logs": {
+  "summary": "Audit log",
+  "description": "Newest first. The log is hash-chained: entries cannot be changed or removed unnoticed.",
+  "access": "a role with Security: View logs",
+  "query": {
+   "q": "Search text",
+   "module": "Only this module",
+   "result": "Only this result",
+   "flagged": "1 for entries a rule flagged",
+   "from": "timestamp. RFC 3339, e.g. 2026-10-19T08:00:00Z",
+   "to": "timestamp",
+   "before": "timestamp. Page marker",
+   "limit": "integer"
+  },
+  "response": {
+   "logs": [
+    {
+     "id": "uuid",
+     "at": "timestamp",
+     "user": "string",
+     "action": "string",
+     "module": "string",
+     "ip": "string",
+     "location": "string",
+     "result": "string",
+     "rule": "string. The rule that flagged it, when one did"
+    }
+   ]
+  },
+  "errors": {
+   "400": "A date is not RFC 3339"
+  }
+ },
+ "GET /v1/security/logs/export": {
+  "summary": "Export the audit log",
+  "description": "Same filters as the log. The export is itself logged. Cells that start with = + - or @ are escaped so spreadsheets do not run them.",
+  "access": "a role with Security: Export logs",
+  "query": {
+   "q": "Search text",
+   "module": "Only this module",
+   "result": "Only this result",
+   "flagged": "1 for entries a rule flagged",
+   "from": "timestamp. RFC 3339, e.g. 2026-10-19T08:00:00Z",
+   "to": "timestamp",
+   "before": "timestamp. Page marker",
+   "limit": "integer",
+   "format": "csv for CSV; anything else gives an Excel file (.xlsx)"
+  }
+ },
+ "GET /v1/security/integrity": {
+  "summary": "Check the audit log's integrity",
+  "description": "Walks the organization's ledger and reports whether it is intact.",
+  "access": "a role with Security: View logs",
+  "response": {
+   "intact": "boolean. false if anything was altered",
+   "entries": "integer. Ledger entries checked",
+   "broken_at": "integer. Sequence number where the chain breaks (only when not intact)",
+   "reason": "string. Why it breaks (only when not intact)"
+  }
+ },
+ "POST /v1/calls": {
+  "summary": "Start a voice or video call",
+  "description": "`mode` in the answer is `sfu` (a room on a media server: connect a LiveKit client to `sfu.url` with `sfu.token`) or `mesh` (a small peer-to-peer room, up to 8 people: open a WebSocket to `url` with `token`). Private calls are always `mesh`; forum calls and meetings are `sfu` when the deployment has a media server. In a big room people beyond the open-mic size join as listeners until the host brings them on stage. Media is encrypted on the devices with a key made from the conversation's key.",
+  "access": "a role with the matching right (Private calls, Forums: Start calls, Calendar: Start meeting)",
+  "status": 201,
+  "request": {
+   "kind": "string, required. voice | video",
+   "context": "string. dm | forum | meeting | standup | project (meeting when absent)",
+   "conversation": "uuid. The conversation the call belongs to; its members are notified"
+  },
+  "response": {
+   "mode": "string. sfu | mesh",
+   "call": {
+    "id": "uuid",
+    "kind": "string",
+    "context": "string",
+    "conversation": "uuid",
+    "host": "uuid",
+    "host_name": "string",
+    "status": "string. ringing | active | ended | missed | declined",
+    "started_at": "timestamp"
+   },
+   "sfu": {
+    "url": "string. wss:// address of the media server",
+    "token": "string. Join pass for that server",
+    "room": "string",
+    "identity": "string",
+    "can_speak": "boolean. false for listeners",
+    "limit": "integer. Most people in the room",
+    "stage": "integer. Most people speaking at once",
+    "open_mic": "integer. Rooms up to this size: everyone speaks",
+    "role": "string. host | moderator | participant"
+   },
+   "token": "string. mesh only: one-time pass for the signalling socket",
+   "url": "string. mesh only: ws:// address of the signalling service"
+  },
+  "errors": {
+   "400": "Unknown kind or context",
+   "404": "Not in that conversation",
+   "409": "room_full: the room holds its limit",
+   "429": "too_many_calls: the organization is already running its limit of calls",
+   "503": "calls_busy or calls_unavailable: try again in a moment"
+  }
+ },
+ "POST /v1/calls/{id}/join": {
+  "summary": "Join a running call",
+  "description": "Same answer as starting one.",
+  "access": "someone invited, or a member of the call's conversation",
+  "response": {
+   "mode": "string. sfu | mesh",
+   "call": "object. As above",
+   "sfu": "object. As above",
+   "token": "string. mesh only",
+   "url": "string. mesh only"
+  },
+  "errors": {
+   "404": "Not invited",
+   "409": "room_full",
+   "410": "call_over: the call has ended",
+   "423": "room_locked: the host locked the call"
+  }
+ },
+ "POST /v1/calls/{id}/decline": {
+  "summary": "Decline a ringing private call",
+  "access": "the person being called",
+  "status": 204,
+  "response": null,
+  "errors": {
+   "409": "cannot_decline: only a ringing private call can be declined"
+  }
+ },
+ "POST /v1/calls/{id}/control": {
+  "summary": "Host and moderator controls for a big call",
+  "description": "Carried out by the media server.",
+  "access": "the host or a moderator (Forums: Moderate); only the host can end the call or act on the host",
+  "status": 204,
+  "request": {
+   "action": "string, required. mute | cam_off | remove | mute_all | lock | unlock | end | stage_on | stage_off",
+   "identity": "string. The participant's id in the room, for actions on one person"
+  },
+  "response": null,
+  "errors": {
+   "403": "Not a host or moderator, or the action needs the host",
+   "409": "stage_full: the stage already has its limit of speakers"
+  }
+ },
+ "GET /v1/calls/history": {
+  "summary": "My call history",
+  "description": "Newest first.",
+  "access": "any signed-in member of the organization (token issued with `org`)",
+  "query": {
+   "limit": "integer",
+   "before": "timestamp. Page marker"
+  },
+  "response": {
+   "calls": [
+    {
+     "id": "uuid",
+     "kind": "string. voice | video",
+     "context": "string",
+     "conversation": "uuid",
+     "host": "uuid",
+     "host_name": "string",
+     "status": "string. ended | missed | declined | active",
+     "started_at": "timestamp",
+     "answered_at": "timestamp",
+     "ended_at": "timestamp",
+     "duration_seconds": "integer",
+     "direction": "string. in | out",
+     "people": [
+      "string. Names of the others"
+     ]
+    }
+   ]
+  }
+ },
+ "POST /v1/calls/sfu-hook": {
+  "summary": "Notices from the media servers",
+  "description": "Called by the media servers with a signed token; not for integrations. Keeps call history and room counts current.",
+  "access": "a media server holding the shared API key",
+  "status": 204,
+  "request": {
+   "event": "string. room_started | participant_joined | participant_left | room_finished",
+   "room": "object",
+   "participant": "object"
+  },
+  "response": null,
+  "errors": {
+   "401": "bad_signature: not signed by a known media server"
+  }
+ },
+ "GET /healthz": {
+  "summary": "Is the process up",
+  "response": {
+   "ok": "boolean. true"
+  }
+ },
+ "GET /readyz": {
+  "summary": "Are the database and message bus reachable",
+  "description": "For load balancers and monitors.",
+  "response": {
+   "ready": "boolean",
+   "connections": "integer. Open realtime sockets"
+  },
+  "errors": {
+   "503": "db_down or bus_down"
+  }
+ },
+ "GET /v1/dev/outbox": {
+  "summary": "Development mail outbox",
+  "description": "Only exists outside production: shows the emails the dev mailer would have sent (reset codes, invitations).",
+  "query": {
+   "to": "string. Filter by recipient address"
+  },
+  "response": {
+   "messages": [
+    {
+     "to": "string",
+     "subject": "string",
+     "body": "string"
+    }
+   ]
+  }
+ }
+}
