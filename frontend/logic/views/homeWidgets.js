@@ -22,14 +22,11 @@ export function buildHomeWidgets(ctx) {
   const catalog = {
     announcements: { title: 'Announcements', sub: 'From management', tint: '#B8F36B', desc: 'Pinned company news. Staff mark each one as read, so admins can see who has seen it.' },
     events: { title: 'Upcoming events', sub: 'Next few weeks', tint: '#FFB86B', desc: 'Events across the organization with one-tap RSVP.' },
-    clocks: { title: 'World clock', sub: 'Team time zones', tint: '#6EE7C8', desc: 'Live time in the cities your teams work from.' },
     birthdays: { title: 'Celebrations', sub: 'Birthdays & anniversaries', tint: '#F49AC1', desc: 'Who is celebrating today, with a quick way to send wishes.' },
     tickets: { title: 'Tickets', sub: 'Turnaround time tracking', tint: '#FF9B8A', desc: 'Open, overdue and due-soon tickets, the most urgent ones to view, and a quick way to raise a new one.' },
     projects: { title: 'Projects', sub: 'Progress and health', tint: '#7CC4FF', desc: 'Every project with its status, progress and due date, plus a View button into each one.' },
     awards: { title: 'Performance awards', sub: 'Recognition', tint: '#FFD66B', desc: 'Spotlight top performers, show award winners and let staff nominate colleagues.' },
     secureshare: { title: 'Secure share', sub: 'One-time links', tint: '#6EE7C8', desc: 'Share a password or credential through a link that self-destructs after one view.' },
-    wall: { title: 'Community wall', sub: 'Latest posts', tint: '#F49AC1', desc: 'The newest posts from the wall, so nobody misses what colleagues are sharing.' },
-    forums: { title: 'My forums', sub: 'Unread activity', tint: '#7CC4FF', desc: 'Your forums with unread counts. Open any one straight into the side panel.' },
     files: { title: 'Recent files', sub: 'Across your forums', tint: '#C9B6FF', desc: 'The latest documents shared with you.' },
     joiners: { title: 'New joiners', sub: 'This week', tint: '#B8F36B', desc: 'Welcome new colleagues and help them settle in.' },
     sessions: { title: 'Meetings & standups', sub: 'Live & upcoming', tint: '#6EE7C8', desc: 'Live meetings and daily standups you can join, plus a button to start one.' },
@@ -47,8 +44,6 @@ export function buildHomeWidgets(ctx) {
   };
   if (catalog.branches) catalog.branches.desc = 'Branches sit under their sector (if you use sectors) and hold units and departments. Turns on branch dashboards and the Branch manager role.';
   const pillBtn = (on) => 'flex:none;height:30px;padding:0 12px;border-radius:15px;cursor:pointer;font-size:12px;font-weight:600;' + (on ? 'border:0;background:var(--k-2C3D34,#2C3D34);color:var(--k-B8F36B,#B8F36B)' : 'border:1px solid var(--k-2A3832,#2A3832);background:transparent;color:var(--k-E8EFEA,#E8EFEA)');
-  const tz = (zone) => { try { return new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: zone }); } catch (err) { return '--:--'; } };
-  const tzDay = (zone) => { try { return new Date().toLocaleDateString('en-GB', { weekday: 'long', timeZone: zone }); } catch (err) { return ''; } };
   // ---- people-based widgets (real directory data) ----
   const mmdd = (iso) => (iso || '').slice(5, 10);
   const today = todayISO.slice(5, 10);
@@ -71,7 +66,6 @@ export function buildHomeWidgets(ctx) {
     events: calendarW.upcomingEvents(s.events, todayISO).map((e) => ({ id: e.id, mon: new Date(e.date + 'T12:00:00+03:00').toLocaleDateString('en-GB', { month: 'short', timeZone: 'Africa/Nairobi' }).toUpperCase(), day: String(Number(e.date.slice(8, 10))), title: e.title,
       meta: new Date(e.date + 'T12:00:00+03:00').toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'Africa/Nairobi' }) + (e.start ? ' · ' + e.start : '') + (e.forum ? ' · ' + e.forum : ''),
       rsvpLabel: s.rsvp[e.id] ? 'Going' : 'RSVP', rsvpStyle: pillBtn(!!s.rsvp[e.id]), rsvp: () => calendarW.toggleRsvp(this, this.srv, e).catch((x) => this.notify(x.message, '#FF9B8A')) })),
-    clocks: [['Nairobi', 'Africa/Nairobi'], ['London', 'Europe/London'], ['New York', 'America/New_York'], ['Dubai', 'Asia/Dubai']].map(([city, zone]) => ({ city, time: tz(zone), day: tzDay(zone) })),
     // Celebrations and new joiners come from the people directory (birthdays only where the viewer may see them).
     // "Send wish" sends a real private message (end-to-end encrypted like any chat). Whether it was sent is read back from
     // the chat itself, so it stays "Sent" after a reload and never goes twice on the same day.
@@ -102,8 +96,6 @@ export function buildHomeWidgets(ctx) {
     joiners: newJoiners,
     sessions: sessions,
     projects: projects,
-    wall: s.posts.slice(0, 2).map((p) => ({ author: p.author, initials: p.initials, color: p.color, text: (p.text || 'Shared a file').length > 90 ? p.text.slice(0, 90) + '…' : (p.text || 'Shared a file'), likes: p.likes + (s.liked[p.id] ? 1 : 0) })),
-    forums: forums.filter((f) => f.hasUnread).concat(forums.filter((f) => !f.hasUnread)).slice(0, 4),
   };
   // structure widgets follow the organization's structure, not the person's choice
   const LEVELS = ['departments', 'sectors', 'branches', 'units'];

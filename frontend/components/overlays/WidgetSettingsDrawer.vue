@@ -145,14 +145,6 @@
 </div>
 </template>
 
-<template v-if="sw.t.clocks">
-<div style="display: flex; flex-direction: column; gap: 10px">
-<span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--k-9DB0A6,#9DB0A6)">Cities shown</span>
-<div style="display: flex; flex-wrap: wrap; gap: 6px"><span style="padding: 6px 12px; border-radius: 16px; background: var(--k-121B17,#121B17); border: 1px solid var(--k-2A3832,#2A3832); font-size: 13px">Nairobi</span><span style="padding: 6px 12px; border-radius: 16px; background: var(--k-121B17,#121B17); border: 1px solid var(--k-2A3832,#2A3832); font-size: 13px">London</span><span style="padding: 6px 12px; border-radius: 16px; background: var(--k-121B17,#121B17); border: 1px solid var(--k-2A3832,#2A3832); font-size: 13px">New York</span><span style="padding: 6px 12px; border-radius: 16px; background: var(--k-121B17,#121B17); border: 1px solid var(--k-2A3832,#2A3832); font-size: 13px">Dubai</span></div>
-<div style="display: flex; gap: 8px"><input type="text" aria-label="Add a city" placeholder="Add a city" style="flex: 1; min-width: 0; height: 38px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px"><button style="height: 38px; padding: 0 14px; border-radius: 8px; border: 1px dashed var(--k-4A5C54,#4A5C54); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer">Add</button></div>
-</div>
-</template>
-
 <template v-if="sw.t.branches">
 <div style="display: flex; flex-direction: column; gap: 10px">
 <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--k-9DB0A6,#9DB0A6)">Branches</span>
