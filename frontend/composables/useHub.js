@@ -42,6 +42,8 @@ export function useHubShell() {
   if (logic.state.section !== start) logic.setState({ section: start });
 
   const known = (p) => Object.keys(sectionRoutes).some((k) => sectionRoutes[k] === p);
+  // Every page change swaps the session's tokens for new ones, so a copied token goes stale within one click.
+  watch(() => route.path, () => { try { const be = useBackend(); if (be.session()) be.rotate().catch(() => {}); } catch (e) { /* not signed in */ } });
   watch(() => route.path, (p) => {
     if (!known(p)) return;
     const s = sectionFor(p);

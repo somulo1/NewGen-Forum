@@ -24,13 +24,13 @@ export function buildCalendar(ctx) {
   const monthShift = (d) => { let y = cy, m = cmn + d; if (m < 1) { m = 12; y--; } if (m > 12) { m = 1; y++; } return y + '-' + (m < 10 ? '0' : '') + m; };
   const chipStyleC = (c) => 'display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:2px 6px;border-radius:5px;font-size:10px;font-weight:600;background:' + c + '26;color:' + c;
   // Past items are crossed out. Upcoming ones can be closed, but only by the person who set them.
-  const ME = 'Samwel Okoth Omulo';
+  const ME = this.srv ? this.srv.me.name : 'Samwel Okoth Omulo';   // who the signed-in person is, as events name their organizer
   const nowHM = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Nairobi', hour12: false });
   const isPast = (e, iso) => iso < todayISO || (iso === todayISO && !!(e.end || e.start) && (e.end || e.start) < nowHM);
   const isClosed = (e, iso) => (e.closedDates || []).indexOf(iso) !== -1;
   const ended = (e, iso) => isPast(e, iso) || isClosed(e, iso);
   const isMine = (e) => e.type !== 'Deadline' && (e.by === ME || e.by === 'Sam');
-  const joinEvent = (e) => this.startCall(e.type === 'Standup' ? 'voice' : 'video', e.title, e.title.split(' ').map((x) => x[0]).join('').slice(0, 2).toUpperCase(), typeColor[e.type], e.people, null, e.container || null, e.by && e.by !== 'Samwel Okoth Omulo' ? 'in' : 'out');
+  const joinEvent = (e) => this.startCall(e.type === 'Standup' ? 'voice' : 'video', e.title, e.title.split(' ').map((x) => x[0]).join('').slice(0, 2).toUpperCase(), typeColor[e.type], e.people, null, e.container || null, e.by && e.by !== ME && e.by !== 'Sam' ? 'in' : 'out');
   const cal = {
     monthLabel: new Date(firstISO + 'T12:00:00+03:00').toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'Africa/Nairobi' }),
     prevMonth: () => { this.setState({ calMonth: monthShift(-1) }); calendarW.ensureMonth(this, this.srv, monthShift(-1)); }, nextMonth: () => { this.setState({ calMonth: monthShift(1) }); calendarW.ensureMonth(this, this.srv, monthShift(1)); },
@@ -111,9 +111,32 @@ export function buildCalendar(ctx) {
       C.t(e.title, { strong: true, sub: e.forum ? e.forum + ' forum' : '' }), C.b(e.type, typeColor[e.type]), C.t(fmtDay(e.date), { fv: e.date, nowrap: true }),
       C.t(e.start + '–' + e.end, { nowrap: true, mono: true }), C.t(e.repeat === 'None' ? 'Once' : e.repeat),
       { kind: 'avatars', list: e.people.slice(0, 5).map(personOf), sub: e.people.length + (e.people.length === 1 ? ' person' : ' people'), fv: '' },
-      C.t(e.by === 'Samwel Okoth Omulo' ? 'You' : e.by, { fv: e.by === 'Samwel Okoth Omulo' ? 'You' : e.by }),
+      C.t(e.by === ME || e.by === 'Sam' ? 'You' : e.by, { fv: e.by === ME || e.by === 'Sam' ? 'You' : e.by }),
       C.a([{ label: 'Join', kind: 'primary', run: () => joinEvent(e) }, { label: 'Cancel', kind: 'danger', run: () => { calendarW.remove(this, this.srv, e).catch((x) => this.notify(x.message, '#FF9B8A')); this.notify('"' + e.title + '" cancelled. Participants were told.', '#7CC4FF'); } }])
     ] })) };
+  // The Home page's "Meetings & standups": the real meetings and standups on this person's calendar for the next 7 days
+  // (a repeating one shows once, at its next time), live while it is on.
+  const repeatName = { Daily: 'every day', Weekdays: 'on weekdays', Weekly: 'every week' };
+  const sessions = [];
+  const seen = new Set();
+  for (let k = 0; k < 7; k++) {
+    const iso = isoAdd(todayISO, k);
+    meetingEvents.forEach((e) => {
+      if (seen.has(e.id) || !occurs(e, iso) || isClosed(e, iso) || (k === 0 && isPast(e, iso))) return;
+      seen.add(e.id);
+      const live = k === 0 && !!e.start && e.start <= nowHM && (!e.end || nowHM < e.end);
+      const day = k === 0 ? 'Today' : k === 1 ? 'Tomorrow' : fmtDay(iso).split(' ').slice(0, 2).join(' ');
+      const mine = isMine(e);
+      const going = !!s.rsvp[e.id];
+      const pill = (on) => 'flex:none;height:30px;padding:0 12px;border-radius:15px;cursor:pointer;font-size:12px;font-weight:600;' + (on ? 'border:0;background:var(--k-2C3D34,#2C3D34);color:var(--k-B8F36B,#B8F36B)' : 'border:1px solid var(--k-2A3832,#2A3832);background:transparent;color:var(--k-E8EFEA,#E8EFEA)');
+      sessions.push({ id: e.id, iso, start: e.start || '', title: e.title, type: e.type, color: typeColor[e.type], initials: e.title.split(' ').map((x) => x[0]).join('').slice(0, 2).toUpperCase(),
+        when: (live ? 'Live now' + (e.end ? ' · until ' + e.end : '') : day + ' ' + e.start) + (e.repeat && e.repeat !== 'None' ? ' · ' + (repeatName[e.repeat] || e.repeat.toLowerCase()) : '') + (e.forum ? ' · ' + e.forum : ''),
+        live, btn: live ? 'Join now' : mine || !this.srv || !e.container ? '' : going ? 'Going' : 'RSVP',
+        btnStyle: live ? 'flex:none;height:30px;padding:0 14px;border-radius:15px;border:0;background:#B8F36B;color:#0F1714;cursor:pointer;font-size:12px;font-weight:700' : pill(going),
+        join: live ? () => joinEvent(e) : () => calendarW.toggleRsvp(this, this.srv, e).catch((x) => this.notify(x.message || 'Could not save your answer.', '#FF9B8A')) });
+    });
+  }
+  sessions.sort((a, b) => (a.live === b.live ? (a.iso + a.start).localeCompare(b.iso + b.start) : a.live ? -1 : 1));
   const meetingsSummary = meetingEvents.length + ' meeting' + (meetingEvents.length === 1 ? '' : 's') + ' scheduled · ' + meetingEvents.filter((e) => e.people.length > 0).length + ' with participants';
-  return { cal, calItems, ev, joinEvent, meetingsSummary, meetingsTable, occurs, openEv, titleOf };
+  return { cal, calItems, ev, joinEvent, meetingsSummary, sessions: sessions.slice(0, 4), meetingsTable, occurs, openEv, titleOf };
 }

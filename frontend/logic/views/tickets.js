@@ -153,15 +153,7 @@ export function buildTickets(ctx) {
     { key: 'nearing', label: 'Before the TAT runs out', desc: 'Warn the handler when time is nearly up.' },
     { key: 'assigned', label: 'When a ticket is assigned or handed over', desc: 'Tell the new handler.' }
   ].map((r) => ({ ...r, checked: !!ts.notify[r.key], toggle: () => setTs((t) => ({ notify: { ...t.notify, [r.key]: !t.notify[r.key] } })) }));
-  const files = [
-    { kind: 'PDF', color: '#FF9B8A', name: 'Leave policy 2026', meta: 'HR · v3 · 2 days ago' },
-    { kind: 'XLS', color: '#B8F36B', name: 'Q3 budget tracker', meta: 'Finance · v12 · today' },
-    { kind: 'DOC', color: '#7CC4FF', name: 'Onboarding guide', meta: 'HR · v5 · last week' },
-    { kind: 'PNG', color: '#FFB86B', name: 'Network diagram v3', meta: 'IT Operations · 3 h ago' },
-    { kind: 'PPT', color: '#F49AC1', name: 'Town hall slides', meta: 'Management · yesterday' },
-    { kind: 'ZIP', color: '#6EE7C8', name: 'Brand assets', meta: 'Marketing · last month' }
-  ];
   const people = [];
   const defaultCats = ts.cats.map((c) => ({ name: c.name, tat: tatHours(c.name) }));
-  return { defaultCats, deskStats, deskTickets, myTicketStats, myTickets, badge, chip, cur_t, dayH, files, ini, nOpen, nOver, nSoon, notifList, notifyRules, ntCats, ntPrios, pColor, pauseRules, people, setTs, tagNames, tagPeople, tatText, ticketStats, tickets, tk, ts, tsetCats };
+  return { defaultCats, deskStats, deskTickets, myTicketStats, myTickets, badge, chip, cur_t, dayH, ini, nOpen, nOver, nSoon, notifList, notifyRules, ntCats, ntPrios, pColor, pauseRules, people, setTs, tagNames, tagPeople, tatText, ticketStats, tickets, tk, ts, tsetCats };
 }

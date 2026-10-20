@@ -28,10 +28,16 @@ export async function load(logic, srv) {
   const t = todayISO();
   await fetchRange(logic, srv, addDays(t, -30), addDays(t, 69));
   ['-1', '0', '1', '2'].forEach((d) => srv.calLoaded.add(monthShift(t.slice(0, 7), +d)));
-  await loadRsvps(logic, srv, upcomingEvents(logic.state.events, t)).catch(() => {});
+  const asked = new Map([...upcomingEvents(logic.state.events, t), ...sessionEvents(logic.state.events, t)].map((e) => [e.id, e]));
+  await loadRsvps(logic, srv, [...asked.values()].slice(0, 60)).catch(() => {});
 }
 
 // The Upcoming events widget: the next few one-off events and meetings on this person's calendar.
+// Meetings and standups coming up (including repeating ones): the Home page asks for the person's RSVP on each.
+export function sessionEvents(events, today) {
+  return events.filter((e) => (e.type === 'Meeting' || e.type === 'Standup') && e.container && (e.repeat !== 'None' || e.date >= today));
+}
+
 export function upcomingEvents(events, today) {
   return events.filter((e) => (e.type === 'Event' || e.type === 'Meeting') && e.repeat === 'None' && e.date >= today && !(e.closedDates || []).length).sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start)).slice(0, 3);
 }

@@ -62,6 +62,9 @@ func TestNotesVaultIsPrivateAndProjectsEnforceRights(t *testing.T) {
 	if len(got) != 1 || got[0].(map[string]any)["deleted"] != true || got[0].(map[string]any)["envelope"] != nil {
 		t.Fatalf("deleted note still readable: %v", got)
 	}
+	// the unsaved text of the Home page's "My notes" box is a private draft in the same vault, and can be taken away again
+	dr := a.record(t, e, org, vid, 1, key, "draft", "half a thought", map[string]any{}, 201)
+	e.MustDo(204, "DELETE", "/containers/"+vid+"/records/"+dr["id"].(string), nil, a.Access)
 
 	// a project: Amy (staff) may edit tasks but not manage milestones
 	pk, _ := e2ee.NewConversationKey()

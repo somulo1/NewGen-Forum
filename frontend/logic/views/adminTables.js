@@ -51,15 +51,27 @@ export function buildAdminTables(ctx) {
   // Sign-ins that were stopped this week: people of the organization locked out after wrong passwords, and addresses that kept
   // trying (including emails nobody owns). Blocks lift by themselves after two minutes; the record stays.
   const blocksTable = { id: 'blocks', pageSize: 12, minWidth: '980px', emptyText: 'Nobody was blocked this week.',
-    cols: [{ label: 'When', filter: 'date' }, { label: 'Who', filter: 'text' }, { label: 'Kind', filter: 'select' }, { label: 'Address', filter: 'text' }, { label: 'Reason', filter: 'text' }, { label: 'Status', filter: 'select' }],
+    cols: [{ label: 'When', filter: 'date' }, { label: 'Who', filter: 'text' }, { label: 'Kind', filter: 'select' }, { label: 'Address', filter: 'text' }, { label: 'Reason', filter: 'text' }, { label: 'Status', filter: 'select' }, { label: '', align: 'right' }],
     rows: (s.signBlocks || []).map((b) => {
       const at = new Date(b.at), until = new Date(b.until), lifted = until.getTime() <= Date.now();
       const iso = b.at.slice(0, 10);
       return { cells: [C.t(at.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ' · ' + at.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }), { fv: iso, nowrap: true }),
         C.t(b.who, { strong: true }), C.b(b.member ? 'Organization user' : 'Not a user', b.member ? '#7CC4FF' : '#FFB86B', { fv: b.member ? 'Organization user' : 'Not a user' }),
         C.t(b.ip || '—', { mono: true, nowrap: true }), C.t(b.reason),
-        C.b(lifted ? 'Unlocked automatically' : 'Blocked until ' + until.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }), lifted ? '#B8F36B' : '#FF9B8A', { fv: lifted ? 'Unlocked automatically' : 'Blocked' })] };
+        C.b(lifted ? 'Unlocked automatically' : 'Blocked until ' + until.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }), lifted ? '#B8F36B' : '#FF9B8A', { fv: lifted ? 'Unlocked automatically' : 'Blocked' }),
+        C.a([{ label: 'History', kind: 'primary', run: () => this.setState({ blockOpen: { who: b.who, member: b.member, ip: b.ip } }) }])] };
     }) };
+  // The history of one blocked person (or address): every block this week, and for members their sign-in log entries.
+  const bo = s.blockOpen;
+  const fmtAt = (ms) => new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ' · ' + new Date(ms).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  const blockHistory = bo ? (() => {
+    const mine = (s.signBlocks || []).filter((b) => (bo.member ? b.who === bo.who && b.member : b.who === bo.who || (bo.ip && b.ip === bo.ip)));
+    const entries = mine.map((b) => ({ at: new Date(b.at).getTime(), text: 'Blocked: ' + b.reason, sub: 'From ' + (b.ip || 'unknown address') + ' · ' + (new Date(b.until).getTime() <= Date.now() ? 'unlocked automatically' : 'blocked until ' + new Date(b.until).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })), color: '#FF9B8A' }));
+    const logs = bo.member ? (this.baseLogs || []).filter((l) => l.user === bo.who && l.module === 'Auth').map((l) => ({ at: Date.now() - l.ago * 60000, text: l.action, sub: (l.ip || '') + (l.loc ? ' · ' + l.loc : '') + ' · ' + l.result, color: l.result === 'Success' ? '#B8F36B' : '#FFB86B' })) : [];
+    const all = entries.concat(logs).sort((a, b) => b.at - a.at).map((e) => ({ ...e, when: fmtAt(e.at) }));
+    const ips = [...new Set(mine.map((b) => b.ip).filter(Boolean))];
+    return { open: true, who: bo.who, kind: bo.member ? 'Organization user' : 'Not a user', summary: mine.length + (mine.length === 1 ? ' block' : ' blocks') + ' this week' + (ips.length ? ' · from ' + ips.join(', ') : ''), entries: all, none: all.length === 0, close: () => this.setState({ blockOpen: null }) };
+  })() : { open: false };
   const logsTable = { id: 'logs', pageSize: 12, minWidth: '1120px', emptyText: 'No log entries match.',
     cols: [{ label: 'When', filter: 'date' }, { label: 'User', filter: 'text' }, { label: 'Action', filter: 'text' }, { label: 'Module', filter: 'select' }, { label: 'IP · Location', filter: 'text' }, { label: 'Result', filter: 'select' }, { label: 'Flag', filter: 'select' }, { label: '', align: 'right' }],
     rows: logsRange.map((l) => {
@@ -202,5 +214,5 @@ export function buildAdminTables(ctx) {
     recs: ntRecs.map((r) => ({ label: r.name, pick: () => this.setState((x) => ({ nt: { ...x.nt, toType: ntType, toName: r.name } })), style: chip(ntName === r.name) })),
     recsLabel: ntType === 'desk' ? '' : 'Send to ' + LEVEL_LABEL[ntType].toLowerCase(),
     summary: ntType === 'desk' ? 'This organization has no departments, units, branches or sectors, so tickets go to the ticket desk.' : 'It will show on the ' + LEVEL_LABEL[ntType].toLowerCase() + ' dashboard of ' + ntName + '.' };
-  return { newRoleForm, newRightForm, newModuleForm, ntCats, ntCatSel, deskCats, deskTable, addToRole, alertsTable, approvalsTable, flowsTable, logsTable, blocksTable, blocksTable, membersTable, ntTargets, peopleSummary, peopleTable, userActions, rightsHint, rightsTable, roleBar, rolesTable, rolesTabs, rolesView, rulesTable, setRoleSel, ticketsTable };
+  return { newRoleForm, newRightForm, newModuleForm, ntCats, ntCatSel, deskCats, deskTable, addToRole, alertsTable, approvalsTable, flowsTable, logsTable, blocksTable, blockHistory, blocksTable, membersTable, ntTargets, peopleSummary, peopleTable, userActions, rightsHint, rightsTable, roleBar, rolesTable, rolesTabs, rolesView, rulesTable, setRoleSel, ticketsTable };
 }

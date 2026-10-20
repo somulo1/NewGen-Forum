@@ -147,15 +147,9 @@ export function buildWall(ctx) {
   const canPost = s.draft.trim().length > 0 && (!s.wpoll || pollReady) || s.wfiles.length > 0;
   const pw = Math.min(s.pw, this.panelMax());
   const panelStyle = 'position:relative;flex:0 0 ' + pw + 'px;width:' + pw + 'px;max-width:60%;min-height:0;box-sizing:border-box;margin:12px;border-radius:22px;border:1px solid var(--k-2A3832,#2A3832);background:var(--k-131D19,#131D19);box-shadow:0 12px 36px rgba(0,0,0,0.35);display:flex;flex-direction:column;overflow:hidden';
-  const sessions = [
-    { title: 'IT daily standup', forum: 'IT Operations', initials: 'IT', color: '#B8F36B', when: 'Weekdays 9:15', live: false, btn: 'Remind me' },
-    { title: 'Sprint review', forum: 'Product Builders', initials: 'PB', color: '#7CC4FF', when: 'Now', live: true, btn: 'Join now' },
-    { title: 'Choir rehearsal (online)', forum: 'Choir & Worship', initials: 'CW', color: '#F49AC1', when: 'Thu 5:30pm', live: false, btn: 'RSVP' },
-    { title: 'IT town hall', forum: 'IT Operations', initials: 'IT', color: '#B8F36B', when: 'Fri 10:00', live: false, btn: 'RSVP' }
-  ].map((x) => ({ ...x, join: x.live ? () => this.startCall('video', x.title, x.initials, x.color) : () => this.notify('RSVP sent for ' + x.title + ' (' + x.when + ').', '#7CC4FF'), btnStyle: 'height:40px;padding:0 18px;border-radius:20px;cursor:pointer;font-weight:600;' + (x.live ? 'border:0;background:#B8F36B;color:#0F1714' : 'border:1px solid var(--k-2A3832,#2A3832);background:transparent;color:var(--k-E8EFEA,#E8EFEA)') }));
   const prio = (p) => {
     const c = { High: '#FF9B8A', Medium: '#FFB86B', Low: '#9DB0A6' }[p];
     return 'padding:3px 10px;border-radius:12px;font-size:12px;font-weight:600;border:1px solid ' + c + ';color:' + c;
   };
-  return { canPost, moments, panelStyle, posts, prio, pw, sessions, sharedViews };
+  return { canPost, moments, panelStyle, posts, prio, pw, sharedViews };
 }

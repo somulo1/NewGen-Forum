@@ -35,6 +35,7 @@ type collection struct {
 var collections = map[string]collection{
 	"note":      {kinds: []string{"note", "sharednote"}, authorOwn: true, meta: map[string]string{"book": "uuid", "pinned": "bool"}},
 	"notebook":  {kinds: []string{"note"}, authorOwn: true},
+	"draft":     {kinds: []string{"note"}, authorOwn: true}, // the unsaved text in the Home page's "My notes" box
 	"task":      {kinds: []string{"project"}, create: [2]string{"projects", "Edit tasks"}, edit: [2]string{"projects", "Move tasks"}, authorOwn: true, own: [2]string{"projects", "Edit own tasks"}, meta: map[string]string{"column": "enum:backlog,todo,doing,review,done", "due": "date", "assignee": "uuid", "sprint": "str", "priority": "enum:low,medium,high"}},
 	"milestone": {kinds: []string{"project"}, create: [2]string{"projects", "Manage milestones"}, edit: [2]string{"projects", "Manage milestones"}, meta: map[string]string{"due": "date", "closed": "bool"}},
 	"sprint":    {kinds: []string{"project"}, create: [2]string{"projects", "Manage milestones"}, edit: [2]string{"projects", "Manage milestones"}, meta: map[string]string{"start": "date", "end": "date", "milestone": "uuid"}},

@@ -60,7 +60,8 @@ async function readVault(srv) {
   const books = opened.filter((x) => x.r.collection === 'notebook' && x.pl).map(({ r, pl }) => ({ id: r.id, name: pl.name || 'Notebook', color: pl.color || COLORS[0], _t: Date.parse(r.created_at) }))
     .sort((a, b) => a._t - b._t).map(({ _t, ...b }) => b);
   const notes = opened.filter((x) => x.r.collection === 'note' && x.pl).map(({ r, pl }) => ({ id: r.id, book: r.meta.book || '', title: pl.title || '', body: pl.body || '', updated: Date.parse(r.updated_at || r.created_at), pinned: !!r.meta.pinned }));
-  return { books, notes };
+  const d = opened.find((x) => x.r.collection === 'draft' && x.pl);
+  return { books, notes, draft: d ? { id: d.r.id, text: d.pl.text || '' } : null };
 }
 
 // One shared note: its record, its members and what I may do.
@@ -108,8 +109,11 @@ export async function load(logic, srv) {
   srv.sharedConvs = new Set(shared.map((n) => n.container));
   const notes = vault.notes.concat(shared);
   srv.noteSnap = snapshot(notes, books);
+  // the half-written text in the Home page's "My notes" box comes back where it was left, on any device
+  srv.draftId = vault.draft ? vault.draft.id : '';
+  srv.draftText = vault.draft ? vault.draft.text : '';
   srv.applyingNotes = true;
-  logic.setState({ noteBooks: books, notes });
+  logic.setState({ noteBooks: books, notes, note: srv.draftText });
   srv.applyingNotes = false;
   watch(logic, srv);
   const rt = srv.rt || (srv.rt = connectRealtime(srv));
@@ -133,6 +137,20 @@ async function reloadShared(logic, srv, conv) {
 
 async function flush(logic, srv) {
   const { notes, noteBooks } = logic.state;
+  // the unsaved text in the Home page's "My notes" box (empty text removes the draft)
+  const text = logic.state.note || '';
+  if (text !== srv.draftText) {
+    srv.draftText = text;
+    if (text.trim()) {
+      const create = !srv.draftId;
+      if (create) srv.draftId = newId();
+      await put(srv, srv.noteVault, 'draft', srv.draftId, { text }, {}, create);
+    } else if (srv.draftId) {
+      const id = srv.draftId;
+      srv.draftId = '';
+      await ask(srv, 'DELETE', `/containers/${srv.noteVault}/records/${id}`).catch(() => {});
+    }
+  }
   const now = snapshot(notes, noteBooks);
   const before = srv.noteSnap;
   srv.noteSnap = now;
