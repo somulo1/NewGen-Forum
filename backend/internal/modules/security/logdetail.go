@@ -34,6 +34,7 @@ type AlertRef struct {
 	Title    string `json:"title"`
 	Severity string `json:"severity"`
 	Status   string `json:"status"`
+	Detail   string `json:"detail"` // what exactly happened, as the alert says it
 }
 
 func (m *Module) LogDetail(ctx context.Context, p *tenant.Principal, id uuid.UUID) (*LogDetail, error) {
@@ -62,7 +63,7 @@ func (m *Module) LogDetail(ctx context.Context, p *tenant.Principal, id uuid.UUI
 				d.Sealed = &ok
 				d.Hash, d.Prev = hex.EncodeToString(hash), hex.EncodeToString(prev)
 				var a AlertRef
-				if err := tx.QueryRow(ctx, `select ref, title, severity, status from hub.alerts where ledger_seq=$1 order by created_at limit 1`, *seq).Scan(&a.Ref, &a.Title, &a.Severity, &a.Status); err == nil {
+				if err := tx.QueryRow(ctx, `select ref, title, severity, status, detail from hub.alerts where ledger_seq=$1 order by created_at limit 1`, *seq).Scan(&a.Ref, &a.Title, &a.Severity, &a.Status, &a.Detail); err == nil {
 					d.Alert = &a
 				}
 			}
