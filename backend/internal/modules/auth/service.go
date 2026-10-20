@@ -234,6 +234,9 @@ func (s *Service) Login(ctx context.Context, in LoginIn) (*Tokens, error) {
 		if a.LockedUntil != nil && a.LockedUntil.After(time.Now()) {
 			loginErr = errLocked
 			ev.action, ev.rslt = "Sign-in blocked: account locked", "Blocked"
+			// make sure this lock has a record for the Security page (one is kept while it lasts), even when it began
+			// before blocks were recorded
+			ev.locked = a.LockedUntil
 			return nil
 		}
 		if !crypto.VerifyPassword(in.Password, a.PassHash) {

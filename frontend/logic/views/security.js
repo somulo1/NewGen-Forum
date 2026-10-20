@@ -100,7 +100,12 @@ export function buildSecurity(ctx) {
     kpis: [
       { label: 'Open alerts', n: openAlerts.length, color: '#FF9B8A', sub: openAlerts.filter((a) => a.sev === 'High').length + ' high severity' },
       { label: 'Failed sign-ins (24 h)', n: allLogs.filter((l) => l.result === 'Failed' && l.ago < 1440).length, color: '#FFB86B', sub: 'Across ' + new Set(allLogs.filter((l) => l.result === 'Failed').map((l) => l.user)).size + ' account' },
-      { label: 'Blocked attempts', n: allLogs.filter((l) => l.result === 'Blocked').length, color: '#7CC4FF', sub: 'Country and lockout rules' },
+      this.srv ? (() => {
+        // sign-ins that were stopped in the last 24 hours: lockouts after wrong passwords, and addresses that kept trying
+        const day = (s.signBlocks || []).filter((b) => Date.now() - new Date(b.at).getTime() < 86400000);
+        const now = day.filter((b) => new Date(b.until).getTime() > Date.now()).length;
+        return { label: 'Blocked sign-ins (24 h)', n: day.length, color: '#7CC4FF', sub: now ? now + ' blocked right now' : 'None blocked now' };
+      })() : { label: 'Blocked attempts', n: allLogs.filter((l) => l.result === 'Blocked').length, color: '#7CC4FF', sub: 'Country and lockout rules' },
       this.srv ? { label: 'Sign-ins (24 h)', n: allLogs.filter((l) => l.action === 'Signed in' && l.ago < 1440).length, color: '#B8F36B', sub: new Set(allLogs.filter((l) => l.action === 'Signed in' && l.ago < 1440).map((l) => l.user)).size + ' people' } : { label: 'Active sessions', n: 186, color: '#B8F36B', sub: '3 on new devices' }
     ],
     bars: Array.from({ length: 24 }, (_, i) => { const h = 23 - i; const v = this.srv ? Math.min(18, allLogs.filter((l) => Math.floor(l.ago / 60) === h).length) : [3, 2, 2, 1, 1, 2, 4, 9, 14, 16, 15, 13, 12, 14, 15, 13, 11, 8, 6, 5, 4, 4, 3, 3][(i + 5) % 24]; return { style: 'flex:1;border-radius:3px 3px 0 0;height:' + (12 + v * 4.6) + '%;background:' + (flaggedHours[h] ? '#FF9B8A' : '#2C3D34') }; }),
