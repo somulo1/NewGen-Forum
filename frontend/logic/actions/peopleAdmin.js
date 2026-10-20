@@ -1,44 +1,29 @@
-import { useAccounts } from '~/composables/useAccounts';
+import * as peopleW from '~/logic/server/widgets/people.js';
+
+// Connected to the server, an account's status (active, inactive, blocked, deleted) and password resets are the server's: they
+// are saved in the database, take effect at once on every device, and are checked against the rights of whoever does them.
+async function serverStatus(app, id, action, done) {
+  const person = app.dir.find((p) => p.id === id);
+  if (!person) { app.notify('That person is no longer in the directory.', '#FF9B8A'); app.setState({ userActionOpen: null, userResetTemp: '' }); return; }
+  try {
+    await app.srv.request('POST', `/people/${person.uid}/status`, { action });
+    await peopleW.load(app, app.srv);
+    app.setState({ userActionOpen: null, userResetTemp: '' });
+    app.notify(done(person), action === 'delete' || action === 'block' ? '#FF9B8A' : '#B8F36B');
+  } catch (e) { app.notify((e && e.message) || 'That did not work.', '#FF9B8A'); }
+}
 
 export const peopleAdminActions = {
-  updatePeopleAdmin(id, patch) {
-    const person = this.dir.find((p) => p.id === id);
-    if (!person) {
-      this.notify('That person is no longer in the directory.', '#FF9B8A');
-      this.setState({ userActionOpen: null, userResetTemp: '' });
-      return;
-    }
-    const current = this.state.peopleAdmin[id] || { active: true, blocked: false, deleted: false };
-    const peopleAdmin = { ...this.state.peopleAdmin, [id]: { ...current, ...patch } };
-    try {
-      localStorage.setItem('hub-people-admin', JSON.stringify(peopleAdmin));
-    } catch (error) {
-      this.notify('Could not save this account change. ' + (error instanceof Error ? error.message : String(error)), '#FF9B8A');
-      return;
-    }
-    this.setState((st) => ({
-      peopleAdmin,
-      userResetTemp: ''
-    }));
-    return person;
-  },
   togglePersonActive(id) {
-    const current = this.state.peopleAdmin[id] || { active: true, blocked: false, deleted: false };
-    const active = !current.active;
-    const person = this.updatePeopleAdmin(id, { active });
-    if (person) this.notify(person.name + (active ? ' was activated.' : ' was deactivated.'), '#B8F36B');
+    const p = this.dir.find((x) => x.id === id); const on = !!p && p.accStatus === 'active';
+    return serverStatus(this, id, on ? 'deactivate' : 'activate', (x) => x.name + (on ? ' was deactivated.' : ' was activated.'));
   },
   togglePersonBlocked(id) {
-    const current = this.state.peopleAdmin[id] || { active: true, blocked: false, deleted: false };
-    const blocked = !current.blocked;
-    const person = this.updatePeopleAdmin(id, { blocked });
-    if (person) this.notify(person.name + (blocked ? ' was blocked.' : ' was unblocked.'), '#B8F36B');
+    const p = this.dir.find((x) => x.id === id); const on = !!p && p.accStatus === 'blocked';
+    return serverStatus(this, id, on ? 'unblock' : 'block', (x) => x.name + (on ? ' was unblocked.' : ' was blocked.'));
   },
   deletePerson(id) {
-    const person = this.updatePeopleAdmin(id, { deleted: true, active: false });
-    if (!person) return;
-    this.setState({ userActionOpen: null, userResetTemp: '' });
-    this.notify(person.name + ' was removed from the people directory.', '#FF9B8A');
+    return serverStatus(this, id, 'delete', (x) => x.name + ' was removed from the people directory.');
   },
   async resetPersonPassword(id) {
     const person = this.dir.find((p) => p.id === id);
@@ -47,16 +32,10 @@ export const peopleAdminActions = {
       this.setState({ userActionOpen: null, userResetTemp: '' });
       return;
     }
-    const email = person.email;
-    const random = new Uint8Array(9);
-    crypto.getRandomValues(random);
-    const temporaryPassword = 'Hub-' + Array.from(random, (n) => n.toString(36).padStart(2, '0')).join('') + '!';
     try {
-      await useAccounts().resetPassword(email, temporaryPassword);
-      this.setState({ userResetTemp: temporaryPassword });
+      const r = await this.srv.request('POST', `/people/${person.uid}/reset-password`, {});
+      this.setState({ userResetTemp: r.temporary_password });
       this.notify('Temporary password generated for ' + person.name + '.', '#B8F36B');
-    } catch (error) {
-      this.notify('Could not reset ' + person.name + '\'s password. ' + (error instanceof Error ? error.message : String(error)), '#FF9B8A');
-    }
+    } catch (e) { this.notify((e && e.message) || 'Could not reset the password.', '#FF9B8A'); }
   }
 };
