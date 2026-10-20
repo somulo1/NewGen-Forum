@@ -6,6 +6,7 @@ package callsvc
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"sync"
@@ -90,6 +91,14 @@ func (s *Server) Handler() http.Handler {
 		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "rooms": n, "peers": s.peers.Load()})
 	})
 	mux.HandleFunc("GET /ws", s.ws)
+	// metrics for the monitoring system: scrape from inside the network only
+	mux.HandleFunc("GET /metrics", func(w http.ResponseWriter, r *http.Request) {
+		s.mu.Lock()
+		n := len(s.rooms)
+		s.mu.Unlock()
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+		fmt.Fprintf(w, "# TYPE hub_calls_rooms gauge\nhub_calls_rooms %d\n# TYPE hub_calls_peers gauge\nhub_calls_peers %d\n", n, s.peers.Load())
+	})
 	return mux
 }
 

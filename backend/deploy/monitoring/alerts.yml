@@ -1,0 +1,61 @@
+groups:
+- name: hub
+  rules:
+  - alert: ApiDown
+    expr: up{job="hub-api"} == 0
+    for: 1m
+    labels: {severity: page}
+    annotations: {summary: "API instance {{ $labels.instance }} is down"}
+  - alert: ApiErrors
+    expr: sum(rate(hub_http_requests_total{class="5xx"}[5m])) / sum(rate(hub_http_requests_total[5m])) > 0.02
+    for: 5m
+    labels: {severity: page}
+    annotations: {summary: "More than 2% of API requests are failing"}
+  - alert: ApiSlow
+    expr: histogram_quantile(0.95, sum by (le) (rate(hub_http_request_seconds_bucket[5m]))) > 1
+    for: 10m
+    labels: {severity: warn}
+    annotations: {summary: "95th percentile API latency above 1 second"}
+  - alert: TooManyRefusals
+    expr: sum(rate(hub_http_requests_total{class="4xx"}[5m])) > 50
+    for: 10m
+    labels: {severity: warn}
+    annotations: {summary: "Many 4xx answers: an attack, a broken client, or rate limits biting"}
+  - alert: DbPoolExhausted
+    expr: hub_db_pool_acquired >= hub_db_pool_max * 0.9
+    for: 5m
+    labels: {severity: page}
+    annotations: {summary: "Database connection pool nearly full on {{ $labels.instance }}"}
+  - alert: CallsDown
+    expr: up{job="hub-calls"} == 0
+    for: 1m
+    labels: {severity: page}
+    annotations: {summary: "Calls signalling service down"}
+  - alert: MediaNodeDown
+    expr: up{job="media"} == 0
+    for: 1m
+    labels: {severity: page}
+    annotations: {summary: "Media server {{ $labels.instance }} is down: its calls are reconnecting elsewhere"}
+  - alert: MediaNodeHot
+    expr: 1 - avg by (instance) (rate(node_cpu_seconds_total{mode="idle",instance=~"media.*"}[5m])) > 0.8
+    for: 10m
+    labels: {severity: warn}
+    annotations: {summary: "Media server above 80% CPU: add capacity before it refuses calls"}
+  - alert: MediaNicHot
+    expr: rate(node_network_transmit_bytes_total{instance=~"media.*",device!="lo"}[5m]) * 8 > 0.8 * 10e9
+    for: 10m
+    labels: {severity: warn}
+    annotations: {summary: "Media server sending above 80% of a 10 Gbps link"}
+  - alert: DiskFilling
+    expr: node_filesystem_avail_bytes{mountpoint=~"/|/var/lib/postgresql.*"} / node_filesystem_size_bytes < 0.15
+    for: 10m
+    labels: {severity: page}
+    annotations: {summary: "Disk below 15% free on {{ $labels.instance }}"}
+  - alert: BackupStale
+    expr: time() - hub_backup_last_success_timestamp_seconds > 26 * 3600
+    labels: {severity: page}
+    annotations: {summary: "No successful database backup in over 26 hours"}
+  - alert: LedgerTampered
+    expr: hub_integrity_check_ok == 0
+    labels: {severity: page}
+    annotations: {summary: "The integrity check found altered records or a broken audit chain"}

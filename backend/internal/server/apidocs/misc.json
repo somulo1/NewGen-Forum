@@ -720,5 +720,14 @@
     }
    ]
   }
+ },
+ "GET /metrics": {
+  "summary": "Operational metrics (Prometheus text format)",
+  "description": "For monitoring, not for integrations. Request counts and latency by route, open realtime sockets, database pool use. Needs `Authorization: Bearer <HUB_METRICS_TOKEN>`; when no token is set only loopback may read it.",
+  "access": "the monitoring system holding the metrics token",
+  "response": null,
+  "errors": {
+   "401": "Missing or wrong token"
+  }
  }
 }

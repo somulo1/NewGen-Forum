@@ -1,0 +1,101 @@
+{
+ "GET /v1/groups": {
+  "summary": "List user groups",
+  "description": "A user group is a named set of roles. A right given to a group is held by everyone whose role is in it, on top of what their role allows. A person still has exactly one role.",
+  "access": "a role with Roles: View roles",
+  "response": {
+   "groups": [
+    {
+     "id": "string. Group key",
+     "name": "string",
+     "desc": "string",
+     "roles": [
+      "string. Role keys in the group"
+     ],
+     "count": "integer. People whose role is in the group"
+    }
+   ]
+  }
+ },
+ "POST /v1/groups": {
+  "summary": "Create a user group",
+  "access": "a role with Roles: Manage roles & rights",
+  "status": 201,
+  "request": {
+   "name": "string, required. Up to 60 characters",
+   "desc": "string",
+   "roles": [
+    "string. Role keys to put in the group"
+   ]
+  },
+  "response": {
+   "id": "string. The new group's key"
+  },
+  "errors": {
+   "400": "Name missing or too long, or a role does not exist",
+   "409": "name_taken; locked_role: that role already has every right so it does not need a group"
+  }
+ },
+ "GET /v1/groups/{key}": {
+  "summary": "Get a group and its rights",
+  "access": "a role with Roles: View roles",
+  "response": {
+   "id": "string. Group key",
+   "name": "string",
+   "desc": "string",
+   "roles": [
+    "string. Role keys in the group"
+   ],
+   "count": "integer. People whose role is in the group",
+   "rights": {
+    "<module>": {
+     "<right>": "boolean. Whether the group holds it"
+    }
+   }
+  },
+  "errors": {
+   "404": "No such group"
+  }
+ },
+ "PATCH /v1/groups/{key}": {
+  "summary": "Edit a group",
+  "description": "Send `roles` to replace its members; leave it out to keep them.",
+  "access": "a role with Roles: Manage roles & rights",
+  "status": 204,
+  "request": {
+   "name": "string",
+   "desc": "string",
+   "roles": [
+    "string. Role keys; omit to leave as it is"
+   ]
+  },
+  "response": null,
+  "errors": {
+   "409": "name_taken"
+  }
+ },
+ "DELETE /v1/groups/{key}": {
+  "summary": "Delete a group",
+  "description": "Its members keep their roles; the rights given through the group are removed.",
+  "access": "a role with Roles: Manage roles & rights",
+  "status": 204,
+  "response": null
+ },
+ "PUT /v1/groups/{key}/rights": {
+  "summary": "Allow or deny a right for a group",
+  "description": "May need approval (flow f8): 200 applied, 202 an approval request was raised.",
+  "access": "a role with Roles: Manage roles & rights",
+  "request": {
+   "module": "string, required",
+   "right": "string, required",
+   "allowed": "boolean, required"
+  },
+  "response": {
+   "applied": "boolean",
+   "request": "object. The approval request when one was raised"
+  },
+  "errors": {
+   "409": "gone: that group or right no longer exists"
+  }
+ }
+}

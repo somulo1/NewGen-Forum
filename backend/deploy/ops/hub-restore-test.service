@@ -1,0 +1,6 @@
+[Unit]
+Description=Prove the newest Hub backup restores
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/hub/backup.env
+ExecStart=/opt/hub/scripts/restore-test.sh

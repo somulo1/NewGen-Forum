@@ -1,0 +1,6 @@
+[Unit]
+Description=Hub tamper check
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/hub/hub.env
+ExecStart=/opt/hub/scripts/integrity-check.sh
