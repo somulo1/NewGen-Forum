@@ -212,6 +212,8 @@ func (s *Service) UpdateRole(ctx context.Context, p *tenant.Principal, key strin
 		} else if err != nil {
 			return err
 		}
+		// every changed column goes in one update: a row changed twice before it is sealed again is refused
+		newName, newDesc, newScope := (*string)(nil), (*string)(nil), (*string)(nil)
 		if strings.TrimSpace(in.Name) != "" {
 			n, ok := clean(in.Name, 60)
 			if !ok {
@@ -224,23 +226,24 @@ func (s *Service) UpdateRole(ctx context.Context, p *tenant.Principal, key strin
 			if dup {
 				return httpx.Err(409, "name_taken", "A role called "+n+" already exists.")
 			}
-			if _, err := tx.Exec(ctx, `update hub.roles set name=$2, `+integrity.Bump+` where id=$1`, id, n); err != nil {
-				return err
-			}
+			newName = &n
 		}
 		if in.Desc != nil {
 			if len(*in.Desc) > 300 {
 				return httpx.Bad("That description is too long.")
 			}
-			if _, err := tx.Exec(ctx, `update hub.roles set description=$2, `+integrity.Bump+` where id=$1`, id, strings.TrimSpace(*in.Desc)); err != nil {
-				return err
-			}
+			d := strings.TrimSpace(*in.Desc)
+			newDesc = &d
 		}
 		if in.Scope != nil {
 			if len(*in.Scope) > 60 {
 				return httpx.Bad("That scope is too long.")
 			}
-			if _, err := tx.Exec(ctx, `update hub.roles set scope=$2, `+integrity.Bump+` where id=$1`, id, strings.TrimSpace(*in.Scope)); err != nil {
+			sc := strings.TrimSpace(*in.Scope)
+			newScope = &sc
+		}
+		if newName != nil || newDesc != nil || newScope != nil {
+			if _, err := tx.Exec(ctx, `update hub.roles set name=coalesce($2, name), description=coalesce($3, description), scope=coalesce($4, scope), `+integrity.Bump+` where id=$1`, id, newName, newDesc, newScope); err != nil {
 				return err
 			}
 		}
