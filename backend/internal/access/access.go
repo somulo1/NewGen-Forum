@@ -18,9 +18,6 @@ import (
 //go:embed catalog.json
 var raw []byte
 
-//go:embed demo_roles.json
-var demoRaw []byte
-
 type Module struct {
 	Key    string   `json:"key"`
 	Label  string   `json:"label"`
@@ -51,23 +48,9 @@ type Role struct {
 	Scope  string `json:"scope"`
 }
 
-// Demo is a sample set of roles with what each may do. It is used only to fill demo data and tests, never for a real
-// organization (which starts with one owner role and creates the rest itself).
-type Demo struct {
-	Roles    []Role                         `json:"roles"`
-	Defaults map[string]map[string][]string `json:"defaults"` // role -> module -> allowed rights
-	Flows    map[string]DemoFlow            `json:"flows"`    // flow key -> levels and the role that approves each level
-}
-
-type DemoFlow struct {
-	Levels    int      `json:"levels"`
-	Approvers []string `json:"approvers"` // role names; a name with no role is skipped (the owner can always stand in)
-}
-
 var (
-	once, demoOnce sync.Once
-	cat            Catalog
-	demo           Demo
+	once sync.Once
+	cat  Catalog
 )
 
 func Default() *Catalog {
@@ -77,15 +60,6 @@ func Default() *Catalog {
 		}
 	})
 	return &cat
-}
-
-func DemoRoles() *Demo {
-	demoOnce.Do(func() {
-		if err := json.Unmarshal(demoRaw, &demo); err != nil {
-			panic("access: bad demo roles: " + err.Error())
-		}
-	})
-	return &demo
 }
 
 // ApproveRight names the right that lets someone decide level n of a flow in a module.
@@ -169,81 +143,4 @@ func Installed(ctx context.Context, tx pgx.Tx) (bool, error) {
 		want += len(m.Rights)
 	}
 	return n >= want, nil
-}
-
-// InstallDemoRoles gives an organization the sample roles (and what each may do) plus a default role. It is for demo data and
-// tests only; a real organization makes its own roles. It returns the role ids by key.
-func InstallDemoRoles(ctx context.Context, tx pgx.Tx, org uuid.UUID, newID func() uuid.UUID, seal func(table, where string, args ...any) error) (map[string]uuid.UUID, error) {
-	d := DemoRoles()
-	ids := map[string]uuid.UUID{}
-	for _, r := range d.Roles {
-		if r.Locked {
-			continue // the owner role already exists
-		}
-		id := newID()
-		ids[r.ID] = id
-		scope := r.Scope
-		if scope == "" {
-			scope = "Whole organization"
-		}
-		if _, err := tx.Exec(ctx, `insert into hub.roles (id, org_id, key, name, description, scope, locked, needs_level) values ($1,$2,$3,$4,$5,$6,false,nullif($7,''))`, id, org, r.ID, r.Name, r.Desc, scope, r.Needs); err != nil {
-			return nil, err
-		}
-	}
-	if err := seal("roles", "org_id=$1", org); err != nil {
-		return nil, err
-	}
-	for role, mods := range d.Defaults {
-		id, ok := ids[role]
-		if !ok {
-			continue
-		}
-		for mod, rights := range mods {
-			for _, r := range rights {
-				if _, err := tx.Exec(ctx, `insert into hub.role_rights (org_id, role_id, module, right_name, allowed) values ($1,$2,$3,$4,true) on conflict do nothing`, org, id, mod, r); err != nil {
-					return nil, err
-				}
-			}
-		}
-	}
-	if err := seal("role_rights", "org_id=$1", org); err != nil {
-		return nil, err
-	}
-	// approval levels, and which sample role may decide each one
-	for key, f := range d.Flows {
-		var module string
-		if err := tx.QueryRow(ctx, `select module from hub.approval_flows where key=$1`, key).Scan(&module); err != nil {
-			continue
-		}
-		if _, err := tx.Exec(ctx, `update hub.approval_flows set levels=$2, updated_at=now(), ver = ver + 1, mac = hub.pending_mac() where key=$1`, key, f.Levels); err != nil {
-			return nil, err
-		}
-		for lvl, who := range f.Approvers {
-			if lvl >= f.Levels {
-				break
-			}
-			for _, r := range d.Roles {
-				if id, ok := ids[r.ID]; ok && strings.EqualFold(r.Name, who) {
-					if _, err := tx.Exec(ctx, `insert into hub.role_rights (org_id, role_id, module, right_name, allowed) values ($1,$2,$3,$4,true) on conflict (org_id, role_id, module, right_name) do update set allowed=true`, org, id, module, ApproveRight(lvl+1)); err != nil {
-						return nil, err
-					}
-				}
-			}
-		}
-	}
-	if err := seal("approval_flows", "org_id=$1", org); err != nil {
-		return nil, err
-	}
-	if err := seal("role_rights", "org_id=$1", org); err != nil {
-		return nil, err
-	}
-	if id, ok := ids["staff"]; ok {
-		if _, err := tx.Exec(ctx, `insert into hub.default_role (org_id, role_id) values ($1,$2) on conflict do nothing`, org, id); err != nil {
-			return nil, err
-		}
-		if err := seal("default_role", "org_id=$1", org); err != nil {
-			return nil, err
-		}
-	}
-	return ids, nil
 }

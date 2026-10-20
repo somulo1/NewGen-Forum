@@ -14,7 +14,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"hub/internal/access"
 	"hub/internal/app"
 	"hub/internal/config"
 	"hub/internal/crypto"
@@ -127,7 +126,7 @@ func (e *Env) NewOrg(ownerName string) (*User, string) {
 		e.T.Fatal(err)
 	}
 	if err := e.A.DB.WithOrg(context.Background(), org, func(tx pgx.Tx) error {
-		_, err := access.InstallDemoRoles(context.Background(), tx, org, app.NewID, func(table, where string, args ...any) error {
+		err := installTestRoles(context.Background(), tx, org, app.NewID, func(table, where string, args ...any) error {
 			return e.A.Sign.Seal(context.Background(), tx, table, where, args...)
 		})
 		return err

@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # Start everything for local development: Redis (if not already up), api, calls, worker and the Nuxt frontend.
 #   ./dev.sh          run all
-#   ./dev.sh seed     load demo data first (once), then run all
 # Ctrl+C stops everything this script started.
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")" && pwd)
@@ -24,7 +23,6 @@ if ! (exec 3<>"/dev/tcp/$REDIS_HOST/$REDIS_PORT") 2>/dev/null; then
   fi
 fi
 
-[[ "${1:-}" == seed ]] && go run ./cmd/seed
 
 go build -o bin/hub-api ./cmd/api; go build -o bin/hub-calls ./cmd/calls; go build -o bin/hub-worker ./cmd/worker
 prefix() { sed -u "s/^/[$1] /"; }
