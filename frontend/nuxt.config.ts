@@ -30,7 +30,7 @@ export default defineNuxtConfig({
   vite: {
     // Pre-bundle deps Vite would otherwise discover lazily (each discovery triggers a full page reload in dev).
     optimizeDeps: {
-      include: ['@noble/curves/ed25519', '@noble/hashes/hkdf', '@noble/hashes/hmac', '@noble/hashes/sha256', 'qrcode']
+      include: ['livekit-client', '@noble/curves/ed25519', '@noble/hashes/hkdf', '@noble/hashes/hmac', '@noble/hashes/sha256', 'qrcode']
     },
     plugins: [{
       name: 'hub-full-reload',

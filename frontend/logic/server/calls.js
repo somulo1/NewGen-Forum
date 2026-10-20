@@ -1,16 +1,20 @@
 // Voice and video calls: private calls, forum calls and meetings. The API decides who may start or join and hands out a
 // one-time pass; the room runs on the calls service, which only relays signalling. Media flows directly between the
-// browsers (WebRTC mesh, up to 8 people), encrypted end to end by DTLS-SRTP.
+// browsers (WebRTC mesh, up to 8 people), encrypted end to end by DTLS-SRTP. Bigger forum calls and meetings run on a media
+// server instead (see sfuCall.js): the API answers with mode "sfu" and the pass for it.
 //   start/join   -> POST /calls or /calls/{id}/join -> { call, token, url }
 //   room socket  -> welcome { you, peers } | peer-joined | peer-left | offer/answer/ice (relayed) | state | chat | mod | ended
 import { connectRealtime } from './realtime.js';
+import { connectSfu, leaveSfu, applySfu, sendChatSfu, sfuActive, control } from './sfuCall.js';
 import { startRing, stopRing, startRingback, stopRingback, connected, hangup, joinedTone, handTone } from '../tones.js';
 
 const ICE = [{ urls: 'stun:stun.l.google.com:19302' }];
 
 // Live media, outside the reactive state (MediaStreams must not be proxied). Components read them with streamFor().
-const media = { local: null, screen: null, remote: new Map(), audio: new Map(), version: 0, listeners: new Set() };
+const media = { local: null, screen: null, remote: new Map(), audio: new Map(), tracks: new Map(), version: 0, listeners: new Set() };
 export const streamFor = (key) => (key === 'local' ? media.screen || media.local : media.remote.get(key) || null);
+// In a big room the video comes as media-server tracks (the server picks the quality from the size they are drawn at).
+export const trackFor = (key) => media.tracks.get(key) || null;
 export const onMedia = (fn) => { media.listeners.add(fn); return () => media.listeners.delete(fn); };
 const changed = () => { media.version++; media.listeners.forEach((fn) => fn(media.version)); };
 
@@ -61,6 +65,11 @@ function peerView(p) {
 // opts.ringback: this is a private call I started, so I hear it ringing until the other person answers.
 async function connectRoom(logic, srv, entry, opts = {}) {
   leaveRoom(false);
+  if (entry.mode === 'sfu') {
+    const ctx = { logic, srv, media, changed, setCall, callContext: () => entry.call.context || 'meeting', setRoom: (r) => { room = { ws: null, pcs: new Map(), me: null, ...r }; } };
+    try { await connectSfu(ctx, entry, opts); } catch (e) { leaveRoom(false); throw e; }
+    return;
+  }
   if (opts.ringback) startRingback();
   const ctx = entry.call.context || 'meeting';
   media.local = await getMedia(entry.call.kind);
@@ -148,9 +157,11 @@ function dropPeer(id) {
 }
 
 export function leaveRoom(sound = true) {
+  leaveSfu();
+  media.tracks.clear();
   if (room) {
     room.pcs.forEach((pc) => pc.close());
-    try { room.ws.close(); } catch (e) { /* closed */ }
+    try { if (room.ws) room.ws.close(); } catch (e) { /* closed */ }
   }
   room = null;
   [media.local, media.screen].forEach((s) => s && s.getTracks().forEach((t) => t.stop()));
@@ -164,6 +175,7 @@ export function leaveRoom(sound = true) {
 
 // Mic, camera, screen share and hand follow the app's state; tell the room.
 export async function applyLocal(logic) {
+  if (sfuActive()) return applySfu({ logic, media, changed, setCall });
   const s = logic.state;
   if (media.local) {
     media.local.getAudioTracks().forEach((t) => { t.enabled = !!s.mic; });
@@ -191,9 +203,21 @@ function sendState(logic) {
   send({ type: 'state', mic: !!s.mic, cam: !!s.cam, sharing: !!s.sharing, hand: !!s.hand });
 }
 
-export function sendChat(text) { send({ type: 'chat', data: JSON.stringify({ text }) }); }
+export function sendChat(text) { if (sfuActive()) { sendChatSfu(text); return; } send({ type: 'chat', data: JSON.stringify({ text }) }); }
+
+// Room controls in a big room: mute | cam_off | remove | mute_all | lock | unlock | end | stage_on | stage_off
+export function roomControl(logic, srv, action, identity = '') {
+  const c = logic.state.call;
+  if (!c || !c.callId) return Promise.resolve();
+  return control(srv, c.callId, action, identity).catch((e) => logic.notify(e.message || 'Could not do that.', '#FF9B8A'));
+}
 
 export function moderate(logic, peerName, what) {
+  if (sfuActive()) {
+    const p = ((logic.state.call && logic.state.call.peers) || []).find((x) => x.name === peerName);
+    if (p) roomControl(logic, logic.srv, what === 'mic' ? 'mute' : 'cam_off', p.id);
+    return;
+  }
   const p = ((logic.state.call && logic.state.call.peers) || []).find((x) => x.name === peerName);
   if (p) send({ type: 'mod', action: what === 'mic' ? 'mute' : 'cam_off', target: p.id });
 }
