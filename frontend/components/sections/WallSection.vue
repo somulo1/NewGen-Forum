@@ -157,8 +157,8 @@
 <aside aria-label="Wall highlights" :class="['hub-static', 'wall-aside', { open: hl }]" @click="hl = false" style="flex: 1 1 250px; min-width: 0; position: sticky; top: 0; align-self: flex-start; overflow: visible; display: flex; flex-direction: column; gap: 16px">
 <div style="padding: 16px; border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 10px">
 <strong style="font-size: 15px">Birthdays today</strong>
-<span style="font-size: 14px; line-height: 1.5; color: var(--k-C9D6CF,#C9D6CF)">Faith Achieng and 2 others. Send them a wish on the wall.</span>
-<button @click="wish" style="height: 38px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer">Write a wish</button>
+<span style="font-size: 14px; line-height: 1.5; color: var(--k-C9D6CF,#C9D6CF)">{{ wallBirthdays.has ? wallBirthdays.text : 'No birthdays today.' }}</span>
+<button v-if="wallBirthdays.has" @click="wish" style="height: 38px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer">Write a wish</button>
 </div>
 <div class="wall-online" style="padding: 16px; border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 12px">
 <strong style="font-size: 15px">Online now</strong>
@@ -202,7 +202,7 @@ export default {
     pickMomentFile(e) { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) this.momentFile = f; },
     wish() { this.wishBirthday(); this.$nextTick(() => this.$refs.composer && this.$refs.composer.focus()); }
   },
-  ...hubBindings(["pickEmojiWall","addMoment","momentForm","momentView","wpollView","openEventFromWall","wallAudience","wallAudiences","onAudience","wishBirthday","onlineList","trending","wallFilter","canPostWall","cannotPostWall","draft","hasWFiles","moments","onDraftValue","onPost","onWallFiles","people","postBtnStyle","posts","show","wfiles"])
+  ...hubBindings(["wallBirthdays","pickEmojiWall","addMoment","momentForm","momentView","wpollView","openEventFromWall","wallAudience","wallAudiences","onAudience","wishBirthday","onlineList","trending","wallFilter","canPostWall","cannotPostWall","draft","hasWFiles","moments","onDraftValue","onPost","onWallFiles","people","postBtnStyle","posts","show","wfiles"])
 };
 </script>
 

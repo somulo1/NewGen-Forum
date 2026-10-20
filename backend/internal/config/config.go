@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"hub/internal/blob"
 )
 
 type Config struct {
@@ -34,8 +36,9 @@ type Config struct {
 	RateRPS     int
 	DBGuard     string // proves to the database that a write comes from the Hub system
 
-	BlobDir   string // where encrypted file blobs live (dev); production plugs object storage into the same interface
-	MaxUpload int64  // bytes of ciphertext per file
+	BlobDir     string   // this server's own disk for encrypted file contents (used when no file server is configured or answers)
+	FileServers []string // S3-compatible file servers, tried in order: s3://KEY:SECRET@host/bucket?region=..
+	MaxUpload   int64    // bytes of ciphertext per file
 }
 
 func Load() (*Config, error) {
@@ -55,6 +58,12 @@ func Load() (*Config, error) {
 	}
 	if c.Env == "prod" && os.Getenv("HUB_DB_GUARD") == "" {
 		return nil, fmt.Errorf("HUB_DB_GUARD is required in production")
+	}
+	c.FileServers = strings.FieldsFunc(os.Getenv("HUB_FILE_SERVERS"), func(r rune) bool { return r == ' ' || r == '\n' })
+	for _, fs := range c.FileServers {
+		if _, err := blob.ParseS3(fs); err != nil {
+			return nil, fmt.Errorf("HUB_FILE_SERVERS: %w", err)
+		}
 	}
 	c.CallsURLs = strings.Split(get("HUB_CALLS_URL", "http://127.0.0.1:8090"), ",")
 	c.AllowedOrigins = strings.Split(get("HUB_ALLOWED_ORIGINS", "http://localhost:3000"), ",")

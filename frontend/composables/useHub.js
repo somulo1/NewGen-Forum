@@ -36,6 +36,7 @@ export function useHubShell() {
   const router = useRouter();
   const sectionFor = (p) => Object.keys(sectionRoutes).find((k) => sectionRoutes[k] === p) || 'home';
 
+  try { logic._accessPending = !!(useBackend().session() || {}).org; } catch (e) { logic._accessPending = false; }
   const start = sectionFor(route.path);
   if (logic.state.section !== start) logic.setState({ section: start });
 
@@ -63,7 +64,7 @@ export function useHubShell() {
   onMounted(() => {
     const be = useBackend();
     const session = be.session();
-    if (session && session.org) startServerSync(logic, be.request, session, be.bytes).catch((e) => console.error('Could not connect to the server:', e));
+    if (session && session.org) startServerSync(logic, be.request, session, be.bytes).catch((e) => { logic._accessPending = false; logic.forceUpdate(); console.error('Could not connect to the server:', e); });
     if (logic.componentDidMount) logic.componentDidMount();
     document.addEventListener('click', openInAppSecureShare, true);
   });

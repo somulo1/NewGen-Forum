@@ -37,7 +37,12 @@ type Service struct {
 }
 
 func New(a *app.App, ap *approvals.Engine) *Service {
-	s := &Service{A: a, Ap: ap, Store: blob.Dir{Root: a.Cfg.BlobDir}}
+	// file servers from HUB_FILE_SERVERS (checked when the config loads), then this server's own disk
+	pool, err := blob.NewPool(a.Cfg.BlobDir, a.Cfg.FileServers)
+	if err != nil {
+		panic(err)
+	}
+	s := &Service{A: a, Ap: ap, Store: pool}
 	ap.Register("share.activate", s.applyShare)
 	return s
 }
@@ -136,8 +141,7 @@ func (s *Service) Upload(ctx context.Context, p *tenant.Principal, id uuid.UUID,
 	if err != nil {
 		return nil, err
 	}
-	key := blobKey(p.Org, id)
-	n, sum, err := s.Store.Put(ctx, key, body, declared)
+	key, n, sum, err := s.Store.Put(ctx, blobKey(p.Org, id), body, declared)
 	if errors.Is(err, blob.ErrTooLarge) {
 		return nil, httpx.Err(413, "too_large", "That file is larger than you said it was.")
 	}
@@ -145,7 +149,7 @@ func (s *Service) Upload(ctx context.Context, p *tenant.Principal, id uuid.UUID,
 		return nil, err
 	}
 	if n != declared {
-		_ = s.Store.Delete(ctx, key)
+		s.erase(ctx, p.Org, key)
 		return nil, httpx.Bad("The upload was cut short. Try again.")
 	}
 	var out *File
@@ -171,7 +175,7 @@ func (s *Service) Upload(ctx context.Context, p *tenant.Principal, id uuid.UUID,
 		return err
 	})
 	if err != nil {
-		_ = s.Store.Delete(ctx, key)
+		s.erase(ctx, p.Org, key)
 		return nil, err
 	}
 	d, _ := json.Marshal(out)
@@ -283,6 +287,7 @@ func (s *Service) serve(ctx context.Context, key string, w http.ResponseWriter, 
 
 func (s *Service) Delete(ctx context.Context, p *tenant.Principal, id uuid.UUID) error {
 	var key *string
+	var purge uuid.UUID
 	err := s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
 		var up uuid.UUID
 		if err := tx.QueryRow(ctx, `select uploader, blob_key from hub.files where id=$1 and status <> 'deleted' for update`, id).Scan(&up, &key); err != nil {
@@ -294,6 +299,12 @@ func (s *Service) Delete(ctx context.Context, p *tenant.Principal, id uuid.UUID)
 		}
 		if _, err := tx.Exec(ctx, `update hub.files set status='deleted', envelope='\x00'::bytea, blob_key=null, updated_at=now(), `+integrity.Bump+` where id=$1`, id); err != nil {
 			return err
+		}
+		// the bytes are queued for erasure in the same transaction, so a crash right after cannot leave them behind
+		if key != nil {
+			if err := tx.QueryRow(ctx, `insert into hub.blob_purge (org_id, ref) values ($1,$2) returning id`, p.Org, *key).Scan(&purge); err != nil {
+				return err
+			}
 		}
 		if err := s.A.Sign.Seal(ctx, tx, "files", "id=$1 and org_id=$2", id, p.Org); err != nil {
 			return err
@@ -307,7 +318,7 @@ func (s *Service) Delete(ctx context.Context, p *tenant.Principal, id uuid.UUID)
 		return s.A.Audit(ctx, tx, p.Org, &p.Person, p.Name, "Deleted a file", "Files", p.IP, map[string]any{"file": id})
 	})
 	if err == nil && key != nil {
-		_ = s.Store.Delete(ctx, *key)
+		s.purgeOne(ctx, purge, *key)
 	}
 	return err
 }

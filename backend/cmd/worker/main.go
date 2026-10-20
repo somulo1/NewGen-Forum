@@ -1,4 +1,5 @@
-// Command worker runs the background jobs: ticket timing sweeps and call history from the calls service. Run one or several;
+// Command worker runs the background jobs: ticket timing sweeps, call history from the calls service, and erasing the
+// contents of deleted files from storage. Run one or several;
 // every job is safe to run on more than one node at once.
 package main
 
@@ -13,7 +14,9 @@ import (
 	"hub/internal/app"
 	"hub/internal/config"
 	"hub/internal/mail"
+	"hub/internal/modules/approvals"
 	"hub/internal/modules/calls"
+	"hub/internal/modules/files"
 	"hub/internal/modules/tickets"
 )
 
@@ -34,6 +37,7 @@ func main() {
 	defer a.Close()
 	go calls.New(a).Consume(ctx)
 	ts := tickets.New(a)
+	fs := files.New(a, approvals.New(a))
 	t := time.NewTicker(time.Minute)
 	defer t.Stop()
 	slog.Info("hub worker running")
@@ -44,6 +48,19 @@ func main() {
 		case <-t.C:
 			if err := ts.SweepAll(ctx); err != nil {
 				slog.Error("ticket sweep", "err", err)
+			}
+			// deleted files whose contents could not be erased straight away
+			for {
+				done, failed, err := fs.PurgeDue(ctx, 500)
+				if err != nil {
+					slog.Error("file purge", "err", err)
+				}
+				if done > 0 || failed > 0 {
+					slog.Info("file purge", "erased", done, "waiting", failed)
+				}
+				if err != nil || done+failed < 500 {
+					break
+				}
 			}
 		}
 	}

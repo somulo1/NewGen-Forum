@@ -2,6 +2,7 @@
 // needed and every tone can be changed in the database. Until the server's set has loaded, the built-in copy below plays.
 // Browsers only allow sound after the person has clicked or typed once; before that these do nothing.
 let ctx = null, ringTimer = null, backTimer = null, ringStop = null;
+const looping = { ring: new Set(), ringback: new Set() };   // oscillators of a ring or ringback that has been scheduled; stopping the ring silences them at once
 
 const BUILT_IN = {
   chime: { notes: [{ freqs: [880], at: 0, len: 0.14, vol: 0.18 }, { freqs: [1320], at: 0.15, len: 0.22, vol: 0.16 }] },
@@ -48,7 +49,7 @@ if (typeof window !== 'undefined') {
 }
 
 // One note: the frequencies play together, shaped by the tone's attack and release so it does not click.
-function note(p, n) {
+function note(p, n, loop) {
   const a = audio(); if (!a) return;
   const attack = p.attack || 0.02, release = p.release || 0.04, floor = p.floor || 0.0001;
   const t0 = a.currentTime + n.at;
@@ -58,14 +59,17 @@ function note(p, n) {
   g.gain.setValueAtTime(n.vol, t0 + Math.max(attack + 0.01, n.len - release));
   g.gain.exponentialRampToValueAtTime(floor, t0 + n.len);
   g.connect(a.destination);
-  n.freqs.forEach((f) => { const o = a.createOscillator(); o.type = p.wave || 'sine'; o.frequency.value = f; o.connect(g); o.start(t0); o.stop(t0 + n.len + 0.02); });
+  n.freqs.forEach((f) => { const o = a.createOscillator(); o.type = p.wave || 'sine'; o.frequency.value = f; o.connect(g); o.start(t0); o.stop(t0 + n.len + 0.02); if (loop) { looping[loop].add(o); o.onended = () => looping[loop].delete(o); } });
 }
 
 export function play(key) {
   const p = tones[key] || BUILT_IN[key];
   const a = audio();
   if (!p || !a) return;
-  const go = () => p.notes.forEach((n) => note(p, n));
+  const loop = key === 'ring' || key === 'ringback' ? key : '';
+  // a ring that was queued while the browser still blocked sound must not play late, after the call was answered
+  const wanted = () => !loop || (key === 'ring' ? !!ringTimer : !!backTimer);
+  const go = () => { if (wanted()) p.notes.forEach((n) => note(p, n, loop)); };
   if (a.state === 'running') go(); else a.resume().then(() => { if (a.state === 'running') go(); }).catch(() => {});
 }
 
@@ -79,17 +83,20 @@ export function alertTone() { play('alert'); }
 // Incoming call: repeats until answered or declined.
 export function startRing() {
   stopRing();
-  play('ring'); ringTimer = setInterval(() => play('ring'), (tones.ring && tones.ring.repeat_ms) || 2400);
+  ringTimer = setInterval(() => play('ring'), (tones.ring && tones.ring.repeat_ms) || 2400);
+  play('ring');
 }
-export function stopRing() { if (ringTimer) { clearInterval(ringTimer); ringTimer = null; } }
+function silence(k) { looping[k].forEach((o) => { try { o.stop(); } catch (e) { /* already stopped */ } }); looping[k].clear(); }
+export function stopRing() { if (ringTimer) { clearInterval(ringTimer); ringTimer = null; } silence('ring'); }
 
 // Outgoing call: ringing until the other side answers. Without `ms` it rings until stopRingback() is called.
 export function startRingback(ms) {
   stopRingback();
-  play('ringback'); backTimer = setInterval(() => play('ringback'), (tones.ringback && tones.ringback.repeat_ms) || 3000);
+  backTimer = setInterval(() => play('ringback'), (tones.ringback && tones.ringback.repeat_ms) || 3000);
+  play('ringback');
   if (ms) ringStop = setTimeout(() => { stopRingback(); connected(); }, ms);
 }
-export function stopRingback() { if (backTimer) { clearInterval(backTimer); backTimer = null; } if (ringStop) { clearTimeout(ringStop); ringStop = null; } }
+export function stopRingback() { if (backTimer) { clearInterval(backTimer); backTimer = null; } if (ringStop) { clearTimeout(ringStop); ringStop = null; } silence('ringback'); }
 
 export function connected() { play('connected'); }
 export function hangup() { play('hangup'); }

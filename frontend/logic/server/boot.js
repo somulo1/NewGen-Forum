@@ -63,7 +63,18 @@ export async function startServerSync(logic, request, session, bytes) {
     awardList: [], requests: [], callLog: [], callMsgs: [],
     projectOpen: null, ticketOpen: null
   });
-  for (const w of WIDGETS) {
+  // Who may open what (the directory, the roles and rights, the organization's levels) loads first, so pages are decided at
+  // once; everything else fills in behind. Until then no page is called "no access".
+  const loadOne = async (w) => {
+    const t0 = performance.now();
+    try { await w.load(logic, srv); } catch (e) { console.warn('Could not load ' + (w.name || 'a widget') + ':', e); }
+    console.debug('[hub] ' + (w.name || 'widget') + ' loaded in ' + Math.round(performance.now() - t0) + ' ms');
+  };
+  await loadOne(people);
+  await Promise.all([roles, orgW].map(loadOne));
+  logic._accessPending = false;
+  logic.forceUpdate();
+  for (const w of WIDGETS.filter((x) => ![people, roles, orgW].includes(x))) {
     const t0 = performance.now();
     try { await w.load(logic, srv); } catch (e) { console.warn('Could not load ' + (w.name || 'a widget') + ':', e); }
     console.debug('[hub] ' + (w.name || 'widget') + ' loaded in ' + Math.round(performance.now() - t0) + ' ms');

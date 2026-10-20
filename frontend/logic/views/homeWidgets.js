@@ -20,7 +20,6 @@ export function buildHomeWidgets(ctx) {
 
   const catalog = {
     announcements: { title: 'Announcements', sub: 'From management', tint: '#B8F36B', desc: 'Pinned company news. Staff mark each one as read, so admins can see who has seen it.' },
-    links: { title: 'Quick links', sub: 'Your daily tools', tint: '#7CC4FF', desc: 'Shortcuts to email, payroll, HR and any other system your staff use.' },
     events: { title: 'Upcoming events', sub: 'Next few weeks', tint: '#FFB86B', desc: 'Events across the organization with one-tap RSVP.' },
     clocks: { title: 'World clock', sub: 'Team time zones', tint: '#6EE7C8', desc: 'Live time in the cities your teams work from.' },
     birthdays: { title: 'Celebrations', sub: 'Birthdays & anniversaries', tint: '#F49AC1', desc: 'Who is celebrating today, with a quick way to send wishes.' },
@@ -33,9 +32,7 @@ export function buildHomeWidgets(ctx) {
     files: { title: 'Recent files', sub: 'Across your forums', tint: '#C9B6FF', desc: 'The latest documents shared with you.' },
     joiners: { title: 'New joiners', sub: 'This week', tint: '#B8F36B', desc: 'Welcome new colleagues and help them settle in.' },
     sessions: { title: 'Meetings & standups', sub: 'Live & upcoming', tint: '#6EE7C8', desc: 'Live meetings and daily standups you can join, plus a button to start one.' },
-    poll: { title: 'Quick poll', sub: 'Closes Friday', tint: '#FFB86B', desc: 'Ask everyone a question and show live results.' },
     notes: { title: 'My notes', sub: 'Only you can see this', tint: '#FFD66B', desc: 'A private sticky note for your own reminders.' },
-    countdown: { title: 'Countdown', sub: 'Big day ahead', tint: '#6EE7C8', desc: 'Count down the days to an event, launch or deadline.' },
     embed: { title: 'Embed', sub: 'Any link', tint: '#C9B6FF', desc: 'Show a dashboard, video, form or website inside your home page.' },
     branches: { title: 'Branches', sub: 'Your locations', tint: '#7CC4FF', desc: 'For organizations with several locations: each branch, its head, staff count and contacts.' },
     sectors: { title: 'Sectors', sub: 'Top level of the structure', tint: '#FFB86B', desc: 'Groups branches (or departments) into sectors under the organization. Turns on sector dashboards and the Sector manager role.' },
@@ -51,60 +48,42 @@ export function buildHomeWidgets(ctx) {
   const pillBtn = (on) => 'flex:none;height:30px;padding:0 12px;border-radius:15px;cursor:pointer;font-size:12px;font-weight:600;' + (on ? 'border:0;background:var(--k-2C3D34,#2C3D34);color:var(--k-B8F36B,#B8F36B)' : 'border:1px solid var(--k-2A3832,#2A3832);background:transparent;color:var(--k-E8EFEA,#E8EFEA)');
   const tz = (zone) => { try { return new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: zone }); } catch (err) { return '--:--'; } };
   const tzDay = (zone) => { try { return new Date().toLocaleDateString('en-GB', { weekday: 'long', timeZone: zone }); } catch (err) { return ''; } };
-  const hpollBase = [{ id: 'a', label: 'Hotel ballroom', base: 14 }, { id: 'b', label: 'Beach resort', base: 22 }, { id: 'c', label: 'Our own office rooftop', base: 9 }];
-  const hTotal = hpollBase.reduce((n, o) => n + o.base, 0) + (s.hvote ? 1 : 0);
+  // ---- people-based widgets (real directory data) ----
+  const mmdd = (iso) => (iso || '').slice(5, 10);
+  const today = todayISO.slice(5, 10);
+  const inDays = (n) => mmdd(new Date(new Date(todayISO + 'T12:00:00+03:00').getTime() + n * 86400000).toLocaleDateString('en-CA', { timeZone: 'Africa/Nairobi' }));
+  const soon = [0, 1, 2, 3, 4, 5, 6, 7].map(inDays);
+  const celebrations = [];
+  (this.dir || []).forEach((p) => {
+    const d = soon.indexOf(mmdd(p.dob));
+    if (p.dob && d !== -1) celebrations.push({ id: 'b-' + p.uid, name: p.name, initials: p.initials, color: p.color, what: d === 0 ? 'Birthday today' : d === 1 ? 'Birthday tomorrow' : 'Birthday ' + new Date(p.dob.slice(0, 4) && todayISO.slice(0, 4) + p.dob.slice(4) + 'T12:00:00+03:00').toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'Africa/Nairobi' }), at: d });
+    const yrs = p.joined && mmdd(p.joined) === today ? Number(todayISO.slice(0, 4)) - Number(p.joined.slice(0, 4)) : 0;
+    if (yrs >= 1) celebrations.push({ id: 'a-' + p.uid, name: p.name, initials: p.initials, color: p.color, what: yrs + (yrs === 1 ? ' year' : ' years') + ' with the team today', at: 0 });
+  });
+  celebrations.sort((a, b) => a.at - b.at);
+  const recent = (iso) => iso && (new Date(todayISO + 'T12:00:00+03:00') - new Date(iso + 'T12:00:00+03:00')) / 86400000 <= 14;
+  const newJoiners = (this.dir || []).filter((p) => recent(p.joined)).sort((a, b) => (a.joined < b.joined ? 1 : -1)).slice(0, 3).map((p) => ({ name: p.name, role: [p.title, p.dept].filter(Boolean).join(' · '), initials: p.initials, color: p.color }));
   const itemsFor = {
     chat: s.dms.slice(0, 4).map((d) => { const pr = this.dir.find((x) => x.name === d.with) || { initials: ini(d.with), color: '#C9B6FF' }; const last = d.msgs[d.msgs.length - 1];
       return { name: d.with, initials: pr.initials, color: pr.color, unread: d.unread, hasUnread: d.unread > 0, last: last ? (last.from === 'me' ? 'You: ' : '') + (last.text || 'Sent a file') : 'Say hello', open: () => this.openDm(d.with) }; }),
     announcements: s.comms.filter((c) => c.type === 'Announcement' && c.status === 'Published').slice(0, 3).map((c) => ({ id: c.id, tag: (c.byDept || 'News').split(' ')[0], title: c.title, meta: c.by + ' · ' + fmtDay(c.date), ackLabel: c.iRead ? 'Read' : 'Mark read', ackStyle: pillBtn(!!c.iRead), ack: () => commsW.markRead(this, this.srv, c) })),
-    links: [['Email', 'E', '#7CC4FF'], ['Payroll', 'P', '#B8F36B'], ['HR system', 'H', '#F49AC1'], ['IT helpdesk', 'I', '#FFB86B'], ['Policies', 'P', '#6EE7C8'], ['Leave request', 'L', '#C9B6FF']].map(([label, letter, color]) => ({ label, letter, color })),
     events: calendarW.upcomingEvents(s.events, todayISO).map((e) => ({ id: e.id, mon: new Date(e.date + 'T12:00:00+03:00').toLocaleDateString('en-GB', { month: 'short', timeZone: 'Africa/Nairobi' }).toUpperCase(), day: String(Number(e.date.slice(8, 10))), title: e.title,
       meta: new Date(e.date + 'T12:00:00+03:00').toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'Africa/Nairobi' }) + (e.start ? ' · ' + e.start : '') + (e.forum ? ' · ' + e.forum : ''),
       rsvpLabel: s.rsvp[e.id] ? 'Going' : 'RSVP', rsvpStyle: pillBtn(!!s.rsvp[e.id]), rsvp: () => calendarW.toggleRsvp(this, this.srv, e).catch((x) => this.notify(x.message, '#FF9B8A')) })),
     clocks: [['Nairobi', 'Africa/Nairobi'], ['London', 'Europe/London'], ['New York', 'America/New_York'], ['Dubai', 'Asia/Dubai']].map(([city, zone]) => ({ city, time: tz(zone), day: tzDay(zone) })),
-    birthdays: [
-      { id: 'b1', name: 'Faith Achieng', initials: 'FA', color: '#B8F36B', what: 'Birthday today' },
-      { id: 'b2', name: 'Kevin Mutua', initials: 'KM', color: '#C9B6FF', what: '3 years with the team' }
-    ].map((b) => ({ ...b, wishLabel: s.wished[b.id] ? 'Sent' : 'Send wish', wishStyle: pillBtn(!!s.wished[b.id]), wish: () => this.setState((st) => ({ wished: { ...st.wished, [b.id]: true } })) })),
+    // Celebrations and new joiners come from the people directory (birthdays only where the viewer may see them).
+    birthdays: celebrations.map((b) => ({ ...b, wishLabel: s.wished[b.id] ? 'Sent' : 'Send wish', wishStyle: pillBtn(!!s.wished[b.id]), wish: () => this.setState((st) => ({ wished: { ...st.wished, [b.id]: true } })) })),
     tickets: [{ n: nOpen, label: 'Open', color: '#E8EFEA' }, { n: nOver, label: 'Overdue', color: '#FF9B8A' }, { n: nSoon, label: 'Due soon', color: '#FFB86B' }],
     files: (s.folders.some((f) => /^[0-9a-f]{8}-/.test(f.id)) ? s.folders.flatMap((f) => f.files.map((x) => ({ kind: x.kind, color: kindColor[x.kind] || '#9DB0A6', name: x.name, meta: f.name + ' · ' + x.when, at: x.at }))).sort((a, b) => (a.at < b.at ? 1 : -1)) : files).slice(0, 4),
-    joiners: [
-      { name: 'Mercy Wambui', role: 'Accountant · Finance', initials: 'MW', color: '#FFB86B' },
-      { name: 'John Kamau', role: 'Driver · Logistics', initials: 'JK', color: '#7CC4FF' },
-      { name: 'Lilian Chebet', role: 'Marketing Officer', initials: 'LC', color: '#F49AC1' }
-    ],
+    joiners: newJoiners,
     sessions: sessions,
     projects: projects,
-    awards: [
-      { award: 'Star performer · Q3', name: 'Brian Kiprop', initials: 'BK', color: '#7CC4FF' },
-      { award: 'Customer hero', name: 'Faith Achieng', initials: 'FA', color: '#B8F36B' },
-      { award: 'Team of the quarter', name: 'IT Operations', initials: 'IT', color: '#6EE7C8' }
-    ],
     wall: s.posts.slice(0, 2).map((p) => ({ author: p.author, initials: p.initials, color: p.color, text: (p.text || 'Shared a file').length > 90 ? p.text.slice(0, 90) + '…' : (p.text || 'Shared a file'), likes: p.likes + (s.liked[p.id] ? 1 : 0) })),
     forums: forums.filter((f) => f.hasUnread).concat(forums.filter((f) => !f.hasUnread)).slice(0, 4),
-    branches: [
-      { name: 'Head Office', place: '[CITY]', head: 'Amina Wanjiru', staff: 84, open: true },
-      { name: 'North Branch', place: '[CITY]', head: 'Brian Kiprop', staff: 32, open: true },
-      { name: 'Coast Branch', place: '[CITY]', head: 'Grace Njeri', staff: 27, open: true },
-      { name: 'West Branch', place: '[CITY]', head: 'David Otieno', staff: 19, open: false }
-    ].map((b) => ({ ...b, initials: b.name.split(' ').map((x) => x[0]).join(''), statusLabel: b.open ? 'Open' : 'Closed today', statusColor: b.open ? '#B8F36B' : '#FF9B8A' })),
-    sectors: [
-      { name: 'Business', color: '#FFB86B', depts: 'Sales · Marketing · Customer Care', staff: 61 },
-      { name: 'Operations', color: '#7CC4FF', depts: 'IT · Logistics · Facilities', staff: 48 },
-      { name: 'Corporate', color: '#F49AC1', depts: 'Finance · HR · Legal · Risk', staff: 37 }
-    ],
-    poll: hpollBase.map((o) => {
-      const v = o.base + (s.hvote === o.id ? 1 : 0);
-      const pct = Math.round((v / hTotal) * 100);
-      const mine = s.hvote === o.id;
-      return { label: o.label, pct: s.hvote ? pct + '%' : '', vote: () => this.setState({ hvote: o.id }),
-        style: 'display:flex;align-items:center;min-height:42px;padding:0 12px;border-radius:10px;cursor:pointer;font-size:13px;color:var(--k-E8EFEA,#E8EFEA);text-align:left;border:1px solid ' + (mine ? '#B8F36B' : '#2A3832') + ';background:' + (s.hvote ? 'linear-gradient(90deg,var(--k-2C3D34,#2C3D34) ' + pct + '%,#121B17 ' + pct + '%)' : 'var(--k-121B17,#121B17)') };
-    })
   };
-  const daysLeft = Math.max(0, Math.ceil((new Date('2026-12-18T00:00:00+03:00') - new Date()) / 86400000));
   // structure widgets follow the organization's structure, not the person's choice
   const LEVELS = ['departments', 'sectors', 'branches', 'units'];
-  const ids = s.widgets.filter((x) => LEVELS.indexOf(x) === -1 || has[x]);
+  const ids = s.widgets.filter((x) => catalog[x] && (LEVELS.indexOf(x) === -1 || has[x]));
   const isHidden = (id) => s.hiddenWidgets.indexOf(id) !== -1;
   const toggleHide = (id) => () => this.setState((st) => ({ hiddenWidgets: st.hiddenWidgets.indexOf(id) !== -1 ? st.hiddenWidgets.filter((x) => x !== id) : st.hiddenWidgets.concat([id]) }));
   const removeWidget = (id) => this.setState((st) => {
@@ -135,7 +114,6 @@ export function buildHomeWidgets(ctx) {
     customizing: s.customize,
     note: s.note,
     onNote: (e) => this.setState({ note: e.target.value }),
-    days: daysLeft,
     goTickets: () => this.setState({ section: 'tickets', ticketOpen: null }),
     goProjects: () => this.setState({ section: 'projects', projectOpen: null }),
     urgent: tickets.filter((t) => t.step < 3).slice().sort((a, b) => ['Overdue', 'Due soon', 'On time', 'TAT paused'].indexOf(a.slaLabel) - ['Overdue', 'Due soon', 'On time', 'TAT paused'].indexOf(b.slaLabel)).slice(0, 3),
@@ -165,5 +143,8 @@ export function buildHomeWidgets(ctx) {
       btnStyle: 'flex:1;height:38px;border-radius:10px;font-weight:600;cursor:' + (added ? 'default' : 'pointer') + ';' + (added ? 'border:1px solid var(--k-2A3832,#2A3832);background:transparent;color:var(--k-9DB0A6,#9DB0A6)' : 'border:0;background:#B8F36B;color:#0F1714'),
       add: () => { if (!added) this.setState((st) => ({ widgets: st.widgets.concat(id) })); } };
   });
-  return { catalog, cur_f, folders, fv, gallery, ids, isHidden, toggleHide, widgets };
+  // today's birthdays, for the Community wall card
+  const bToday = celebrations.filter((c) => c.at === 0 && /^Birthday/.test(c.what));
+  const wallBirthdays = { has: bToday.length > 0, text: bToday.length ? bToday[0].name + (bToday.length > 1 ? ' and ' + (bToday.length - 1) + (bToday.length === 2 ? ' other' : ' others') : '') + '. Send them a wish on the wall.' : '', names: bToday.map((c) => c.name) };
+  return { catalog, cur_f, folders, fv, gallery, ids, isHidden, toggleHide, wallBirthdays, widgets };
 }

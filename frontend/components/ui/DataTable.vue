@@ -49,13 +49,7 @@ class Component extends DCLogic {
     this.state = { tid: null, f: {}, from: {}, to: {}, page: 0 };
   }
   renderVals() {
-    const sample = {
-      id: 'sample', cols: [{ label: 'Name', filter: 'text' }, { label: 'Team', filter: 'select' }, { label: 'Date', filter: 'date' }, { label: '', align: 'right' }],
-      rows: [
-        { cells: [{ kind: 'person', text: 'Amina Wanjiru', initials: 'AW', color: '#6EE7C8', sub: 'Finance Analyst' }, { text: 'Finance' }, { text: '14 Oct', fv: '2026-10-14' }, { kind: 'actions', buttons: [{ label: 'View', run: () => {} }] }] },
-        { cells: [{ kind: 'person', text: 'Brian Kiprop', initials: 'BK', color: '#7CC4FF', sub: 'Systems Engineer' }, { text: 'IT Operations' }, { text: '15 Oct', fv: '2026-10-15' }, { kind: 'actions', buttons: [{ label: 'View', run: () => {} }] }] }
-      ]
-    };
+    const sample = { id: 'empty', cols: [], rows: [] };
     const t = this.props.t || sample;
     const st = this.state;
     const same = st.tid === t.id;

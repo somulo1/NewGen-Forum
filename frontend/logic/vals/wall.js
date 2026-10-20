@@ -1,7 +1,7 @@
 // Values and handlers the Community wall reads through hubBindings: moments, polls, audience, hashtags, wishes.
 import * as wallW from '~/logic/server/widgets/wall.js';
 export function valsWall(ctx) {
-  const { moments, openEv, openPersonName, people, s, sharedViews, settingsPage, orgName, orgLogo, notesPage, noteWidget } = ctx;
+  const { wallBirthdays, moments, openEv, openPersonName, people, s, sharedViews, settingsPage, orgName, orgLogo, notesPage, noteWidget } = ctx;
   const set = (o) => this.setState(o);
   const COLORS = ['#2B4A63', '#6B4A2B', '#5A2E47', '#3B5A2B', '#4A3A6B', '#6B2B2B'];
   const wp = s.wpoll;
@@ -49,6 +49,7 @@ export function valsWall(ctx) {
     wallAudience: s.wallAudience, wallAudiences: ['Everyone', 'My department', 'Management'],
     onAudience: (e) => set({ wallAudience: e.target.value }),
     // Birthdays
-    wishBirthday: () => set({ draft: 'Happy birthday Faith Achieng and everyone celebrating today! 🎂 Wishing you a wonderful day.' })
+    wishBirthday: () => set({ draft: 'Happy birthday ' + (wallBirthdays.names.length ? wallBirthdays.names.join(', ') + ' and everyone' : 'to everyone') + ' celebrating today! 🎂 Wishing you a wonderful day.' }),
+    wallBirthdays
   };
 }
