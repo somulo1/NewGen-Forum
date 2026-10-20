@@ -2,6 +2,7 @@
 // never creates people, messages or any sample content.
 //
 //	bootstrap platform                   install the shipped sounds (safe to run again; the API also does this at start-up)
+//	bootstrap owner -name "..." -email you@x -org "Acme" -slug acme   create (or re-activate) the owner account and organization
 //	bootstrap protect [-slug acme]       check the encryption and database protections are in place; with -slug also make sure that
 //	                                     organization has its data key. Exits non-zero if anything is wrong.
 //	bootstrap org -slug acme             make sure the organization has its catalog of pages and rights
@@ -34,7 +35,7 @@ func fail(err error) {
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "usage: bootstrap platform | bootstrap protect [-slug <slug>] | bootstrap org -slug <slug> [-roles starter] [-dry-run]")
+		fmt.Fprintln(os.Stderr, "usage: bootstrap platform | bootstrap owner | bootstrap protect [-slug <slug>] | bootstrap org -slug <slug> [-roles starter] [-dry-run]")
 		os.Exit(2)
 	}
 	cmd := os.Args[1]
@@ -42,6 +43,10 @@ func main() {
 	slug := fs.String("slug", "", "organization web name")
 	roles := fs.String("roles", "", "role pack to add: starter")
 	all := fs.Bool("all", false, "every organization (use after a release that adds rights)")
+	ownerName := fs.String("name", "", "owner: your full name")
+	ownerEmail := fs.String("email", "", "owner: your sign-in email")
+	orgName := fs.String("org", "", "owner: the organization's name")
+	resetPw := fs.Bool("reset-password", false, "owner: set a new first-sign-in password even though the account exists")
 	dry := fs.Bool("dry-run", false, "show what would be added and change nothing")
 	_ = fs.Parse(os.Args[2:])
 
@@ -122,6 +127,10 @@ func main() {
 			}
 		}
 		fmt.Println("done.")
+	case "owner":
+		if err := owner(ctx, a, cfg, *ownerName, *ownerEmail, "", *orgName, *slug, *resetPw); err != nil {
+			fail(err)
+		}
 	case "protect":
 		os.Exit(protect(ctx, a, cfg, *slug))
 	default:

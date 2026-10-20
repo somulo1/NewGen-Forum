@@ -31,5 +31,8 @@ Gate: server errors < 0.5%, sign-in failures < 2%, no dropped sockets, p95 reads
 Baseline on a laptop with the database and API on the same machine: 200 people, 195 requests/s, no errors, p95 under 50 ms (reads), sign-in p95 75 ms.
 Then: calls (see item 1.6), a fresh organization signing up and onboarding 500 people by import, and a 30-minute soak.
 
-## 5. Before the first customer
+## 5. First start
+`migrate`, `bootstrap platform`, `bootstrap owner` (see docs/SEEDING.md), optionally `bootstrap org -slug <slug> -roles starter`, then `bootstrap protect`.
+
+## 6. Before the first customer
 Frontend built with `NUXT_PUBLIC_API_BASE=https://api.example.com`; `HUB_ALLOWED_ORIGINS` is that site; no demo seed was ever run on production; keys are in the KMS and a lost-key procedure is written; an on-call rota exists.
