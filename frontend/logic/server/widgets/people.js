@@ -13,16 +13,22 @@ export async function load(logic, srv) {
   } while (next);
   const me = srv.me;
   const dir = [];
+  let selfRow = null;
   all.forEach((p) => {
     srv.nameOf.set(p.id, p.name);
-    if (p.id === me.person) return;   // the signed-in person is "Sam"/"me" in the UI, not a directory row
-    srv.personOf.set(p.name, p.id);
-    dir.push({
-      id: dir.length, uid: p.id, account: p.account, name: p.name, email: p.email || '', initials: p.initials, dept: p.department ? p.department.name : '',
+    const row = (id) => ({
+      id, uid: p.id, account: p.account, accStatus: p.status || 'active', name: p.name, email: p.email || '', initials: p.initials, dept: p.department ? p.department.name : '',
       title: p.title || '', loc: p.branch ? p.branch.name : '', sector: p.sector ? p.sector.name : '', unit: p.unit ? p.unit.name : '',
       color: p.color || '#7CC4FF', joined: p.joined_on || '', dob: p.date_of_birth || '', status: STATUS[p.availability] || 'Available', role: p.role || ''
     });
+    // The signed-in person is "Sam"/"me" in the UI, so they are not in the pickers (assign, mention, message). They are in the
+    // People page, where everyone is listed and searchable (logic.dirSelf).
+    if (p.id === me.person) { selfRow = row(-1); return; }
+    srv.personOf.set(p.name, p.id);
+    dir.push(row(dir.length));
   });
+  if (selfRow) selfRow.id = dir.length;
+  logic.dirSelf = selfRow;
   srv.dirByUid = new Map(dir.map((d) => [d.uid, d]));
   logic.dir = dir;
   await loadStructure(logic, srv);

@@ -5,18 +5,18 @@ export function buildPeople(ctx) {
   const PAGE = 24;
   const q = s.pq.trim().toLowerCase();
   const statusCol = { 'Available': '#B8F36B', 'In a meeting': '#FFB86B', 'Focusing': '#7CC4FF', 'Away': '#9DB0A6' };
-  const base = this.dir.filter((p) => (!q || (p.name + ' ' + p.title + ' ' + p.dept).toLowerCase().indexOf(q) !== -1) && (!s.pAvail || p.status === 'Available'));
+  const base = this.peopleDir().filter((p) => (!q || (p.name + ' ' + p.title + ' ' + p.dept).toLowerCase().indexOf(q) !== -1) && (!s.pAvail || p.status === 'Available'));
   const inLoc = base.filter((p) => s.ploc === 'All' || p.loc === s.ploc);
   const results = inLoc.filter((p) => s.pdept === 'All' || p.dept === s.pdept);
   const pages = Math.max(1, Math.ceil(results.length / PAGE));
   const pg = Math.min(s.ppage, pages - 1);
-  const deptNames = Array.from(new Set(this.dir.map((p) => p.dept))).sort();
+  const deptNames = Array.from(new Set(this.peopleDir().map((p) => p.dept))).sort();
   const facetStyle = (on) => 'display:flex;align-items:center;gap:8px;width:100%;min-height:36px;padding:0 10px;border-radius:8px;border:0;cursor:pointer;font-size:13px;' + (on ? 'background:var(--k-2C3D34,#2C3D34);color:var(--k-E8EFEA,#E8EFEA);font-weight:600' : 'background:transparent;color:var(--k-C9D6CF,#C9D6CF)');
   const chipS = (on) => 'height:32px;padding:0 12px;border-radius:16px;cursor:pointer;font-size:12px;' + (on ? 'border:1px solid var(--k-B8F36B,#B8F36B);background:var(--k-2C3D34,#2C3D34);color:var(--k-E8EFEA,#E8EFEA);font-weight:600' : 'border:1px solid var(--k-2A3832,#2A3832);background:transparent;color:var(--k-C9D6CF,#C9D6CF)');
   const segS = (on) => 'height:34px;padding:0 14px;border-radius:9px;border:0;cursor:pointer;font-size:13px;font-weight:600;' + (on ? 'background:var(--k-E8EFEA,#E8EFEA);color:var(--k-0F1714,#0F1714)' : 'background:transparent;color:var(--k-C9D6CF,#C9D6CF)');
   const pagerS = (dis) => 'height:38px;padding:0 16px;border-radius:19px;border:1px solid var(--k-2A3832,#2A3832);background:transparent;font-size:13px;cursor:' + (dis ? 'default;color:var(--k-4A5C54,#4A5C54)' : 'pointer;color:var(--k-E8EFEA,#E8EFEA)');
   const dir = {
-    total: this.dir.length, deptCount: deptNames.length, onlineCount: this.dir.filter((p) => p.status === 'Available').length,
+    total: this.peopleDir().length, deptCount: deptNames.length, onlineCount: this.peopleDir().filter((p) => p.status === 'Available').length,
     q: s.pq, onQ: (e) => this.setState({ pq: e.target.value, ppage: 0 }),
     avail: s.pAvail, toggleAvail: () => this.setState((st) => ({ pAvail: !st.pAvail, ppage: 0 })),
     hasFilters: s.pdept !== 'All' || s.ploc !== 'All' || s.pAvail || !!q,
@@ -32,7 +32,7 @@ export function buildPeople(ctx) {
     prev: () => this.setState({ ppage: Math.max(0, pg - 1) }), next: () => this.setState({ ppage: Math.min(pages - 1, pg + 1) }),
     prevStyle: pagerS(pg === 0), nextStyle: pagerS(pg >= pages - 1)
   };
-  const po = s.personOpen !== null && s.personOpen !== undefined ? this.dir[s.personOpen] : null;
+  const po = s.personOpen !== null && s.personOpen !== undefined ? this.peopleDir()[s.personOpen] : null;
   const skillsByDept = { 'IT Operations': ['Networking', 'Windows server', 'Help desk'], 'Software Development': ['Laravel', 'Vue', 'Testing'], 'Finance': ['Reporting', 'Excel', 'Budgeting'], 'Risk & Compliance': ['Audit', 'Policy', 'Controls'], 'Sales': ['Negotiation', 'CRM'], 'HR': ['Recruiting', 'Onboarding'], 'Customer Care': ['Customer service', 'Complaints handling'], 'Marketing': ['Content', 'Social media'], 'Operations': ['Process improvement'], 'Logistics': ['Fleet', 'Scheduling'], 'Legal': ['Contracts', 'Compliance'] };
   const psn = po ? { ...po, statusColor: statusCol[po.status], cover: po.color + '55', manager: reportOf(po.name).top ? 'Top of the organization' : reportOf(po.name).display, hubRole: /Lead|Supervisor|Manager/.test(po.title) ? 'Head of department' : 'Staff',
     securityCode: (() => { const v = this.srv && this.srv.vault; if (!v || !po.account) return ''; const c = v.safetyCodeOf(po.account); if (!c) v.ensureSafety(po.account, po.uid).then(() => this.forceUpdate()); return c; })(),
