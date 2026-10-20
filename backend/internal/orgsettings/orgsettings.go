@@ -16,21 +16,50 @@ import (
 
 type Security struct {
 	MFA             bool   `json:"mfa"`
-	Session         string `json:"session"` // hours
+	Session         string `json:"session"` // minutes of inactivity before sign-out (see SessionChoices)
 	Domains         string `json:"domains"`
 	Retention       string `json:"retention"` // months
 	ExternalSharing bool   `json:"externalSharing"`
+	MaxFileMB       string `json:"maxFileMB"`  // largest file attached to a communication, in MB
+	FileTypes       string `json:"fileTypes"`  // extensions allowed on communications, separated by commas
 	MaxVideoMB      string `json:"maxVideoMB"` // largest video, in MB, that may be posted in forums, chats and the wall
 	// UserQuotaMB is how much each person may store in total (files, attachments, photos), in MB; "0" means no limit.
 	// One person can be given a different amount (hub.storage_quotas).
 	UserQuotaMB string `json:"userQuotaMB"`
 }
 
+// SessionChoices are the inactivity limits an administrator can pick, in minutes: 15, 30 and 45 minutes, 1, 2, 5, 12 and
+// 24 hours.
+var SessionChoices = []string{"15", "30", "45", "60", "120", "300", "720", "1440"}
+
+// SessionMinutes reads the setting. Older settings stored hours (1, 4, 8, 12, 24, 168); they map to the nearest choice
+// that is not shorter.
+func SessionMinutes(v string) int {
+	switch v {
+	case "1":
+		return 60
+	case "4":
+		return 300
+	case "8", "12":
+		return 720
+	case "24", "168", "":
+		return 1440
+	}
+	n := 0
+	for _, c := range v {
+		if c < '0' || c > '9' {
+			return 720
+		}
+		n = n*10 + int(c-'0')
+	}
+	return n
+}
+
 // QuotaChoices are the per-person storage limits an administrator can pick, in MB.
 var QuotaChoices = []string{"0", "100", "250", "500", "1024", "2048", "5120", "10240", "20480", "51200", "102400"}
 
 func DefaultSecurity() Security {
-	return Security{Session: "8", Retention: "12", ExternalSharing: true, MaxVideoMB: "50", UserQuotaMB: "5120"}
+	return Security{Session: "720", Retention: "12", ExternalSharing: true, MaxVideoMB: "50", MaxFileMB: "10", FileTypes: "pdf,doc,docx,xls,xlsx,ppt,pptx,csv,txt,png,jpg,jpeg", UserQuotaMB: "5120"}
 }
 
 func cx(org uuid.UUID, section string) crypto.Context {

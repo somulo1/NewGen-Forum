@@ -78,6 +78,24 @@ func (e *Engine) Private(r chi.Router) {
 		httpx.JSON(w, 200, map[string]any{"flows": f})
 		return nil
 	}))
+	r.Put("/approvals/flows/{key}/approvers/{level}", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
+		p, err := tenant.MustOrg(r.Context())
+		if err != nil {
+			return err
+		}
+		var in struct {
+			Person *uuid.UUID `json:"person"`
+		}
+		if err := httpx.Decode(r, &in, 8<<10); err != nil {
+			return err
+		}
+		lv, _ := strconv.Atoi(chi.URLParam(r, "level"))
+		if err := e.SetDesignee(r.Context(), p, chi.URLParam(r, "key"), lv, in.Person); err != nil {
+			return err
+		}
+		w.WriteHeader(204)
+		return nil
+	}))
 	r.Put("/approvals/flows/{key}", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
 		p, err := tenant.MustOrg(r.Context())
 		if err != nil {

@@ -103,6 +103,9 @@ func (s *Service) Send(ctx context.Context, p *tenant.Principal, conv uuid.UUID,
 				return httpx.Bad("The message you are replying to is not in this conversation.")
 			}
 		}
+		if err := s.checkEngagement(ctx, tx, p, conv, kind, in.Type, in.ReplyTo); err != nil {
+			return err
+		}
 		if err := PostMessage(ctx, tx, s.A, Posted{Org: p.Org, Conversation: conv, ID: in.ID, Account: p.Account, Person: p.Person, Device: in.Device, Epoch: epoch, Envelope: env, Type: in.Type, ReplyTo: in.ReplyTo}); err != nil {
 			return err
 		}
@@ -132,6 +135,8 @@ func (s *Service) History(ctx context.Context, p *tenant.Principal, conv uuid.UU
 		limit = 50
 	}
 	out := []Message{}
+	var tampered []uuid.UUID
+	defer func() { reportTampering(context.WithoutCancel(ctx), s.A, p.Org, conv, tampered) }()
 	err := s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
 		if _, _, _, _, err := s.lockConvNoLock(ctx, tx, p, conv); err != nil {
 			return err
@@ -140,7 +145,7 @@ func (s *Service) History(ctx context.Context, p *tenant.Principal, conv uuid.UU
 		if err := tx.QueryRow(ctx, `select first_epoch from hub.conversation_members where conversation_id=$1 and account_id=$2`, conv, p.Account).Scan(&first); err != nil {
 			return err
 		}
-		q := `select m.id, m.sender_account, m.sender_person, m.sender_device, coalesce(pe.first_name || ' ' || pe.last_name, ''), m.epoch, m.ciphertext, m.content_type, m.reply_to, m.created_at, m.deleted_at is not null
+		q := `select m.id, m.sender_account, m.sender_person, m.sender_device, coalesce(pe.first_name || ' ' || pe.last_name, ''), m.epoch, m.ciphertext, m.content_type, m.reply_to, m.created_at, m.deleted_at is not null, m.ver, m.mac, hub.canon(m)
 			from hub.messages m left join hub.people pe on pe.id = m.sender_person
 			where m.org_id=$1 and m.conversation_id=$2 and m.epoch >= $3`
 		args := []any{p.Org, conv, first}
@@ -155,9 +160,16 @@ func (s *Service) History(ctx context.Context, p *tenant.Principal, conv uuid.UU
 		defer rs.Close()
 		for rs.Next() {
 			m := Message{Conversation: conv}
-			var ct []byte
-			if err := rs.Scan(&m.ID, &m.SenderAccount, &m.SenderPerson, &m.SenderDevice, &m.SenderName, &m.Epoch, &ct, &m.Type, &m.ReplyTo, &m.CreatedAt, &m.Deleted); err != nil {
+			var ct, mac []byte
+			var ver int
+			var canon string
+			if err := rs.Scan(&m.ID, &m.SenderAccount, &m.SenderPerson, &m.SenderDevice, &m.SenderName, &m.Epoch, &ct, &m.Type, &m.ReplyTo, &m.CreatedAt, &m.Deleted, &ver, &mac, &canon); err != nil {
 				return err
+			}
+			// a row changed outside the system (a forged like or vote) is left out and reported
+			if !s.A.Sign.Verify(mac, "messages", ver, canon) {
+				tampered = append(tampered, m.ID)
+				continue
 			}
 			if !m.Deleted {
 				m.Envelope = base64.StdEncoding.EncodeToString(ct)
@@ -193,6 +205,8 @@ func (s *Service) Changes(ctx context.Context, p *tenant.Principal, conv uuid.UU
 		limit = 100
 	}
 	page := &SyncPage{Messages: []Message{}}
+	var tampered []uuid.UUID
+	defer func() { reportTampering(context.WithoutCancel(ctx), s.A, p.Org, conv, tampered) }()
 	err := s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
 		if _, _, _, _, err := s.lockConvNoLock(ctx, tx, p, conv); err != nil {
 			return err
@@ -221,7 +235,7 @@ func (s *Service) Changes(ctx context.Context, p *tenant.Principal, conv uuid.UU
 			), ranked as (
 				select id, max(at) as at from changed group by id
 			)
-			select m.id, m.sender_account, m.sender_person, m.sender_device, coalesce(pe.first_name || ' ' || pe.last_name, ''), m.epoch, m.ciphertext, m.content_type, m.reply_to, m.created_at, m.deleted_at is not null, r.at
+			select m.id, m.sender_account, m.sender_person, m.sender_device, coalesce(pe.first_name || ' ' || pe.last_name, ''), m.epoch, m.ciphertext, m.content_type, m.reply_to, m.created_at, m.deleted_at is not null, r.at, m.ver, m.mac, hub.canon(m)
 			  from ranked r join hub.messages m on m.org_id=$1 and m.id=r.id
 			  left join hub.people pe on pe.id = m.sender_person
 			 where (r.at, r.id) > ($3::timestamptz, $5::uuid)
@@ -232,29 +246,36 @@ func (s *Service) Changes(ctx context.Context, p *tenant.Principal, conv uuid.UU
 		}
 		defer rs.Close()
 		var lastAt time.Time
+		var lastID uuid.UUID
 		for rs.Next() {
 			m := Message{Conversation: conv}
-			var ct []byte
+			var ct, mac []byte
 			var at time.Time
-			if err := rs.Scan(&m.ID, &m.SenderAccount, &m.SenderPerson, &m.SenderDevice, &m.SenderName, &m.Epoch, &ct, &m.Type, &m.ReplyTo, &m.CreatedAt, &m.Deleted, &at); err != nil {
+			var ver int
+			var canon string
+			if err := rs.Scan(&m.ID, &m.SenderAccount, &m.SenderPerson, &m.SenderDevice, &m.SenderName, &m.Epoch, &ct, &m.Type, &m.ReplyTo, &m.CreatedAt, &m.Deleted, &at, &ver, &mac, &canon); err != nil {
 				return err
 			}
 			if len(page.Messages) == limit {
 				page.More = true
 				break
 			}
+			lastAt, lastID = at, m.ID
+			if !s.A.Sign.Verify(mac, "messages", ver, canon) {
+				tampered = append(tampered, m.ID)
+				continue
+			}
 			if !m.Deleted {
 				m.Envelope = base64.StdEncoding.EncodeToString(ct)
 			}
 			page.Messages = append(page.Messages, m)
-			lastAt = at
 		}
 		if err := rs.Err(); err != nil {
 			return err
 		}
 		switch {
 		case page.More:
-			page.Since, page.After = lastAt, page.Messages[len(page.Messages)-1].ID.String()
+			page.Since, page.After = lastAt, lastID.String()
 		case floor.After(since):
 			page.Since = floor
 		default:

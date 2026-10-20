@@ -1,6 +1,7 @@
 // Communications: announcements, memos and newsletters (the Announcements, Memos and Newsletter widgets and the
 // Communications page share these). Content is sealed for the audience; this reads, marks read, and publishes.
 import { newConversationKey, wrap, newId, b64, unb64 } from '../e2ee.js';
+import * as files from '../files.js';
 
 export const name = 'comms';
 
@@ -17,7 +18,7 @@ export async function load(logic, srv) {
     } catch (e) { /* not visible to this person */ }
     const dept = srv.dirByUid && srv.dirByUid.get(c.by) ? srv.dirByUid.get(c.by).dept : '';
     return {
-      id: c.ref, uid: c.id, type: c.type, title: pl ? pl.title : '(sealed)', body: pl ? pl.body || '' : '', by: c.by_name, byDept: dept,
+      id: c.ref, uid: c.id, type: c.type, title: pl ? pl.title : '(sealed)', summary: pl ? pl.summary || '' : '', body: pl ? pl.body || '' : '', fields: pl && pl.fields ? pl.fields : {}, files: pl && pl.files ? pl.files : [], by: c.by_name, byDept: dept,
       date: dayOf(c.published_at || c.created_at), at: c.published_at || c.created_at, to: pl && pl.to ? pl.to : [],
       status: c.status === 'Pending approval' ? 'Awaiting approval' : c.status, read: Math.min(100, Math.round((c.read / Math.max(1, total)) * 100)), iRead: !!c.i_read
     };
@@ -47,7 +48,26 @@ async function audienceWall(srv, audience, ref, label) {
   return made.id;
 }
 
-// c = { type, title, body, wall, forum (server conversation id or ''), sel: { 'departments:Finance': true } }
+// Checks a file against the organization's limits (set on the Settings page).
+export function fileProblem(srv, f) {
+  const lim = srv.commFiles || { maxMB: 10, types: [] };
+  const ext = (f.name.split('.').pop() || '').toLowerCase();
+  if (lim.types.length && !lim.types.includes(ext)) return '"' + f.name + '" is not an allowed type. Allowed: ' + lim.types.join(', ') + '.';
+  if (f.size > lim.maxMB * 1048576) return '"' + f.name + '" is over the ' + lim.maxMB + ' MB limit.';
+  return '';
+}
+
+// Who read it, who reacted and who replied, for every place it went. Only people allowed to see insights get an answer.
+export async function insights(srv, c) {
+  return (await srv.request('GET', `/comms/${c.uid}/insights`)).places;
+}
+
+// Opens an attached file in a new tab.
+export async function openFile(srv, f) {
+  window.open(await files.openUrl(srv, f), '_blank');
+}
+
+// c = { type, title, summary, body, fields, files: [File], wall, forum (server conversation id or ''), sel: { 'departments:Finance': true } }
 export async function publish(logic, srv, c) {
   const targets = [];
   const to = [];
@@ -58,11 +78,16 @@ export async function publish(logic, srv, c) {
     const ref = srv.structure[level] && srv.structure[level].get(nm);
     if (ref) { targets.push({ conv: () => audienceWall(srv, AUDIENCE[level], ref, nm + ' wall') }); to.push(nm); }
   });
+  for (const f of c.files || []) { const bad = fileProblem(srv, f); if (bad) throw new Error(bad); }
   let pending = 0;
+  const batch = newId();
   for (const t of targets) {
     const conv = await t.conv();
-    const sealed = await srv.vault.seal(conv, { title: c.title, body: c.body, to, type: c.type, from: srv.me.name }, newId());
-    const res = await srv.request('POST', '/comms', { type: c.type, conversation: conv, message: sealed.id, epoch: sealed.epoch, device: sealed.device, envelope: sealed.envelope });
+    // each place holds its own copy of the files, encrypted for that audience
+    const refs = [];
+    for (const f of c.files || []) { const u = await files.upload(srv, conv, f); refs.push({ fileId: u.fileId, name: u.name, meta: u.meta, type: u.type, isImg: u.isImg, key: u.key }); }
+    const sealed = await srv.vault.seal(conv, { title: c.title, summary: c.summary || '', body: c.body, fields: c.fields || {}, files: refs, to, type: c.type, from: srv.me.name }, newId());
+    const res = await srv.request('POST', '/comms', { type: c.type, batch, conversation: conv, message: sealed.id, epoch: sealed.epoch, device: sealed.device, envelope: sealed.envelope });
     if (res.approval) pending++;
   }
   await load(logic, srv);

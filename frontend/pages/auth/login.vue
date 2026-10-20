@@ -1,12 +1,18 @@
 <script setup>
 definePageMeta({ path: '/login', layout: 'auth' });
 useHead({ title: 'Sign in · Hub' });
+import { signOutMessage } from '~/composables/useSessionGuard.js';
 const route = useRoute();
 const email = ref('');
 const password = ref('');
 const show = ref(false);
 const err = ref('');
 const busy = ref(false);
+// why the last session ended (a sign-in elsewhere, or inactivity), remembered by the app when it signed this browser out
+const why = ref('');
+onMounted(() => {
+  try { const c = sessionStorage.getItem('hub-signout') || String(route.query.why || ''); sessionStorage.removeItem('hub-signout'); why.value = signOutMessage(c); } catch (e) { /* no storage */ }
+});
 const submit = async () => {
   err.value = '';
   if (!email.value.trim() || !password.value) { err.value = 'Enter your email and password.'; return; }
@@ -23,6 +29,7 @@ const submit = async () => {
 };
 </script>
 <template>
+  <div v-if="why" role="status" style="padding: 10px 12px; border-radius: 10px; background: #FFF3DC; color: #7A4B00; font-size: 13px; margin-bottom: 14px">{{ why }}</div>
   <div v-if="route.query.reset" role="status" style="padding: 10px 12px; border-radius: 10px; background: #EAF6DD; color: #2B5A0B; font-size: 13px; margin-bottom: 14px">Password updated. Sign in with your new password.</div>
   <form novalidate aria-label="Sign in" @submit.prevent="submit" style="display: flex; flex-direction: column; gap: 14px">
     <div style="display: flex; flex-direction: column; gap: 4px"><h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 26px; letter-spacing: -0.02em">Welcome back</h1></div>

@@ -92,3 +92,21 @@ func (s *Service) PurgeDue(ctx context.Context, limit int) (done, failed int, er
 	}
 	return done, failed, nil
 }
+
+// EraseOrg erases every stored file of an organization from every file server, then all of its records. Contents that
+// cannot be erased now stop the deletion (it is retried on the next run), so nothing is left behind on storage.
+func (s *Service) EraseOrg(ctx context.Context, org uuid.UUID, records interface {
+	FileRefs(context.Context, uuid.UUID) ([]string, error)
+	EraseOrg(context.Context, uuid.UUID) error
+}) error {
+	refs, err := records.FileRefs(ctx, org)
+	if err != nil {
+		return err
+	}
+	for _, ref := range refs {
+		if err := s.Store.Delete(ctx, ref); err != nil {
+			return err
+		}
+	}
+	return records.EraseOrg(ctx, org)
+}

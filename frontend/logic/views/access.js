@@ -22,11 +22,12 @@ export function buildAccess(ctx) {
     departments: lvl('departments'), sectors: lvl('sectors'), branches: lvl('branches'), units: lvl('units'),
     chat: W.indexOf('chat') !== -1, calendar: W.indexOf('calendar') !== -1, memos: W.indexOf('memos') !== -1, newsletter: W.indexOf('newsletter') !== -1, announcements: W.indexOf('announcements') !== -1
   };
+  has.jobposts = W.indexOf('jobposts') !== -1 || has.memos || has.newsletter || has.announcements;   // job posts come with communications
   has.structure = has.departments || has.sectors || has.branches || has.units;
-  has.comms = has.memos || has.newsletter || has.announcements;
+  has.comms = has.memos || has.newsletter || has.announcements || has.jobposts;
   ['tickets', 'projects', 'files', 'secureshare', 'sessions', 'awards', 'notes'].forEach((k) => { has[k] = W.indexOf(k) !== -1; });
-  const optionalMods = ['calendar', 'memos', 'newsletter', 'announcements', 'departments', 'sectors', 'branches', 'units', 'performance', 'tickets', 'projects', 'files', 'secureshare', 'sessions', 'awards', 'chat'];
-  const modEnabled = (m) => optionalMods.indexOf(m) === -1 || (m === 'performance' ? has.structure : ['departments', 'sectors', 'branches', 'units'].indexOf(m) !== -1 ? has[m] : W.indexOf(m) !== -1);
+  const optionalMods = ['calendar', 'memos', 'newsletter', 'announcements', 'jobposts', 'departments', 'sectors', 'branches', 'units', 'performance', 'tickets', 'projects', 'files', 'secureshare', 'sessions', 'awards', 'chat'];
+  const modEnabled = (m) => optionalMods.indexOf(m) === -1 || (m === 'jobposts' ? has.jobposts : m === 'performance' ? has.structure : ['departments', 'sectors', 'branches', 'units'].indexOf(m) !== -1 ? has[m] : W.indexOf(m) !== -1);
   const modInfo = Object.fromEntries(catalog.map((m) => [m.key, [m.label, m.tint]]));
   const genericRights = ['View'];
   // the roles of the organization, as made on the Roles page (the count and the "needs" level come from the server)

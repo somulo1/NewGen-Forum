@@ -37,6 +37,7 @@ var Rules = []RuleDef{
 	{"r5", "Role or rights change", "Any change to roles, rights or approval rules.", "Medium", true},
 	{"r6", "Secure link opened from an unusual IP", "A one-time link is opened from outside the usual IP ranges.", "Medium", true},
 	{"r7", "Outside sharing spike", "More than 10 posts shared outside Hub within an hour.", "Low", false},
+	{"r8", "Tampered records", "Data changed outside Hub: forged likes or votes, edited posts or counts, or any record that no longer matches its seal.", "High", true},
 }
 
 type ruleState struct {
@@ -114,6 +115,8 @@ func Evaluate(ctx context.Context, a *app.App, tx pgx.Tx, e *app.Entry) error {
 	defer func() { go nb.Send(context.Background(), a) }()
 
 	switch {
+	case e.Module == "Integrity" && e.Result == "Failed":
+		return raise("r8", e.Action, "Found by the integrity checks. The changed records are hidden from everyone and listed in the audit log; restore them from a backup and find out who had direct database access.")
 	case e.Module == "Auth" && e.Result == "Failed":
 		var n int
 		if err := tx.QueryRow(ctx, `select count(*) from hub.audit_logs where actor_name=$1 and module='Auth' and result='Failed' and ts > coalesce($2, now()) - interval '10 minutes' and ts <= coalesce($2, now())`, e.Name, e.At).Scan(&n); err != nil {

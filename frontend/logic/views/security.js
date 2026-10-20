@@ -125,8 +125,8 @@ export function buildSecurity(ctx) {
       toggle: () => { const next = !ruleOn(r.id); this.setState((x) => ({ rulesOn: { ...x.rulesOn, [r.id]: next } })); if (this.srv) securityW.setRule(this, this.srv, r.id, next, ruleSev(r)).catch((e) => this.notify(e.message || 'That did not work.', '#FF9B8A')); },
       setSev: (e) => { const v = e.target.value; this.setState((x) => ({ ruleSev: { ...x.ruleSev, [r.id]: v } })); if (this.srv) securityW.setRule(this, this.srv, r.id, ruleOn(r.id), v).catch((e) => this.notify(e.message || 'That did not work.', '#FF9B8A')); } }))
   };
-  const secTab = { alerts: tabS(s.secTab === 'alerts'), logs: tabS(s.secTab === 'logs'), rules: tabS(s.secTab === 'rules'),
-    alertsGo: set({ secTab: 'alerts' }), logsGo: set({ secTab: 'logs' }), rulesGo: set({ secTab: 'rules' }),
-    isAlerts: s.secTab === 'alerts', isLogs: s.secTab === 'logs', isRules: s.secTab === 'rules' };
+  const secTab = { alerts: tabS(s.secTab === 'alerts'), logs: tabS(s.secTab === 'logs'), rules: tabS(s.secTab === 'rules'), blocks: tabS(s.secTab === 'blocks'),
+    alertsGo: set({ secTab: 'alerts' }), logsGo: set({ secTab: 'logs' }), rulesGo: set({ secTab: 'rules' }), blocksGo: set({ secTab: 'blocks' }),
+    isAlerts: s.secTab === 'alerts', isLogs: s.secTab === 'logs', isRules: s.secTab === 'rules', isBlocks: s.secTab === 'blocks' };
   return { agoLabel, alertsAll, alertsRange, logsRange, allLogs, openAlerts, ruleDefs, ruleOn, ruleSev, sec, secTab, sevColor, tabS };
 }

@@ -28,7 +28,7 @@ const me = (srv, name) => (name === srv.me.name ? 'Sam' : name);
 async function mapTicket(srv, t) {
   let detail = t, msgs = [];
   try { detail = await srv.request('GET', `/tickets/${t.id}`); } catch (e) { /* keep the list row */ }
-  try { msgs = (await srv.request('GET', `/conversations/${t.id}/messages?limit=100`)).messages; } catch (e) { /* not a participant: the text stays sealed */ }
+  if (t.participant !== false) try { msgs = (await srv.request('GET', `/conversations/${t.id}/messages?limit=100`)).messages; } catch (e) { /* not a participant: the text stays sealed */ }
   const opened = await Promise.all(msgs.map(async (m) => ({ m, pl: await srv.vault.openMessage(m) })));
   opened.sort((a, b) => (a.m.id < b.m.id ? -1 : 1));
   const first = opened.length ? opened[0].pl : null;

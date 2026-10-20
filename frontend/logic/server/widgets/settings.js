@@ -11,6 +11,7 @@ export async function load(logic, srv) {
   const all = await srv.request('GET', '/settings');
   apply(logic, all);
   srv.maxVideoMB = Number(all.security && all.security.maxVideoMB) || 50;
+  srv.commFiles = { maxMB: Number(all.security && all.security.maxFileMB) || 10, types: String((all.security && all.security.fileTypes) || '').toLowerCase().split(/[\s,]+/).filter(Boolean) };
   srv.plans = all.plans; srv.addons = all.addons; srv.seatsInUse = all.seats_in_use;
   try {
     const { invoices } = await srv.request('GET', '/billing/invoices');
@@ -20,6 +21,7 @@ export async function load(logic, srv) {
 
 function apply(logic, all) {
   logic.setState((st) => ({
+    orgDeleteAfter: all.delete_after || '',
     orgProfile: { ...st.orgProfile, ...all.profile },
     orgSecurity: { ...st.orgSecurity, ...all.security },
     orgSub: { ...st.orgSub, ...all.subscription, addons: { storage: false, video: false, sms: false, ...(all.subscription.addons || {}) } },
@@ -34,6 +36,15 @@ export async function saveProfile(logic, srv, profile) {
 export async function saveSecurity(logic, srv, security) {
   await srv.request('PUT', '/settings/security', security);
   srv.maxVideoMB = Number(security.maxVideoMB) || 50;
+  await load(logic, srv);
+}
+// Starts the 30-day wait before the organization and all its data are erased.
+export async function requestDeletion(logic, srv, name) {
+  await srv.request('POST', '/settings/deletion', { confirm: name });
+  await load(logic, srv);
+}
+export async function cancelDeletion(logic, srv) {
+  await srv.request('DELETE', '/settings/deletion');
   await load(logic, srv);
 }
 export async function saveBilling(logic, srv, billing) {

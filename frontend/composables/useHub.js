@@ -5,6 +5,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { HubLogic } from '~/logic/HubLogic.js';
 import { sectionRoutes } from '~/logic/routes.js';
 import { startServerSync } from '~/logic/server/boot.js';
+import { startSessionGuard } from '~/composables/useSessionGuard.js';
 
 let hub = null;
 
@@ -61,15 +62,20 @@ export function useHubShell() {
     router.push(target.pathname + target.search + target.hash);
   };
 
+  let guard = null;
   onMounted(() => {
     const be = useBackend();
     const session = be.session();
     if (session && session.org) startServerSync(logic, be.request, session, be.bytes).catch((e) => { logic._accessPending = false; logic.forceUpdate(); console.error('Could not connect to the server:', e); });
+    if (session && session.org) {
+      guard = startSessionGuard({ logic, be, goLogin: (why) => { window.location.assign('/login' + (why ? '?why=' + encodeURIComponent(why) : '')); } });
+    }
     if (logic.componentDidMount) logic.componentDidMount();
     document.addEventListener('click', openInAppSecureShare, true);
   });
   watch(vals, () => { if (logic.componentDidUpdate) logic.componentDidUpdate(); }, { flush: 'post' });
   onBeforeUnmount(() => {
+    if (guard) guard();
     document.removeEventListener('click', openInAppSecureShare, true);
     if (logic.componentWillUnmount) logic.componentWillUnmount();
   });

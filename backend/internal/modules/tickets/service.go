@@ -77,6 +77,7 @@ type Ticket struct {
 	Sync         string      `json:"sync,omitempty"`
 	CreatedAt    time.Time   `json:"created_at"`
 	Events       []Event     `json:"events,omitempty"`
+	Participant  *bool       `json:"participant,omitempty"` // in lists: whether I hold this ticket's key (am in its conversation)
 	// ElapsedHours is how much of the TAT's running clock has been used (pauses and off-hours excluded); above TATHours means overdue.
 	ElapsedHours float64 `json:"elapsed_hours"`
 	holdSince    *time.Time
@@ -375,7 +376,32 @@ func (s *Service) List(ctx context.Context, p *tenant.Principal, q ListQuery) ([
 			}
 			out = append(out, t)
 		}
-		return rs.Err()
+		if err := rs.Err(); err != nil {
+			return err
+		}
+		rs.Close()
+		ids := make([]uuid.UUID, len(out))
+		for i, t := range out {
+			ids[i] = t.ID
+		}
+		in := map[uuid.UUID]bool{}
+		ms, err := tx.Query(ctx, `select conversation_id from hub.conversation_members where account_id=$1 and left_at is null and conversation_id = any($2)`, p.Account, ids)
+		if err != nil {
+			return err
+		}
+		defer ms.Close()
+		for ms.Next() {
+			var id uuid.UUID
+			if err := ms.Scan(&id); err != nil {
+				return err
+			}
+			in[id] = true
+		}
+		for _, t := range out {
+			v := in[t.ID]
+			t.Participant = &v
+		}
+		return ms.Err()
 	})
 	return out, err
 }
