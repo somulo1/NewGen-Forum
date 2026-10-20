@@ -232,3 +232,24 @@ func TestApprovalLevelsAreRights(t *testing.T) {
 		t.Fatalf("approved change not applied: %v", got)
 	}
 }
+
+// The owner role holds every right, so its page must show every right ticked, including a fresh organization where the role has
+// no stored rows at all.
+func TestOwnerRoleShowsEveryRight(t *testing.T) {
+	e := testkit.New(t)
+	ownerU, _ := e.NewOrg("Olivia Owner")
+	r := e.MustDo(200, "GET", "/roles/owner", nil, ownerU.Access)
+	rights, _ := r["rights"].(map[string]any)
+	on, all := 0, 0
+	for _, m := range rights {
+		for _, v := range m.(map[string]any) {
+			all++
+			if v == true {
+				on++
+			}
+		}
+	}
+	if all < 140 || on != all {
+		t.Fatalf("the locked role should show every right ticked: %d of %d", on, all)
+	}
+}
