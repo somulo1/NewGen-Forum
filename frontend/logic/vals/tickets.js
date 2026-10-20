@@ -28,6 +28,7 @@ export function valsTickets(ctx) {
     esc, tcomment: s.tcomment, tagOpen: s.tagOpen,
     onTComment: (e) => this.setState({ tcomment: e.target.value }),
     onTCommentValue: (value) => this.setState({ tcomment: value }),
+    onActivityClick: (e) => { const a = e.target && e.target.closest ? e.target.closest('[data-mention]') : null; if (a) { e.preventDefault(); ctx.openPersonName(a.getAttribute('data-mention')); } },
     toggleTag: () => this.setState((st) => ({ tagOpen: !st.tagOpen })),
     postTComment: () => {
       const text = this.state.tcomment.trim();

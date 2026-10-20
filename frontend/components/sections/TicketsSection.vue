@@ -58,17 +58,23 @@
 
 <div style="padding: 18px; border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 14px">
 <strong style="font-size: 15px">Activity</strong>
+<div @click="onActivityClick" style="display: flex; flex-direction: column">
 <template v-for="(ac, ac__i) in tk.activity" :key="ac__i">
 <div style="display: flex; gap: 10px">
-<UserAvatar :name="ac.who" :initials="ac.initials" :color="ac.color" :size="34" :font-size="12"/>
-<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px">
+<div style="flex: none; width: 28px; display: flex; flex-direction: column; align-items: center">
+<template v-if="ac.isEvent"><span :style="`width: 10px; height: 10px; margin: 9px 0 0; border-radius: 50%; background: ${ac.color}; flex: none`"></span></template>
+<template v-else><UserAvatar :name="ac.who" :initials="ac.initials" :color="ac.color" :size="28" :font-size="10"/></template>
+<span v-if="ac__i < tk.activity.length - 1" aria-hidden="true" style="flex: 1; width: 2px; min-height: 10px; margin: 3px 0; border-radius: 1px; background: var(--k-2A3832,#2A3832)"></span>
+</div>
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; padding-bottom: 8px">
 <div style="display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap"><strong style="font-size: 13px">{{ ac.who }}</strong><span style="font-size: 11px; color: var(--k-9DB0A6,#9DB0A6)">{{ ac.time }}</span></div>
 <template v-if="ac.isEvent"><span v-html="ac.htmlText" style="font-size: 13px; color: var(--k-C9D6CF,#C9D6CF); overflow-wrap: anywhere"></span></template>
-<template v-if="ac.isComment"><div v-html="ac.htmlText" style="padding: 10px 12px; border-radius: 4px 14px 14px 14px; background: var(--k-1F2C26,#1F2C26); font-size: 14px; line-height: 1.5; white-space: pre-line; overflow-wrap: anywhere"></div></template>
+<template v-if="ac.isComment"><div v-html="ac.htmlText" style="padding: 8px 12px; border-radius: 4px 14px 14px 14px; background: var(--k-1F2C26,#1F2C26); font-size: 14px; line-height: 1.5; white-space: pre-line; overflow-wrap: anywhere"></div></template>
 <template v-if="ac.isFile"><FileChip :name="ac.text" :meta="ac.meta" :url="ac.url" :is-img="ac.isImg"/></template>
 </div>
 </div>
 </template>
+</div>
 
 <div style="border-top: 1px solid var(--k-24322C,#24322C); padding-top: 14px; display: flex; flex-direction: column; gap: 10px">
 <template v-if="tk.closed"><div role="status" style="padding: 12px 14px; border-radius: 12px; background: var(--k-121B17,#121B17); color: var(--k-9DB0A6,#9DB0A6); font-size: 14px">This ticket is closed. Status changes and comments are turned off.</div></template>
@@ -164,6 +170,6 @@ import { hubBindings } from '~/composables/useHub';
 
 export default {
   name: 'TicketsSection',
-  ...hubBindings(["ticketBackLabel","pickEmojiTicket","attachTicket","canRaise","closeTicket","createTicket","esc","handover","has","nt","ntBtnStyle","ntCatSel","ntCats","ntTargets","ntOpen","ntPrios","ntSetDesc","ntAttach","ntRemoveFile","ntSetTitle","onTCommentValue","postTComment","showTicketList","showTicketView","tagOpen","tagPeople","tcomment","myTicketStats","ticketStats","tickets","ticketsTable","tk","toggleNewTicket","toggleTag"])
+  ...hubBindings(["ticketBackLabel","pickEmojiTicket","attachTicket","canRaise","closeTicket","createTicket","esc","handover","has","nt","ntBtnStyle","ntCatSel","ntCats","ntTargets","ntOpen","ntPrios","ntSetDesc","ntAttach","ntRemoveFile","ntSetTitle","onTCommentValue","onActivityClick","postTComment","showTicketList","showTicketView","tagOpen","tagPeople","tcomment","myTicketStats","ticketStats","tickets","ticketsTable","tk","toggleNewTicket","toggleTag"])
 };
 </script>

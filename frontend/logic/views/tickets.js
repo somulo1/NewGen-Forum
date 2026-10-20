@@ -3,8 +3,18 @@ import { recipientOf, recipientLabel } from '~/logic/ticketRouting.js';
 import { richTextHtml } from '~/logic/richText.js';
 
 // renderVals step: tickets. Receives the names built by earlier steps and returns the ones later steps need.
+// A tagged person (@Name) in a comment becomes a link that opens their profile (the click is handled where the list is shown).
+const esc = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+function mentionLinker(names) {
+  const list = [...new Set(names)].filter(Boolean).sort((a, b) => b.length - a.length);
+  if (!list.length) return (h) => h;
+  const re = new RegExp('@(' + list.map((n) => esc(n).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')(?![\\w])', 'g');
+  return (html) => html.replace(re, (m, name) => '<a href="#" data-mention="' + name + '" style="color:var(--k-C9B6FF,#C9B6FF);font-weight:600;text-decoration:none">@' + name + '</a>');
+}
+
 export function buildTickets(ctx) {
   const { can, has, prio, s } = ctx;
+  const withMentions = mentionLinker(this.dir.map((d) => d.name).concat(['Sam']));
   // ---- Tickets & TAT ----
   const ts = s.tset;
   const toMin = (v) => { const p = String(v || '0:0').split(':'); return (Number(p[0]) || 0) * 60 + (Number(p[1]) || 0); };
@@ -118,7 +128,7 @@ export function buildTickets(ctx) {
           labelStyle: 'font-weight:' + (now ? '700' : '500') + ';color:' + (done || now ? '#E8EFEA' : '#9DB0A6')
         };
       }),
-      activity: cur_t.activity.map((a) => ({ ...a, htmlText: richTextHtml(a.text), initials: ini(a.who), color: pColor[a.who] || '#9DB0A6', isEvent: a.kind === 'event', isComment: a.kind === 'comment', isFile: a.kind === 'file', isImg: !!a.isImg, url: a.url || '', meta: a.meta || '' }))
+      activity: cur_t.activity.map((a) => ({ ...a, htmlText: withMentions(richTextHtml(a.text)), initials: ini(a.who), color: pColor[a.who] || '#9DB0A6', isEvent: a.kind === 'event', isComment: a.kind === 'comment', isFile: a.kind === 'file', isImg: !!a.isImg, url: a.url || '', meta: a.meta || '' }))
     };
   }
   // people you can tag in a ticket comment: the ones on that ticket
