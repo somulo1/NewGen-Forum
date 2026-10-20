@@ -109,6 +109,8 @@ export const useBackend = () => {
 
   return {
     session: read,
+    // a call that needs no sign-in (forgot password)
+    open: (method: string, path: string, body?: unknown) => raw(method, path, body),
     // A new access and refresh token on each page change; the old ones stop working at once.
     rotate: () => refresh(4000),
     bytes,

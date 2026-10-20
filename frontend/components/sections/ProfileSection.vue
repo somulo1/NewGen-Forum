@@ -216,22 +216,8 @@ export default {
           this.passwordMessage = 'Password updated successfully.';
           return;
         }
-        const accounts = useAccounts();
-        if (!accounts.get(email)) {
-          this.passwordError = true;
-          this.passwordMessage = 'No local account exists for this sign-in. Contact your administrator.';
-          return;
-        }
-        if (!await accounts.verifyPassword(email, this.currentPassword)) {
-          this.passwordError = true;
-          this.passwordMessage = 'Your current password is incorrect.';
-          return;
-        }
-        await accounts.setPassword(email, this.newPassword);
-        this.currentPassword = '';
-        this.newPassword = '';
-        this.confirmPassword = '';
-        this.passwordMessage = 'Password updated successfully.';
+        this.passwordError = true;
+        this.passwordMessage = 'Sign in to change your password.';
       } catch (error) {
         this.passwordError = true;
         this.passwordMessage = 'Could not update your password. ' + (error instanceof Error ? error.message : String(error));
