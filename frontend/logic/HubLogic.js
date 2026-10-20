@@ -72,6 +72,7 @@ export class HubLogic extends DCLogic {
     this.state = Object.assign({}, coreState(), awardsState(), calendarState(), commsState(), adminState(), profileState(), filesState(), projectsState(), callsState(), ticketsState(), wallState(), settingsState(), notesState(), forumsState(), onboardingState());
     // Nothing is made up: everything below arrives from the server after sign-in.
     this.dir = [];
+    this.dirSelf = null;
     this.org = { sectors: [], branches: [], units: [], departments: [], mine: {} };
     this.baseLogs = [];
   }
@@ -79,7 +80,7 @@ export class HubLogic extends DCLogic {
     const raw = typeof update === 'function' ? update(this.state, this.props) : update;
     const patch = raw ? Object.assign({}, raw) : raw;
     if (patch) {
-      const person = patch.personOpen !== undefined && patch.personOpen !== null ? this.dir[patch.personOpen] : null;
+      const person = patch.personOpen !== undefined && patch.personOpen !== null ? this.peopleDir()[patch.personOpen] : null;
       if (person && this._canFullProfile) {
         patch.personOpen = null; patch.profileOf = person.name; patch.section = 'profile';
         patch.notifOpen = false; patch.statusMenu = false; patch.profileEdit = false;
@@ -112,6 +113,7 @@ export class HubLogic extends DCLogic {
   }
 }
 
+HubLogic.prototype.peopleDir = function () { return this.dirSelf ? this.dir.concat([this.dirSelf]) : this.dir; };   // everyone the People page lists, including me
 Object.assign(HubLogic.prototype, messagingActions, projectsActions, callsActions, uiActions, forumActions, onboardingActions, peopleAdminActions, ticketCatActions, noteActions);
 
 const VIEW_STEPS = [buildAccess, buildReporting, buildForums, buildNav, buildWall, buildTickets, buildForumExtras, buildProjects, buildPeople, buildOnboarding, buildSecurity, buildRoles, buildTableHelpers, buildProjectTables, buildCalendar, buildProjectStandup, buildOrg, buildCatMgr, buildComms, buildAdminTables, buildNotes, buildReportingTab, buildSettings, buildAwards, buildHomeWidgets, buildProfile, buildWidgetSettings, buildCallState];

@@ -26,15 +26,15 @@ export function buildAdminTables(ctx) {
   const adminOf = (p) => ({ active: p.accStatus === 'active', blocked: p.accStatus === 'blocked', deleted: p.accStatus === 'deleted' });
   const peopleTable = { id: 'people', pageSize: 15, minWidth: '880px',
     cols: [{ label: 'Person', filter: 'text' }].concat(has.departments ? [{ label: 'Department', filter: 'select' }] : []).concat(has.sectors ? [{ label: 'Sector', filter: 'select' }] : []).concat(has.branches ? [{ label: 'Branch', filter: 'select' }] : []).concat(has.units ? [{ label: 'Unit', filter: 'select' }] : []).concat([{ label: 'Status', filter: 'select' }, { label: 'Account', filter: 'select' }, { label: '', align: 'right' }]),
-    rows: this.dir.filter((p) => !adminOf(p).deleted).map((p) => {
+    rows: this.peopleDir().filter((p) => !adminOf(p).deleted).map((p) => {
       const admin = adminOf(p);
       return { cells: [C.p(p.name, { sub: p.title, dot: statusColP[p.status], fv: p.name })].concat(has.departments ? [C.t(p.dept)] : []).concat(has.sectors ? [C.t(p.sector)] : []).concat(has.branches ? [C.t(p.loc)] : []).concat(has.units ? [C.t(p.unit || '—', { fv: p.unit || 'No unit' })] : []).concat([
       C.b(p.status, statusColP[p.status]),
       C.b(admin.blocked ? 'Blocked' : admin.active ? 'Active' : 'Inactive', admin.blocked ? '#FF9B8A' : admin.active ? '#B8F36B' : '#9DB0A6'),
       C.a((has.chat ? [{ label: 'Message', run: () => this.openDm(p.name) }, { label: 'Call', run: () => this.startDmCall('voice', p.name, p.initials, p.color) }] : []).concat([{ label: 'Profile', kind: 'primary', run: () => this.setState({ personOpen: p.id }) }]).concat(can('people', 'Edit profiles') ? [{ label: 'Edit', run: () => this.openEditPerson(p.id) }, { label: 'Action', run: () => this.setState({ userActionOpen: p.id, userResetTemp: '' }) }] : []))]) };
     }) };
-  const peopleSummary = this.dir.filter((p) => !adminOf(p).deleted).length + ' people' + (has.departments ? ' in ' + O.departments.length + ' departments' : '') + (has.branches ? ' across ' + O.branches.length + ' branches' : '') + ' · ' + this.dir.filter((p) => p.status === 'Available' && adminOf(p).active && !adminOf(p).deleted).length + ' available now';
-  const actionPerson = s.userActionOpen === null ? null : this.dir.find((p) => p.id === s.userActionOpen);
+  const peopleSummary = this.peopleDir().filter((p) => !adminOf(p).deleted).length + ' people' + (has.departments ? ' in ' + O.departments.length + ' departments' : '') + (has.branches ? ' across ' + O.branches.length + ' branches' : '') + ' · ' + this.dir.filter((p) => p.status === 'Available' && adminOf(p).active && !adminOf(p).deleted).length + ' available now';
+  const actionPerson = s.userActionOpen === null ? null : this.peopleDir().find((p) => p.id === s.userActionOpen);
   const actionAdmin = actionPerson && adminOf(actionPerson);
   const userActions = {
     open: !!(actionPerson && can('people', 'Edit profiles')),
