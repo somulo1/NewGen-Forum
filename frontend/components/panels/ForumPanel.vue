@@ -24,8 +24,9 @@
 </div>
 <div style="display: flex; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--k-24322C,#24322C); overflow-x: auto">
 <template v-for="(f, f__i) in panelChips" :key="f__i">
+<span v-if="f.sep" aria-hidden="true" style="flex: none; width: 1px; margin: 4px 4px; background: var(--k-34453D,#34453D)"></span>
 <span style="position: relative; flex: none; width: 36px; height: 36px">
-<button :aria-label="`${f.name}${f.hasUnread ? `, ${f.unread} unread messages` : ''}`" :title="f.name" @click="f.open" :style="f.chipStyle"><UserAvatar v-if="isDM" :name="f.name" :initials="f.initials" :color="f.color" :size="32" :font-size="12"/><template v-else>{{ f.initials }}</template></button>
+<button :aria-label="`${f.name}${f.hasUnread ? `, ${f.unread} unread messages` : ''}`" :title="f.name" @click="f.open" :style="f.chipStyle"><UserAvatar v-if="f.avatar" :name="f.name" :initials="f.initials" :color="f.color" :size="32" :font-size="12"/><template v-else>{{ f.initials }}</template></button>
 <span v-if="f.hasUnread" :style="f.unreadStyle">{{ f.unread > 99 ? '99+' : f.unread }}</span>
 </span>
 </template>

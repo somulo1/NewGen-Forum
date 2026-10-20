@@ -105,6 +105,7 @@ function live(logic, srv) {
       logic.setState((st) => ({ dms: [rowOf(srv, conv, msgs)].concat(st.dms) }));
       rt.sub(conv.id);
       loadFiles(logic, srv, conv.id, msgs);
+      alertTone();   // someone started a chat with me
     } catch (e) { load(logic, srv).catch(() => {}); }
   });
   rt.on('message.new', async (ev) => {

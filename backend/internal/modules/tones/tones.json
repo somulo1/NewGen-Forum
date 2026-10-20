@@ -149,7 +149,7 @@
   {
     "key": "message",
     "kind": "notification",
-    "description": "A message arrived in the chat you have open: one soft, short pop.",
+    "description": "A message arrived in the chat you have open: two quick soft notes.",
     "params": {
       "wave": "sine",
       "attack": 0.01,
@@ -159,11 +159,19 @@
       "notes": [
         {
           "freqs": [
-            990
+            740
           ],
           "at": 0,
-          "len": 0.09,
-          "vol": 0.08
+          "len": 0.1,
+          "vol": 0.2
+        },
+        {
+          "freqs": [
+            988
+          ],
+          "at": 0.1,
+          "len": 0.16,
+          "vol": 0.2
         }
       ]
     }
