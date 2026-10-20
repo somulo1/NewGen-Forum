@@ -35,14 +35,14 @@ export function buildProfile(ctx) {
   const tip = !pf.photo ? 'Add a profile photo so colleagues recognise you.' : !pf.phone.trim() ? 'Add your phone number to reach 100%.' : (pf.bio || '').trim().length <= 20 ? 'Write a short bio.' : 'Your profile is complete.';
   const myPosts = s.posts.filter((p) => p.author === 'Sam');
   const myRaised = s.tickets.filter((t) => t.raisedBy === 'Sam');
-  const myActivity0 = myPosts.slice(0, 2).map((p) => ({ tag: 'W', color: '#F49AC1', text: 'Posted on the wall: "' + ((p.text || 'a file').length > 70 ? p.text.slice(0, 70) + '…' : (p.text || 'a file')) + '"', time: p.meta.split('· ').pop() }))
+  const myActivity0 = myPosts.filter((p) => (p.text || '').trim()).slice(0, 2).map((p) => ({ tag: 'W', color: '#F49AC1', text: 'Posted on the wall: "' + (p.text.length > 70 ? p.text.slice(0, 70) + '…' : p.text) + '"', time: p.meta.split('· ').pop() }))
     .concat(myRaised.slice(0, 2).map((t) => ({ tag: 'T', color: '#FF9B8A', text: 'Raised ' + t.id + ': ' + t.title, time: t.created })))
     .concat(s.tickets.filter((t) => t.handler === mi.name).slice(0, 2).map((t) => ({ tag: 'A', color: '#7CC4FF', text: 'Handling ' + t.id + ': ' + t.title, time: t.handlerSince || t.created })))
     .concat(s.awardList.filter((a) => a.status === 'Approved' && a.people.indexOf(mi.name) !== -1).map((a) => ({ tag: 'B', color: '#FFD66B', text: 'Earned the ' + a.type + ' award', time: fmtDay(a.date) })))
     .concat(forumActivity('Sam'));
   const myActivity = myActivity0;
   const myReport = reportLine(mi.reportsTo, reportOf(mi.name));
-  const kindOf = { W: 'Wall post', T: 'Ticket', F: 'File', A: 'Assignment', B: 'Badge', P: 'Project' };
+  const kindOf = { W: 'Wall post', T: 'Ticket', F: 'Forum post', A: 'Assignment', B: 'Badge', P: 'Project' };
   const withKind = (arr) => arr.map((a) => ({ ...a, kind: kindOf[a.tag] || 'Activity' }));
   const meOwn = {
     isOther: false, initials: mi.initials, color: mi.color, aboutTitle: 'About me', forumsTitle: 'My forums', reportsTo: myReport.display,
@@ -97,7 +97,7 @@ export function buildProfile(ctx) {
     const opReport = reportLine(pd && pd.reports_to, reportOf(opDir.name));
     const opAwards = has.awards ? s.awardList.filter((a) => a.status === 'Approved' && a.people.indexOf(opDir.name) !== -1) : [];
     const opProjIds = s.projects.filter((p) => (p.tasks || []).some((t) => mine(t.who))).map((p) => p.id);
-    const opActivity = opPosts.slice(0, 2).map((p) => ({ tag: 'W', color: '#F49AC1', text: 'Posted on the wall: "' + ((p.text || 'a file').length > 70 ? p.text.slice(0, 70) + '…' : (p.text || 'a file')) + '"', time: p.meta.split('· ').pop() }))
+    const opActivity = opPosts.filter((p) => (p.text || '').trim()).slice(0, 2).map((p) => ({ tag: 'W', color: '#F49AC1', text: 'Posted on the wall: "' + (p.text.length > 70 ? p.text.slice(0, 70) + '…' : p.text) + '"', time: p.meta.split('· ').pop() }))
       .concat(opRaised.slice(0, 2).map((t) => ({ tag: 'T', color: '#FF9B8A', text: 'Raised ' + t.id + ': ' + t.title, time: t.created })))
       .concat(opHandled.slice(0, 2).map((t) => ({ tag: 'A', color: '#7CC4FF', text: 'Handling ' + t.id + ': ' + t.title, time: t.created })))
       .concat(opAwards.map((a) => ({ tag: 'B', color: '#FFD66B', text: 'Earned the ' + a.type + ' award', time: fmtDay(a.date) })))
