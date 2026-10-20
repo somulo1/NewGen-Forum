@@ -71,6 +71,10 @@ func (s *Service) Create(ctx context.Context, account uuid.UUID, displayName, na
 		if err := s.A.Sign.Seal(ctx, tx, "roles", "org_id=$1", org); err != nil {
 			return err
 		}
+		// the owner role is linked to every right in the catalog from the start
+		if err := access.LinkLockedRoles(ctx, tx, org, func(table, where string, args ...any) error { return s.A.Sign.Seal(ctx, tx, table, where, args...) }); err != nil {
+			return err
+		}
 		for _, f := range cat.Flows {
 			if _, err := tx.Exec(ctx, `insert into hub.approval_flows (org_id, key, module, action, levels) values ($1,$2,$3,$4,$5)`, org, f.ID, f.Mod, f.Action, f.Levels); err != nil {
 				return err

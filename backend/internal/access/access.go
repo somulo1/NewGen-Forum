@@ -129,6 +129,23 @@ func Install(ctx context.Context, tx pgx.Tx, org uuid.UUID, seal func(table, whe
 			return err
 		}
 	}
+	return LinkLockedRoles(ctx, tx, org, seal)
+}
+
+// LinkLockedRoles ticks every right of the catalog for each locked role (the owner), as stored rows. A locked role holds every
+// right anyway; the stored rows make that visible and queryable (the Roles page, reports, the database itself), and a right
+// added to the catalog later is linked to it the next time this runs. Safe to run again.
+func LinkLockedRoles(ctx context.Context, tx pgx.Tx, org uuid.UUID, seal func(table, where string, args ...any) error) error {
+	tag, err := tx.Exec(ctx, `insert into hub.role_rights (org_id, role_id, module, right_name, allowed)
+		select $1, r.id, g.module, g.name, true from hub.roles r cross join hub.rights g where r.locked
+		on conflict (org_id, role_id, module, right_name) do update set allowed = true, ver = hub.role_rights.ver + 1, mac = hub.pending_mac()
+		where not hub.role_rights.allowed`, org)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() > 0 {
+		return seal("role_rights", "org_id=$1", org)
+	}
 	return nil
 }
 
