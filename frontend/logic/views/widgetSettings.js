@@ -3,7 +3,7 @@ export function buildWidgetSettings(ctx) {
   const { O, catalog, chip, chipS, flowItem, forums, genericRights, groupDefs, groupRightOf, has, rKey, rightOf, rightsDef, s, toggleGroupRight, toggleRight, typeName, viaGroups, visibleRoles } = ctx;
   // ---- Widget settings ----
   const sid = s.settingsFor;
-  const special = ['tickets', 'announcements', 'awards', 'secureshare', 'sessions', 'clocks', 'branches', 'sectors'];
+  const special = ['tickets', 'announcements', 'awards', 'secureshare', 'sessions', 'branches', 'sectors'];
   let sw = { t: {} };
   if (sid && catalog[sid]) {
     const cfg = Object.assign({ title: catalog[sid].title, see: 'Everyone', manage: 'Admins' }, s.wcfg[sid] || {});

@@ -89,14 +89,6 @@
 </div>
 </template>
 
-<template v-if="w.t.clocks">
-<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
-<template v-for="(c, c__i) in w.items" :key="c__i">
-<div style="padding: 12px; border-radius: 12px; background: var(--k-121B17,#121B17); display: flex; flex-direction: column; gap: 2px"><span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">{{ c.city }}</span><span style="font-family: 'Space Grotesk', sans-serif; font-size: 26px; font-weight: 600">{{ c.time }}</span><span style="font-size: 11px; color: var(--k-9DB0A6,#9DB0A6)">{{ c.day }}</span></div>
-</template>
-</div>
-</template>
-
 <template v-if="w.t.birthdays">
 <div style="display: flex; flex-direction: column; gap: 10px">
 <template v-for="(b, b__i) in w.items" :key="b__i">
@@ -180,18 +172,6 @@
 <button @click="w.makeShare" style="height: 40px; border-radius: 10px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">Open Secure Share</button>
 </template>
 
-<template v-if="w.t.wall">
-<div style="display: flex; flex-direction: column; gap: 10px">
-<template v-for="(wp, wp__i) in w.items" :key="wp__i">
-<div style="display: flex; gap: 10px; padding: 10px; border-radius: 12px; background: var(--k-121B17,#121B17)">
-<UserAvatar :name="wp.author" :initials="wp.initials" :color="wp.color" :size="34"/>
-<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px"><strong style="font-size: 13px">{{ wp.author }}</strong><span style="font-size: 13px; line-height: 1.4; color: var(--k-C9D6CF,#C9D6CF)">{{ wp.text }}</span><span style="font-size: 11px; color: var(--k-9DB0A6,#9DB0A6)">{{ wp.likes }} likes</span></div>
-</div>
-</template>
-</div>
-<button @click="w.goWall" style="height: 38px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer">Open the wall</button>
-</template>
-
 <template v-if="w.t.chat">
 <div style="display: flex; flex-direction: column; gap: 6px">
 <template v-for="(dm, dm__i) in w.items" :key="dm__i">
@@ -204,19 +184,6 @@
 </div>
 <button data-keep="1" @click="toggleNewDm" style="height: 38px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer">New message</button>
 </template>
-
-<template v-if="w.t.forums">
-<div style="display: flex; flex-direction: column; gap: 6px">
-<template v-for="(fm, fm__i) in w.items" :key="fm__i">
-<button @click="fm.open" style="display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 4px 10px; border-radius: 10px; border: 1px solid var(--k-24322C,#24322C); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; text-align: left">
-<span :style="`width: 30px; height: 30px; flex: none; border-radius: 9px; background: ${fm.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 11px`">{{ fm.initials }}</span>
-<span style="flex: 1; min-width: 0; font-size: 14px">{{ fm.name }}</span>
-<template v-if="fm.hasUnread"><span style="min-width: 20px; height: 20px; padding: 0 6px; box-sizing: border-box; border-radius: 10px; background: #B8F36B; color: #0F1714; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center">{{ fm.unread }}</span></template>
-</button>
-</template>
-</div>
-</template>
-
 
 <template v-if="w.t.poll">
 <span style="font-size: 14px; font-weight: 500">Where should we hold the end-year party?</span>
