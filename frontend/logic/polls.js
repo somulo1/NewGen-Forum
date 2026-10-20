@@ -29,3 +29,12 @@ export const pollTotal = (poll) => poll.options.reduce((n, o) => n + pollCount(p
 // How many other members may still vote. Blocked voters and the signed-in user are left out, and a few never vote.
 export const pollCap = (poll) => Math.max(0, Math.floor((poll.members - 1 - poll.blocked.length) * 0.8));
 export const othersVoted = (poll) => poll.options.reduce((n, o) => n + o.votes, 0);
+
+// "5 min ago", "3 h ago", "2 d ago" for a time in milliseconds.
+export function agoLabel(at, nowMs) {
+  const m = Math.max(0, Math.round((nowMs - at) / 60000));
+  if (m < 1) return 'Just now';
+  if (m < 60) return m + ' min ago';
+  const hr = Math.round(m / 60);
+  return hr < 24 ? hr + ' h ago' : Math.round(hr / 24) + ' d ago';
+}
