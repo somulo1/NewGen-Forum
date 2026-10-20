@@ -41,6 +41,7 @@
 <DataTable :t="rulesTable" />
 </template>
 </div>
+<LogDrawer />
 </template>
 </template>
 
