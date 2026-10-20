@@ -259,7 +259,7 @@ func (s *Service) Dashboard(ctx context.Context, p *tenant.Principal, id uuid.UU
 			  exists (select 1 from hub.people pe left join hub.person_roles pr on pr.person_id = pe.id left join hub.roles ro on ro.id = pr.role_id
 			     where pe.id in `+um+` and r.status = 'Pending' and pe.status = 'active' and (coalesce(ro.locked,false) or coalesce(
 			        (select x.allowed from hub.person_rights x where x.person_id = pe.id and x.module = f.module and x.right_name = 'Approve level ' || r.level),
-			        (select rr.allowed from hub.role_rights rr where rr.role_id = pr.role_id and rr.module = f.module and rr.right_name = 'Approve level ' || r.level), false))),
+			        case when pr.role_id is null then null else hub.role_right(pr.role_id, f.module, 'Approve level ' || r.level) end, false))),
 			  coalesce(dx.name, ''), rq.first_name || ' ' || rq.last_name
 			from hub.approval_requests r join hub.approval_flows f on f.key = r.flow_key
 			join hub.people rq on rq.id = r.requester left join hub.org_units dx on dx.id = rq.department_id
@@ -268,7 +268,7 @@ func (s *Service) Dashboard(ctx context.Context, p *tenant.Principal, id uuid.UU
 			       or exists (select 1 from hub.people pe left join hub.person_roles pr on pr.person_id = pe.id left join hub.roles ro on ro.id = pr.role_id
 			            where pe.id in `+um+` and r.status = 'Pending' and pe.status = 'active' and (coalesce(ro.locked,false) or coalesce(
 			        (select x.allowed from hub.person_rights x where x.person_id = pe.id and x.module = f.module and x.right_name = 'Approve level ' || r.level),
-			        (select rr.allowed from hub.role_rights rr where rr.role_id = pr.role_id and rr.module = f.module and rr.right_name = 'Approve level ' || r.level), false))))
+			        case when pr.role_id is null then null else hub.role_right(pr.role_id, f.module, 'Approve level ' || r.level) end, false))))
 			order by r.created_at desc limit 200`, id, since)
 		if err != nil {
 			return err

@@ -43,7 +43,18 @@ export function buildAccess(ctx) {
     const sr = s.roleRights && s.roleRights[role] && s.roleRights[role][mod];
     return !!(sr && sr[right]);               // a right nobody gave the role is off
   };
-  const can = (mod, right) => rightOf(s.actingRole, mod, right);
+  // User groups: sets of roles that are given rights together. A role holds a right its own settings give it, or one a group it
+  // belongs to gives it.
+  const groupDefs = (s.serverGroups || []).map((g) => ({ id: g.id, name: g.name, desc: g.desc || '', roles: g.roles || [], count: g.count || 0 }));
+  const groupRightOf = (gid, mod, right) => !!(s.groupRights && s.groupRights[gid] && s.groupRights[gid][mod] && s.groupRights[gid][mod][right]);
+  const viaGroups = (role, mod, right) => groupDefs.filter((g) => g.roles.indexOf(role) !== -1 && groupRightOf(g.id, mod, right));
+  const can = (mod, right) => rightOf(s.actingRole, mod, right) || viaGroups(s.actingRole, mod, right).length > 0;
+  // Places that pick "a role" can also pick a user group, written 'group:<id>'. These read such a pick.
+  const refName = (ref) => {
+    if (typeof ref === 'string' && ref.indexOf('group:') === 0) { const g = groupDefs.find((x) => x.id === ref.slice(6)); return g ? g.name + ' (group)' : 'a deleted group'; }
+    return (roleDefs.find((r) => r.id === ref) || {}).name || ref;
+  };
+  const holdsRef = (ref) => (typeof ref === 'string' && ref.indexOf('group:') === 0 ? !!(groupDefs.find((g) => g.id === ref.slice(6)) || { roles: [] }).roles.includes(s.actingRole) : s.actingRole === ref);
   this._canFullProfile = can('people', 'View full profiles');
   const flowById = (id) => s.flows.find((f) => f.id === id);
   const nextReqId = () => 'AP-' + (34 + s.requests.length);
@@ -80,5 +91,15 @@ export function buildAccess(ctx) {
       this.notify('Rights updated: ' + label + '. Logged for review.', '#FFB86B');
     }
   };
-  return { can, catalog, rightMeta, flowById, genericRights, has, makeRequest, modEnabled, modInfo, openPersonName, rKey, rightOf, rightsDef, roleDefs, roleScope, s, set, toggleRight, visibleRoles };
+  const toggleGroupRight = (gid, mod, right) => {
+    if (!this.srv) return;
+    const k = 'g:' + rKey(gid, mod, right);
+    if (s.pendingRights[k] !== undefined) return;
+    const nv = !groupRightOf(gid, mod, right);
+    const label = ((groupDefs.find((g) => g.id === gid) || {}).name || 'Group') + ' · ' + (modInfo[mod] ? modInfo[mod][0] : mod) + ' · ' + right + (nv ? ' (allow)' : ' (remove)');
+    rolesW.setGroupRight(this, this.srv, gid, mod, right, nv)
+      .then((r) => this.notify(r === 'applied' ? 'Rights updated: ' + label + '. Logged for review.' : 'Sent for approval: Change rights of user group: ' + label + '.', r === 'applied' ? '#B8F36B' : '#FFB86B'))
+      .catch((e) => this.notify(e.message || 'Could not change the right.', '#FF9B8A'));
+  };
+  return { can, refName, holdsRef, groupDefs, groupRightOf, toggleGroupRight, viaGroups, catalog, rightMeta, flowById, genericRights, has, makeRequest, modEnabled, modInfo, openPersonName, rKey, rightOf, rightsDef, roleDefs, roleScope, s, set, toggleRight, visibleRoles };
 }

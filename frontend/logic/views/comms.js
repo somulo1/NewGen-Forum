@@ -26,7 +26,7 @@ const MODULE_OF = { Announcement: 'announcements', Memo: 'memos', Newsletter: 'n
 
 // renderVals step: comms. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildComms(ctx) {
-  const { C, O, can, chip, chipS, flowById, fmtDay, forums, has, makeRequest, recOf, roleNameOf, ruleSentence, s, set, todayISO, typeName } = ctx;
+  const { C, O, can, chip, chipS, flowById, fmtDay, forums, has, holdsRef, makeRequest, recOf, roleNameOf, ruleSentence, s, set, todayISO, typeName } = ctx;
   // =============== Communications ===============
   const commTypes = [has.announcements && 'Announcement', has.memos && 'Memo', has.newsletter && 'Newsletter', has.jobposts && 'Job post'].filter(Boolean);
   const commColor = { Announcement: '#B8F36B', Memo: '#FFD66B', Newsletter: '#F49AC1', 'Job post': '#7CC4FF' };
@@ -38,10 +38,11 @@ export function buildComms(ctx) {
   const ruleLevel = ['departments', 'units', 'branches', 'sectors'].find((t) => has[t]);
   const ruleRec = ruleLevel ? recOf(ruleLevel, O.mine[ruleLevel]) : null;
   // a rule applies through the sender's own place in the structure; someone not placed in it has no level rule
-  const ruleObj = ruleLevel && ruleRec && (cmS.type === 'Memo' || cmS.type === 'Announcement') ? (s.commRules[ruleLevel] || {})[cmS.type] : null;
+  // Per-department sending rules are not in use for now (they are no longer set in the widget settings), so none applies here.
+  const ruleObj = null;
   const ruleTo = ruleObj ? (ruleObj.on ? ruleObj.to : []) : null;
   const actingLocked = ((s.serverRoles || []).find((r) => r.id === s.actingRole) || {}).locked;
-  const senderOk = !ruleObj || !ruleObj.sender || actingLocked || s.actingRole === ruleObj.sender;
+  const senderOk = !ruleObj || !ruleObj.sender || actingLocked || holdsRef(ruleObj.sender);
   const ruleNeeds = !!(ruleObj && ruleObj.on && ruleObj.approver && ruleObj.approver !== 'none');
   const wallAllowed = !ruleTo || ruleTo.indexOf('wall') !== -1;
   const cmNeedsApproval = ruleNeeds || (cmS.type === 'Announcement' && f1 && f1.levels > 0);

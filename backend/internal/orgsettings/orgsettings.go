@@ -21,9 +21,9 @@ type Security struct {
 	Retention       string `json:"retention"` // months
 	ExternalSharing bool   `json:"externalSharing"`
 	EmailDetails    bool   `json:"emailDetails"` // emails may show the text of tickets and messages (the server then keeps a copy)
-	MaxFileMB       string `json:"maxFileMB"`  // largest file attached to a communication, in MB
-	FileTypes       string `json:"fileTypes"`  // extensions allowed on communications, separated by commas
-	MaxVideoMB      string `json:"maxVideoMB"` // largest video, in MB, that may be posted in forums, chats and the wall
+	MaxFileMB       string `json:"maxFileMB"`    // largest file attached to a communication, in MB
+	FileTypes       string `json:"fileTypes"`    // extensions allowed on communications, separated by commas
+	MaxVideoMB      string `json:"maxVideoMB"`   // largest video, in MB, that may be posted in forums, chats and the wall
 	// UserQuotaMB is how much each person may store in total (files, attachments, photos), in MB; "0" means no limit.
 	// One person can be given a different amount (hub.storage_quotas).
 	UserQuotaMB string `json:"userQuotaMB"`

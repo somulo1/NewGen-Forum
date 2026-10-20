@@ -22,7 +22,7 @@ export function adminState() {
     pq: '', pdept: 'All', ploc: 'All', pAvail: false, pview: 'grid', ppage: 0, personOpen: null, userActionOpen: null, userResetTemp: '', peopleAdmin: readPeopleAdmin(), taskOpen: null, taskMove: null, taskReminders: {},
     secTab: 'alerts', alertSt: {}, openOnly: true, lq: '', lmod: 'All', lres: 'All', lflag: false, lshow: 25,
     rulesOn: { r1: true, r2: true, r3: true, r4: true, r5: true, r6: true, r7: false }, ruleSev: {}, extraLogs: [],
-    profileOf: null, roleSel: '', roleTab: 'rights', rightsOv: {}, pendingRights: {}, actingRole: '', myRole: '', serverRoles: [], catalog: { modules: [], kinds: [] }, newRole: { name: '', desc: '', err: '' }, newRight: { module: '', name: '', kind: '', err: '' }, newModule: { name: '', err: '' }, apTab: 'waiting',
+    profileOf: null, roleSel: '', roleTab: 'rights', rightsOv: {}, pendingRights: {}, actingRole: '', myRole: '', serverRoles: [], serverGroups: [], groupRights: {}, catalog: { modules: [], kinds: [] }, newRole: { name: '', desc: '', err: '' }, newRight: { module: '', name: '', kind: '', err: '' }, newModule: { name: '', err: '' }, apTab: 'waiting',
     flows: [],
     requests: []
   };

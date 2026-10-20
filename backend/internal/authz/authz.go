@@ -1,5 +1,6 @@
-// Package authz answers "may this person do this?" on the server. A personal override beats the role's setting;
-// with neither, the answer is no. Locked roles (super admin) are always yes.
+// Package authz answers "may this person do this?" on the server. A personal override beats everything; otherwise the
+// person's role allows it, or a user group that includes the role does. With none of these, the answer is no. Locked roles
+// (super admin) are always yes.
 package authz
 
 import (
@@ -17,7 +18,7 @@ func Can(ctx context.Context, tx pgx.Tx, person uuid.UUID, module, right string)
 	var roleAllowed, personAllowed *bool
 	err := tx.QueryRow(ctx, `
 		select coalesce(r.locked, false),
-		       (select rr.allowed from hub.role_rights rr where rr.role_id = pr.role_id and rr.module=$2 and rr.right_name=$3),
+		       case when pr.role_id is null then null else hub.role_right(pr.role_id, $2, $3) end,
 		       (select x.allowed from hub.person_rights x where x.person_id = $1 and x.module=$2 and x.right_name=$3)
 		from hub.people p
 		left join hub.person_roles pr on pr.person_id = p.id
@@ -67,7 +68,9 @@ func Effective(ctx context.Context, tx pgx.Tx, person uuid.UUID, all map[string]
 	}
 	on := map[string]bool{}
 	if role != nil {
-		rs, err := tx.Query(ctx, `select module, right_name from hub.role_rights where role_id=$1 and allowed`, *role)
+		// the role's own rights, and those of every user group the role is in
+		rs, err := tx.Query(ctx, `select module, right_name from hub.role_rights where role_id=$1 and allowed
+			union select g.module, g.right_name from hub.role_group_rights g join hub.role_group_roles gr on gr.group_id = g.group_id where gr.role_id=$1 and g.allowed`, *role)
 		if err != nil {
 			return nil, err
 		}
@@ -115,7 +118,7 @@ func PeopleWith(ctx context.Context, tx pgx.Tx, module, right string) ([]uuid.UU
 		where p.status = 'active' and (
 		  coalesce(r.locked,false)
 		  or coalesce((select x.allowed from hub.person_rights x where x.person_id = p.id and x.module=$1 and x.right_name=$2),
-		              (select rr.allowed from hub.role_rights rr where rr.role_id = pr.role_id and rr.module=$1 and rr.right_name=$2), false))
+		              case when pr.role_id is null then null else hub.role_right(pr.role_id, $1, $2) end, false))
 		limit 200`, module, right)
 	if err != nil {
 		return nil, err

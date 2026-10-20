@@ -4,7 +4,7 @@ import * as commsW from '~/logic/server/widgets/comms.js';
 import * as approvalsW from '~/logic/server/widgets/approvals.js';
 // renderVals step: org. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildOrg(ctx) {
-  const { C, badge, can, cur_t, fmtDay, has, isoAdd, projects, roleDefs, s, tagNames, tatText, tickets, todayISO, ts } = ctx;
+  const { C, badge, can, cur_t, fmtDay, has, isoAdd, projects, refName, roleDefs, s, tagNames, tatText, tickets, todayISO, ts } = ctx;
   // =============== Organization structure ===============
   const O = this.org;
   const typeName = { sectors: 'Sector', branches: 'Branch', units: 'Unit', departments: 'Department' };
@@ -193,7 +193,7 @@ export function buildOrg(ctx) {
     return { name: r.name, type: typeName[t], typeLower: typeName[t].toLowerCase(), short: shortOf(r.name), color: typeTint[t], key: key, perf: unitPerf[key].perf, open: openOu(t, r.id),
       style: 'display:flex;align-items:center;gap:10px;width:100%;min-height:46px;padding:4px 10px;border:0;border-radius:10px;cursor:pointer;color:var(--k-E8EFEA,#E8EFEA);font-family:inherit;background:' + (on ? 'var(--k-22302A,#22302A)' : 'transparent') };
   });
-  const roleNameOf = (id) => (roleDefs.find((r) => r.id === id) || {}).name || id;
+  const roleNameOf = (id) => refName(id);
   const targetLabel = (lvl, k) => (k === 'own' ? 'its own ' + typeName[lvl].toLowerCase() : k === 'wall' ? 'the Community wall' : 'other ' + (typeName[k] + (k === 'branches' ? 'es' : 's')).toLowerCase());
   const ruleSentence = (lvl, ty) => {
     const r = (s.commRules[lvl] || {})[ty];

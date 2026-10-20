@@ -25,6 +25,8 @@
 <div style="display: flex; flex-direction: column; gap: 8px">
 <span style="font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">Who can manage it <span style="color: var(--k-9DB0A6,#9DB0A6)">(roles)</span></span>
 <div style="display: flex; flex-wrap: wrap; gap: 6px"><template v-for="(mr2, mr2__i) in sw.managerRoles" :key="mr2__i"><button :aria-pressed="mr2.on" @click="mr2.toggle" :disabled="mr2.locked" :style="mr2.style">{{ mr2.name }}</button></template></div>
+<template v-if="sw.managerGroups.length"><span style="font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">User groups <span style="color: var(--k-9DB0A6,#9DB0A6)">(every role in the group)</span></span>
+<div style="display: flex; flex-wrap: wrap; gap: 6px"><template v-for="(mg, mg__i) in sw.managerGroups" :key="'g' + mg__i"><button :aria-pressed="mg.on" @click="mg.toggle" :style="mg.style">{{ mg.name }}</button></template></div></template>
 <span style="font-size: 11px; color: var(--k-9DB0A6,#9DB0A6)">Super admin can always manage every widget.</span>
 </div>
 </div>
@@ -35,7 +37,9 @@
 <div style="overflow-x: auto; border-radius: 12px; border: 1px solid var(--k-24322C,#24322C)">
 <table style="width: 100%; border-collapse: collapse; font-size: 13px">
 <thead><tr><th style="text-align: left; padding: 10px 12px; background: var(--k-121B17,#121B17); color: var(--k-9DB0A6,#9DB0A6); font-weight: 600; font-size: 12px">Role</th><template v-for="(rn, rn__i) in sw.rightNames" :key="rn__i"><th style="padding: 10px 6px; background: var(--k-121B17,#121B17); color: var(--k-9DB0A6,#9DB0A6); font-weight: 600; font-size: 11px; text-align: center; min-width: 64px">{{ rn.name }}</th></template></tr></thead>
-<tbody><template v-for="(mr, mr__i) in sw.matrix" :key="mr__i"><tr style="border-top: 1px solid var(--k-24322C,#24322C)"><td style="padding: 8px 12px; white-space: nowrap">{{ mr.role }}</td><template v-for="(mc, mc__i) in mr.cells" :key="mc__i"><td style="text-align: center; padding: 6px"><input type="checkbox" :aria-label="mc.label" :checked="mc.on" :disabled="mc.locked" @change="mc.toggle"><template v-if="mc.pending"><div style="font-size: 9px; font-weight: 700; color: var(--k-FFB86B,#FFB86B)">PENDING</div></template></td></template></tr></template></tbody>
+<tbody><template v-for="(mr, mr__i) in sw.matrix" :key="mr__i"><tr style="border-top: 1px solid var(--k-24322C,#24322C)"><td style="padding: 8px 12px; white-space: nowrap">{{ mr.role }}</td><template v-for="(mc, mc__i) in mr.cells" :key="mc__i"><td style="text-align: center; padding: 6px"><input type="checkbox" :aria-label="mc.label" :checked="mc.on" :disabled="mc.locked" @change="mc.toggle"><template v-if="mc.pending"><div style="font-size: 9px; font-weight: 700; color: var(--k-FFB86B,#FFB86B)">PENDING</div></template><template v-if="mc.via"><div style="font-size: 9px; color: var(--k-B8F36B,#B8F36B)" :title="mc.label">{{ mc.via }}</div></template></td></template></tr></template>
+<template v-if="sw.hasGroups"><tr style="border-top: 2px solid var(--k-2A3832,#2A3832)"><td :colspan="sw.rightNames.length + 1" style="padding: 8px 12px; background: var(--k-121B17,#121B17); color: var(--k-9DB0A6,#9DB0A6); font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase">User groups · a ticked right is held by every role in the group</td></tr>
+<template v-for="(gr, gr__i) in sw.groupMatrix" :key="'g' + gr__i"><tr style="border-top: 1px solid var(--k-24322C,#24322C)"><td style="padding: 8px 12px"><strong style="font-weight: 600">{{ gr.group }}</strong><span style="display: block; font-size: 11px; color: var(--k-9DB0A6,#9DB0A6); max-width: 220px; white-space: normal">{{ gr.roles }}</span></td><template v-for="(gc, gc__i) in gr.cells" :key="gc__i"><td style="text-align: center; padding: 6px"><input type="checkbox" :aria-label="gc.label" :checked="gc.on" @change="gc.toggle"><template v-if="gc.pending"><div style="font-size: 9px; font-weight: 700; color: var(--k-FFB86B,#FFB86B)">PENDING</div></template></td></template></tr></template></template></tbody>
 </table>
 </div>
 </div>
@@ -51,25 +55,6 @@
 </div>
 </template>
 </div>
-
-<template v-if="sw.isLevel">
-<div style="display: flex; flex-direction: column; gap: 10px">
-<span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--k-9DB0A6,#9DB0A6)">Communication rules</span>
-<span style="font-size: 13px; color: var(--k-C9D6CF,#C9D6CF); line-height: 1.5">Decide whether each {{ sw.levelSingular }} can send memos and announcements, where they can go, which role sends them and which role approves.</span>
-<template v-for="(rl, rl__i) in sw.commRules" :key="rl__i">
-<div style="padding: 14px; border-radius: 12px; background: var(--k-121B17,#121B17); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 12px">
-<label style="display: flex; gap: 10px; align-items: center; cursor: pointer"><input type="checkbox" :checked="rl.on" @change="rl.toggle"><strong style="font-size: 14px">{{ rl.label }}</strong></label>
-<template v-if="rl.on">
-<div style="display: flex; flex-direction: column; gap: 6px"><span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Can send to</span><div style="display: flex; flex-wrap: wrap; gap: 6px"><template v-for="(tg, tg__i) in rl.targets" :key="tg__i"><button :aria-pressed="tg.on" @click="tg.toggle" :style="tg.style">{{ tg.label }}</button></template></div></div>
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px">
-<label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Role that sends<select :value="rl.sender" @change="rl.setSender" style="height: 38px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-16201C,#16201C); color: var(--k-E8EFEA,#E8EFEA); font-size: 13px"><template v-for="(ro2, ro2__i) in rl.roleOpts" :key="ro2__i"><option :value="ro2.v">{{ ro2.l }}</option></template></select></label>
-<label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Role that approves<select :value="rl.approver" @change="rl.setApprover" style="height: 38px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-16201C,#16201C); color: var(--k-E8EFEA,#E8EFEA); font-size: 13px"><option value="none">No approval needed</option><template v-for="(ro3, ro3__i) in rl.roleOpts" :key="ro3__i"><option :value="ro3.v">{{ ro3.l }}</option></template></select></label>
-</div>
-</template>
-</div>
-</template>
-</div>
-</template>
 
 <template v-if="sw.t.tickets">
 <div style="display: flex; flex-direction: column; gap: 12px">
