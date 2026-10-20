@@ -18,5 +18,4 @@ frontend's existing data, so the frontend can render them once it decrypts. All 
 | folder file | `{"name","kind","size_label","by","when","imgBg","file_key"}`; the bytes are AES-GCM ciphertext in the blob store |
 | secure-share `key_envelope` | file key + metadata sealed under the link key that lives only in the URL `#fragment` |
 
-Demo devices are derived from `HUB_SEED_SECRET` (`go run ./cmd/seed -device-seed someone@company.com`), so a development
 client can sign in as any demo person. Never use the demo seed outside development; the seeder refuses `HUB_ENV=prod`.

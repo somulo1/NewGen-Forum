@@ -1,259 +1,5 @@
 {
- "modules": [
-  {
-   "key": "home",
-   "label": "Home & widgets",
-   "tint": "#B8F36B",
-   "rights": [
-    "Customize home",
-    "Manage widget settings",
-    "Open widgets page",
-    "Add & remove widgets"
-   ]
-  },
-  {
-   "key": "announcements",
-   "label": "Announcements",
-   "tint": "#B8F36B",
-   "rights": [
-    "View",
-    "Post",
-    "Edit",
-    "Delete",
-    "See who read"
-   ]
-  },
-  {
-   "key": "wall",
-   "label": "Community wall",
-   "tint": "#F49AC1",
-   "rights": [
-    "View",
-    "Post",
-    "Comment",
-    "Share outside Hub",
-    "Moderate posts"
-   ]
-  },
-  {
-   "key": "forums",
-   "label": "Forums",
-   "tint": "#7CC4FF",
-   "rights": [
-    "View",
-    "Create forum",
-    "Invite members",
-    "Start calls",
-    "Moderate"
-   ]
-  },
-  {
-   "key": "tickets",
-   "label": "Tickets",
-   "tint": "#FF9B8A",
-   "rights": [
-    "View",
-    "Raise",
-    "Assign & hand over",
-    "Solve",
-    "Close",
-    "Manage TAT settings",
-    "Set up ticket categories"
-   ]
-  },
-  {
-   "key": "projects",
-   "label": "Projects",
-   "tint": "#7CC4FF",
-   "rights": [
-    "View",
-    "Create project",
-    "Manage milestones",
-    "Edit tasks",
-    "Move tasks",
-    "Manage team"
-   ]
-  },
-  {
-   "key": "files",
-   "label": "Files",
-   "tint": "#C9B6FF",
-   "rights": [
-    "View",
-    "Upload",
-    "Delete",
-    "Share outside Hub"
-   ]
-  },
-  {
-   "key": "secureshare",
-   "label": "Secure share",
-   "tint": "#6EE7C8",
-   "rights": [
-    "Create link",
-    "View link history"
-   ]
-  },
-  {
-   "key": "sessions",
-   "label": "Meetings & standups",
-   "tint": "#6EE7C8",
-   "rights": [
-    "Join",
-    "Start meeting",
-    "Record"
-   ]
-  },
-  {
-   "key": "awards",
-   "label": "Performance awards",
-   "tint": "#FFD66B",
-   "rights": [
-    "View",
-    "Nominate",
-    "Approve awards"
-   ]
-  },
-  {
-   "key": "people",
-   "label": "People",
-   "tint": "#C9B6FF",
-   "rights": [
-    "View directory",
-    "See contact details",
-    "View full profiles",
-    "Onboard people",
-    "Edit profiles"
-   ]
-  },
-  {
-   "key": "security",
-   "label": "Security & logs",
-   "tint": "#FF9B8A",
-   "rights": [
-    "View alerts",
-    "View logs",
-    "Resolve alerts",
-    "Manage rules",
-    "Export logs"
-   ]
-  },
-  {
-   "key": "roles",
-   "label": "Roles & rights",
-   "tint": "#FFB86B",
-   "rights": [
-    "View roles",
-    "Manage roles & rights",
-    "Configure approvals"
-   ]
-  },
-  {
-   "key": "settings",
-   "label": "Organization settings",
-   "tint": "#7CC4FF",
-   "rights": [
-    "View settings",
-    "Edit organization profile",
-    "Manage subscription"
-   ]
-  },
-  {
-   "key": "calendar",
-   "label": "Calendar",
-   "tint": "#7CC4FF",
-   "rights": [
-    "View",
-    "Add events",
-    "Schedule meetings"
-   ]
-  },
-  {
-   "key": "memos",
-   "label": "Memos",
-   "tint": "#FFD66B",
-   "rights": [
-    "Read",
-    "Send memos"
-   ]
-  },
-  {
-   "key": "newsletter",
-   "label": "Newsletter",
-   "tint": "#F49AC1",
-   "rights": [
-    "Read",
-    "Publish newsletters"
-   ]
-  },
-  {
-   "key": "departments",
-   "label": "Departments",
-   "tint": "#B8F36B",
-   "rights": [
-    "View dashboard",
-    "Manage department",
-    "See performance"
-   ]
-  },
-  {
-   "key": "sectors",
-   "label": "Sectors",
-   "tint": "#FFB86B",
-   "rights": [
-    "View dashboard",
-    "Manage sector",
-    "See performance"
-   ]
-  },
-  {
-   "key": "branches",
-   "label": "Branches",
-   "tint": "#7CC4FF",
-   "rights": [
-    "View dashboard",
-    "Manage branch",
-    "See performance"
-   ]
-  },
-  {
-   "key": "units",
-   "label": "Units",
-   "tint": "#C9B6FF",
-   "rights": [
-    "View dashboard",
-    "Manage unit",
-    "See performance"
-   ]
-  },
-  {
-   "key": "performance",
-   "label": "Performance",
-   "tint": "#6EE7C8",
-   "rights": [
-    "View",
-    "Set targets"
-   ]
-  },
-  {
-   "key": "chat",
-   "label": "Private messages",
-   "tint": "#C9B6FF",
-   "rights": [
-    "Send private messages",
-    "Private calls"
-   ]
-  }
- ],
  "roles": [
-  {
-   "id": "superadmin",
-   "name": "Super admin",
-   "desc": "Full control of Hub. This role cannot be limited.",
-   "count": 2,
-   "locked": true,
-   "scope": "Whole organization"
-  },
   {
    "id": "admin",
    "name": "Admin",
@@ -322,137 +68,6 @@
   }
  ],
  "defaults": {
-  "superadmin": {
-   "home": [
-    "Customize home",
-    "Manage widget settings",
-    "Open widgets page",
-    "Add & remove widgets"
-   ],
-   "announcements": [
-    "View",
-    "Post",
-    "Edit",
-    "Delete",
-    "See who read"
-   ],
-   "wall": [
-    "View",
-    "Post",
-    "Comment",
-    "Share outside Hub",
-    "Moderate posts"
-   ],
-   "forums": [
-    "View",
-    "Create forum",
-    "Invite members",
-    "Start calls",
-    "Moderate"
-   ],
-   "tickets": [
-    "View",
-    "Raise",
-    "Assign & hand over",
-    "Solve",
-    "Close",
-    "Manage TAT settings",
-    "Set up ticket categories"
-   ],
-   "projects": [
-    "View",
-    "Create project",
-    "Manage milestones",
-    "Edit tasks",
-    "Move tasks",
-    "Manage team"
-   ],
-   "files": [
-    "View",
-    "Upload",
-    "Delete",
-    "Share outside Hub"
-   ],
-   "secureshare": [
-    "Create link",
-    "View link history"
-   ],
-   "sessions": [
-    "Join",
-    "Start meeting",
-    "Record"
-   ],
-   "awards": [
-    "View",
-    "Nominate",
-    "Approve awards"
-   ],
-   "people": [
-    "View directory",
-    "See contact details",
-    "View full profiles",
-    "Onboard people",
-    "Edit profiles"
-   ],
-   "security": [
-    "View alerts",
-    "View logs",
-    "Resolve alerts",
-    "Manage rules",
-    "Export logs"
-   ],
-   "roles": [
-    "View roles",
-    "Manage roles & rights",
-    "Configure approvals"
-   ],
-   "settings": [
-    "View settings",
-    "Edit organization profile",
-    "Manage subscription"
-   ],
-   "calendar": [
-    "View",
-    "Add events",
-    "Schedule meetings"
-   ],
-   "memos": [
-    "Read",
-    "Send memos"
-   ],
-   "newsletter": [
-    "Read",
-    "Publish newsletters"
-   ],
-   "departments": [
-    "View dashboard",
-    "Manage department",
-    "See performance"
-   ],
-   "sectors": [
-    "View dashboard",
-    "Manage sector",
-    "See performance"
-   ],
-   "branches": [
-    "View dashboard",
-    "Manage branch",
-    "See performance"
-   ],
-   "units": [
-    "View dashboard",
-    "Manage unit",
-    "See performance"
-   ],
-   "performance": [
-    "View",
-    "Set targets"
-   ],
-   "chat": [
-    "Send private messages",
-    "Private calls"
-   ]
-  },
   "admin": {
    "home": [
     "Customize home",
@@ -465,21 +80,26 @@
     "Post",
     "Edit",
     "Delete",
-    "See who read"
+    "See who read",
+    "View insights"
    ],
    "wall": [
     "View",
     "Post",
     "Comment",
     "Share outside Hub",
-    "Moderate posts"
+    "Moderate posts",
+    "Edit own posts",
+    "Delete own posts"
    ],
    "forums": [
     "View",
     "Create forum",
     "Invite members",
     "Start calls",
-    "Moderate"
+    "Moderate",
+    "Edit own messages",
+    "Delete own messages"
    ],
    "tickets": [
     "View",
@@ -488,7 +108,8 @@
     "Solve",
     "Close",
     "Manage TAT settings",
-    "Set up ticket categories"
+    "Set up ticket categories",
+    "Edit own tickets"
    ],
    "projects": [
     "View",
@@ -496,13 +117,15 @@
     "Manage milestones",
     "Edit tasks",
     "Move tasks",
-    "Manage team"
+    "Manage team",
+    "Edit own tasks"
    ],
    "files": [
     "View",
     "Upload",
     "Delete",
-    "Share outside Hub"
+    "Share outside Hub",
+    "Delete own files"
    ],
    "secureshare": [
     "Create link",
@@ -545,15 +168,18 @@
    "calendar": [
     "View",
     "Add events",
-    "Schedule meetings"
+    "Schedule meetings",
+    "Edit own events"
    ],
    "memos": [
     "Read",
-    "Send memos"
+    "Send memos",
+    "View insights"
    ],
    "newsletter": [
     "Read",
-    "Publish newsletters"
+    "Publish newsletters",
+    "View insights"
    ],
    "departments": [
     "View dashboard",
@@ -581,7 +207,14 @@
    ],
    "chat": [
     "Send private messages",
-    "Private calls"
+    "Private calls",
+    "Edit own messages",
+    "Delete own messages"
+   ],
+   "jobposts": [
+    "Read",
+    "Post job posts",
+    "View insights"
    ]
   },
   "hod": {
@@ -600,14 +233,18 @@
     "Post",
     "Comment",
     "Share outside Hub",
-    "Moderate posts"
+    "Moderate posts",
+    "Edit own posts",
+    "Delete own posts"
    ],
    "forums": [
     "View",
     "Create forum",
     "Invite members",
     "Start calls",
-    "Moderate"
+    "Moderate",
+    "Edit own messages",
+    "Delete own messages"
    ],
    "tickets": [
     "View",
@@ -615,7 +252,8 @@
     "Assign & hand over",
     "Solve",
     "Close",
-    "Set up ticket categories"
+    "Set up ticket categories",
+    "Edit own tickets"
    ],
    "projects": [
     "View",
@@ -623,12 +261,14 @@
     "Manage milestones",
     "Edit tasks",
     "Move tasks",
-    "Manage team"
+    "Manage team",
+    "Edit own tasks"
    ],
    "files": [
     "View",
     "Upload",
-    "Share outside Hub"
+    "Share outside Hub",
+    "Delete own files"
    ],
    "secureshare": [
     "Create link"
@@ -657,7 +297,8 @@
    "calendar": [
     "View",
     "Add events",
-    "Schedule meetings"
+    "Schedule meetings",
+    "Edit own events"
    ],
    "memos": [
     "Read",
@@ -680,7 +321,12 @@
    ],
    "chat": [
     "Send private messages",
-    "Private calls"
+    "Private calls",
+    "Edit own messages",
+    "Delete own messages"
+   ],
+   "jobposts": [
+    "Read"
    ]
   },
   "it": {
@@ -694,13 +340,17 @@
     "View",
     "Post",
     "Comment",
-    "Share outside Hub"
+    "Share outside Hub",
+    "Edit own posts",
+    "Delete own posts"
    ],
    "forums": [
     "View",
     "Create forum",
     "Invite members",
-    "Start calls"
+    "Start calls",
+    "Edit own messages",
+    "Delete own messages"
    ],
    "tickets": [
     "View",
@@ -709,17 +359,20 @@
     "Solve",
     "Close",
     "Manage TAT settings",
-    "Set up ticket categories"
+    "Set up ticket categories",
+    "Edit own tickets"
    ],
    "projects": [
     "View",
     "Edit tasks",
-    "Move tasks"
+    "Move tasks",
+    "Edit own tasks"
    ],
    "files": [
     "View",
     "Upload",
-    "Delete"
+    "Delete",
+    "Delete own files"
    ],
    "secureshare": [
     "Create link",
@@ -747,7 +400,8 @@
    "calendar": [
     "View",
     "Add events",
-    "Schedule meetings"
+    "Schedule meetings",
+    "Edit own events"
    ],
    "memos": [
     "Read"
@@ -764,7 +418,12 @@
    ],
    "chat": [
     "Send private messages",
-    "Private calls"
+    "Private calls",
+    "Edit own messages",
+    "Delete own messages"
+   ],
+   "jobposts": [
+    "Read"
    ]
   },
   "finance": {
@@ -778,26 +437,33 @@
     "View",
     "Post",
     "Comment",
-    "Share outside Hub"
+    "Share outside Hub",
+    "Edit own posts",
+    "Delete own posts"
    ],
    "forums": [
     "View",
-    "Start calls"
+    "Start calls",
+    "Edit own messages",
+    "Delete own messages"
    ],
    "tickets": [
     "View",
-    "Raise"
+    "Raise",
+    "Edit own tickets"
    ],
    "projects": [
     "View",
     "Create project",
     "Edit tasks",
-    "Move tasks"
+    "Move tasks",
+    "Edit own tasks"
    ],
    "files": [
     "View",
     "Upload",
-    "Share outside Hub"
+    "Share outside Hub",
+    "Delete own files"
    ],
    "secureshare": [
     "Create link"
@@ -820,7 +486,8 @@
    "calendar": [
     "View",
     "Add events",
-    "Schedule meetings"
+    "Schedule meetings",
+    "Edit own events"
    ],
    "memos": [
     "Read"
@@ -837,7 +504,12 @@
    ],
    "chat": [
     "Send private messages",
-    "Private calls"
+    "Private calls",
+    "Edit own messages",
+    "Delete own messages"
+   ],
+   "jobposts": [
+    "Read"
    ]
   },
   "staff": {
@@ -851,24 +523,31 @@
     "View",
     "Post",
     "Comment",
-    "Share outside Hub"
+    "Share outside Hub",
+    "Edit own posts",
+    "Delete own posts"
    ],
    "forums": [
     "View",
-    "Start calls"
+    "Start calls",
+    "Edit own messages",
+    "Delete own messages"
    ],
    "tickets": [
     "View",
-    "Raise"
+    "Raise",
+    "Edit own tickets"
    ],
    "projects": [
     "View",
     "Edit tasks",
-    "Move tasks"
+    "Move tasks",
+    "Edit own tasks"
    ],
    "files": [
     "View",
-    "Upload"
+    "Upload",
+    "Delete own files"
    ],
    "secureshare": [
     "Create link"
@@ -891,7 +570,8 @@
    "calendar": [
     "View",
     "Add events",
-    "Schedule meetings"
+    "Schedule meetings",
+    "Edit own events"
    ],
    "memos": [
     "Read"
@@ -908,7 +588,12 @@
    ],
    "chat": [
     "Send private messages",
-    "Private calls"
+    "Private calls",
+    "Edit own messages",
+    "Delete own messages"
+   ],
+   "jobposts": [
+    "Read"
    ]
   },
   "guest": {
@@ -956,26 +641,33 @@
     "View",
     "Post",
     "Comment",
-    "Share outside Hub"
+    "Share outside Hub",
+    "Edit own posts",
+    "Delete own posts"
    ],
    "forums": [
     "View",
-    "Start calls"
+    "Start calls",
+    "Edit own messages",
+    "Delete own messages"
    ],
    "tickets": [
     "View",
     "Raise",
     "Assign & hand over",
-    "Set up ticket categories"
+    "Set up ticket categories",
+    "Edit own tickets"
    ],
    "projects": [
     "View",
     "Edit tasks",
-    "Move tasks"
+    "Move tasks",
+    "Edit own tasks"
    ],
    "files": [
     "View",
-    "Upload"
+    "Upload",
+    "Delete own files"
    ],
    "secureshare": [
     "Create link"
@@ -998,7 +690,8 @@
    "calendar": [
     "View",
     "Add events",
-    "Schedule meetings"
+    "Schedule meetings",
+    "Edit own events"
    ],
    "memos": [
     "Read",
@@ -1021,7 +714,12 @@
    ],
    "chat": [
     "Send private messages",
-    "Private calls"
+    "Private calls",
+    "Edit own messages",
+    "Delete own messages"
+   ],
+   "jobposts": [
+    "Read"
    ]
   },
   "branch": {
@@ -1035,27 +733,34 @@
     "View",
     "Post",
     "Comment",
-    "Share outside Hub"
+    "Share outside Hub",
+    "Edit own posts",
+    "Delete own posts"
    ],
    "forums": [
     "View",
-    "Start calls"
+    "Start calls",
+    "Edit own messages",
+    "Delete own messages"
    ],
    "tickets": [
     "View",
     "Raise",
     "Assign & hand over",
     "Solve",
-    "Set up ticket categories"
+    "Set up ticket categories",
+    "Edit own tickets"
    ],
    "projects": [
     "View",
     "Edit tasks",
-    "Move tasks"
+    "Move tasks",
+    "Edit own tasks"
    ],
    "files": [
     "View",
-    "Upload"
+    "Upload",
+    "Delete own files"
    ],
    "secureshare": [
     "Create link"
@@ -1078,7 +783,8 @@
    "calendar": [
     "View",
     "Add events",
-    "Schedule meetings"
+    "Schedule meetings",
+    "Edit own events"
    ],
    "memos": [
     "Read",
@@ -1101,7 +807,12 @@
    ],
    "chat": [
     "Send private messages",
-    "Private calls"
+    "Private calls",
+    "Edit own messages",
+    "Delete own messages"
+   ],
+   "jobposts": [
+    "Read"
    ]
   },
   "unit": {
@@ -1115,26 +826,33 @@
     "View",
     "Post",
     "Comment",
-    "Share outside Hub"
+    "Share outside Hub",
+    "Edit own posts",
+    "Delete own posts"
    ],
    "forums": [
     "View",
-    "Start calls"
+    "Start calls",
+    "Edit own messages",
+    "Delete own messages"
    ],
    "tickets": [
     "View",
     "Raise",
     "Solve",
-    "Set up ticket categories"
+    "Set up ticket categories",
+    "Edit own tickets"
    ],
    "projects": [
     "View",
     "Edit tasks",
-    "Move tasks"
+    "Move tasks",
+    "Edit own tasks"
    ],
    "files": [
     "View",
-    "Upload"
+    "Upload",
+    "Delete own files"
    ],
    "secureshare": [
     "Create link"
@@ -1157,7 +875,8 @@
    "calendar": [
     "View",
     "Add events",
-    "Schedule meetings"
+    "Schedule meetings",
+    "Edit own events"
    ],
    "memos": [
     "Read",
@@ -1179,131 +898,14 @@
    ],
    "chat": [
     "Send private messages",
-    "Private calls"
+    "Private calls",
+    "Edit own messages",
+    "Delete own messages"
+   ],
+   "jobposts": [
+    "Read"
    ]
   }
  },
- "flows": [
-  {
-   "id": "f1",
-   "mod": "announcements",
-   "action": "Publish an announcement to everyone",
-   "levels": 2,
-   "approvers": [
-    "Head of department",
-    "Communications lead",
-    "Managing Director"
-   ]
-  },
-  {
-   "id": "f2",
-   "mod": "projects",
-   "action": "Create a new project",
-   "levels": 3,
-   "approvers": [
-    "Head of department",
-    "Finance approver",
-    "Managing Director"
-   ]
-  },
-  {
-   "id": "f3",
-   "mod": "files",
-   "action": "Share a file outside Hub",
-   "levels": 1,
-   "approvers": [
-    "Line manager",
-    "Security officer",
-    "Managing Director"
-   ]
-  },
-  {
-   "id": "f4",
-   "mod": "wall",
-   "action": "Share a wall post outside Hub",
-   "levels": 1,
-   "approvers": [
-    "Line manager",
-    "Communications lead",
-    "Managing Director"
-   ]
-  },
-  {
-   "id": "f5",
-   "mod": "tickets",
-   "action": "Close a High priority ticket",
-   "levels": 1,
-   "approvers": [
-    "Head of IT Operations",
-    "Head of department",
-    "Managing Director"
-   ]
-  },
-  {
-   "id": "f6",
-   "mod": "secureshare",
-   "action": "Create a link that lasts 7 days",
-   "levels": 2,
-   "approvers": [
-    "Line manager",
-    "Security officer",
-    "Managing Director"
-   ]
-  },
-  {
-   "id": "f7",
-   "mod": "awards",
-   "action": "Give a performance award",
-   "levels": 2,
-   "approvers": [
-    "Head of department",
-    "HR Manager",
-    "Managing Director"
-   ]
-  },
-  {
-   "id": "f8",
-   "mod": "roles",
-   "action": "Change what a role is allowed to do",
-   "levels": 3,
-   "approvers": [
-    "Security officer",
-    "Head of IT Operations",
-    "Managing Director"
-   ]
-  },
-  {
-   "id": "f9",
-   "mod": "files",
-   "action": "Upload to the Finance folder",
-   "levels": 0,
-   "approvers": [
-    "Finance approver",
-    "Head of department",
-    "Managing Director"
-   ]
-  },
-  {
-   "id": "f10",
-   "mod": "memos",
-   "action": "Send a memo or announcement under a communication rule",
-   "levels": 1,
-   "approvers": [
-    "Admin",
-    "Head of department",
-    "Managing Director"
-   ]
-  },
-  {
-   "id": "f11",
-   "mod": "people",
-   "action": "Change a person's details, role or rights",
-   "levels": 2,
-   "approvers": [
-    "Line manager",
-    "HR Manager",
-    "Managing Director"
-   ]
-  }
- ]
+ "flows": {}
 }
