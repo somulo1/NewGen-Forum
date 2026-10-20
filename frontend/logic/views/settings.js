@@ -38,7 +38,15 @@ export function buildSettings(ctx) {
   const profileDirty = dirtyOf('profile', P);
   const profile = { groups: profileGroups, dirty: profileDirty, canEdit,
     logo: { url: (draft.profile && draft.profile.logo !== undefined ? draft.profile.logo : P.logo), initials: (P.short || P.name || 'O').slice(0, 2).toUpperCase(),
-      onFile: (e) => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f && f.type.indexOf('image/') === 0) setDraft('profile', { logo: URL.createObjectURL(f) }); else if (f) this.notify('Choose an image file for the logo.', '#FFB86B'); },
+      onFile: (e) => {
+        const f = e.target.files && e.target.files[0]; e.target.value = '';
+        if (!f) return;
+        if (['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'].indexOf(f.type) === -1) { this.notify('The logo must be a PNG, JPEG, WebP or SVG image.', '#FFB86B'); return; }
+        if (f.size > 1048576) { this.notify('The logo can be up to 1 MB. This one is ' + (f.size / 1048576).toFixed(1) + ' MB.', '#FFB86B'); return; }
+        const r = new FileReader();
+        r.onload = () => setDraft('profile', { logo: String(r.result) });
+        r.readAsDataURL(f);
+      },
       remove: () => setDraft('profile', { logo: '' }) },
     discard: () => clearPart('profile'),
     save: () => {
@@ -116,13 +124,16 @@ export function buildSettings(ctx) {
   const xf = (k, l, t, e) => field('security', X, k, l, t, e);
   const flag = (k, label, note) => ({ key: k, label, note, on: (draft.security && draft.security[k] !== undefined ? draft.security[k] : X[k]), disabled: !canEdit, toggle: () => setDraft('security', { [k]: !(draft.security && draft.security[k] !== undefined ? draft.security[k] : X[k]) }) });
   const security = { canEdit, flags: [flag('mfa', 'Require two-step sign-in (MFA)', 'Everyone must confirm sign-in with a second step.'), flag('externalSharing', 'Allow sharing posts outside Hub', 'Turn off to stop WhatsApp, email and social sharing.')],
-    fields: [xf('session', 'Sign out inactive people after', 'select', { options: ['1', '4', '8', '24'], optLabel: (o) => o + (o === '1' ? ' hour' : ' hours') }), xf('retention', 'Keep audit logs for', 'select', { options: ['3', '6', '12', '24'], optLabel: (o) => o + ' months' }), xf('maxVideoMB', 'Largest video that can be posted', 'select', { options: ['5', '10', '25', '50', '100'], optLabel: (o) => o + ' MB' }),
+    fields: [xf('session', 'Sign out inactive people after', 'select', { options: ['15', '30', '45', '60', '120', '300', '720', '1440'], optLabel: (o) => (Number(o) < 60 ? o + ' minutes' : Number(o) === 60 ? '1 hour' : Number(o) / 60 + ' hours') }), xf('retention', 'Keep audit logs for', 'select', { options: ['3', '6', '12', '24'], optLabel: (o) => o + ' months' }), xf('maxFileMB', 'Largest file on a communication', 'select', { options: ['2', '5', '10', '25', '50'], optLabel: (o) => o + ' MB' }), xf('fileTypes', 'File types allowed on communications', 'text', { placeholder: 'e.g. pdf, docx, xlsx, png', wide: true }), xf('maxVideoMB', 'Largest video that can be posted', 'select', { options: ['5', '10', '25', '50', '100'], optLabel: (o) => o + ' MB' }),
       // how much each person may store in total; one person can be given a different amount below
-      xf('userQuotaMB', 'Storage each person may use', 'select', { options: ['100', '250', '500', '1024', '2048', '5120', '10240', '20480', '51200', '102400', '0'], optLabel: (o) => (o === '0' ? 'No limit' : Number(o) >= 1024 ? Number(o) / 1024 + ' GB' : o + ' MB') }), xf('domains', 'Allowed sign-in email domains', 'text', { placeholder: 'e.g. acme.com, acme.co.ke', wide: true })],
+      xf('userQuotaMB', 'Storage each person may use', 'select', { options: ['100', '250', '500', '1024', '2048', '5120', '10240', '20480', '51200', '102400', '0'], optLabel: (o) => (o === '0' ? 'No limit' : Number(o) >= 1024 ? Number(o) / 1024 + ' GB' : o + ' MB') })],
     dirty: dirtyOf('security', X) , discard: () => clearPart('security'),
     save: () => { if (this.srv) { srvDo(() => settingsW.saveSecurity(this, this.srv, { ...X, ...(draft.security || {}) }), 'Security and data settings saved.').then(() => clearPart('security')); return; } this.setState((st) => ({ orgSecurity: { ...st.orgSecurity, ...(st.setDraft || {}).security } })); clearPart('security'); audit('Updated security and data settings'); this.notify('Security and data settings saved.', '#B8F36B'); },
     exportData: () => { const data = { exportedAt: new Date().toISOString(), organization: P, people: this.dir.map((p) => ({ name: p.name, title: p.title, department: p.dept, branch: p.loc, email: p.email || '' })), subscription: S }; downloadBlob(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), 'organization-data.json'); audit('Exported all organization data'); this.notify('Organization data exported.', '#7CC4FF'); },
-    del: () => ask({ kind: 'delete', text: 'Request deletion of ' + P.name + ' and all its data? Type the organization name to confirm.', confirmLabel: 'Request deletion', needsName: true }) };
+    deleteAfter: s.orgDeleteAfter || '',
+    deleteNote: s.orgDeleteAfter ? 'Deletion is scheduled for ' + new Date(s.orgDeleteAfter).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) + '. Everything is erased then and cannot be recovered. You can cancel until that day.' : '',
+    cancelDeletion: () => srvDo(() => settingsW.cancelDeletion(this, this.srv), 'Deletion cancelled. Your organization stays.'),
+    del: () => ask({ kind: 'delete', text: 'Request deletion of ' + P.name + ' and all its data? Everything is erased after 30 days, and you can cancel any time before then. Type the organization name to confirm.', confirmLabel: 'Request deletion', needsName: true }) };
   security.dirtyAny = security.dirty;
 
   const confirm = cf ? { open: true, text: cf.text, label: cf.confirmLabel, needsName: !!cf.needsName, typed: draft.typed || '', onTyped: (e) => this.setState((st) => ({ setDraft: { ...(st.setDraft || {}), typed: e.target.value } })), ready: !cf.needsName || (draft.typed || '').trim() === P.name,
@@ -137,7 +148,11 @@ export function buildSettings(ctx) {
       }
       if (cf.kind === 'plan') { const p = PLANS.find((x) => x.id === cf.id); this.setState((st) => ({ orgSub: { ...st.orgSub, plan: p.id, seats: Math.min(st.orgSub.seats, p.seats) } })); done('Subscription changed to ' + p.name); }
       if (cf.kind === 'cancel') { this.setState((st) => ({ orgSub: { ...st.orgSub, status: 'Cancelling', cancelAt: st.orgSub.renews } })); done('Subscription cancelled. Access continues until ' + dayLabel(S.renews)); }
-      if (cf.kind === 'delete') { this.setState((st) => { const d = { ...(st.setDraft || {}) }; delete d.typed; return { setConfirm: null, setDraft: Object.keys(d).filter((k) => k !== 'errs').length ? d : null }; }); audit('Requested deletion of the organization'); this.notify('Deletion requested. An admin will confirm within 7 days.', '#FF9B8A'); }
+      if (cf.kind === 'delete') {
+        this.setState((st) => { const d = { ...(st.setDraft || {}) }; delete d.typed; return { setConfirm: null, setDraft: Object.keys(d).filter((k) => k !== 'errs').length ? d : null }; });
+        if (this.srv) { srvDo(() => settingsW.requestDeletion(this, this.srv, P.name), 'Deletion requested. Everything is erased in 30 days unless you cancel.'); return; }
+        audit('Requested deletion of the organization'); this.notify('Deletion requested. Everything is erased in 30 days unless you cancel.', '#FF9B8A');
+      }
     } } : { open: false };
 
   // ---- ETR tax invoice / receipt ----

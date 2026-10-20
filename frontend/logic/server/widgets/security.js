@@ -9,6 +9,8 @@ const fromServer = (st) => (st === 'False alarm' ? 'False positive' : st);
 
 export async function load(logic, srv) {
   const can = (r) => ((srv.me.rights || {}).security || []).indexOf(r) !== -1;
+  const blocks = can('View logs') ? await srv.request('GET', '/security/blocks?days=7').catch(() => ({ blocks: [] })) : { blocks: [] };
+  logic.setState({ signBlocks: blocks.blocks });
   const [rules, alerts, logs] = await Promise.all([
     srv.request('GET', '/security/rules').catch(() => ({ rules: [] })),
     can('View alerts') ? srv.request('GET', '/security/alerts') : Promise.resolve({ alerts: [] }),

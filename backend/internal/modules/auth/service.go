@@ -64,6 +64,22 @@ var (
 
 // ---- validation ----
 
+// domainAllowed applies HUB_ALLOWED_EMAIL_DOMAINS (any domain when it is not set).
+func (s *Service) domainAllowed(email string) bool {
+	if len(s.A.Cfg.EmailDomains) == 0 {
+		return true
+	}
+	_, d, _ := strings.Cut(email, "@")
+	for _, x := range s.A.Cfg.EmailDomains {
+		if d == x || strings.HasSuffix(d, "."+x) {
+			return true
+		}
+	}
+	return false
+}
+
+var errDomain = httpx.Err(403, "domain_not_allowed", "This email domain cannot be used here. Use your work email.")
+
 func NormEmail(e string) (string, error) {
 	e = strings.ToLower(strings.TrimSpace(e))
 	a, err := mail.ParseAddress(e)
@@ -120,6 +136,9 @@ func (s *Service) Signup(ctx context.Context, name, email, password string, quiz
 	e, err := NormEmail(email)
 	if err != nil {
 		return uuid.Nil, err
+	}
+	if !s.domainAllowed(e) {
+		return uuid.Nil, errDomain
 	}
 	if err := CheckPassword(password); err != nil {
 		return uuid.Nil, err
@@ -180,18 +199,25 @@ func (s *Service) Login(ctx context.Context, in LoginIn) (*Tokens, error) {
 	if err != nil {
 		return nil, errCreds
 	}
+	if !s.domainAllowed(email) {
+		return nil, errDomain
+	}
 	// brute-force guard: per address and per source; fails closed if the limiter is down
-	if ok, _ := s.A.Limit.Allow(ctx, "login-ip", in.IP, 40, time.Minute, true); !ok {
+	if ok, retry := s.A.Limit.Allow(ctx, "login-ip", in.IP, 30, blockFor, true); !ok {
+		s.recordBlock(ctx, "address", s.emailIdx(email), email, in.IP, "Too many sign-in attempts from this address", retry)
 		return nil, errLocked
 	}
-	if ok, _ := s.A.Limit.Allow(ctx, "login-acct", string(s.emailIdx(email)), 10, 5*time.Minute, true); !ok {
+	if ok, retry := s.A.Limit.Allow(ctx, "login-acct", string(s.emailIdx(email)), 10, blockFor, true); !ok {
+		s.recordBlock(ctx, "account", s.emailIdx(email), email, in.IP, "Too many sign-in attempts for this account", retry)
 		return nil, errLocked
 	}
 	var tok *Tokens
 	var loginErr error
+	var replaced []uuid.UUID
 	var ev struct {
 		acct               uuid.UUID
 		name, action, rslt string
+		locked             *time.Time
 	}
 	err = s.A.DB.Tx(ctx, func(tx pgx.Tx) error {
 		a, err := s.accountByIdx(ctx, tx, s.emailIdx(email), true)
@@ -213,9 +239,10 @@ func (s *Service) Login(ctx context.Context, in LoginIn) (*Tokens, error) {
 			ev.action, ev.rslt = "Failed sign-in (wrong password)", "Failed"
 			a.FailedAttempts++
 			if a.FailedAttempts >= 5 {
-				t := app.Now().Add(15 * time.Minute)
+				t := app.Now().Add(blockFor)
 				a.LockedUntil = &t
 				a.FailedAttempts = 0
+				ev.locked = &t
 			}
 			if err := s.saveAccount(ctx, tx, a); err != nil {
 				return err
@@ -247,6 +274,10 @@ func (s *Service) Login(ctx context.Context, in LoginIn) (*Tokens, error) {
 				return err
 			}
 		}
+		// one session per account: signing in here signs out every other browser and device
+		if replaced, err = s.revokeAllFor(ctx, tx, a.ID, uuid.Nil); err != nil {
+			return err
+		}
 		tok, loginErr = s.issue(ctx, tx, a, in.Org, uuid.New(), in.IP, in.UserAgent)
 		if loginErr == nil {
 			ev.action, ev.rslt = "Signed in", "Success"
@@ -259,8 +290,21 @@ func (s *Service) Login(ctx context.Context, in LoginIn) (*Tokens, error) {
 	if ev.action != "" {
 		s.A.AuditAccount(ctx, ev.acct, ev.name, ev.action, ev.rslt, in.IP)
 	}
+	if ev.locked != nil {
+		s.recordBlock(ctx, "account", s.emailIdx(email), email, in.IP, "Five wrong passwords in a row", time.Until(*ev.locked))
+	}
 	if loginErr != nil {
 		return nil, loginErr
+	}
+	if sid, err := uuid.Parse(strings.SplitN(tok.Refresh, ".", 2)[0]); err == nil {
+		s.markEnded(ctx, replaced, whyReplaced)
+		s.touch(ctx, sid)
+		if tok.Org != nil {
+			s.SeenToday(ctx, tok.Org.ID, tok.Org.Person)
+		}
+		if len(replaced) > 0 {
+			s.tellReplaced(ctx, ev.acct, sid)
+		}
 	}
 	return tok, nil
 }
@@ -349,8 +393,8 @@ func (s *Service) Verify(ctx context.Context, token string) (*Claims, error) {
 	if err != nil {
 		return nil, httpx.ErrUnauthorized
 	}
-	if n, err := s.A.Rdb.Exists(ctx, "revoked:"+c.Sid).Result(); err == nil && n > 0 {
-		return nil, httpx.ErrUnauthorized
+	if why, err := s.A.Rdb.Get(ctx, "revoked:"+c.Sid).Result(); err == nil {
+		return nil, endedErr(why)
 	}
 	return &c, nil
 }
@@ -370,7 +414,8 @@ func (s *Service) Refresh(ctx context.Context, refresh, orgSlug, ip, ua string) 
 		return nil, httpx.ErrUnauthorized
 	}
 	var tok *Tokens
-	var killed []uuid.UUID
+	var killed, idle []uuid.UUID
+	var renewedFrom uuid.UUID
 	var outErr error
 	err = s.A.DB.Tx(ctx, func(tx pgx.Tx) error {
 		x, err := scanSession(tx.QueryRow(ctx, `select `+sessionCols+` from hub.sessions where id=$1 for update`, sid))
@@ -386,10 +431,24 @@ func (s *Service) Refresh(ctx context.Context, refresh, orgSlug, ip, ua string) 
 			return nil
 		}
 		if x.RevokedAt != nil {
+			// signed out on purpose (a sign-in elsewhere, or inactivity): say so
+			if e := s.whyEnded(ctx, x.ID); e != httpx.ErrUnauthorized {
+				outErr = e
+				return nil
+			}
 			// A rotated or revoked token came back: assume theft and end the whole family.
 			killed, err = s.revokeFamily(ctx, tx, x.Family)
 			outErr = httpx.ErrUnauthorized
 			return err
+		}
+		// inactive past the organization's limit: the session ends instead of being renewed
+		if x.Org != nil && s.idleExpired(ctx, *x.Org, x.ID) {
+			if err := s.revokeSession(ctx, tx, x); err != nil {
+				return err
+			}
+			idle = append(idle, x.ID)
+			outErr = errIdle
+			return nil
 		}
 		if x.ExpiresAt.Before(time.Now()) {
 			outErr = httpx.ErrUnauthorized
@@ -408,9 +467,19 @@ func (s *Service) Refresh(ctx context.Context, refresh, orgSlug, ip, ua string) 
 		}
 		tok, err = s.issue(ctx, tx, a, orgSlug, x.Family, ip, ua)
 		killed = append(killed, x.ID) // the old access token dies with the old session
+		renewedFrom = x.ID
 		return err
 	})
 	s.markRevoked(ctx, killed)
+	s.markEnded(ctx, idle, whyIdle)
+	// a renewed session keeps the last activity of the one it replaces (renewing is not activity)
+	if tok != nil {
+		if nsid, e := uuid.Parse(strings.SplitN(tok.Refresh, ".", 2)[0]); e == nil {
+			if v, e := s.A.Rdb.Get(ctx, actKey(renewedFrom)).Result(); e == nil {
+				s.A.Rdb.Set(ctx, actKey(nsid), v, 25*time.Hour)
+			}
+		}
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -600,4 +669,31 @@ func (s *Service) AdminSetTemporaryPassword(ctx context.Context, account uuid.UU
 		_ = s.A.Mail.Send(ctx, notify, "Your Hub password was reset", "An administrator reset your password. Ask them for the temporary password; you will choose a new one when you sign in.")
 	}
 	return temp, nil
+}
+
+// How long a sign-in block lasts. It lifts by itself; the record of it stays on the Security page.
+const blockFor = 2 * time.Minute
+
+// recordBlock keeps a record of a sign-in block (once while it lasts). The account is found from the address when it belongs
+// to someone; otherwise the record shows only a masked address, because nobody in Hub owns it.
+func (s *Service) recordBlock(ctx context.Context, kind string, idx []byte, email, ip, reason string, wait time.Duration) {
+	if wait <= 0 {
+		wait = blockFor
+	}
+	hint := email
+	if i := strings.Index(email, "@"); i > 1 {
+		hint = email[:1] + "***" + email[i:]
+	}
+	_ = s.A.DB.Tx(ctx, func(tx pgx.Tx) error {
+		var acct *uuid.UUID
+		if a, err := s.accountByIdx(ctx, tx, idx, false); err == nil {
+			acct = &a.ID
+		}
+		var n int
+		if err := tx.QueryRow(ctx, `select count(*) from hub.login_blocks where kind=$1 and until > now() and ip=$2 and account_id is not distinct from $3`, kind, ip, acct).Scan(&n); err != nil || n > 0 {
+			return err
+		}
+		_, err := tx.Exec(ctx, `insert into hub.login_blocks (kind, account_id, email_hint, ip, reason, until) values ($1,$2,$3,$4,$5,$6)`, kind, acct, hint, ip, reason, time.Now().Add(wait))
+		return err
+	})
 }

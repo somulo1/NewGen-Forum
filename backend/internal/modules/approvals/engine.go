@@ -84,6 +84,15 @@ type Flow struct {
 	Action    string   `json:"action"`
 	Levels    int      `json:"levels"`
 	Approvers []string `json:"approvers"`
+	Designees []Designee `json:"designees"` // the person chosen for a level, where one was chosen
+}
+
+type Designee struct {
+	Level  int       `json:"level"`
+	Person uuid.UUID `json:"person"`
+	Name   string    `json:"name"`
+	Role   string    `json:"role"`
+	RoleID string    `json:"role_id"`
 }
 
 func fieldCtx(org uuid.UUID, id uuid.UUID, col string) crypto.Context {
@@ -263,11 +272,36 @@ func (e *Engine) mayDecide(ctx context.Context, tx pgx.Tx, who, requester uuid.U
 	if who == requester {
 		return false, nil
 	}
+	var chosen uuid.UUID
+	err := tx.QueryRow(ctx, `select person_id from hub.approval_designees where flow_key=$1 and level=$2`, f.Key, level).Scan(&chosen)
+	if err == nil {
+		if who == chosen {
+			return true, nil
+		}
+		var locked bool
+		err = tx.QueryRow(ctx, `select coalesce(bool_or(r.locked), false) from hub.person_roles pr join hub.roles r on r.id = pr.role_id where pr.person_id=$1`, who).Scan(&locked)
+		return locked, err
+	}
+	if err != pgx.ErrNoRows {
+		return false, err
+	}
 	return authz.Can(ctx, tx, who, f.Module, access.ApproveRight(level))
 }
 
+// designee names the person chosen for a level, or "" when none was.
+func (e *Engine) designee(ctx context.Context, tx pgx.Tx, key string, level int) string {
+	var n string
+	if tx.QueryRow(ctx, `select p.first_name || ' ' || p.last_name from hub.approval_designees d join hub.people p on p.id = d.person_id where d.flow_key=$1 and d.level=$2`, key, level).Scan(&n) == nil {
+		return n
+	}
+	return ""
+}
+
 // waiting names the roles that can decide a level (for "waiting for ..." labels).
-func (e *Engine) waiting(ctx context.Context, tx pgx.Tx, module string, level int) string {
+func (e *Engine) waiting(ctx context.Context, tx pgx.Tx, key, module string, level int) string {
+	if n := e.designee(ctx, tx, key, level); n != "" {
+		return n
+	}
 	rs, err := tx.Query(ctx, `select r.name from hub.roles r
 		where r.locked or coalesce((select rr.allowed from hub.role_rights rr where rr.role_id = r.id and rr.module=$1 and rr.right_name=$2), false)
 		order by r.locked, r.name`, module, access.ApproveRight(level))
@@ -344,7 +378,7 @@ func (e *Engine) list(ctx context.Context, tx pgx.Tx, p *tenant.Principal, where
 	for i, x := range out {
 		x.Ref = ref(seqs[i])
 		if x.Status == "Pending" {
-			x.Waiting = e.waiting(ctx, tx, modules[i], x.Level)
+			x.Waiting = e.waiting(ctx, tx, x.Flow, modules[i], x.Level)
 		}
 		ss, err := tx.Query(ctx, `select s.level, p.first_name || ' ' || p.last_name, s.decision, s.comment_enc, s.created_at from hub.approval_steps s join hub.people p on p.id = s.approver where s.request_id=$1 order by s.level`, x.ID)
 		if err != nil {
@@ -456,12 +490,68 @@ func (e *Engine) Flows(ctx context.Context, p *tenant.Principal) ([]Flow, error)
 		for i := range out { // names of who decides each level (a second query, so the rows above are closed first)
 			out[i].Approvers = []string{}
 			for l := 1; l <= max(1, out[i].Levels); l++ {
-				out[i].Approvers = append(out[i].Approvers, e.waiting(ctx, tx, out[i].Module, l))
+				out[i].Approvers = append(out[i].Approvers, e.waiting(ctx, tx, out[i].Key, out[i].Module, l))
+			}
+			out[i].Designees = []Designee{}
+		}
+		ds, err := tx.Query(ctx, `select d.flow_key, d.level, d.person_id, p.first_name || ' ' || p.last_name, coalesce(r.name, ''), coalesce(r.id::text, '')
+			from hub.approval_designees d join hub.people p on p.id = d.person_id left join hub.person_roles pr on pr.person_id = p.id left join hub.roles r on r.id = pr.role_id`)
+		if err != nil {
+			return err
+		}
+		defer ds.Close()
+		for ds.Next() {
+			var k string
+			var d Designee
+			if err := ds.Scan(&k, &d.Level, &d.Person, &d.Name, &d.Role, &d.RoleID); err != nil {
+				return err
+			}
+			for i := range out {
+				if out[i].Key == k {
+					out[i].Designees = append(out[i].Designees, d)
+				}
 			}
 		}
-		return nil
+		return ds.Err()
 	})
 	return out, err
+}
+
+// SetDesignee chooses (or, with a nil person, clears) who decides one level of a flow.
+func (e *Engine) SetDesignee(ctx context.Context, p *tenant.Principal, key string, level int, person *uuid.UUID) error {
+	if level < 1 || level > 3 {
+		return httpx.Bad("A flow has levels 1 to 3.")
+	}
+	return e.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
+		if err := authz.Require(ctx, tx, p.Person, "roles", "Configure approvals"); err != nil {
+			return err
+		}
+		var levels int
+		if err := tx.QueryRow(ctx, `select levels from hub.approval_flows where key=$1`, key).Scan(&levels); err != nil {
+			return httpx.ErrNotFound
+		}
+		if level > levels {
+			return httpx.Bad("This flow has only " + fmt.Sprint(levels) + " levels.")
+		}
+		if person == nil {
+			if _, err := tx.Exec(ctx, `delete from hub.approval_designees where flow_key=$1 and level=$2`, key, level); err != nil {
+				return err
+			}
+		} else {
+			var ok bool
+			if err := tx.QueryRow(ctx, `select exists (select 1 from hub.people where id=$1 and status='active')`, *person).Scan(&ok); err != nil || !ok {
+				return httpx.Bad("Choose someone who is active in the organization.")
+			}
+			if _, err := tx.Exec(ctx, `insert into hub.approval_designees (org_id, flow_key, level, person_id) values ($1,$2,$3,$4)
+				on conflict (org_id, flow_key, level) do update set person_id=excluded.person_id, updated_at=now(), `+integrity.Bump, p.Org, key, level, *person); err != nil {
+				return err
+			}
+			if err := e.A.Sign.Seal(ctx, tx, "approval_designees", "flow_key=$1 and level=$2", key, level); err != nil {
+				return err
+			}
+		}
+		return e.A.Audit(ctx, tx, p.Org, &p.Person, p.Name, fmt.Sprintf("Chose the approver of level %d of flow %s", level, key), "Roles", p.IP, map[string]any{"flow": key, "level": level, "person": person})
+	})
 }
 
 // SetFlow sets how many levels a flow needs. Who approves each level is not stored on the flow: it is whoever holds the right

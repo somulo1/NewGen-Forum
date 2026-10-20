@@ -88,7 +88,8 @@
     "Post",
     "Edit",
     "Delete",
-    "See who read"
+    "See who read",
+    "View insights"
    ],
    "wall": [
     "View",
@@ -180,11 +181,13 @@
    ],
    "memos": [
     "Read",
-    "Send memos"
+    "Send memos",
+    "View insights"
    ],
    "newsletter": [
     "Read",
-    "Publish newsletters"
+    "Publish newsletters",
+    "View insights"
    ],
    "departments": [
     "View dashboard",
@@ -215,6 +218,11 @@
     "Private calls",
     "Edit own messages",
     "Delete own messages"
+   ],
+   "jobposts": [
+    "Read",
+    "Post job posts",
+    "View insights"
    ]
   },
   "admin": {
@@ -229,7 +237,8 @@
     "Post",
     "Edit",
     "Delete",
-    "See who read"
+    "See who read",
+    "View insights"
    ],
    "wall": [
     "View",
@@ -321,11 +330,13 @@
    ],
    "memos": [
     "Read",
-    "Send memos"
+    "Send memos",
+    "View insights"
    ],
    "newsletter": [
     "Read",
-    "Publish newsletters"
+    "Publish newsletters",
+    "View insights"
    ],
    "departments": [
     "View dashboard",
@@ -356,6 +367,11 @@
     "Private calls",
     "Edit own messages",
     "Delete own messages"
+   ],
+   "jobposts": [
+    "Read",
+    "Post job posts",
+    "View insights"
    ]
   },
   "hod": {
@@ -465,6 +481,9 @@
     "Private calls",
     "Edit own messages",
     "Delete own messages"
+   ],
+   "jobposts": [
+    "Read"
    ]
   },
   "it": {
@@ -559,6 +578,9 @@
     "Private calls",
     "Edit own messages",
     "Delete own messages"
+   ],
+   "jobposts": [
+    "Read"
    ]
   },
   "finance": {
@@ -642,6 +664,9 @@
     "Private calls",
     "Edit own messages",
     "Delete own messages"
+   ],
+   "jobposts": [
+    "Read"
    ]
   },
   "staff": {
@@ -723,6 +748,9 @@
     "Private calls",
     "Edit own messages",
     "Delete own messages"
+   ],
+   "jobposts": [
+    "Read"
    ]
   },
   "guest": {
@@ -846,6 +874,9 @@
     "Private calls",
     "Edit own messages",
     "Delete own messages"
+   ],
+   "jobposts": [
+    "Read"
    ]
   },
   "branch": {
@@ -936,6 +967,9 @@
     "Private calls",
     "Edit own messages",
     "Delete own messages"
+   ],
+   "jobposts": [
+    "Read"
    ]
   },
   "unit": {
@@ -1024,6 +1058,9 @@
     "Private calls",
     "Edit own messages",
     "Delete own messages"
+   ],
+   "jobposts": [
+    "Read"
    ]
   }
  },

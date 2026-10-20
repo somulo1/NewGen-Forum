@@ -16,6 +16,15 @@ const write = (s: Session | null) => { try { if (s) localStorage.setItem(KEY, JS
 
 let refreshing: Promise<Session | null> | null = null;
 
+// The server ended this session on purpose: a sign-in somewhere else, or too long without activity. The login page says why.
+const ENDED = ['session_replaced', 'session_expired'];
+export const SIGNOUT_KEY = 'hub-signout';
+const ended = (code: string) => {
+  write(null);
+  try { sessionStorage.setItem(SIGNOUT_KEY, code); } catch (e) { /* the login page just will not explain */ }
+  try { window.dispatchEvent(new CustomEvent('hub:signed-out', { detail: code })); } catch (e) { /* not in a browser */ }
+};
+
 export const useBackend = () => {
   const base = ((useRuntimeConfig().public.apiBase as string) || '').replace(/\/$/, '');
 
@@ -49,7 +58,7 @@ export const useBackend = () => {
     if (!refreshing) {
       refreshing = raw('POST', '/auth/refresh', { refresh_token: s.refresh, org: s.org?.slug || '' })
         .then((t) => { const n = toSession(t, s.email); write(n); return n; })
-        .catch(() => { write(null); return null; })
+        .catch((e) => { if (e instanceof ApiError && ENDED.includes(e.code)) ended(e.code); else write(null); return null; })
         .finally(() => { refreshing = null; });
     }
     return refreshing;
@@ -63,6 +72,7 @@ export const useBackend = () => {
       return await raw(method, path, body, s.access);
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
+        if (ENDED.includes(e.code)) { ended(e.code); throw e; }
         const n = await refresh();
         if (n) return raw(method, path, body, n.access);
       }

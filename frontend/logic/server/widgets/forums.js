@@ -163,7 +163,8 @@ function toPolls(srv, local, opened, members) {
     let locked = false;
     asc.forEach((x) => {
       if (x.m.reply_to !== m.id) return;
-      if (x.m.type === 'vote') votes.set(x.m.sender_account, { option: x.pl.option, mid: x.m.id });
+      // one vote per person (their latest), only for a real option, and none cast while the poll was locked
+      if (x.m.type === 'vote' && !locked && (pl.options || []).some((o) => o.id === x.pl.option)) votes.set(x.m.sender_account, { option: x.pl.option, mid: x.m.id });
       if (x.m.type === 'poll_lock') locked = x.pl.locked !== false;
     });
     const my = votes.get(srv.me.account);

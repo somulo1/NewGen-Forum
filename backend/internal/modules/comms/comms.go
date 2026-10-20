@@ -63,12 +63,13 @@ type SendIn struct {
 	Epoch        int       `json:"epoch"`
 	Device       uuid.UUID `json:"device"`
 	Envelope     string    `json:"envelope"`
+	Batch        uuid.UUID `json:"batch"` // optional: the sends made together (one per place) share one
 }
 
 func (s *Service) Send(ctx context.Context, p *tenant.Principal, in SendIn) (*Comm, *approvals.Request, error) {
-	right := map[string][2]string{"Memo": {"memos", "Send memos"}, "Announcement": {"announcements", "Post"}, "Newsletter": {"newsletter", "Publish newsletters"}}[in.Type]
+	right := map[string][2]string{"Memo": {"memos", "Send memos"}, "Announcement": {"announcements", "Post"}, "Newsletter": {"newsletter", "Publish newsletters"}, "Job post": {"jobposts", "Post job posts"}}[in.Type]
 	if right[0] == "" {
-		return nil, nil, httpx.Bad("Choose memo, announcement or newsletter.")
+		return nil, nil, httpx.Bad("Choose memo, announcement, newsletter or job post.")
 	}
 	env, err := base64.StdEncoding.DecodeString(in.Envelope)
 	if err != nil || e2ee.ValidateEnvelope(env) != nil {
@@ -105,8 +106,8 @@ func (s *Service) Send(ctx context.Context, p *tenant.Principal, in SendIn) (*Co
 		}
 		id := app.NewID()
 		ref := fmt.Sprintf("C-%d", n)
-		if _, err := tx.Exec(ctx, `insert into hub.comms (org_id, id, ref, type, by_person, conversation_id, message_id, epoch, device, envelope) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-			p.Org, id, ref, in.Type, p.Person, in.Conversation, in.Message, epoch, in.Device, env); err != nil {
+		if _, err := tx.Exec(ctx, `insert into hub.comms (org_id, id, ref, type, by_person, conversation_id, message_id, epoch, device, envelope, batch) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,nullif($11, '00000000-0000-0000-0000-000000000000'::uuid))`,
+			p.Org, id, ref, in.Type, p.Person, in.Conversation, in.Message, epoch, in.Device, env, in.Batch); err != nil {
 			return err
 		}
 		if err := s.A.Sign.Seal(ctx, tx, "comms", "id=$1", id); err != nil {
@@ -155,7 +156,7 @@ func (s *Service) applyPublish(ctx context.Context, tx pgx.Tx, a approvals.Appli
 	status := "Published"
 	if cur != epoch || acct == nil {
 		status = "Stale" // the audience's key changed while it waited: the sender must send it again
-	} else if err := chat.PostMessage(ctx, tx, s.A, chat.Posted{Org: a.Org, Conversation: conv, ID: msg, Account: *acct, Person: by, Device: device, Epoch: epoch, Envelope: env, Type: map[string]string{"Memo": "memo", "Announcement": "announcement", "Newsletter": "post"}[typ]}); err != nil {
+	} else if err := chat.PostMessage(ctx, tx, s.A, chat.Posted{Org: a.Org, Conversation: conv, ID: msg, Account: *acct, Person: by, Device: device, Epoch: epoch, Envelope: env, Type: map[string]string{"Memo": "memo", "Announcement": "announcement", "Newsletter": "post", "Job post": "post"}[typ]}); err != nil {
 		return err
 	}
 	if _, err := tx.Exec(ctx, `update hub.comms set status=$2, published_at = case when $2='Published' then now() end, `+integrity.Bump+` where id=$1`, pl.Comm, status); err != nil {
@@ -671,6 +672,18 @@ func (s *Service) Private(r chi.Router) {
 		w.WriteHeader(204)
 		return nil
 	}))
+	r.Get("/comms/{id}/insights", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
+		id, err := uuid.Parse(chi.URLParam(r, "id"))
+		if err != nil {
+			return httpx.ErrNotFound
+		}
+		l, err := s.Insights(r.Context(), p, id)
+		if err != nil {
+			return err
+		}
+		httpx.JSON(w, 200, map[string]any{"places": l})
+		return nil
+	}))
 	r.Get("/comms/rules", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
 		m, err := s.Rules(r.Context(), p)
 		if err != nil {
@@ -732,4 +745,60 @@ func (s *Service) Private(r chi.Router) {
 		httpx.JSON(w, 200, map[string]any{"awards": l, "cycle": cyc})
 		return nil
 	}))
+}
+
+// ---- interaction insights ----
+
+// Spot is how one posted copy of a communication was received in the place it went to.
+type Spot struct {
+	Comm     uuid.UUID `json:"comm"`
+	Place    string    `json:"place"`
+	Conv     uuid.UUID `json:"conversation"`
+	Kind     string    `json:"kind"` // wall | forum
+	Status   string    `json:"status"`
+	Audience int       `json:"audience"`
+	Read     int       `json:"read"`
+	Likes    int       `json:"likes"`
+	Replies  int       `json:"replies"`
+}
+
+var insightRight = map[string][2]string{"Memo": {"memos", "View insights"}, "Announcement": {"announcements", "View insights"}, "Newsletter": {"newsletter", "View insights"}, "Job post": {"jobposts", "View insights"}}
+
+// Insights counts, for every place a communication (and the copies sent with it) was posted, who read it and how many
+// reacted or replied. Only people with the "View insights" right of that communication's page may see it. Reactions and
+// replies are messages answering the posted one; their content stays sealed, only how many there are is counted.
+func (s *Service) Insights(ctx context.Context, p *tenant.Principal, id uuid.UUID) ([]Spot, error) {
+	out := []Spot{}
+	err := s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
+		var typ string
+		var batch *uuid.UUID
+		if err := tx.QueryRow(ctx, `select type, batch from hub.comms where id=$1`, id).Scan(&typ, &batch); err != nil {
+			return httpx.ErrNotFound
+		}
+		r := insightRight[typ]
+		if err := authz.Require(ctx, tx, p.Person, r[0], r[1]); err != nil {
+			return err
+		}
+		rs, err := tx.Query(ctx, `select c.id, case when cv.kind = 'wall' and cv.audience = 'org' then 'Community wall' when cv.kind = 'wall' then initcap(coalesce(cv.audience, '')) || ' wall' else '' end, c.conversation_id, cv.kind, c.status,
+				(select count(*) from hub.conversation_members m where m.conversation_id = c.conversation_id and m.left_at is null),
+				(select count(*) from hub.comm_reads x where x.comm_id = c.id),
+				(select count(*) from hub.messages m where m.org_id = c.org_id and m.conversation_id = c.conversation_id and m.reply_to = c.message_id and m.deleted_at is null and m.content_type = 'reaction'),
+				(select count(*) from hub.messages m where m.org_id = c.org_id and m.conversation_id = c.conversation_id and m.reply_to = c.message_id and m.deleted_at is null and m.content_type not in ('reaction','vote','poll_lock'))
+			from hub.comms c join hub.conversations cv on cv.id = c.conversation_id
+			where c.id = $1 or ($2::uuid is not null and c.batch = $2)
+			order by c.created_at, c.id`, id, batch)
+		if err != nil {
+			return err
+		}
+		defer rs.Close()
+		for rs.Next() {
+			var x Spot
+			if err := rs.Scan(&x.Comm, &x.Place, &x.Conv, &x.Kind, &x.Status, &x.Audience, &x.Read, &x.Likes, &x.Replies); err != nil {
+				return err
+			}
+			out = append(out, x)
+		}
+		return rs.Err()
+	})
+	return out, err
 }

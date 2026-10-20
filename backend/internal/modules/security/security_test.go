@@ -99,3 +99,34 @@ func TestRightsChangeAndLogsExportAndIntegrity(t *testing.T) {
 		t.Fatalf("integrity: %v", in)
 	}
 }
+
+func TestSignInBlocksAreRecordedForMembersAndStrangers(t *testing.T) {
+	e := testkit.New(t)
+	ownerU, slug := e.NewOrg("Olivia Owner")
+	victim := e.Join(ownerU, slug, "Peter", "staff")
+	for i := 0; i < 5; i++ {
+		e.Do("POST", "/auth/login", map[string]any{"email": victim.Email, "password": "Wrong-pass1"}, "")
+	}
+	// someone with no account keeps trying until the address is blocked
+	for i := 0; i < 40; i++ {
+		e.Do("POST", "/auth/login", map[string]any{"email": "nobody@stranger.example", "password": "Wrong-pass1"}, "")
+	}
+	bl := e.MustDo(200, "GET", "/security/blocks?days=7", nil, ownerU.Access)["blocks"].([]any)
+	var member, stranger bool
+	for _, b := range bl {
+		m := b.(map[string]any)
+		if m["member"] == true && m["who"] == "Peter" {
+			member = true
+		}
+		if m["member"] == false && strings.Contains(m["who"].(string), "***@stranger.example") {
+			stranger = true
+		}
+	}
+	if !member || !stranger {
+		t.Fatalf("blocks: %v", bl)
+	}
+	staff := e.Join(ownerU, slug, "Sam", "staff")
+	if code, _ := e.Do("GET", "/security/blocks", nil, staff.Access); code != 403 {
+		t.Fatalf("staff read blocks: %d", code)
+	}
+}

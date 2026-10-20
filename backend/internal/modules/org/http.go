@@ -128,7 +128,7 @@ func (s *Service) Private(r chi.Router) {
 		w.WriteHeader(204)
 		return nil
 	}))
-	r.Get("/org/units/{id}/dashboard",httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
+	r.Get("/org/units/{id}/dashboard", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
 		p, err := tenant.MustOrg(r.Context())
 		if err != nil {
 			return err

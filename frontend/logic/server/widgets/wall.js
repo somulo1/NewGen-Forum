@@ -47,14 +47,17 @@ function build(logic, srv, items) {
   const kids = (id, type) => (byParent.get(id) || []).filter((x) => x.m.type === type);
   srv.wallMine = {};   // my reaction / vote message per target, so they can be undone
   const comments = (id) => kids(id, 'comment').map(({ m, pl }) => ({ id: m.id, who: who(m), ...look(m), text: pl.text || '', time: ago(m.created_at), replies: comments(m.id), mine: m.sender_account === me }));
-  const reacts = (id, kind) => kids(id, 'reaction').filter((x) => (x.pl.kind || 'like') === kind);
+  // Counts are never stored: each like or vote is a signed message (ones whose signature fails never get here), and each
+  // person counts once, with their latest one, however many the server holds.
+  const onePer = (list) => [...new Map(list.map((x) => [x.m.sender_account, x])).values()];
+  const reacts = (id, kind) => onePer(kids(id, 'reaction').filter((x) => (x.pl.kind || 'like') === kind));
   const liked = {}, pollVotes = {};
   const mediaToLoad = [];
   const posts = items.filter((x) => ['post', 'announcement', 'memo'].includes(x.m.type)).reverse().map(({ m, pl }) => {
     const likes = reacts(m.id, 'like');
     const mineLike = likes.find((x) => x.m.sender_account === me);
     if (mineLike) { liked[m.id] = true; srv.wallMine['like:' + m.id] = mineLike.m.id; }
-    const votes = kids(m.id, 'vote');
+    const votes = onePer(kids(m.id, 'vote')).filter((v) => (pl.poll || []).some((o) => o.id === v.pl.option));
     const myVote = votes.find((x) => x.m.sender_account === me);
     if (myVote) { pollVotes[m.id] = myVote.pl.option; srv.wallMine['vote:' + m.id] = myVote.m.id; }
     const media = (pl.media || []).map((f) => { const it = { id: f.fileId, name: f.name, meta: f.meta || '', isImg: !!f.isImg, isVideo: !!f.isVideo, url: '', ref: f }; mediaToLoad.push(f); return it; });

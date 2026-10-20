@@ -48,6 +48,18 @@ export function buildAdminTables(ctx) {
     close: () => this.setState({ userActionOpen: null, userResetTemp: '' })
   };
   const isoFromAgo = (m) => new Date(nowMs - m * 60000).toLocaleDateString('en-CA', tz9);
+  // Sign-ins that were stopped this week: people of the organization locked out after wrong passwords, and addresses that kept
+  // trying (including emails nobody owns). Blocks lift by themselves after two minutes; the record stays.
+  const blocksTable = { id: 'blocks', pageSize: 12, minWidth: '980px', emptyText: 'Nobody was blocked this week.',
+    cols: [{ label: 'When', filter: 'date' }, { label: 'Who', filter: 'text' }, { label: 'Kind', filter: 'select' }, { label: 'Address', filter: 'text' }, { label: 'Reason', filter: 'text' }, { label: 'Status', filter: 'select' }],
+    rows: (s.signBlocks || []).map((b) => {
+      const at = new Date(b.at), until = new Date(b.until), lifted = until.getTime() <= Date.now();
+      const iso = b.at.slice(0, 10);
+      return { cells: [C.t(at.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ' · ' + at.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }), { fv: iso, nowrap: true }),
+        C.t(b.who, { strong: true }), C.b(b.member ? 'Organization user' : 'Not a user', b.member ? '#7CC4FF' : '#FFB86B', { fv: b.member ? 'Organization user' : 'Not a user' }),
+        C.t(b.ip || '—', { mono: true, nowrap: true }), C.t(b.reason),
+        C.b(lifted ? 'Unlocked automatically' : 'Blocked until ' + until.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }), lifted ? '#B8F36B' : '#FF9B8A', { fv: lifted ? 'Unlocked automatically' : 'Blocked' })] };
+    }) };
   const logsTable = { id: 'logs', pageSize: 12, minWidth: '1120px', emptyText: 'No log entries match.',
     cols: [{ label: 'When', filter: 'date' }, { label: 'User', filter: 'text' }, { label: 'Action', filter: 'text' }, { label: 'Module', filter: 'select' }, { label: 'IP · Location', filter: 'text' }, { label: 'Result', filter: 'select' }, { label: 'Flag', filter: 'select' }, { label: '', align: 'right' }],
     rows: logsRange.map((l) => {
@@ -146,7 +158,21 @@ export function buildAdminTables(ctx) {
     cols: [{ label: 'Action', filter: 'text' }, { label: 'Page', filter: 'select' }, { label: 'Approval', filter: 'select' }, { label: 'Level 1 approved by' }, { label: 'Level 2 approved by' }, { label: 'Level 3 approved by' }],
     rows: s.flows.filter((f) => modEnabled(f.mod)).map((f) => {
       const fi = flowItem(f);
-      const lv = (i) => (i < f.levels ? C.t(f.approvers[i] || 'Nobody has this right yet', { sub: 'Right: Approve level ' + (i + 1), danger: !f.approvers[i] }) : C.t('—'));
+      // Each level: search for a role, then choose the person in that role who decides. Without a chosen person, anyone who holds
+      // "Approve level N" can decide it. Levels beyond the number set above have nothing to choose.
+      const roleOpts = (s.serverRoles || []).map((r) => ({ v: r.id, l: r.name }));
+      const lv = (i) => {
+        if (i >= f.levels) return C.t('—');
+        const d = (f.designees || []).find((x) => x.level === i + 1);
+        const pk = 'fr:' + f.id + ':' + (i + 1);
+        const roleId = (s.flowRole || {})[pk] !== undefined ? s.flowRole[pk] : (d ? d.role_id : '');
+        const role = roleOpts.find((r) => r.v === roleId);
+        const people = this.dir.filter((p) => roleId && p.role === roleId && p.uid).map((p) => ({ v: p.uid, l: p.name }));
+        const save = (person) => { if (this.srv) this.srv.request('PUT', `/approvals/flows/${f.id}/approvers/${i + 1}`, { person: person || null }).then(() => this.srv.reload.approvals()).catch((e) => this.notify(e.message || 'Could not save the approver.', '#FF9B8A')); };
+        return { kind: 'picker', fv: d ? d.name + ' ' + d.role : '', id: pk, roleText: role ? role.l : '', roles: roleOpts, people, person: d && d.role_id === roleId ? d.person : '', hint: d ? '' : 'Anyone with the right "Approve level ' + (i + 1) + '"' + (f.approvers[i] ? ': ' + f.approvers[i] : ''),
+          onRole: (e) => { const m = roleOpts.find((r) => r.l.toLowerCase() === e.target.value.trim().toLowerCase()); if (m) this.setState((st) => ({ flowRole: { ...(st.flowRole || {}), [pk]: m.v } })); else if (!e.target.value.trim()) { this.setState((st) => ({ flowRole: { ...(st.flowRole || {}), [pk]: '' } })); save(null); } },
+          onPerson: (e) => save(e.target.value) };
+      };
       return { cells: [C.t(f.action, { strong: true }), C.t(fi.modName), C.sel(String(f.levels), levelOpts, fi.setLevels, { fv: levelOpts[f.levels].l, label: 'Approval levels for ' + f.action, minWidth: '150px' }), lv(0), lv(1), lv(2)] };
     }) };
   const approvalsTable = { id: 'approvals-' + s.apTab, pageSize: 8, minWidth: '1080px', emptyText: s.apTab === 'waiting' ? 'Nothing is waiting for approval.' : 'No requests yet.',
@@ -176,5 +202,5 @@ export function buildAdminTables(ctx) {
     recs: ntRecs.map((r) => ({ label: r.name, pick: () => this.setState((x) => ({ nt: { ...x.nt, toType: ntType, toName: r.name } })), style: chip(ntName === r.name) })),
     recsLabel: ntType === 'desk' ? '' : 'Send to ' + LEVEL_LABEL[ntType].toLowerCase(),
     summary: ntType === 'desk' ? 'This organization has no departments, units, branches or sectors, so tickets go to the ticket desk.' : 'It will show on the ' + LEVEL_LABEL[ntType].toLowerCase() + ' dashboard of ' + ntName + '.' };
-  return { newRoleForm, newRightForm, newModuleForm, ntCats, ntCatSel, deskCats, deskTable, addToRole, alertsTable, approvalsTable, flowsTable, logsTable, membersTable, ntTargets, peopleSummary, peopleTable, userActions, rightsHint, rightsTable, roleBar, rolesTable, rolesTabs, rolesView, rulesTable, setRoleSel, ticketsTable };
+  return { newRoleForm, newRightForm, newModuleForm, ntCats, ntCatSel, deskCats, deskTable, addToRole, alertsTable, approvalsTable, flowsTable, logsTable, blocksTable, blocksTable, membersTable, ntTargets, peopleSummary, peopleTable, userActions, rightsHint, rightsTable, roleBar, rolesTable, rolesTabs, rolesView, rulesTable, setRoleSel, ticketsTable };
 }

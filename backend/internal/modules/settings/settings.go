@@ -3,12 +3,13 @@ package settings
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"math"
 	"net/http"
-	"slices"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -65,6 +66,7 @@ type All struct {
 	Plans        []orgsettings.Plan       `json:"plans"`
 	Addons       []orgsettings.Addon      `json:"addons"`
 	SeatsInUse   int                      `json:"seats_in_use"`
+	DeleteAfter  *time.Time               `json:"delete_after,omitempty"` // when a requested deletion happens
 }
 
 var (
@@ -80,7 +82,7 @@ func (m *Module) Get(ctx context.Context, p *tenant.Principal) (*All, error) {
 			return err
 		}
 		var name string
-		if err := tx.QueryRow(ctx, `select name from hub.orgs where id=$1`, p.Org).Scan(&name); err != nil {
+		if err := tx.QueryRow(ctx, `select name, delete_after from hub.orgs where id=$1`, p.Org).Scan(&name, &out.DeleteAfter); err != nil {
 			return err
 		}
 		out.Profile = Profile{Name: name, Timezone: "Africa/Nairobi", Language: "English", Currency: "KES"}
@@ -112,8 +114,18 @@ func (m *Module) SetProfile(ctx context.Context, p *tenant.Principal, in Profile
 	if len(in.Currency) != 3 {
 		return httpx.Bad("Currency is a three letter code like KES.")
 	}
-	if len(in.Logo) > 700<<10 || (in.Logo != "" && !strings.HasPrefix(in.Logo, "data:image/")) {
-		return httpx.Bad("The logo must be an image under 500 KB.")
+	if in.Logo != "" {
+		// a data URL of a PNG, JPEG, WebP or SVG image of at most 1 MB
+		head, data, ok := strings.Cut(in.Logo, ";base64,")
+		if !ok || !slices.Contains([]string{"data:image/png", "data:image/jpeg", "data:image/webp", "data:image/svg+xml"}, head) {
+			return httpx.Bad("The logo must be a PNG, JPEG, WebP or SVG image.")
+		}
+		if base64.StdEncoding.DecodedLen(len(data)) > 1<<20+2 {
+			return httpx.Bad("The logo can be up to 1 MB.")
+		}
+		if _, err := base64.StdEncoding.DecodeString(data); err != nil {
+			return httpx.Bad("The logo file could not be read.")
+		}
 	}
 	for _, s := range []string{in.Industry, in.Size, in.Website, in.Phone, in.Address, in.City, in.Country, in.Language, in.RegNo, in.TaxID} {
 		if len(s) > 200 {
@@ -138,8 +150,8 @@ func (m *Module) SetProfile(ctx context.Context, p *tenant.Principal, in Profile
 }
 
 func (m *Module) SetSecurity(ctx context.Context, p *tenant.Principal, in orgsettings.Security) error {
-	if h := in.Session; h != "1" && h != "4" && h != "8" && h != "12" && h != "24" && h != "168" {
-		return httpx.Bad("Choose a session length from the list.")
+	if !slices.Contains(orgsettings.SessionChoices, in.Session) {
+		return httpx.Bad("Choose when inactive people are signed out from the list.")
 	}
 	if r := in.Retention; r != "3" && r != "6" && r != "12" && r != "24" && r != "60" {
 		return httpx.Bad("Choose how long to keep records from the list.")
@@ -148,15 +160,21 @@ func (m *Module) SetSecurity(ctx context.Context, p *tenant.Principal, in orgset
 		return httpx.Bad("Choose a video size limit from the list.")
 	}
 	if in.UserQuotaMB == "" {
-		in.UserQuotaMB = orgsettings.DefaultSecurity().UserQuotaMB   // a client that does not know the field yet
+		in.UserQuotaMB = orgsettings.DefaultSecurity().UserQuotaMB // a client that does not know the field yet
 	}
 	if !slices.Contains(orgsettings.QuotaChoices, in.UserQuotaMB) {
 		return httpx.Bad("Choose a storage limit from the list.")
 	}
+	if v := in.MaxFileMB; v != "2" && v != "5" && v != "10" && v != "25" && v != "50" {
+		return httpx.Bad("Choose a file size limit from the list.")
+	}
+	if len(in.FileTypes) > 300 {
+		return httpx.Bad("Too many file types.")
+	}
 	if len(in.Domains) > 500 {
 		return httpx.Bad("Too many domains.")
 	}
-	return m.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
+	err := m.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
 		if err := authz.Require(ctx, tx, p.Person, "settings", "Edit organization profile"); err != nil {
 			return err
 		}
@@ -165,6 +183,11 @@ func (m *Module) SetSecurity(ctx context.Context, p *tenant.Principal, in orgset
 		}
 		return m.A.Audit(ctx, tx, p.Org, &p.Person, p.Name, "Changed the organization's security settings", "Settings", p.IP, in)
 	})
+	if err == nil {
+		// every server applies the new inactivity limit on the next request
+		m.A.Rdb.Set(ctx, "idle:"+p.Org.String(), strconv.Itoa(orgsettings.SessionMinutes(in.Session)), 10*time.Minute)
+	}
+	return err
 }
 
 // Widgets is the organization-wide configuration of the home widgets (titles, who sees them, who manages them).
@@ -493,10 +516,32 @@ func (m *Module) Private(r chi.Router) {
 	}))
 	r.Put("/settings/profile", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
 		var in Profile
-		if err := httpx.Decode(r, &in, 800<<10); err != nil {
+		if err := httpx.Decode(r, &in, 1500<<10); err != nil {
 			return err
 		}
 		if err := m.SetProfile(r.Context(), p, in); err != nil {
+			return err
+		}
+		w.WriteHeader(204)
+		return nil
+	}))
+	// {"confirm": "<organization name>"}: everything is erased 30 days later unless cancelled
+	r.Post("/settings/deletion", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
+		var in struct {
+			Confirm string `json:"confirm"`
+		}
+		if err := httpx.Decode(r, &in, 1<<10); err != nil {
+			return err
+		}
+		due, err := m.RequestDeletion(r.Context(), p, in.Confirm)
+		if err != nil {
+			return err
+		}
+		httpx.JSON(w, 200, map[string]any{"delete_after": due})
+		return nil
+	}))
+	r.Delete("/settings/deletion", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
+		if err := m.CancelDeletion(r.Context(), p); err != nil {
 			return err
 		}
 		w.WriteHeader(204)

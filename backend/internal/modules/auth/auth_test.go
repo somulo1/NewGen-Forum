@@ -248,18 +248,33 @@ func TestChangePasswordSignsOutOtherDevices(t *testing.T) {
 	email := uniq()
 	e.signup(email, "Passw0rdOK")
 	_, a := e.do("POST", "/auth/login", map[string]any{"email": email, "password": "Passw0rdOK"}, "")
-	_, b := e.do("POST", "/auth/login", map[string]any{"email": email, "password": "Passw0rdOK"}, "")
 	if c, _ := e.do("POST", "/auth/password", map[string]any{"current_password": "bad", "new_password": "NewPassw0rd1"}, a["access_token"].(string)); c != 400 {
 		t.Fatalf("wrong current password accepted: %d", c)
 	}
 	if c, _ := e.do("POST", "/auth/password", map[string]any{"current_password": "Passw0rdOK", "new_password": "NewPassw0rd1"}, a["access_token"].(string)); c != 200 {
 		t.Fatalf("change password: %d", c)
 	}
-	if c, _ := e.do("POST", "/auth/mfa/setup", nil, b["access_token"].(string)); c != 401 {
-		t.Fatalf("other device still signed in: %d", c)
-	}
 	if c, _ := e.do("POST", "/auth/mfa/setup", nil, a["access_token"].(string)); c != 200 {
 		t.Fatalf("this device was signed out: %d", c)
+	}
+}
+
+// Signing in on another browser signs this one out (one session per account), and the old browser is told why.
+func TestSigningInElsewhereSignsOutHere(t *testing.T) {
+	e := newEnv(t)
+	email := uniq()
+	e.signup(email, "Passw0rdOK")
+	_, a := e.do("POST", "/auth/login", map[string]any{"email": email, "password": "Passw0rdOK"}, "")
+	_, b := e.do("POST", "/auth/login", map[string]any{"email": email, "password": "Passw0rdOK"}, "")
+	c, out := e.do("POST", "/auth/mfa/setup", nil, a["access_token"].(string))
+	if c != 401 || out["error"].(map[string]any)["code"] != "session_replaced" {
+		t.Fatalf("first browser still signed in: %d %v", c, out)
+	}
+	if c, out := e.do("POST", "/auth/refresh", map[string]any{"refresh_token": a["refresh_token"]}, ""); c != 401 || out["error"].(map[string]any)["code"] != "session_replaced" {
+		t.Fatalf("first browser renewed its session: %d %v", c, out)
+	}
+	if c, _ := e.do("POST", "/auth/mfa/setup", nil, b["access_token"].(string)); c != 200 {
+		t.Fatalf("the new sign-in does not work: %d", c)
 	}
 }
 

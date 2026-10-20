@@ -130,3 +130,40 @@ func TestAwardAnnouncementTargetsAreClaimedOnce(t *testing.T) {
 		t.Fatalf("only the forum should be left: %v", tg)
 	}
 }
+
+func TestJobPostInsightsCountReadsLikesAndRepliesForAllowedPeopleOnly(t *testing.T) {
+	e := testkit.New(t)
+	ownerU, slug := e.NewOrg("Olivia Owner")
+	org := e.OrgID(slug)
+	o := e.Owner(ownerU)
+	adm := e.Join(ownerU, slug, "Ada", "admin")
+	staff := e.Join(ownerU, slug, "Sam", "staff")
+	for _, m := range []*testkit.Member{o, adm, staff} {
+		m.Register(e)
+	}
+	key, _ := e2ee.NewConversationKey()
+	wall := e.MustDo(201, "POST", "/conversations", map[string]any{"kind": "wall", "name": "Everyone", "audience": "org", "keys": o.WrapFor(e, key, 1, o.Person, adm.Person, staff.Person)}, ownerU.Access)["id"].(string)
+	id := uuid.Must(uuid.NewV7()).String()
+	batch := uuid.Must(uuid.NewV7()).String()
+	res := e.MustDo(201, "POST", "/comms", map[string]any{"type": "Job post", "batch": batch, "conversation": wall, "message": id, "epoch": 1, "device": adm.DevID, "envelope": adm.Seal(org, wall, id, 1, key, `{"title":"Driver"}`)}, adm.Access)
+	cid := res["comm"].(map[string]any)["id"].(string)
+	if ap, ok := res["approval"].(map[string]any); ok {
+		for i := 0; i < 3; i++ {
+			e.Do("POST", "/approvals/"+ap["id"].(string)+"/approve", map[string]any{}, ownerU.Access)
+		}
+	}
+	e.MustDo(204, "POST", "/comms/"+cid+"/read", nil, staff.Access)
+	react := func(typ string) {
+		rid := uuid.Must(uuid.NewV7()).String()
+		e.MustDo(201, "POST", "/conversations/"+wall+"/messages", map[string]any{"id": rid, "epoch": 1, "device": staff.DevID, "envelope": staff.Seal(org, wall, rid, 1, key, `{"text":"x"}`), "type": typ, "reply_to": id}, staff.Access)
+	}
+	react("reaction")
+	react("text")
+	react("text")
+	e.MustDo(403, "GET", "/comms/"+cid+"/insights", nil, staff.Access)
+	places := e.MustDo(200, "GET", "/comms/"+cid+"/insights", nil, ownerU.Access)["places"].([]any)
+	p := places[0].(map[string]any)
+	if len(places) != 1 || int(p["read"].(float64)) != 1 || int(p["likes"].(float64)) != 1 || int(p["replies"].(float64)) != 2 || int(p["audience"].(float64)) != 3 {
+		t.Fatalf("insights: %v", places)
+	}
+}

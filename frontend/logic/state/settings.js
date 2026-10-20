@@ -15,7 +15,7 @@ export function settingsState() {
   return {
     setTab: 'profile',
     orgProfile: { name: '', short: '', logo: '', industry: '', size: '', website: '', email: '', phone: '', address: '', city: '', country: '', timezone: 'Africa/Nairobi', language: 'English', currency: 'KES', regNo: '', taxId: '' },
-    orgSecurity: { mfa: false, session: '8', domains: '', retention: '12', externalSharing: true, maxVideoMB: '50', userQuotaMB: '5120' },
+    orgDeleteAfter: '', orgSecurity: { mfa: false, session: '8', domains: '', retention: '12', externalSharing: true, maxVideoMB: '50', maxFileMB: '10', fileTypes: 'pdf,doc,docx,xls,xlsx,ppt,pptx,csv,txt,png,jpg,jpeg', userQuotaMB: '5120' },
     setDraft: null,
     orgSub: { plan: 'business', cycle: 'monthly', seats: 1, autoRenew: true, renews: '', status: 'Active', cancelAt: '', addons: { storage: false, video: false, sms: false } },
     orgBilling: { cardBrand: '', cardLast4: '', cardExp: '', holder: '', contactEmail: '', vat: '' },

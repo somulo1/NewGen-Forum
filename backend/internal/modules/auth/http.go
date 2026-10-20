@@ -3,6 +3,7 @@ package auth
 import (
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -30,6 +31,16 @@ func (s *Service) Middleware(next http.Handler) http.Handler {
 				return httpx.Err(403, "password_change_required", "Choose a new password to continue.")
 			})(w, r)
 			return
+		}
+		// inactive past the organization's limit: the session ends now (signing out still works)
+		if c.Org != "" && r.URL.Path != "/v1/auth/logout" {
+			org, _ := uuid.Parse(c.Org)
+			sid, _ := uuid.Parse(c.Sid)
+			if s.idleExpired(r.Context(), org, sid) {
+				s.endIdle(r.Context(), sid)
+				httpx.Wrap(func(http.ResponseWriter, *http.Request) error { return errIdle })(w, r)
+				return
+			}
 		}
 		p := &tenant.Principal{Name: c.Name, IP: httpx.ClientIP(r)}
 		p.Account, _ = uuid.Parse(c.Subject)
@@ -162,6 +173,32 @@ func (s *Service) Private(r chi.Router) {
 			return err
 		}
 		w.WriteHeader(204)
+		return nil
+	}))
+	// The app reports real use (a click or key press) here; background requests do not keep a session alive.
+	r.Post("/auth/active", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
+		p, err := tenant.Must(r.Context())
+		if err != nil {
+			return err
+		}
+		if err := s.Active(r.Context(), p.Session, p.Org, p.Person); err != nil {
+			return err
+		}
+		httpx.JSON(w, 200, map[string]any{"idle_minutes": int(s.IdleLimit(r.Context(), p.Org) / time.Minute)})
+		return nil
+	}))
+	// Where the inactivity clock stands, without counting as activity.
+	r.Get("/auth/session", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
+		p, err := tenant.Must(r.Context())
+		if err != nil {
+			return err
+		}
+		lim := s.IdleLimit(r.Context(), p.Org)
+		left := -1
+		if lim > 0 {
+			left = int((lim - time.Since(s.lastActive(r.Context(), p.Session))).Seconds())
+		}
+		httpx.JSON(w, 200, map[string]any{"idle_minutes": int(lim / time.Minute), "seconds_left": left})
 		return nil
 	}))
 	r.Post("/auth/password", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {

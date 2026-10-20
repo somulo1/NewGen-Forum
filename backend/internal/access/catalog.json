@@ -22,6 +22,7 @@
     "Delete",
     "See who read",
     "Export",
+    "View insights",
     "Approve level 1",
     "Approve level 2",
     "Approve level 3"
@@ -222,6 +223,7 @@
     "Read",
     "Send memos",
     "Export",
+    "View insights",
     "Approve level 1",
     "Approve level 2",
     "Approve level 3"
@@ -234,6 +236,18 @@
    "rights": [
     "Read",
     "Publish newsletters",
+    "Export",
+    "View insights"
+   ]
+  },
+  {
+   "key": "jobposts",
+   "label": "Job posts",
+   "tint": "#7CC4FF",
+   "rights": [
+    "Read",
+    "Post job posts",
+    "View insights",
     "Export"
    ]
   },
