@@ -202,14 +202,15 @@ func (s *Service) Login(ctx context.Context, in LoginIn) (*Tokens, error) {
 	if !s.domainAllowed(email) {
 		return nil, errDomain
 	}
-	// brute-force guard: per address and per source; fails closed if the limiter is down
-	if ok, retry := s.A.Limit.Allow(ctx, "login-ip", in.IP, 30, blockFor, true); !ok {
-		s.recordBlock(ctx, "address", s.emailIdx(email), email, in.IP, "Too many sign-in attempts from this address", retry)
-		return nil, errLocked
-	}
-	if ok, retry := s.A.Limit.Allow(ctx, "login-acct", string(s.emailIdx(email)), 10, blockFor, true); !ok {
-		s.recordBlock(ctx, "account", s.emailIdx(email), email, in.IP, "Too many sign-in attempts for this account", retry)
-		return nil, errLocked
+	// brute-force guard: five wrong attempts (wrong password, or an email nobody has) from one address block that address for
+	// two minutes; the block is recorded for the Security page. Counting happens below, on each failure.
+	if in.IP != "" {
+		var n int
+		if err := s.A.DB.Tx(ctx, func(tx pgx.Tx) error {
+			return tx.QueryRow(ctx, `select count(*) from hub.login_blocks where ip=$1 and until > now()`, in.IP).Scan(&n)
+		}); err == nil && n > 0 {
+			return nil, errLocked
+		}
 	}
 	var tok *Tokens
 	var loginErr error
@@ -292,6 +293,16 @@ func (s *Service) Login(ctx context.Context, in LoginIn) (*Tokens, error) {
 	}
 	if ev.locked != nil {
 		s.recordBlock(ctx, "account", s.emailIdx(email), email, in.IP, "Five wrong passwords in a row", time.Until(*ev.locked))
+	}
+	if loginErr == errCreds {
+		// the fifth failure within two minutes (this one included) blocks the address
+		if ok, retry := s.A.Limit.Allow(ctx, "login-fail", in.IP, 4, blockFor, true); !ok {
+			kind, why := "address", "Five wrong sign-in attempts from this address"
+			if ev.acct != uuid.Nil {
+				why = "Five wrong sign-in attempts from this address on one account"
+			}
+			s.recordBlock(ctx, kind, s.emailIdx(email), email, in.IP, why, retry)
+		}
 	}
 	if loginErr != nil {
 		return nil, loginErr
