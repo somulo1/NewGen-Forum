@@ -35,7 +35,7 @@ func fail(err error) {
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "usage: bootstrap platform | bootstrap owner | bootstrap protect [-slug <slug>] | bootstrap org -slug <slug> [-roles starter] [-dry-run]")
+		fmt.Fprintln(os.Stderr, "usage: bootstrap platform | bootstrap owner | bootstrap protect [-slug <slug>] | bootstrap seal | bootstrap org -slug <slug> [-roles starter] [-dry-run]")
 		os.Exit(2)
 	}
 	cmd := os.Args[1]
@@ -67,6 +67,20 @@ func main() {
 			fail(err)
 		}
 		fmt.Println("platform reference data installed (sounds).")
+	case "seal":
+		// seals rows that were written before their table got row seals (devices, account_orgs); safe to run again
+		for _, t := range []string{"devices", "account_orgs"} {
+			n := 0
+			if err := a.DB.Tx(ctx, func(tx pgx.Tx) error {
+				if err := tx.QueryRow(ctx, "select count(*) from hub."+t+" where mac = hub.pending_mac()").Scan(&n); err != nil {
+					return err
+				}
+				return a.Sign.Seal(ctx, tx, t, "true")
+			}); err != nil {
+				fail(err)
+			}
+			fmt.Printf("%s: %d rows sealed\n", t, n)
+		}
 	case "org":
 		if *slug == "" && !*all {
 			fail(fmt.Errorf("-slug or -all is required"))

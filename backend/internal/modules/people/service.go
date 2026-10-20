@@ -586,6 +586,9 @@ func (s *Service) Accept(ctx context.Context, account uuid.UUID, token string) (
 		if _, err := tx.Exec(ctx, `insert into hub.account_orgs (account_id, org_id) values ($1,$2) on conflict do nothing`, account, org); err != nil {
 			return err
 		}
+		if err := s.A.Sign.Seal(ctx, tx, "account_orgs", "account_id=$1 and org_id=$2", account, org); err != nil {
+			return err
+		}
 		if err := chat.SyncAudience(ctx, tx, s.A.Sign, org, account); err != nil {
 			return err
 		}
