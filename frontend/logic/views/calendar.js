@@ -75,7 +75,7 @@ export function buildCalendar(ctx) {
   const evNeeds = evS.type === 'Meeting' || evS.type === 'Standup';
   const pqv = evS.pq.trim().toLowerCase();
   const candidates = pqv ? corePeople.concat(this.dir.map((d) => d.name)).filter((n, i, a) => a.indexOf(n) === i && n.toLowerCase().indexOf(pqv) !== -1).slice(0, 8) : corePeople.slice(0, 8);
-  const titleOf = (n) => ((this.dir.find((d) => d.name === n) || {}).title) || ({ 'Brian Kiprop': 'Systems Engineer', 'David Otieno': 'Developer', 'Amina Wanjiru': 'Finance Analyst', 'Grace Njeri': 'HR Officer', 'Faith Achieng': 'Customer Care', 'Kevin Mutua': 'Sales Lead' }[n] || 'Staff');
+  const titleOf = (n) => ((this.dir.find((d) => d.name === n) || {}).title) || 'Staff';
   const ev = {
     heading: 'New ' + evS.type.toLowerCase(), title: evS.title, date: evS.date, start: evS.start, end: evS.end, repeat: evS.repeat, forum: evS.forum, pq: evS.pq,
     setTitle: (e) => setEv({ title: e.target.value }), setDate: (e) => setEv({ date: e.target.value }), setStart: (e) => setEv({ start: e.target.value }), setEnd: (e) => setEv({ end: e.target.value }),

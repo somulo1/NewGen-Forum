@@ -17,6 +17,6 @@ export function buildTableHelpers(ctx) {
     chk: (on, toggle, o) => Object.assign({ kind: 'check', on: on, toggle: toggle, fv: on ? 'Yes' : 'No' }, o || {}),
     sel: (value, options, onChange, o) => Object.assign({ kind: 'select', value: value, options: options, onChange: onChange, fv: value }, o || {})
   };
-  const corePeople = ['Brian Kiprop', 'David Otieno', 'Amina Wanjiru', 'Grace Njeri', 'Faith Achieng', 'Kevin Mutua', 'Mercy Wambui', 'John Kamau', 'Lilian Chebet'];
+  const corePeople = this.dir.map((d) => d.name);
   return { C, corePeople, dowOf, fmtDay, isoAdd, personOf, todayISO, tz9 };
 }

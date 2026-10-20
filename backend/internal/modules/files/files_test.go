@@ -6,12 +6,16 @@ import (
 	"crypto/rand"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	"hub/internal/e2ee"
+	"hub/internal/modules/approvals"
+	"hub/internal/modules/files"
 	"hub/internal/orgsettings"
 	"hub/internal/testkit"
 )
@@ -199,5 +203,54 @@ func TestStorageQuota(t *testing.T) {
 	sec["userQuotaMB"] = "7"
 	if code, _ := e.Do("PUT", "/settings/security", sec, ownerU.Access); code != 400 {
 		t.Fatalf("a limit not on the list: %d", code)
+	}
+}
+
+// Deleting a file erases its contents from storage; contents that could not be erased at once are retried by the worker.
+func TestDeleteErasesContents(t *testing.T) {
+	e := testkit.New(t)
+	ownerU, slug := e.NewOrg("Olivia Owner")
+	org := e.OrgID(slug)
+	o := e.Owner(ownerU)
+	o.Register(e)
+	fk, _ := e2ee.NewConversationKey()
+	folder := e.MustDo(201, "POST", "/conversations", map[string]any{"kind": "folder", "name": "Mine", "keys": o.WrapFor(e, fk, 1, o.Person)}, ownerU.Access)["id"].(string)
+	fid := uuid.Must(uuid.NewV7()).String()
+	e.MustDo(201, "POST", "/folders/"+folder+"/files", map[string]any{"id": fid, "epoch": 1, "device": o.DevID, "envelope": o.Seal(org, folder, fid, 1, fk, `{"name":"x"}`)}, ownerU.Access)
+	if code, _ := raw(t, e, "PUT", "/files/"+fid+"/content", make([]byte, 4096), ownerU.Access); code != 200 {
+		t.Fatalf("upload: %d", code)
+	}
+	onDisk := filepath.Join(e.A.Cfg.BlobDir, "o", org, fid)
+	if _, err := os.Stat(onDisk); err != nil {
+		t.Fatalf("contents not stored: %v", err)
+	}
+	e.MustDo(204, "DELETE", "/files/"+fid, nil, ownerU.Access)
+	if _, err := os.Stat(onDisk); !os.IsNotExist(err) {
+		t.Fatal("contents still on disk after delete")
+	}
+
+	// contents left waiting (the file server was unreachable at delete time) are erased by the worker's sweep
+	left := filepath.Join(e.A.Cfg.BlobDir, "o", org, "leftover-"+uuid.NewString())
+	_ = os.WriteFile(left, []byte("old"), 0o600)
+	ref, _ := filepath.Rel(e.A.Cfg.BlobDir, left)
+	if err := e.A.DB.Tx(context.Background(), func(tx pgx.Tx) error {
+		_, err := tx.Exec(context.Background(), `insert into hub.blob_purge (org_id, ref) values ($1,$2)`, org, ref)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	svc := files.New(e.A, approvals.New(e.A))
+	if done, _, err := svc.PurgeDue(context.Background(), 500); err != nil || done < 1 {
+		t.Fatalf("purge: %d %v", done, err)
+	}
+	if _, err := os.Stat(left); !os.IsNotExist(err) {
+		t.Fatal("waiting contents were not erased")
+	}
+	var n int
+	_ = e.A.DB.Tx(context.Background(), func(tx pgx.Tx) error {
+		return tx.QueryRow(context.Background(), `select count(*) from hub.blob_purge where ref=$1`, ref).Scan(&n)
+	})
+	if n != 0 {
+		t.Fatal("the erased reference is still queued")
 	}
 }

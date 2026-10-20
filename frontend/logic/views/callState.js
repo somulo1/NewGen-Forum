@@ -9,18 +9,12 @@ export function buildCallState(ctx) {
     const pad = (n) => (n < 10 ? '0' : '') + n;
     const timer = (secs >= 3600 ? Math.floor(secs / 3600) + ':' : '') + pad(Math.floor((secs % 3600) / 60)) + ':' + pad(secs % 60);
     const isVideo = s.call.mode === 'video';
-    const othersAll = [
-      { name: 'Brian Kiprop', initials: 'BK', color: '#7CC4FF', bg: '#1B2E40', camBg: '#24405A', muted: false, camOn: true },
-      { name: 'Grace Njeri', initials: 'GN', color: '#FFB86B', bg: '#33271A', camBg: '#4A3826', muted: true, camOn: false },
-      { name: 'David Otieno', initials: 'DO', color: '#F49AC1', bg: '#33202C', camBg: '#4A2E40', muted: false, camOn: true },
-      { name: 'Amina Wanjiru', initials: 'AW', color: '#6EE7C8', bg: '#16332B', camBg: '#1F4A3E', muted: true, camOn: false },
-      { name: 'Faith Achieng', initials: 'FA', color: '#B8F36B', bg: '#22301A', camBg: '#324624', muted: false, camOn: true }
-    ];
+    const othersAll = [];   // who is in a call comes from the call room itself
     const pick = s.call.context === 'forum' && !(s.call.people || []).length ? null : s.call.people;
     const others = pick ? pick.filter((n) => n && n !== 'Everyone' && n !== 'Samwel Okoth Omulo').slice(0, 8).map((n, i) => {
       const c = pColor[n] || ((this.dir.find((d) => d.name === n) || {}).color) || '#C9B6FF';
       return { name: n, initials: ini(n), color: c, bg: c + '26', camBg: c + '40', muted: i % 3 === 1, camOn: i % 2 === 0 };
-    }) : (isVideo ? othersAll : othersAll.slice(0, 3));
+    }) : othersAll;
     const live = !!(this.srv && s.call.peers);
     const othersLive = live ? s.call.peers.map((p) => {
       const d = this.dir.find((x) => x.name === p.name);

@@ -9,7 +9,7 @@ export function buildTickets(ctx) {
   const ts = s.tset;
   const toMin = (v) => { const p = String(v || '0:0').split(':'); return (Number(p[0]) || 0) * 60 + (Number(p[1]) || 0); };
   const dayH = Math.max(1, (toMin(ts.end) - toMin(ts.start)) / 60);
-  const pColor = { 'Brian Kiprop': '#7CC4FF', 'David Otieno': '#F49AC1', 'Amina Wanjiru': '#6EE7C8', 'Grace Njeri': '#FFB86B', 'Faith Achieng': '#B8F36B', 'Kevin Mutua': '#C9B6FF', 'Mercy Wambui': '#FFB86B', 'Sam': '#F49AC1', 'John Kamau': '#7CC4FF', 'Lilian Chebet': '#F49AC1' };
+  const pColor = new Proxy({ Sam: '#F49AC1' }, { get: (o, k) => (k in o ? o[k] : ((this.dir.find((d) => d.name === k) || {}).color)) });
   const ini = (n) => (n === 'Sam' ? 'S' : n.split(' ').map((x) => x[0]).join('').slice(0, 2));
   const fmtH = (h) => {
     let m = Math.round(Math.abs(h) * 60);
@@ -121,7 +121,8 @@ export function buildTickets(ctx) {
       activity: cur_t.activity.map((a) => ({ ...a, htmlText: richTextHtml(a.text), initials: ini(a.who), color: pColor[a.who] || '#9DB0A6', isEvent: a.kind === 'event', isComment: a.kind === 'comment', isFile: a.kind === 'file', isImg: !!a.isImg, url: a.url || '', meta: a.meta || '' }))
     };
   }
-  const tagNames = ['Brian Kiprop', 'David Otieno', 'Amina Wanjiru', 'Grace Njeri', 'Faith Achieng', 'Kevin Mutua'];
+  // people you can tag in a ticket comment: the ones on that ticket
+  const tagNames = cur_t ? [...new Set([cur_t.raisedBy, cur_t.handler].concat(cur_t.assignees || []))].filter((n) => n && n !== 'Sam') : [];
   const tagPeople = tagNames.map((n) => ({ name: n, tag: () => this.setState((st) => ({ tcomment: (st.tcomment && !/\s$/.test(st.tcomment) ? st.tcomment + ' ' : st.tcomment) + '@' + n + ' ', tagOpen: false })) }));
   const autoNotifs = [];
   if (has.tickets) tickets.forEach((t) => {
@@ -160,14 +161,7 @@ export function buildTickets(ctx) {
     { kind: 'PPT', color: '#F49AC1', name: 'Town hall slides', meta: 'Management · yesterday' },
     { kind: 'ZIP', color: '#6EE7C8', name: 'Brand assets', meta: 'Marketing · last month' }
   ];
-  const people = [
-    { name: 'Amina Wanjiru', initials: 'AW', color: '#6EE7C8', role: 'Finance Analyst', forumRole: 'Admin' },
-    { name: 'Brian Kiprop', initials: 'BK', color: '#7CC4FF', role: 'Systems Engineer', forumRole: 'Moderator' },
-    { name: 'Grace Njeri', initials: 'GN', color: '#FFB86B', role: 'HR Officer', forumRole: 'Member' },
-    { name: 'David Otieno', initials: 'DO', color: '#F49AC1', role: 'Developer', forumRole: 'Member' },
-    { name: 'Faith Achieng', initials: 'FA', color: '#B8F36B', role: 'Customer Care', forumRole: 'Member' },
-    { name: 'Kevin Mutua', initials: 'KM', color: '#C9B6FF', role: 'Sales Lead', forumRole: 'Guest' }
-  ];
+  const people = [];
   const defaultCats = ts.cats.map((c) => ({ name: c.name, tat: tatHours(c.name) }));
   return { defaultCats, deskStats, deskTickets, myTicketStats, myTickets, badge, chip, cur_t, dayH, files, ini, nOpen, nOver, nSoon, notifList, notifyRules, ntCats, ntPrios, pColor, pauseRules, people, setTs, tagNames, tagPeople, tatText, ticketStats, tickets, tk, ts, tsetCats };
 }

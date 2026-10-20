@@ -1,62 +1,11 @@
 import * as dmsW from '~/logic/server/widgets/dms.js';
-import { dmSamples, forumSamples } from '~/logic/samples.js';
 import { richTextHtml } from '~/logic/richText.js';
 import { noteText, notesConnected, isMine, permLabel } from '~/logic/noteText.js';
 import * as forumsW from '~/logic/server/widgets/forums.js';
 // renderVals step: forums. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildForums(ctx) {
   const { s } = ctx;
-  const sampleForums = [
-    { id: 'it', name: 'IT Operations', initials: 'IT', color: '#B8F36B', unread: 3, members: 42, online: 9, privacy: 'Invite only', about: 'Day-to-day IT support, outages and change announcements.',
-      updates: [
-        { who: 'Brian K.', initials: 'BK', color: '#7CC4FF', time: '2 min ago', text: 'Email server patch is done. Restart Outlook if you see sync errors.', replies: 4 },
-        { who: 'Grace N.', initials: 'GN', color: '#FFB86B', time: '14 min ago', text: 'Ticket IT-208 moved to In Progress in Jira.', replies: 1 },
-        { who: 'David O.', initials: 'DO', color: '#F49AC1', time: '1 h ago', text: 'Reminder: VPN certificates expire Friday. Renew from the self-service page.', replies: 7 },
-        { who: 'Amina W.', initials: 'AW', color: '#6EE7C8', time: '3 h ago', text: 'Shared "Network diagram v3" in Files.', replies: 0 }
-      ] },
-    { id: 'dev', name: 'Product Builders', initials: 'PB', color: '#7CC4FF', unread: 5, members: 18, online: 6, privacy: 'Members of Engineering', about: 'Developers, designers and testers shipping the product.',
-      updates: [
-        { who: 'Amina W.', initials: 'AW', color: '#6EE7C8', time: 'Just now', text: 'PR #312 merged into main via GitHub. Staging deploy running.', replies: 2 },
-        { who: 'Brian K.', initials: 'BK', color: '#7CC4FF', time: '20 min ago', text: 'Sprint review session starts at 3pm. Join from the Sessions tab.', replies: 5 },
-        { who: 'Grace N.', initials: 'GN', color: '#FFB86B', time: '1 h ago', text: 'Shared staging credentials via a one-time link. Check your DMs.', replies: 0 }
-      ] },
-    { id: 'game', name: 'Weekend Gamers', initials: 'WG', color: '#FFB86B', unread: 0, members: 64, online: 12, privacy: 'Open to everyone', about: 'FIFA nights, tournaments and banter. Everyone welcome.',
-      updates: [
-        { who: 'David O.', initials: 'DO', color: '#F49AC1', time: '10 min ago', text: 'Tournament bracket is up. Vote on the game in the feed poll!', replies: 11 },
-        { who: 'Brian K.', initials: 'BK', color: '#7CC4FF', time: '2 h ago', text: 'Who is on for Saturday 6pm?', replies: 9 }
-      ] },
-    { id: 'choir', name: 'Choir & Worship', initials: 'CW', color: '#F49AC1', unread: 1, members: 27, online: 3, privacy: 'Request to join', about: 'Rehearsal schedules, song lists and announcements.',
-      updates: [
-        { who: 'Grace N.', initials: 'GN', color: '#FFB86B', time: '30 min ago', text: 'Rehearsal moved to Thursday 5:30pm, main hall.', replies: 3 }
-      ] },
-    { id: 'risk', name: 'Risk & Compliance', initials: 'RC', color: '#6EE7C8', unread: 0, members: 11, online: 2, privacy: 'Invite only', about: 'Policies, audits and control reviews.',
-      updates: [
-        { who: 'Amina W.', initials: 'AW', color: '#6EE7C8', time: '1 h ago', text: 'New access-review policy uploaded. Please acknowledge by Monday.', replies: 2 }
-      ] }
-  ];
-  const chatters = [
-    { who: 'Brian K.', initials: 'BK', color: '#7CC4FF' },
-    { who: 'Grace N.', initials: 'GN', color: '#FFB86B' },
-    { who: 'David O.', initials: 'DO', color: '#F49AC1' },
-    { who: 'Amina W.', initials: 'AW', color: '#6EE7C8' },
-    { who: 'Faith A.', initials: 'FA', color: '#B8F36B' },
-    { who: 'Kevin M.', initials: 'KM', color: '#C9B6FF' }
-  ];
-  const lines = {
-    it: ['Printer on 2nd floor is back online.', 'Anyone else seeing slow Wi-Fi in the boardroom?', 'Yes, checking the access point now.', 'Fixed. It was a firmware hang.', 'Please lock your screens when stepping away.', 'New laptops arrive Monday, list is in Files.', 'Backup job finished successfully overnight.', 'Password reset requests go through Tickets please.', 'Thanks for the quick fix this morning!', 'Antivirus update rolling out at 1pm.', 'Server room AC was serviced today.', 'Who has the spare HDMI adapter?', 'It is in the IT cabinet, top drawer.', 'Scheduled downtime Saturday 8 to 10pm.'],
-    dev: ['Build is green again.', 'Can someone review PR #309?', 'On it after standup.', 'Staging DB was refreshed from yesterday\'s snapshot.', 'Found the bug: timezone offset on reports.', 'Nice catch!', 'Merging the hotfix now.', 'Design for the mobile settings screen is in Files.', 'Who is on call this weekend?', 'Me, ping me on the forum.', 'Unit test coverage is now 78%.', 'Let\'s demo the new export at the sprint review.', 'Release notes draft is ready for comments.', 'API rate limit raised to 600/min.'],
-    game: ['GG last night!', 'Rematch on Saturday?', 'I\'m in.', 'Bringing my own controller this time.', 'Who won the last round?', 'Kevin, again.', 'We need a rule against Kevin.', 'Snacks are on David this week.', 'Projector or the big TV?', 'Big TV, less lag.', 'Bracket goes up Thursday.', 'Can guests join?', 'Yes, just invite them to the forum.', 'Let\'s go!'],
-    choir: ['Song list for Sunday is in Files.', 'Altos, please practice the bridge.', 'Can we start 15 minutes early?', 'Fine by me.', 'Keyboard needs new batteries.', 'I\'ll bring some.', 'Great rehearsal everyone.', 'Recording from Thursday is uploaded.', 'Uniform colour this week is white.', 'Who is leading the opening song?', 'Faith is.', 'Practice the harmonies at home please.', 'Thank you all!', 'See you Sunday.'],
-    risk: ['Q3 control testing starts next week.', 'Please submit evidence by Friday.', 'Access review template is in Files.', 'Any exceptions to report?', 'Two, logged in the register.', 'Good, let\'s discuss Monday.', 'Policy acknowledgment is at 82%.', 'Reminder sent to the remaining staff.', 'Audit committee pack is due on the 30th.', 'Draft is ready for review.', 'Incident from last week is closed.', 'Root cause documented.', 'Thanks team.', 'Training session booked for Tuesday.']
-  };
-  const ago = ['4 h ago', '5 h ago', '6 h ago', 'Yesterday', 'Yesterday', 'Yesterday', '2 days ago', '2 days ago', '3 days ago', '4 days ago', 'Last week'];
-  sampleForums.forEach((f, fi) => {
-    const pool = lines[f.id];
-    for (let i = 0; i < 26; i++) {
-      const c = chatters[(i + fi) % chatters.length];
-      f.updates.push({ who: c.who, initials: c.initials, color: c.color, time: ago[Math.min(ago.length - 1, Math.floor(i / 2.5))], text: pool[i % pool.length], replies: (i * 3 + fi) % 6 });
-    }
-  });
+  const sampleForums = [];   // forums come from the server
   // Connected to the server: the forums you are in. Not connected (no sign-in to an organization): the built-in samples.
   const live = s.forumsLive || (this.srv ? [] : null);
   const forumsData = live ? live.map((f) => ({ ...f, updates: f.updates.slice() })) : sampleForums;
@@ -86,7 +35,7 @@ export function buildForums(ctx) {
   const norm = (u, id) => ({ replies: 0, ...u, id: u.id || id, source: u, htmlText: richTextHtml(u.text), hasText: !!u.text, hasFile: !!u.file, fileList: [].concat(u.file || []), ...quote(u), hasShared: !!u.shared, sid: u.shared ? u.shared.sid : '', reply: replyFn(u.who === 'Sam' ? 'You' : u.who, u) });
   const addedSource = s.added[cur.id] || [];
   const addedHere = addedSource.map((message) => norm(message, 'forum-' + cur.id + '-added-' + fingerprint(message)));
-  const baseMsgs = (live ? cur.updates : cur.updates.concat(forumSamples())).map((message, index) => norm(message, 'forum-' + cur.id + '-sample-' + index));
+  const baseMsgs = cur.updates.map((message, index) => norm(message, 'forum-' + cur.id + '-sample-' + index));
   const messageActions = (message, key, deleteForEveryone) => ({
     messageKey: key,
     menuOpen: s.messageMenu === key,
@@ -145,7 +94,7 @@ export function buildForums(ctx) {
       };
     });
     const sharesById = Object.fromEntries(secureShares.map((share) => [share.id, share]));
-    const dmMessages = (this.srv ? [] : dmSamples(curDm.with)).concat(curDm.msgs).map((m, index) => {
+    const dmMessages = curDm.msgs.map((m, index) => {
       const mine = m.from === 'me';
       const who = mine ? 'You' : m.from;
       const pp = mine ? { initials: 'S', color: '#C2185B' } : dmPerson(m.from);

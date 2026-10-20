@@ -16,11 +16,6 @@ import { ticketsState } from '~/logic/state/tickets.js';
 import { wallState } from '~/logic/state/wall.js';
 import { forumsState } from '~/logic/state/forums.js';
 import { onboardingState } from '~/logic/state/onboarding.js';
-import { seedProjects } from '~/logic/seed/projects.js';
-import { seedOrg } from '~/logic/seed/org.js';
-import { seedTickets } from '~/logic/seed/tickets.js';
-import { seedDirectory } from '~/logic/seed/directory.js';
-import { seedLogs } from '~/logic/seed/logs.js';
 import { messagingActions } from '~/logic/actions/messaging.js';
 import { projectsActions } from '~/logic/actions/projects.js';
 import { callsActions } from '~/logic/actions/calls.js';
@@ -67,7 +62,6 @@ import { valsPanels } from '~/logic/vals/panels.js';
 
 // Hub logic. The pieces live in logic/:
 //   state/    initial state, grouped by area
-//   seed/     sample data derived from the state when the app starts
 //   actions/  methods mixed into HubLogic
 //   views/    renderVals() steps, run in order; each returns the names later steps need
 //   vals/     the values and handlers the templates bind to
@@ -76,11 +70,10 @@ export class HubLogic extends DCLogic {
   constructor(props) {
     super(props);
     this.state = Object.assign({}, coreState(), awardsState(), calendarState(), commsState(), adminState(), profileState(), filesState(), projectsState(), callsState(), ticketsState(), wallState(), settingsState(), notesState(), forumsState(), onboardingState());
-    seedProjects.call(this);
-    seedOrg.call(this);
-    seedTickets.call(this);
-    seedDirectory.call(this);
-    seedLogs.call(this);
+    // Nothing is made up: everything below arrives from the server after sign-in.
+    this.dir = [];
+    this.org = { sectors: [], branches: [], units: [], departments: [], mine: {} };
+    this.baseLogs = [];
   }
   setState(update, done) {
     const raw = typeof update === 'function' ? update(this.state, this.props) : update;

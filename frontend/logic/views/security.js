@@ -19,15 +19,7 @@ export function buildSecurity(ctx) {
   const sevColor = { High: '#FF9B8A', Medium: '#FFB86B', Low: '#7CC4FF' };
   const agoLabel = (m) => { const d = new Date(nowMs - m * 60000); const t = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Nairobi' }); const day = d.toLocaleDateString('en-CA', { timeZone: 'Africa/Nairobi' }) === new Date(nowMs).toLocaleDateString('en-CA', { timeZone: 'Africa/Nairobi' }) ? 'Today' : 'Yesterday'; return day + ' ' + t; };
   const allLogs = s.extraLogs.concat(this.baseLogs);
-  const alertDefs = [
-    { id: 'AL-118', rule: 'r1', ago: 12, title: '6 failed sign-ins for Peter Kamau in 5 minutes', detail: 'From 41.90.12.7 (Nairobi, KE). The account was locked after the 6th attempt.' },
-    { id: 'AL-117', rule: 'r2', ago: 38, title: 'Diana Rotich signed in from Lagos, Nigeria for the first time', detail: 'Her usual location is Nairobi, KE. IP 102.89.3.44.' },
-    { id: 'AL-116', rule: 'r3', ago: 80, title: 'Collins Barasa downloaded 64 files from Finance in 9 minutes', detail: 'The limit is 50 files in 15 minutes.' },
-    { id: 'AL-115', rule: 'r7', ago: 120, title: 'Kevin Mutua shared 12 posts outside Hub in one hour', detail: 'The limit is 10 an hour.' },
-    { id: 'AL-114', rule: 'r5', ago: 180, title: 'Rights changed for the Staff role', detail: 'Changed by Samwel Okoth Omulo from the office network.' },
-    { id: 'AL-113', rule: 'r6', ago: 300, title: 'Secure link "Payroll login" opened from 185.220.101.4', detail: 'Created by Grace Njeri. The IP is outside the usual ranges.' },
-    { id: 'AL-112', rule: 'r4', ago: 1220, title: 'Brian Kiprop reset MFA for Peter Kamau at 23:40', detail: 'Admin action outside working hours (' + ts.start + '–' + ts.end + ').' }
-  ];
+  const alertDefs = [];   // alerts come from the server (s.alertsLive)
   const alertList = s.alertsLive || alertDefs;
   const newRightsAlerts = this.srv ? [] : s.extraLogs.filter((l) => l.rule === 'r5').slice(0, 3).map((l, i) => ({ id: 'AL-' + (119 + i), rule: 'r5', ago: 0, title: l.action, detail: 'Made by ' + l.user + '. Logged automatically.' }));
   const alertsAll = newRightsAlerts.concat(alertList).filter((a) => ruleOn(a.rule)).map((a) => {
