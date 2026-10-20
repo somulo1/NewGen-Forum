@@ -7,7 +7,7 @@ import * as projects from './projects.js';
 
 export const name = 'approvals';
 
-const KIND = { 'comm.publish': 'comm', 'award.grant': 'award', 'project.activate': 'project', 'rights.role': 'rights', 'person.update': 'personEdit', 'share.activate': 'share' };
+const KIND = { 'comm.publish': 'comm', 'award.grant': 'award', 'project.activate': 'project', 'rights.role': 'rights', 'rights.group': 'rights', 'person.update': 'personEdit', 'share.activate': 'share' };
 
 const mapRequest = (r) => ({
   id: r.ref, uid: r.id, flowId: r.flow, title: r.title, by: r.by, when: when(r.created_at), level: r.level, status: r.status, kind: KIND[r.kind] || r.kind,

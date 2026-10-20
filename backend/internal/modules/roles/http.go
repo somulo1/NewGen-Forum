@@ -22,6 +22,7 @@ func reply(w http.ResponseWriter, applied bool, req any) {
 }
 
 func (s *Service) Private(r chi.Router) {
+	s.groupRoutes(r)
 	r.Get("/me", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
 		p, err := tenant.MustOrg(r.Context())
 		if err != nil {

@@ -34,6 +34,14 @@ var Tiers = map[string]Tier{
 	"POST /v1/files/{id}/shares":          {30, time.Minute},
 	"POST /v1/folders/{id}/files":         {60, time.Minute},
 	"POST /v1/e2ee/devices":               {10, time.Minute},
+	"POST /v1/auth/password":              {5, time.Minute},  // changing a password checks the old one: guessing it must be slow
+	"POST /v1/auth/mfa/confirm":           {10, time.Minute}, // a six-digit code
+	"POST /v1/auth/mfa/setup":             {10, time.Minute},
+	"POST /v1/mentions":                   {60, time.Minute}, // each call can send up to 20 emails
+	"GET /v1/security/logs/export":        {6, time.Minute},
+	"GET /v1/billing/invoices/{no}/etr":   {60, time.Minute},
+	"PUT /v1/files/{id}/content":          {120, time.Minute},
+	"PUT /v1/storage/people/{id}":         {30, time.Minute},
 }
 
 // publicTier: sign-in, sign-up, reset and invite routes need no token, so they are capped by address, hard.
@@ -84,6 +92,11 @@ func (d Deps) ipLimit(next http.Handler) http.Handler {
 func (d Deps) rateLimit(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if p, ok := tenant.From(r.Context()); ok {
+			// a steady ceiling as well as the burst allowance below: 1,200 requests a minute from one account is far more than a person makes
+			if ok, retry, _ := d.App.Limit.Sliding(r.Context(), "acct-min", p.Account.String(), d.App.Cfg.RateAcctMin, time.Minute, false); !ok {
+				limited(w, retry, d.App.Cfg.RateAcctMin, "Slow down a little.")
+				return
+			}
 			rps := d.App.Cfg.RateRPS * 10
 			if ok, retry, _ := d.App.Limit.Sliding(r.Context(), "acct", p.Account.String(), rps, 10*time.Second, false); !ok {
 				limited(w, retry, rps, "Slow down a little.")

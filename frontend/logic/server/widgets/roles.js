@@ -22,9 +22,49 @@ export async function load(logic, srv) {
   });
   srv.reportSnap = JSON.stringify({ reportsTo, reportsPerson });
   logic.setState((st) => ({ reportsTo, reportsPerson, roleRights, roleCounts, serverRoles: roles, catalog: cat, memberRoles: { ...st.memberRoles, ...memberRoles }, myRole: srv.me.role || '', actingRole: preview ? st.actingRole : (srv.me.role || ''), roleSel: roles.some((r) => r.id === st.roleSel) ? st.roleSel : '', pendingRights: {} }));
+  await loadGroups(logic, srv);
 }
 
 const key = (role, mod, right) => role + '|' + mod + '|' + right;
+
+// ---- user groups: sets of roles that are given rights (and widget access) together ----
+
+// Reads the groups and what each is allowed. A person without the right to see roles simply has none.
+export async function loadGroups(logic, srv) {
+  let groups = [];
+  try { groups = (await srv.request('GET', '/groups')).groups; } catch (e) { groups = []; }
+  const details = await Promise.all(groups.map((g) => srv.request('GET', '/groups/' + g.id).catch(() => null)));
+  const groupRights = {};
+  details.filter(Boolean).forEach((d) => { groupRights[d.id] = d.rights || {}; });
+  logic.setState({ serverGroups: groups, groupRights });
+}
+
+// Allows or removes one right for a group. Returns 'applied' or 'pending' (a rights change may wait for approval).
+export async function setGroupRight(logic, srv, group, mod, right, allowed) {
+  const res = await srv.request('PUT', `/groups/${group}/rights`, { module: mod, right, allowed });
+  if (res.applied) {
+    logic.setState((st) => ({ groupRights: { ...st.groupRights, [group]: { ...(st.groupRights[group] || {}), [mod]: { ...((st.groupRights[group] || {})[mod] || {}), [right]: allowed } } } }));
+    return 'applied';
+  }
+  logic.setState((st) => ({ pendingRights: { ...st.pendingRights, ['g:' + key(group, mod, right)]: allowed } }));
+  if (srv.reload.approvals) srv.reload.approvals();
+  return 'pending';
+}
+// g = { name, desc, roles: [role ids] }
+export async function createGroup(logic, srv, g) {
+  const res = await srv.request('POST', '/groups', { name: g.name, desc: g.desc || '', roles: g.roles || [] });
+  await loadGroups(logic, srv);
+  return res.id;
+}
+// patch = { name?, desc?, roles? }
+export async function updateGroup(logic, srv, id, patch) {
+  await srv.request('PATCH', '/groups/' + id, patch);
+  await loadGroups(logic, srv);
+}
+export async function deleteGroup(logic, srv, id) {
+  await srv.request('DELETE', '/groups/' + id);
+  await loadGroups(logic, srv);
+}
 
 // Allows or removes one right for a role. Returns 'applied' or 'pending'.
 export async function setRight(logic, srv, role, mod, right, allowed) {

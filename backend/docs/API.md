@@ -13,5 +13,5 @@ entry, so a new route cannot ship undocumented: add its entry in the same change
 (default `dev,staging,prod`). Remove one from the list to hide the reference there; an empty list hides it everywhere.
 
 ## Other settings
-`HUB_RATE_IP`, `HUB_RATE_AUTH_IP`, `HUB_RATE_RPS` set the request limits; `HUB_TRUSTED_PROXIES` lists the proxies whose
+`HUB_RATE_IP`, `HUB_RATE_AUTH_IP`, `HUB_RATE_RPS`, `HUB_RATE_ACCT_MIN` set the request limits; `HUB_TRUSTED_PROXIES` lists the proxies whose
 `X-Forwarded-For` header is believed (default: loopback). Behind a load balancer, list its address range.

@@ -32,6 +32,7 @@ func New(a *app.App, ap *approvals.Engine) *Service {
 	s := &Service{A: a, Ap: ap}
 	ap.Register("rights.role", s.applyRoleRight)
 	ap.Register("rights.person", s.applyPersonRight)
+	ap.Register("rights.group", s.applyGroupRight)
 	return s
 }
 

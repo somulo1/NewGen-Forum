@@ -293,6 +293,7 @@ func (s *Service) DeleteRole(ctx context.Context, p *tenant.Principal, key strin
 		}
 		for _, q := range []string{
 			`delete from hub.person_roles where role_id=$1`,
+			`delete from hub.role_group_roles where role_id=$1`,
 			`delete from hub.role_rights where role_id=$1`,
 			`delete from hub.role_reports where role_id=$1 or reports_to_role=$1`,
 			`delete from hub.default_role where role_id=$1`,
