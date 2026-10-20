@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jackc/pgx/v5"
+
 	"hub/internal/config"
 	"hub/internal/httpx"
 	"hub/internal/testkit"
@@ -174,5 +176,30 @@ func TestApplicationRoleCannotReadPartitionsDirectly(t *testing.T) {
 		if err := e.A.DB.Pool.QueryRow(ctx, `select count(*) from hub.`+n).Scan(&c); err == nil {
 			t.Fatalf("the application role can read partition %s directly, bypassing row-level security", n)
 		}
+	}
+}
+
+// Account-level tables cannot be filtered by organization, so they are closed to any connection that has not presented the
+// Hub guard token: a leaked application password alone must show and change nothing.
+func TestGlobalTablesAreClosedWithoutTheGuardToken(t *testing.T) {
+	e := testkit.New(t)
+	ctx := t.Context()
+	conn, err := pgx.Connect(ctx, e.A.Cfg.DatabaseURL)
+	if err != nil {
+		t.Skip("cannot connect: ", err)
+	}
+	defer conn.Close(ctx)
+	for _, tbl := range []string{"accounts", "sessions", "devices", "key_backups", "security_quiz", "password_resets", "org_keys", "orgs", "account_orgs"} {
+		var n int
+		if err := conn.QueryRow(ctx, `select count(*) from hub.`+tbl).Scan(&n); err != nil || n != 0 {
+			t.Fatalf("%s: a connection without the guard token saw %d rows (err %v)", tbl, n, err)
+		}
+	}
+	if _, err := conn.Exec(ctx, `update hub.accounts set display_name = display_name`); err != nil {
+		t.Fatalf("update should silently match nothing: %v", err)
+	}
+	var n int
+	if err := e.A.DB.Pool.QueryRow(ctx, `select count(*) from hub.accounts`).Scan(&n); err != nil || n == 0 {
+		t.Fatalf("the application with its token must still see accounts: %d %v", n, err)
 	}
 }

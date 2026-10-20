@@ -42,8 +42,12 @@ func protect(ctx context.Context, a *app.App, cfg *config.Config, slug string) i
 		_ = tx.QueryRow(ctx, `select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace
 			where n.nspname='hub' and c.relkind in ('r','p') and not c.relispartition
 			and exists (select 1 from pg_attribute at where at.attrelid=c.oid and at.attname='org_id' and not at.attisdropped)
-			and c.relname not in ('org_keys','account_orgs','sessions','blob_purge') and not (c.relrowsecurity and c.relforcerowsecurity)`).Scan(&unprotected)
-		ok(unprotected == 0, fmt.Sprintf("row-level security is on and forced for every per-organization table except the four read before an organization is known: sign-in, sessions, data keys, file purge (%d without)", unprotected))
+			and not (c.relrowsecurity and (c.relforcerowsecurity or c.relname in ('guard','migrations')))`).Scan(&unprotected)
+		ok(unprotected == 0, fmt.Sprintf("row-level security is on for every table in the hub schema (%d without)", unprotected))
+		var open int
+		_ = tx.QueryRow(ctx, `select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='hub' and c.relkind in ('r','p') and not c.relispartition and c.relname not in ('guard','migrations')
+			and not exists (select 1 from pg_policy p where p.polrelid=c.oid and (pg_get_expr(p.polqual, p.polrelid) like '%current_org()%' or pg_get_expr(p.polqual, p.polrelid) like '%is_app()%'))`).Scan(&open)
+		ok(open == 0, fmt.Sprintf("every table is filtered by organization or closed to connections that are not the Hub system (%d not)", open))
 		var direct int
 		_ = tx.QueryRow(ctx, `select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='hub' and c.relispartition and has_table_privilege('hub_app', c.oid, 'select')`).Scan(&direct)
 		ok(direct == 0, fmt.Sprintf("the application role has no direct access to table partitions (%d with)", direct))
