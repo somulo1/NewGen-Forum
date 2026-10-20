@@ -41,8 +41,6 @@
 
 <CommComposer />
 
-<CommViewer />
-
 <PersonDrawer />
 
 <TaskDrawer />
