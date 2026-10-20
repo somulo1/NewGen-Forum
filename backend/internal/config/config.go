@@ -35,14 +35,16 @@ type Config struct {
 	CallsURLs   []string // base URLs of the calls microservice instances (a room is pinned to one by hashing its id)
 	CallsSecret []byte   // shared secret used to mint call-room tokens
 	// Media servers (LiveKit SFU). Empty: calls fall back to the small peer-to-peer rooms on the calls service.
-	SFUNodes   []SFUNode
-	CallLimits CallLimits
-	RateRPS    int
-	RateIP     int      // requests per minute from one address (everything)
-	RateAuthIP int      // requests per minute from one address to the sign-in, sign-up, reset and invite routes
-	Proxies    []string // proxies whose X-Forwarded-For is believed (CIDRs)
-	DocsEnvs   []string // environments (HUB_ENV values) in which /v1/docs is served
-	DBGuard    string   // proves to the database that a write comes from the Hub system
+	SFUNodes     []SFUNode
+	CallLimits   CallLimits
+	RateRPS      int
+	RateAcctMin  int      // requests per minute from one signed-in account (steady ceiling; RateRPS allows short bursts)
+	RateIP       int      // requests per minute from one address (everything)
+	RateAuthIP   int      // requests per minute from one address to the sign-in, sign-up, reset and invite routes
+	Proxies      []string // proxies whose X-Forwarded-For is believed (CIDRs)
+	MetricsToken string   // bearer token for /metrics; when empty only loopback may read it
+	DocsEnvs     []string // environments (HUB_ENV values) in which /v1/docs is served
+	DBGuard      string   // proves to the database that a write comes from the Hub system
 
 	BlobDir string // this server's own disk for encrypted file contents (used when no file server is configured or answers)
 	// EmailDomains limits who can sign up and sign in to these email domains (HUB_ALLOWED_EMAIL_DOMAINS, comma separated);
@@ -67,20 +69,22 @@ type CallLimits struct {
 
 func Load() (*Config, error) {
 	c := &Config{
-		Env:         get("HUB_ENV", "dev"),
-		HTTPAddr:    get("HUB_HTTP_ADDR", ":8080"),
-		DatabaseURL: get("HUB_DATABASE_URL", "postgres://hub_app:hub_app_dev_pw@127.0.0.1:5433/hub?sslmode=disable"),
-		MigrateURL:  get("HUB_MIGRATE_URL", "postgres://hub_owner:hub_owner_dev_pw@127.0.0.1:5433/hub?sslmode=disable"),
-		RedisAddr:   get("HUB_REDIS_ADDR", "127.0.0.1:6390"),
-		RedisPass:   os.Getenv("HUB_REDIS_PASS"),
-		AccessTTL:   dur("HUB_ACCESS_TTL", 15*time.Minute),
-		RefreshTTL:  dur("HUB_REFRESH_TTL", 30*24*time.Hour),
-		RateRPS:     int(num("HUB_RATE_RPS", 50)),
-		RateIP:      int(num("HUB_RATE_IP", 600)),
-		RateAuthIP:  int(num("HUB_RATE_AUTH_IP", 30)),
-		DBGuard:     get("HUB_DB_GUARD", "dev-db-guard-token-change-me"),
-		BlobDir:     get("HUB_BLOB_DIR", "./data/blobs"),
-		MaxUpload:   num("HUB_MAX_UPLOAD", 100<<20),
+		Env:          get("HUB_ENV", "dev"),
+		HTTPAddr:     get("HUB_HTTP_ADDR", ":8080"),
+		DatabaseURL:  get("HUB_DATABASE_URL", "postgres://hub_app:hub_app_dev_pw@127.0.0.1:5433/hub?sslmode=disable"),
+		MigrateURL:   get("HUB_MIGRATE_URL", "postgres://hub_owner:hub_owner_dev_pw@127.0.0.1:5433/hub?sslmode=disable"),
+		RedisAddr:    get("HUB_REDIS_ADDR", "127.0.0.1:6390"),
+		RedisPass:    os.Getenv("HUB_REDIS_PASS"),
+		AccessTTL:    dur("HUB_ACCESS_TTL", 15*time.Minute),
+		RefreshTTL:   dur("HUB_REFRESH_TTL", 30*24*time.Hour),
+		RateRPS:      int(num("HUB_RATE_RPS", 50)),
+		MetricsToken: os.Getenv("HUB_METRICS_TOKEN"),
+		RateIP:       int(num("HUB_RATE_IP", 600)),
+		RateAcctMin:  int(num("HUB_RATE_ACCT_MIN", 1200)),
+		RateAuthIP:   int(num("HUB_RATE_AUTH_IP", 30)),
+		DBGuard:      get("HUB_DB_GUARD", "dev-db-guard-token-change-me"),
+		BlobDir:      get("HUB_BLOB_DIR", "./data/blobs"),
+		MaxUpload:    num("HUB_MAX_UPLOAD", 100<<20),
 	}
 	if c.Env == "prod" && os.Getenv("HUB_DB_GUARD") == "" {
 		return nil, fmt.Errorf("HUB_DB_GUARD is required in production")

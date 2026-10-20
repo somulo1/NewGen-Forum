@@ -1,0 +1,27 @@
+# One media server host. Run one of these per node, in each region, all pointing at the same Redis so they form one cluster.
+# Host networking is required: WebRTC uses a wide UDP port range and the server must see the real public address.
+services:
+  livekit:
+    image: livekit/livekit-server:v1.13.10
+    network_mode: host
+    restart: unless-stopped
+    command: --config /etc/livekit.yaml --node-ip ${PUBLIC_IP}
+    environment:
+      HUB_REDIS_ADDR: ${HUB_REDIS_ADDR}
+      HUB_REDIS_PASS: ${HUB_REDIS_PASS}
+      HUB_SFU_KEY: ${HUB_SFU_KEY}
+      HUB_SFU_SECRET: ${HUB_SFU_SECRET}
+      HUB_API_URL: ${HUB_API_URL}
+      HUB_TURN_DOMAIN: ${HUB_TURN_DOMAIN}
+    volumes:
+      - ./livekit.prod.yaml:/etc/livekit.yaml:ro
+      - /etc/hub/turn.crt:/etc/hub/turn.crt:ro
+      - /etc/hub/turn.key:/etc/hub/turn.key:ro
+    ulimits: {nofile: {soft: 1048576, hard: 1048576}}   # one socket per connection
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    network_mode: host
+    pid: host
+    restart: unless-stopped
+    command: ["--path.rootfs=/host"]
+    volumes: ["/:/host:ro,rslave"]

@@ -1,0 +1,6 @@
+[Unit]
+Description=Hub database backup
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/hub/backup.env
+ExecStart=/opt/hub/scripts/backup.sh

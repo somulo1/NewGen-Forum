@@ -1,0 +1,19 @@
+# Prometheus scrape settings. Replace the targets with your hosts; keep all of these on the private network.
+global: {scrape_interval: 15s, evaluation_interval: 15s}
+rule_files: [alerts.yml]
+alerting:
+  alertmanagers: [{static_configs: [{targets: ["alertmanager:9093"]}]}]
+scrape_configs:
+  - job_name: hub-api
+    authorization: {credentials_file: /etc/prometheus/hub_metrics_token}   # HUB_METRICS_TOKEN
+    static_configs: [{targets: ["api-1:8080", "api-2:8080"]}]
+  - job_name: hub-calls
+    static_configs: [{targets: ["calls-1:8090", "calls-2:8090"]}]
+  - job_name: media
+    static_configs: [{targets: ["media-eu-1:6789", "media-af-1:6789"]}]   # livekit prometheus_port
+  - job_name: node
+    static_configs: [{targets: ["api-1:9100", "db-1:9100", "media-eu-1:9100"]}]   # node_exporter: CPU, NIC, disk
+  - job_name: postgres
+    static_configs: [{targets: ["db-1:9187"]}]   # postgres_exporter
+  - job_name: redis
+    static_configs: [{targets: ["redis-1:9121"]}]   # redis_exporter

@@ -10,6 +10,7 @@ import (
 	"hub/internal/app"
 	"hub/internal/httpx"
 	"hub/internal/mail"
+	"hub/internal/metrics"
 	"hub/internal/modules/auth"
 )
 
@@ -28,10 +29,17 @@ type Deps struct {
 
 func Router(d Deps) http.Handler {
 	r := chi.NewRouter()
+	reg := metrics.New()
+	reg.Gauge("hub_realtime_connections", func() float64 { return float64(d.App.Hub.Connections()) })
+	reg.Gauge("hub_db_pool_acquired", func() float64 { return float64(d.App.DB.Pool.Stat().AcquiredConns()) })
+	reg.Gauge("hub_db_pool_idle", func() float64 { return float64(d.App.DB.Pool.Stat().IdleConns()) })
+	reg.Gauge("hub_db_pool_max", func() float64 { return float64(d.App.DB.Pool.Stat().MaxConns()) })
+	reg.Gauge("hub_db_pool_wait_seconds_total", func() float64 { return d.App.DB.Pool.Stat().AcquireDuration().Seconds() })
 	if err := httpx.SetTrustedProxies(d.App.Cfg.Proxies); err != nil {
 		panic("HUB_TRUSTED_PROXIES: " + err.Error())
 	}
-	r.Use(httpx.RequestIDMW, httpx.Recover, httpx.SecurityHeaders, httpx.CORS(d.App.Cfg.AllowedOrigins), httpx.AccessLog, d.ipLimit, compressExceptSockets, httpx.BodyLimit(16<<20))
+	r.Use(httpx.RequestIDMW, httpx.Recover, httpx.SecurityHeaders, httpx.CORS(d.App.Cfg.AllowedOrigins), reg.Middleware, httpx.AccessLog, d.ipLimit, compressExceptSockets, httpx.BodyLimit(16<<20))
+	r.Method("GET", "/metrics", reg.Handler(d.App.Cfg.MetricsToken, httpx.ClientIP))
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) { httpx.JSON(w, 200, map[string]any{"ok": true}) })
 	r.Get("/readyz", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
 		if err := d.App.DB.Pool.Ping(r.Context()); err != nil {
@@ -49,7 +57,8 @@ func Router(d Deps) http.Handler {
 		for _, m := range d.Modules {
 			m.Public(v)
 		}
-		if d.Dev != nil && d.App.Cfg.Env != "prod" {
+		// the in-memory inbox lists verification codes and reset links to anyone: development only, never staging or production
+		if d.Dev != nil && d.App.Cfg.Env == "dev" {
 			v.Get("/dev/outbox", auth.DevOutbox(d.Dev))
 		}
 		v.Group(func(p chi.Router) {
