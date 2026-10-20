@@ -1,4 +1,4 @@
-<!-- My storage: how much of my space I use, and my biggest files so I can delete what I no longer need. -->
+<!-- My storage: how much of my space I use and how much is left. -->
 <template>
 <section v-if="ready" aria-label="My storage" style="padding: 20px 24px; border-radius: 22px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 14px">
 <div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px">
@@ -12,25 +12,6 @@
 <span :style="`font-size: 13px; color: ${color}; line-height: 1.5`">{{ advice }}</span>
 </template>
 <template v-if="err"><div role="alert" style="padding: 10px 14px; border-radius: 12px; background: var(--k-3A2420,#3A2420); color: #FFD3CA; font-size: 13px">{{ err }}</div></template>
-<template v-if="files.length">
-<strong style="font-size: 14px">Your biggest files</strong>
-<span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6); margin-top: -8px">Deleting a file frees its space straight away. It is removed for everyone it was shared with.</span>
-<div style="display: flex; flex-direction: column; gap: 6px">
-<div v-for="f in files" :key="f.id" style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--k-24322C,#24322C)">
-<div style="flex: 1 1 220px; min-width: 0; display: flex; flex-direction: column">
-<strong style="font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ f.name }}</strong>
-<span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">{{ f.where }} · {{ f.when }}</span>
-</div>
-<span style="font-size: 13px; font-weight: 600; min-width: 70px; text-align: right">{{ size(f.size) }}</span>
-<template v-if="asking === f.id">
-<button type="button" @click="remove(f)" :disabled="busy" style="height: 32px; padding: 0 14px; border-radius: 16px; border: 0; background: #FF9B8A; color: #0F1714; font-weight: 600; cursor: pointer">Delete</button>
-<button type="button" @click="asking = ''" style="height: 32px; padding: 0 14px; border-radius: 16px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer">Keep</button>
-</template>
-<button v-else type="button" @click="asking = f.id" :aria-label="`Delete ${f.name}`" style="height: 32px; padding: 0 14px; border-radius: 16px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-FF9B8A,#FF9B8A); cursor: pointer">Delete…</button>
-</div>
-</div>
-</template>
-<span v-else style="font-size: 13px; color: var(--k-9DB0A6,#9DB0A6)">You have not uploaded any files yet.</span>
 </section>
 </template>
 
