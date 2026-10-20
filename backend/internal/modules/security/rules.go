@@ -120,7 +120,13 @@ func Evaluate(ctx context.Context, a *app.App, tx pgx.Tx, e *app.Entry) error {
 
 	switch {
 	case e.Module == "Integrity" && e.Result == "Failed":
-		return raise("r8", e.Action, "Found by the integrity checks. The changed records are hidden from everyone and listed in the audit log; restore them from a backup and find out who had direct database access.")
+		detail := "Found by the integrity checks. The changed records are hidden from everyone; restore them from a backup and find out who had direct database access."
+		if m, ok := e.Payload.(map[string]any); ok {
+			if d, ok := m["detail"].(string); ok && d != "" {
+				detail = d
+			}
+		}
+		return raise("r8", e.Action, detail)
 	case e.Module == "Auth" && e.Result == "Failed":
 		var n int
 		if err := tx.QueryRow(ctx, `select count(*) from hub.audit_logs where actor_name=$1 and module='Auth' and result='Failed' and ts > coalesce($2, now()) - interval '10 minutes' and ts <= coalesce($2, now())`, e.Name, e.At).Scan(&n); err != nil {

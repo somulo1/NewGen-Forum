@@ -104,10 +104,15 @@ func reportTampering(ctx context.Context, a *app.App, org uuid.UUID, conv uuid.U
 	if len(fresh) == 0 {
 		return
 	}
+	shown := fresh
+	if len(shown) > 8 {
+		shown = shown[:8]
+	}
+	detail := fmt.Sprintf("Conversation %s: message(s) %v no longer match their seal (likes, votes or posts changed outside Hub). They are hidden from everyone. Restore them from a backup and find out who had direct access to the database.", conv, shown)
 	err := a.DB.WithOrg(ctx, org, func(tx pgx.Tx) error {
 		return a.AuditEntry(ctx, tx, &app.Entry{Org: org, Name: "Integrity monitor", Module: "Integrity", Result: "Failed",
 			Action:  fmt.Sprintf("%d message(s) in a conversation were changed outside Hub (likes, votes or posts)", len(fresh)),
-			Payload: map[string]any{"conversation": conv, "messages": fresh}})
+			Payload: map[string]any{"conversation": conv, "messages": fresh, "detail": detail}})
 	})
 	if err != nil {
 		slog.Error("could not record tampering", "org", org, "err", err)

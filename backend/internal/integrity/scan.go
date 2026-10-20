@@ -2,7 +2,9 @@ package integrity
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -15,7 +17,16 @@ type Problem struct {
 	Org    string `json:"org,omitempty"`
 	Row    string `json:"row,omitempty"`
 	Reason string `json:"reason"`
+	// Cause: "schema" (the record is authentic: a database update added a column after it was sealed), "changed" (its
+	// content no longer matches its seal), or "unsealed" (it never got its seal).
+	Cause string            `json:"cause,omitempty"`
+	Added []string          `json:"added_columns,omitempty"` // for "schema": the column(s) that appeared since it was sealed
+	PK    map[string]string `json:"key,omitempty"`           // the record's primary key
+	Ident map[string]string `json:"record,omitempty"`        // what identifies it for a person: reference, type, status, dates...
 }
+
+// identKeys are the columns that say which record this is, without exposing anything sealed or personal.
+var identKeys = []string{"id", "ref", "key", "name", "type", "content_type", "kind", "module", "collection", "status", "role", "flow_key", "created_at", "ts", "conversation_id", "container_id", "conversation", "person_id", "level", "seq"}
 
 type Report struct {
 	Tables   int       `json:"tables"`
@@ -44,6 +55,28 @@ var pendingMAC = func() []byte {
 	}
 	return b
 }()
+
+// findAdded tries leaving out one or two of the row's empty columns: if the seal then matches, those columns were added to the
+// table after the record was sealed (a new empty column changes the record's canonical form, not its content).
+func (sc *Scanner) findAdded(ctx context.Context, tx pgx.Tx, table, ctid string, nullKeys []string, ver int, mac []byte) []string {
+	if len(nullKeys) == 0 || len(nullKeys) > 30 {
+		return nil
+	}
+	rs, err := tx.Query(ctx, fmt.Sprintf(`select array_to_string(c.ks, ','), hub.canon_minus(t, c.ks)
+		from hub.%s t, (select array[a] ks from unnest($2::text[]) a union all select array[a, b] from unnest($2::text[]) a, unnest($2::text[]) b where a < b) c
+		where t.ctid = $1::tid`, table), ctid, nullKeys)
+	if err != nil {
+		return nil
+	}
+	defer rs.Close()
+	for rs.Next() {
+		var cols, canon string
+		if rs.Scan(&cols, &canon) == nil && sc.S.Verify(mac, table, ver, canon) {
+			return strings.Split(cols, ",")
+		}
+	}
+	return nil
+}
 
 // Run scans every sealed table for every organization, and every organization's ledger chain.
 func (sc *Scanner) Run(ctx context.Context, conn *pgx.Conn, only string) (*Report, error) {
@@ -114,39 +147,108 @@ func (sc *Scanner) Run(ctx context.Context, conn *pgx.Conn, only string) (*Repor
 	rep.Orgs = len(orgs)
 
 	scanTable := func(t tbl, org uuid.UUID) error {
-		rows, err := tx.Query(ctx, fmt.Sprintf(`select ver, mac, hub.canon(t) from hub.%s t`, t.name))
+		rows, err := tx.Query(ctx, fmt.Sprintf(`select ver, mac, hub.canon(t), ctid::text,
+			coalesce((select array_agg(e.key) from jsonb_each(to_jsonb(t)) e where e.value = 'null'::jsonb and e.key not in ('mac','ver','updated_at')), '{}'),
+			(to_jsonb(t) - 'mac' - 'ver' - 'updated_at')::text from hub.%s t`, t.name))
 		if err != nil {
 			return fmt.Errorf("scan %s: %w", t.name, err)
 		}
-		defer rows.Close()
+		type suspect struct {
+			ver      int
+			mac      []byte
+			canon    string
+			ctid     string
+			nullKeys []string
+			data     string
+			unsealed bool
+		}
+		var sus []suspect
 		for rows.Next() {
-			var ver int
-			var mac []byte
-			var canon string
-			if err := rows.Scan(&ver, &mac, &canon); err != nil {
+			var x suspect
+			if err := rows.Scan(&x.ver, &x.mac, &x.canon, &x.ctid, &x.nullKeys, &x.data); err != nil {
+				rows.Close()
 				return err
 			}
 			rep.Rows++
-			bad := ""
 			switch {
-			case string(mac) == string(pendingMAC):
-				bad = "row was never sealed (its MAC is the pending marker)"
-			case !sc.S.Verify(mac, t.name, ver, canon):
-				bad = "row does not match its MAC (changed outside the system, or rolled back)"
-			}
-			if bad != "" && len(rep.Problems) < sc.MaxBad {
-				row := strings.TrimSpace(canon)
-				if len(row) > 160 {
-					row = row[:160] + "…"
-				}
-				p := Problem{Table: t.name, Row: row, Reason: bad}
-				if t.tenant {
-					p.Org = org.String()
-				}
-				rep.Problems = append(rep.Problems, p)
+			case string(x.mac) == string(pendingMAC):
+				x.unsealed = true
+				sus = append(sus, x)
+			case !sc.S.Verify(x.mac, t.name, x.ver, x.canon):
+				sus = append(sus, x)
 			}
 		}
-		return rows.Err()
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return err
+		}
+		if len(sus) == 0 {
+			return nil
+		}
+		// the primary key, to name (and later re-seal) a record
+		var pk []string
+		pr, err := tx.Query(ctx, `select a.attname from pg_index i join pg_attribute a on a.attrelid = i.indrelid and a.attnum = any(i.indkey) where i.indrelid = $1::regclass and i.indisprimary order by a.attnum`, "hub."+t.name)
+		if err != nil {
+			return err
+		}
+		for pr.Next() {
+			var c string
+			if err := pr.Scan(&c); err != nil {
+				pr.Close()
+				return err
+			}
+			pk = append(pk, c)
+		}
+		pr.Close()
+		for _, x := range sus {
+			if len(rep.Problems) >= sc.MaxBad {
+				break
+			}
+			row := strings.TrimSpace(x.canon)
+			if len(row) > 160 {
+				row = row[:160] + "…"
+			}
+			p := Problem{Table: t.name, Row: row}
+			if t.tenant {
+				p.Org = org.String()
+			}
+			var data map[string]any
+			_ = json.Unmarshal([]byte(x.data), &data)
+			text := func(k string) (string, bool) {
+				v, ok := data[k]
+				if !ok || v == nil {
+					return "", false
+				}
+				if f, isNum := v.(float64); isNum {
+					return strconv.FormatFloat(f, 'f', -1, 64), true
+				}
+				return fmt.Sprint(v), true
+			}
+			p.PK, p.Ident = map[string]string{}, map[string]string{}
+			for _, k := range pk {
+				if v, ok := text(k); ok {
+					p.PK[k] = v
+				}
+			}
+			for _, k := range identKeys {
+				if v, ok := text(k); ok && len(v) <= 80 {
+					p.Ident[k] = v
+				}
+			}
+			switch {
+			case x.unsealed:
+				p.Cause, p.Reason = "unsealed", "the record never got its seal"
+			default:
+				p.Cause, p.Reason = "changed", "the record no longer matches its seal: it was changed outside the system, or rolled back"
+				// Does it match once the column(s) added since it was sealed are left out? Then the record is authentic.
+				if cols := sc.findAdded(ctx, tx, t.name, x.ctid, x.nullKeys, x.ver, x.mac); cols != nil {
+					p.Cause, p.Added = "schema", cols
+					p.Reason = "a database update added " + strings.Join(cols, ", ") + " after the record was sealed; its content is unchanged"
+				}
+			}
+			rep.Problems = append(rep.Problems, p)
+		}
+		return nil
 	}
 	for _, t := range tables {
 		if !t.tenant {
