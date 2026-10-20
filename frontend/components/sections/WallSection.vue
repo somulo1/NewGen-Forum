@@ -42,8 +42,8 @@
 
 <div v-if="!momentForm.open" style="padding: 16px; border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 12px">
 <div style="display: flex; gap: 12px; align-items: flex-start">
-<UserAvatar name="Sam" initials="S" color="#C2185B" :size="42" text-color="#fff" aria-label="Your profile photo"/>
-<RichTextInput style="flex: 1; min-width: 0" :model-value="draft" @update:model-value="onDraftValue" placeholder="What's on your mind, Sam?" aria-label="Write a post" :rows="3" :input-style="`color: ${postBg ? 'var(--k-FFFFFF,#FFFFFF)' : 'var(--k-E8EFEA,#E8EFEA)'}; font-size: 15px`"/>
+<UserAvatar :name="meAv.name" :initials="meAv.initials" :color="meAv.color" :size="42" text-color="#fff" aria-label="Your profile photo"/>
+<RichTextInput style="flex: 1; min-width: 0" :model-value="draft" @update:model-value="onDraftValue" :placeholder="`What's on your mind${meAv.first ? ', ' + meAv.first : ''}?`" aria-label="Write a post" :rows="3" :input-style="`color: ${postBg ? 'var(--k-FFFFFF,#FFFFFF)' : 'var(--k-E8EFEA,#E8EFEA)'}; font-size: 15px`"/>
 </div>
 <div role="group" aria-label="Post background color" style="display: flex; flex-wrap: wrap; align-items: center; gap: 7px; padding-left: 54px">
 <span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Post color</span>
@@ -145,7 +145,7 @@
 <template v-for="n in p.commentTree" :key="n.key"><CommentNode :node="n"/></template>
 </div>
 <div v-if="!p.replyingAny" style="display: flex; gap: 8px; align-items: center; padding: 8px 16px 14px; border-top: 1px solid var(--k-24322C,#24322C)">
-<UserAvatar name="Sam" initials="S" color="#C2185B" :size="32" aria-label="Your profile photo"/>
+<UserAvatar :name="meAv.name" :initials="meAv.initials" :color="meAv.color" :size="32" aria-label="Your profile photo"/>
 <CommentBox style="flex: 1" placeholder="Write a comment…" @send="p.addComment"/>
 </div>
 </div>
@@ -202,7 +202,7 @@ export default {
     pickMomentFile(e) { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) this.momentFile = f; },
     wish() { this.wishBirthday(); this.$nextTick(() => this.$refs.composer && this.$refs.composer.focus()); }
   },
-  ...hubBindings(["wallBirthdays","pickEmojiWall","addMoment","momentForm","momentView","wpollView","openEventFromWall","wallAudience","wallAudiences","onAudience","wishBirthday","onlineList","trending","wallFilter","canPostWall","cannotPostWall","draft","hasWFiles","moments","onDraftValue","onPost","onWallFiles","people","postBtnStyle","posts","show","wfiles"])
+  ...hubBindings(["meAv","wallBirthdays","pickEmojiWall","addMoment","momentForm","momentView","wpollView","openEventFromWall","wallAudience","wallAudiences","onAudience","wishBirthday","onlineList","trending","wallFilter","canPostWall","cannotPostWall","draft","hasWFiles","moments","onDraftValue","onPost","onWallFiles","people","postBtnStyle","posts","show","wfiles"])
 };
 </script>
 

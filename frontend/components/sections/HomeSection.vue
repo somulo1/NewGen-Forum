@@ -164,10 +164,6 @@
 </template>
 
 <template v-if="w.t.awards">
-<div style="padding: 16px; border-radius: 14px; background: var(--k-2A2716,#2A2716); border: 1px solid var(--k-4A4426,#4A4426); display: flex; gap: 14px; align-items: center">
-<span aria-hidden="true" style="width: 52px; height: 52px; flex: none; border-radius: 50%; background: #7CC4FF; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 17px; box-shadow: 0 0 0 3px var(--k-FFD66B,#FFD66B)">BK</span>
-<div style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--k-FFD66B,#FFD66B)">Employee of the month</span><strong style="font-size: 16px">Brian Kiprop</strong><span style="font-size: 12px; color: var(--k-E3D9AE,#E3D9AE)">Systems Engineer · 99.9% uptime this month</span></div>
-</div>
 <div style="display: flex; flex-direction: column; gap: 8px">
 <template v-for="(aw, aw__i) in w.items" :key="aw__i">
 <div style="display: flex; gap: 10px; align-items: center">
