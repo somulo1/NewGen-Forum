@@ -7,4 +7,4 @@ cd "$(dirname "$0")/.."
 BIN="${LIVEKIT_BIN:-$(command -v livekit-server || echo "$HOME/.cache/lk/livekit-server")}"
 [ -x "$BIN" ] || { echo "livekit-server not found. Download it from the LiveKit releases page and put it on PATH or set LIVEKIT_BIN." >&2; exit 1; }
 echo "export HUB_SFU_NODES='http://127.0.0.1:7880|hubkey|hubsecret-hubsecret-hubsecret-hubsecret'"
-exec "$BIN" --config deploy/media/livekit.dev.yaml --node-ip 127.0.0.1
+exec "$BIN" --config deploy/media/livekit.dev.yaml --node-ip "${HUB_MEDIA_IP:-$(hostname -I | cut -d" " -f1)}"
