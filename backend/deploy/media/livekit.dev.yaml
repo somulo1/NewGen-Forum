@@ -1,0 +1,16 @@
+# One local media server for development.  scripts/dev-media.sh starts it.
+port: 7880
+rtc:
+  tcp_port: 7881
+  udp_port: 7882
+  use_external_ip: false
+keys:
+  hubkey: hubsecret-hubsecret-hubsecret-hubsecret
+webhook:
+  api_key: hubkey
+  urls:
+    - http://127.0.0.1:8080/v1/calls/sfu-hook
+room:
+  empty_timeout: 300
+logging:
+  level: info

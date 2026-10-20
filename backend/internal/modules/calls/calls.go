@@ -24,10 +24,14 @@ import (
 	"hub/internal/httpx"
 	"hub/internal/integrity"
 	"hub/internal/realtime"
+	"hub/internal/sfu"
 	"hub/internal/tenant"
 )
 
-type Module struct{ A *app.App }
+type Module struct {
+	A    *app.App
+	sfuc *sfu.Client
+}
 
 func New(a *app.App) *Module { return &Module{A: a} }
 
@@ -48,9 +52,11 @@ type Call struct {
 }
 
 type Entry struct {
-	Call  *Call  `json:"call"`
-	Token string `json:"token,omitempty"`
-	URL   string `json:"url,omitempty"`
+	Call  *Call    `json:"call"`
+	Token string   `json:"token,omitempty"`
+	URL   string   `json:"url,omitempty"`
+	Mode  string   `json:"mode"` // "mesh": small peer-to-peer room on the calls service. "sfu": big room on a media server.
+	SFU   *SFUInfo `json:"sfu,omitempty"`
 }
 
 type StartIn struct {
@@ -139,11 +145,23 @@ func (m *Module) Start(ctx context.Context, p *tenant.Principal, in StartIn) (*E
 			}
 		}
 		c := &Call{ID: id, Kind: in.Kind, Context: in.Context, Conversation: in.Conversation, Host: p.Person, HostName: p.Name, Status: status, StartedAt: app.Now()}
+		if m.sfuFor(in.Context) {
+			if err := m.reserveRoom(ctx, p.Org, id); err != nil {
+				return err
+			}
+			info, err := m.sfuEntry(ctx, p, c, "host", true)
+			if err != nil {
+				m.releaseRoom(ctx, p.Org, id)
+				return err
+			}
+			out = &Entry{Call: c, Mode: "sfu", SFU: info}
+			return nil
+		}
 		tok, err := m.token(p, c, "host")
 		if err != nil {
 			return err
 		}
-		out = &Entry{Call: c, Token: tok, URL: m.roomURL(id.String())}
+		out = &Entry{Call: c, Mode: "mesh", Token: tok, URL: m.roomURL(id.String())}
 		return nil
 	})
 	if err != nil {
@@ -190,11 +208,17 @@ func (m *Module) Join(ctx context.Context, p *tenant.Principal, id uuid.UUID) (*
 		if !ok {
 			return httpx.ErrNotFound
 		}
-		role := "participant"
-		if c.Host == p.Person {
-			role = "host"
-		} else if mod, _ := authz.Can(ctx, tx, p.Person, "forums", "Moderate"); mod {
-			role = "moderator"
+		role := m.roleOf(ctx, tx, c, p)
+		if m.sfuFor(c.Context) {
+			info, err := m.sfuEntry(ctx, p, c, role, true)
+			if err != nil {
+				return err
+			}
+			if _, err := tx.Exec(ctx, `insert into hub.call_participants (org_id, call_id, person_id, invited) values ($1,$2,$3,false) on conflict do nothing`, p.Org, id, p.Person); err != nil {
+				return err
+			}
+			out = &Entry{Call: c, Mode: "sfu", SFU: info}
+			return nil
 		}
 		if _, err := tx.Exec(ctx, `insert into hub.call_participants (org_id, call_id, person_id, invited) values ($1,$2,$3,false) on conflict do nothing`, p.Org, id, p.Person); err != nil {
 			return err
@@ -203,7 +227,7 @@ func (m *Module) Join(ctx context.Context, p *tenant.Principal, id uuid.UUID) (*
 		if err != nil {
 			return err
 		}
-		out = &Entry{Call: c, Token: tok, URL: m.roomURL(id.String())}
+		out = &Entry{Call: c, Mode: "mesh", Token: tok, URL: m.roomURL(id.String())}
 		return nil
 	})
 	return out, err
@@ -381,7 +405,9 @@ func (m *Module) tell(org, call uuid.UUID, typ string, by uuid.UUID) {
 	}
 }
 
-func (m *Module) Public(chi.Router) {}
+func (m *Module) Public(r chi.Router) {
+	m.sfuPublic(r)
+}
 
 func (m *Module) Private(r chi.Router) {
 	org := func(h func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error) http.HandlerFunc {
@@ -393,6 +419,7 @@ func (m *Module) Private(r chi.Router) {
 			return h(w, r, p)
 		})
 	}
+	m.sfuPrivate(r, org)
 	r.Post("/calls", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
 		var in StartIn
 		if err := httpx.Decode(r, &in, 2<<10); err != nil {

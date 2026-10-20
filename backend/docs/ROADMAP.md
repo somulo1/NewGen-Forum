@@ -28,4 +28,4 @@ Be clear-eyed about these before go-live.
 ## Production checklist
 Real `HUB_*` keys from a KMS; unique `HUB_DB_GUARD`; TLS everywhere; no superuser access; `pgaudit`; WAL archive to write-once
 storage; run `cmd/integrity` on a schedule and alert on exit code 2; rate limits at the edge; run several `cmd/calls` instances
-and list them in `HUB_CALLS_URL` (comma separated).
+and list them in `HUB_CALLS_URL` (comma separated). Big calls (up to 800 people) need a media server fleet: see `docs/CALLS_SCALE.md`.
