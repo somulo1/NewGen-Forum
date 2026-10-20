@@ -29,7 +29,13 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	dev := &mail.Dev{}
-	a, err := app.New(ctx, cfg, dev)
+	// real email when HUB_SMTP_HOST is set; otherwise messages are kept in memory (development)
+	var mailer mail.Mailer = dev
+	if sm := mail.FromEnv(); sm != nil {
+		mailer = sm
+		slog.Info("email through SMTP", "host", sm.Host, "port", sm.Port, "security", sm.Security)
+	}
+	a, err := app.New(ctx, cfg, mailer)
 	if err != nil {
 		slog.Error("startup", "err", err)
 		os.Exit(1)

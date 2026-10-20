@@ -687,6 +687,18 @@
    "unread": "integer. Count of unread in all"
   }
  },
+ "POST /v1/mentions": {
+  "summary": "Tell people they were tagged",
+  "description": "Called by the app after someone tags colleagues in a ticket comment, a wall post or a forum message. The message is end-to-end encrypted, so only who was tagged and where is sent. Each tagged person gets a bell notification and an email. Yourself, duplicates and people who are not active are skipped.",
+  "access": "any signed-in member of the organization (token issued with `org`)",
+  "body": {
+   "where": "string. ticket, wall, forum or project",
+   "ref": "string. The ticket number, or the forum or project name (up to 80 characters)",
+   "people": "array of uuid. Up to 20 person ids"
+  },
+  "status": 204,
+  "response": null
+ },
  "POST /v1/notifications/read": {
   "summary": "Mark all my notifications read",
   "access": "any signed-in member of the organization (token issued with `org`)",

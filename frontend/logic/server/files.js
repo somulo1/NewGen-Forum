@@ -22,11 +22,12 @@ export async function upload(srv, container, file) {
   const fileKey = globalThis.crypto.getRandomValues(new Uint8Array(32));
   const nonce = globalThis.crypto.getRandomValues(new Uint8Array(12));
   const k = await subtle().importKey('raw', fileKey, 'AES-GCM', false, ['encrypt']);
-  const ct = new Uint8Array(await subtle().encrypt({ name: 'AES-GCM', iv: nonce }, k, raw));
+  const id = newId();   // the file's id is part of what is authenticated, so its bytes cannot be swapped for another file's
+  const ct = new Uint8Array(await subtle().encrypt({ name: 'AES-GCM', iv: nonce, additionalData: new TextEncoder().encode('hub/file/v1|' + id) }, k, raw));
   const body = new Uint8Array(nonce.length + ct.length);
   body.set(nonce); body.set(ct, nonce.length);
   const info = { name: file.name, kind: kindOf(file.name, file.type), type: file.type || '', size_label: fmtSize(file.size), by: srv.me.name, when: new Date().toISOString(), file_key: b64(fileKey) };
-  const sealed = await srv.vault.seal(container, info, newId());
+  const sealed = await srv.vault.seal(container, info, id);
   await srv.request('POST', `/folders/${container}/files`, { id: sealed.id, epoch: sealed.epoch, device: sealed.device, envelope: sealed.envelope });
   await srv.bytes('PUT', `/files/${sealed.id}/content`, body);
   return { fileId: sealed.id, name: file.name, meta: info.size_label, type: info.type, isImg: info.kind === 'IMG', isVideo: info.kind === 'VID', key: info.file_key };
@@ -38,7 +39,10 @@ export async function openUrl(srv, ref) {
   if (urls.has(ref.fileId)) return urls.get(ref.fileId);
   const data = await srv.bytes('GET', `/files/${ref.fileId}/content`);
   const k = await subtle().importKey('raw', unb64(ref.key), 'AES-GCM', false, ['decrypt']);
-  const pt = await subtle().decrypt({ name: 'AES-GCM', iv: data.subarray(0, 12) }, k, data.subarray(12));
+  // files made before the id was authenticated have no extra data: try the new form first, then the old
+  let pt;
+  try { pt = await subtle().decrypt({ name: 'AES-GCM', iv: data.subarray(0, 12), additionalData: new TextEncoder().encode('hub/file/v1|' + ref.fileId) }, k, data.subarray(12)); }
+  catch (e) { pt = await subtle().decrypt({ name: 'AES-GCM', iv: data.subarray(0, 12) }, k, data.subarray(12)); }
   const url = URL.createObjectURL(new Blob([pt], { type: ref.type || (ref.isImg ? 'image/*' : 'application/octet-stream') }));
   urls.set(ref.fileId, url);
   return url;

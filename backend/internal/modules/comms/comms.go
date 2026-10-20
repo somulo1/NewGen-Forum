@@ -63,7 +63,8 @@ type SendIn struct {
 	Epoch        int       `json:"epoch"`
 	Device       uuid.UUID `json:"device"`
 	Envelope     string    `json:"envelope"`
-	Batch        uuid.UUID `json:"batch"` // optional: the sends made together (one per place) share one
+	Details      *Details  `json:"details"` // what emails may say about it (written into emails, never stored on its own)
+	Batch        uuid.UUID `json:"batch"`   // optional: the sends made together (one per place) share one
 }
 
 func (s *Service) Send(ctx context.Context, p *tenant.Principal, in SendIn) (*Comm, *approvals.Request, error) {
@@ -118,7 +119,7 @@ func (s *Service) Send(ctx context.Context, p *tenant.Principal, in SendIn) (*Co
 		if in.Type == "Announcement" && audience != nil && *audience == "org" {
 			flow = "f1"
 		}
-		r, applied, err := s.Ap.Submit(ctx, tx, p, flow, "comm.publish", in.Type+" "+ref, "", map[string]any{"comm": id})
+		r, applied, err := s.Ap.Submit(ctx, tx, p, flow, "comm.publish", in.Type+" "+ref, "", map[string]any{"comm": id, "details": in.Details.clean()})
 		if err != nil {
 			return err
 		}
@@ -132,7 +133,8 @@ func (s *Service) Send(ctx context.Context, p *tenant.Principal, in SendIn) (*Co
 }
 
 type pub struct {
-	Comm uuid.UUID `json:"comm"`
+	Comm    uuid.UUID `json:"comm"`
+	Details *Details  `json:"details,omitempty"` // for the emails only; it waits in the approval request, which is already stored encrypted
 }
 
 func (s *Service) applyPublish(ctx context.Context, tx pgx.Tx, a approvals.Applied) error {
@@ -172,6 +174,11 @@ func (s *Service) applyPublish(ctx context.Context, tx pgx.Tx, a approvals.Appli
 	}
 	if err := nb.Add(ctx, tx, a.Org, by, "comm", text, "#B8F36B", ""); err != nil {
 		return err
+	}
+	if status == "Published" {
+		var cref string
+		_ = tx.QueryRow(ctx, `select ref from hub.comms where id=$1`, pl.Comm).Scan(&cref)
+		mailAudience(ctx, s.A, tx, &nb, a.Org, pl.Details, conv, by, typ, cref)
 	}
 	go func() {
 		nb.Send(context.Background(), s.A)
@@ -522,6 +529,7 @@ func (s *Service) applyAward(ctx context.Context, tx pgx.Tx, a approvals.Applied
 	}
 	var nb notify.Batch
 	for _, id := range people {
+		mailAward(&nb, a.Org, id, typ)
 		if err := nb.Add(ctx, tx, a.Org, id, "award", "You received an award: "+typ+".", "#FFD66B", ""); err != nil {
 			return err
 		}

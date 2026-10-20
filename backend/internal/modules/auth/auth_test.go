@@ -219,7 +219,11 @@ func TestPasswordResetFlow(t *testing.T) {
 	if c, _ := e.do("POST", "/auth/login", map[string]any{"email": email, "password": "NewPassw0rd1"}, ""); c != 200 {
 		t.Fatalf("new password refused: %d", c)
 	}
-	if !strings.Contains(e.last(email), "was just changed") {
+	noticed := false
+	for _, m := range e.dev.To(email) {
+		noticed = noticed || strings.Contains(m.Body, "was just changed")
+	}
+	if !noticed {
 		t.Fatal("no change notice was emailed")
 	}
 	// unknown address: nothing was ever sent

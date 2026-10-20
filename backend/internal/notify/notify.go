@@ -4,8 +4,11 @@ package notify
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -13,7 +16,9 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"hub/internal/app"
+	"hub/internal/crypto"
 	"hub/internal/httpx"
+	"hub/internal/mail"
 	"hub/internal/realtime"
 	"hub/internal/tenant"
 )
@@ -34,7 +39,23 @@ type Pending struct {
 	note Note
 }
 
-type Batch struct{ items []Pending }
+type queuedMail struct {
+	org, person uuid.UUID
+	subject     string
+	card        mail.Card
+}
+
+type Batch struct {
+	items []Pending
+	mails []queuedMail
+}
+
+// Mail queues an email to one person; it goes out when Send is called (after the caller's transaction commits). The card's
+// action URL may be a path such as "/tickets": the address of the site is put in front of it. A person with no email, or an
+// email server that is down, never stops the action that caused the message.
+func (b *Batch) Mail(org, person uuid.UUID, subject string, c mail.Card) {
+	b.mails = append(b.mails, queuedMail{org, person, subject, c})
+}
 
 // Add records a notification inside the caller's transaction and queues its push; call Send after the transaction commits.
 func (b *Batch) Add(ctx context.Context, tx pgx.Tx, org, person uuid.UUID, kind, text, color, ref string) error {
@@ -55,6 +76,60 @@ func (b *Batch) Send(ctx context.Context, a *app.App) {
 		d, _ := json.Marshal(p.note)
 		a.Publish(ctx, realtime.Event{Type: "notification", Channel: realtime.AcctChannel(p.acct), Org: p.org.String(), Data: d})
 	}
+	if len(b.mails) > 0 {
+		go sendMails(a, b.mails)
+	}
+}
+
+func sendMails(a *app.App, list []queuedMail) {
+	if a.Mail == nil {
+		return
+	}
+	ctx := context.Background()
+	work := make(chan queuedMail)
+	var wg sync.WaitGroup
+	for i := 0; i < 6; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for m := range work {
+				if err := deliver(ctx, a, m); err != nil {
+					slog.Warn("email not sent", "subject", m.subject, "err", err)
+				}
+			}
+		}()
+	}
+	for _, m := range list {
+		work <- m
+	}
+	close(work)
+	wg.Wait()
+}
+
+// deliver looks the person up (name, address, organization) and sends the card.
+func deliver(ctx context.Context, a *app.App, m queuedMail) error {
+	var first, orgName string
+	var acct uuid.UUID
+	var enc []byte
+	err := a.DB.WithOrg(ctx, m.org, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `select p.first_name, o.name, ac.id, ac.email_enc from hub.people p join hub.orgs o on o.id = p.org_id join hub.accounts ac on ac.id = p.account_id where p.id=$1 and p.status='active'`, m.person).Scan(&first, &orgName, &acct, &enc)
+	})
+	if err != nil {
+		return err
+	}
+	addr, err := crypto.FieldOpen(a.PlatformKey(), crypto.Context{Org: "platform", Table: "accounts", Column: "email_enc", RowID: acct.String()}, enc)
+	if err != nil {
+		return err
+	}
+	c := m.card
+	c.Org = orgName
+	if c.Greeting == "" {
+		c.Greeting = "Hello " + first + ","
+	}
+	if u := c.Action[1]; strings.HasPrefix(u, "/") && len(a.Cfg.AllowedOrigins) > 0 {
+		c.Action[1] = strings.TrimRight(a.Cfg.AllowedOrigins[0], "/") + u
+	}
+	return mail.SendCard(ctx, a.Mail, string(addr), m.subject, c)
 }
 
 type Module struct{ A *app.App }
@@ -95,6 +170,53 @@ func (m *Module) Private(r chi.Router) {
 			return err
 		}
 		httpx.JSON(w, 200, map[string]any{"notifications": out, "unread": unread})
+		return nil
+	}))
+	// Someone tagged people in a ticket comment, a wall post or a forum message. The message itself is end-to-end encrypted, so
+	// the server is told only who was tagged and where; it sends each of them a bell notification and an email.
+	r.Post("/mentions", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
+		p, err := tenant.MustOrg(r.Context())
+		if err != nil {
+			return err
+		}
+		var in struct {
+			Where  string      `json:"where"` // ticket | wall | forum | project
+			Ref    string      `json:"ref"`   // ticket number, forum or project name
+			People []uuid.UUID `json:"people"`
+		}
+		if err := httpx.Decode(r, &in, 8<<10); err != nil {
+			return err
+		}
+		place, path := map[string][2]string{"ticket": {"ticket ", "/tickets"}, "wall": {"a post on the community wall", "/wall"}, "forum": {"a forum message in ", "/"}, "project": {"a task in ", "/projects"}}[in.Where][0], map[string][2]string{"ticket": {"", "/tickets"}, "wall": {"", "/wall"}, "forum": {"", "/"}, "project": {"", "/projects"}}[in.Where][1]
+		if place == "" || len(in.People) == 0 || len(in.People) > 20 || len(in.Ref) > 80 {
+			return httpx.Bad("Say where people were tagged and who (up to 20).")
+		}
+		where := place + in.Ref
+		var nb Batch
+		err = m.A.DB.WithOrg(r.Context(), p.Org, func(tx pgx.Tx) error {
+			seen := map[uuid.UUID]bool{}
+			for _, id := range in.People {
+				if id == p.Person || seen[id] {
+					continue
+				}
+				seen[id] = true
+				var ok bool
+				if err := tx.QueryRow(r.Context(), `select exists (select 1 from hub.people where id=$1 and status='active')`, id).Scan(&ok); err != nil || !ok {
+					continue
+				}
+				if err := nb.Add(r.Context(), tx, p.Org, id, "mention", p.Name+" tagged you in "+where+".", "#C9B6FF", in.Ref); err != nil {
+					return err
+				}
+				nb.Mail(p.Org, id, p.Name+" tagged you", mail.Card{Accent: mail.Violet, Title: "You were tagged", Preheader: p.Name + " tagged you in " + where,
+					Lead: p.Name + " tagged you in " + where + ". Open Hub to see what they said.", Rows: [][2]string{{"Tagged by", p.Name}, {"Where", where}}, Action: [2]string{"Open in Hub", path}})
+			}
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+		nb.Send(r.Context(), m.A)
+		w.WriteHeader(204)
 		return nil
 	}))
 	r.Delete("/notifications", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {

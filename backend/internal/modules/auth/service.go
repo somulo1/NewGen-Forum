@@ -18,6 +18,7 @@ import (
 	"hub/internal/app"
 	"hub/internal/crypto"
 	"hub/internal/httpx"
+	hubmail "hub/internal/mail"
 )
 
 type Service struct{ A *app.App }
@@ -213,6 +214,7 @@ func (s *Service) Login(ctx context.Context, in LoginIn) (*Tokens, error) {
 		}
 	}
 	var tok *Tokens
+	var newAddr bool
 	var loginErr error
 	var replaced []uuid.UUID
 	var ev struct {
@@ -278,6 +280,13 @@ func (s *Service) Login(ctx context.Context, in LoginIn) (*Tokens, error) {
 				return err
 			}
 		}
+		// a sign-in from an address this account has not used before is reported to its owner
+		if in.IP != "" {
+			var seen, any bool
+			if err := tx.QueryRow(ctx, `select exists (select 1 from hub.sessions where account_id=$1 and ip=$2::inet), exists (select 1 from hub.sessions where account_id=$1)`, a.ID, in.IP).Scan(&seen, &any); err == nil {
+				newAddr = any && !seen
+			}
+		}
 		// one session per account: signing in here signs out every other browser and device
 		if replaced, err = s.revokeAllFor(ctx, tx, a.ID, uuid.Nil); err != nil {
 			return err
@@ -296,6 +305,7 @@ func (s *Service) Login(ctx context.Context, in LoginIn) (*Tokens, error) {
 	}
 	if ev.locked != nil {
 		s.recordBlock(ctx, "account", s.emailIdx(email), email, in.IP, "Five wrong passwords in a row", time.Until(*ev.locked))
+		go s.mailLocked(email, ev.name, in.IP, *ev.locked)
 	}
 	if loginErr == errCreds {
 		// the fifth failure within two minutes (this one included) blocks the address
@@ -318,6 +328,9 @@ func (s *Service) Login(ctx context.Context, in LoginIn) (*Tokens, error) {
 		}
 		if len(replaced) > 0 {
 			s.tellReplaced(ctx, ev.acct, sid)
+		}
+		if newAddr {
+			go s.mailNewAddress(email, ev.name, in.IP, in.UserAgent)
 		}
 	}
 	return tok, nil
@@ -680,7 +693,8 @@ func (s *Service) AdminSetTemporaryPassword(ctx context.Context, account uuid.UU
 		return "", err
 	}
 	if notify != "" {
-		_ = s.A.Mail.Send(ctx, notify, "Your Hub password was reset", "An administrator reset your password. Ask them for the temporary password; you will choose a new one when you sign in.")
+		_ = hubmail.SendCard(ctx, s.A.Mail, notify, "Your Hub password was reset", hubmail.Card{Accent: hubmail.Amber, Title: "An administrator reset your password", Preheader: "Ask them for your temporary password",
+			Lead: "Ask your administrator for the temporary password. You will choose a new password when you sign in."})
 	}
 	return temp, nil
 }
@@ -710,4 +724,51 @@ func (s *Service) recordBlock(ctx context.Context, kind string, idx []byte, emai
 		_, err := tx.Exec(ctx, `insert into hub.login_blocks (kind, account_id, email_hint, ip, reason, until) values ($1,$2,$3,$4,$5,$6)`, kind, acct, hint, ip, reason, time.Now().Add(wait))
 		return err
 	})
+}
+
+// mailLocked tells the owner of an account that it was locked after wrong passwords.
+func (s *Service) mailLocked(email, name, ip string, until time.Time) {
+	loc := ""
+	if s.A.Geo != nil && ip != "" {
+		loc = s.A.Geo(ip)
+	}
+	rows := [][2]string{{"Account", email}, {"Attempts from", ip}}
+	if loc != "" {
+		rows = append(rows, [2]string{"Location", loc})
+	}
+	rows = append(rows, [2]string{"Locked until", until.UTC().Format("15:04 UTC")}, [2]string{"Unlocks", "by itself, nothing to do"})
+	_ = hubmail.SendCard(context.Background(), s.A.Mail, email, "Your Hub account was temporarily locked", hubmail.Card{Greeting: "Hello " + firstWord(name) + ",", Title: "Your account was temporarily locked", Preheader: "Five wrong passwords were entered",
+		Lead: "Someone entered the wrong password five times in a row, so Hub locked your account for a few minutes to keep it safe. It unlocks by itself.", Rows: rows,
+		Note: "If this was you, wait a few minutes and try again, or reset your password. If it was not you, reset your password now and tell your administrator."})
+}
+
+// mailNewAddress tells the owner of an account that someone signed in from an address it had not used before.
+func (s *Service) mailNewAddress(email, name, ip, ua string) {
+	loc := ""
+	if s.A.Geo != nil {
+		loc = s.A.Geo(ip)
+	}
+	if len(ua) > 140 {
+		ua = ua[:140]
+	}
+	rows := [][2]string{{"When", time.Now().UTC().Format("2 Jan 2006, 15:04 UTC")}, {"Address", ip}}
+	if loc != "" {
+		rows = append(rows, [2]string{"Location", loc})
+	}
+	if ua != "" {
+		rows = append(rows, [2]string{"Browser", ua})
+	}
+	_ = hubmail.SendCard(context.Background(), s.A.Mail, email, "New sign-in to your Hub account", hubmail.Card{Greeting: "Hello " + firstWord(name) + ",", Title: "New sign-in to your account", Preheader: "A sign-in from " + ip,
+		Lead: "Your account was just signed in to from an address you have not used before. Signing in here signed you out of your other browsers and devices.", Rows: rows,
+		Note: "If this was you, no action is needed. If it was not you, reset your password now and tell your administrator."})
+}
+
+func firstWord(n string) string {
+	if i := strings.IndexByte(n, ' '); i > 0 {
+		return n[:i]
+	}
+	if n == "" {
+		return "there"
+	}
+	return n
 }
