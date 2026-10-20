@@ -40,7 +40,7 @@ export function buildPeople(ctx) {
     message: () => this.openDm(po.name),
     awards: has.awards ? s.awardList.filter((a) => a.status === 'Approved' && a.people.indexOf(po.name) !== -1).map((a) => ({ type: a.type, when: new Date(a.date + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }), citation: a.citation })) : [],
     hasAwards: has.awards && s.awardList.some((a) => a.status === 'Approved' && a.people.indexOf(po.name) !== -1),
-    canMessage: has.chat,
+    canMessage: has.chat && !(this.srv && po.uid === this.srv.me.person),
     voice: () => this.startDmCall('voice', po.name, po.initials, po.color), video: () => this.startDmCall('video', po.name, po.initials, po.color) } : {};
   return { chipS, dir, po, psn, segS, skillsByDept };
 }
