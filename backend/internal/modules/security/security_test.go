@@ -76,6 +76,15 @@ func TestRightsChangeAndLogsExportAndIntegrity(t *testing.T) {
 	if l := e.MustDo(200, "GET", "/security/logs?flagged=1", nil, ownerU.Access)["logs"].([]any); len(l) == 0 {
 		t.Fatal("flagged filter empty")
 	}
+	// one entry in full: its seal checks out, and the alert it raised is named
+	flagged := e.MustDo(200, "GET", "/security/logs?flagged=1", nil, ownerU.Access)["logs"].([]any)[0].(map[string]any)
+	d := e.MustDo(200, "GET", "/security/logs/"+flagged["id"].(string), nil, ownerU.Access)
+	if d["sealed"] != true || d["seq"].(float64) < 1 || d["hash"] == "" || d["alert"] == nil || d["alert"].(map[string]any)["ref"] == "" || d["user"] != flagged["user"] {
+		t.Fatalf("log detail: %v", d)
+	}
+	if code, _ := e.Do("GET", "/security/logs/00000000-0000-0000-0000-000000000000", nil, ownerU.Access); code != 404 {
+		t.Fatalf("unknown entry: %d", code)
+	}
 	// spreadsheet export is a real xlsx, and cells that could run as formulas are neutralised
 	req, _ := http.NewRequest("GET", e.Srv.URL+"/v1/security/logs/export?format=csv", nil)
 	req.Header.Set("Authorization", "Bearer "+ownerU.Access)

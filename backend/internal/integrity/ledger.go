@@ -28,6 +28,12 @@ func entryHash(org uuid.UUID, seq int64, ts time.Time, actor *uuid.UUID, action,
 	return plainHash([]byte("hub/ledger/v1"), org[:], itob(seq), itob(ts.UnixMicro()), a, []byte(action), []byte(subject), payload, prev)
 }
 
+// CheckEntry says whether one ledger entry is intact: its hash is the hash of what it holds, and its signature is ours.
+func (l *Ledger) CheckEntry(org uuid.UUID, seq int64, ts time.Time, actor *uuid.UUID, action, subject string, payloadHash, prev, hash, sig []byte) bool {
+	h := entryHash(org, seq, ts.UTC().Truncate(time.Microsecond), actor, action, subject, payloadHash, prev)
+	return crypto.Equal(h, hash) && crypto.Equal(crypto.MAC(l.key, h), sig)
+}
+
 // plainHash is an unkeyed, length-prefixed SHA-256: anyone can recompute the chain; the signature is what needs the secret key.
 func plainHash(parts ...[]byte) []byte {
 	h := sha256.New()

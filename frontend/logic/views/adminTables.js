@@ -78,7 +78,7 @@ export function buildAdminTables(ctx) {
       const fl = !!(l.rule && ruleOn(l.rule)); const r = fl ? ruleDefs.find((x) => x.id === l.rule) : null; const c = fl ? sevColor[ruleSev(r)] : '';
       return { tint: fl ? c : '', cells: [C.t(l.ago === 0 ? 'Just now' : agoLabel(l.ago), { fv: isoFromAgo(l.ago), nowrap: true, mono: true }), C.t(l.user, { nowrap: true }), C.t(l.action), C.t(l.module), C.t(l.ip + ' · ' + l.loc, { nowrap: true }),
         C.b(l.result, l.result === 'Success' ? '#9DB0A6' : l.result === 'Failed' ? '#FF9B8A' : '#FFB86B'), fl ? C.b(r.name, c, { fv: 'Flagged: ' + r.name }) : C.t('—', { fv: 'Not flagged', color: '#4A5C54' }),
-        C.a(fl ? [{ label: 'View alert', kind: 'primary', run: () => this.setState({ secTab: 'alerts' }) }] : l.result !== 'Success' ? [{ label: 'Block IP', kind: 'danger', run: () => this.notify(l.ip + ' blocked. The block was logged.', '#FF9B8A') }] : [{ label: 'Details', run: () => this.notify(l.user + ' · ' + l.action + ' · ' + l.ip, '#7CC4FF') }])] };
+        C.a([{ label: 'Details', kind: 'primary', run: () => this.setState({ logOpen: String(l.id) }) }].concat(fl ? [{ label: 'View alert', run: () => this.setState({ secTab: 'alerts' }) }] : []))] };
     }) };
   const alertsTable = { id: 'alerts', pageSize: 8, minWidth: '1100px', emptyText: 'No alerts. Rules that are switched off do not raise alerts.',
     cols: [{ label: 'ID', filter: 'text' }, { label: 'Severity', filter: 'select' }, { label: 'Alert', filter: 'text' }, { label: 'Rule', filter: 'select' }, { label: 'Raised', filter: 'date' }, { label: 'Status', filter: 'select' }, { label: '', align: 'right' }],

@@ -416,6 +416,18 @@ func (m *Module) Private(r chi.Router) {
 		httpx.JSON(w, 200, map[string]any{"logs": l})
 		return nil
 	}))
+	r.Get("/security/logs/{id}", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
+		id, err := uuid.Parse(chi.URLParam(r, "id"))
+		if err != nil {
+			return httpx.ErrNotFound
+		}
+		d, err := m.LogDetail(r.Context(), p, id)
+		if err != nil {
+			return err
+		}
+		httpx.JSON(w, 200, d)
+		return nil
+	}))
 	r.Get("/security/logs/export", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
 		q, err := parseQ(r)
 		if err != nil {
