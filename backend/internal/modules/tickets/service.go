@@ -99,6 +99,8 @@ type CreateIn struct {
 	Sync         string     `json:"sync"`
 	// At backdates the ticket (history loading only; not settable over HTTP).
 	At *time.Time `json:"-"`
+	// Details is what emails may say about the ticket. It is only written into emails, never stored.
+	Details *Details `json:"details"`
 	// Ref fixes the ticket reference (history loading only).
 	Ref string `json:"-"`
 }
@@ -224,6 +226,7 @@ func (s *Service) Create(ctx context.Context, p *tenant.Principal, in CreateIn) 
 				return err
 			}
 			if cfg.Notify.Assigned {
+				s.mailTicket(ctx, tx, &nb, p.Org, *handler, "assigned", &Ticket{ID: in.Conversation, Ref: ref, Category: cat.Name, Priority: in.Priority, RaisedByName: p.Name, DueAt: &due, StepName: stepNames[step]}, in.Details.clean(), p.Name, "")
 				if err := nb.Add(ctx, tx, p.Org, *handler, "ticket", ref+" was assigned to you.", "#FF9B8A", ref); err != nil {
 					return err
 				}
@@ -436,6 +439,8 @@ type Action struct {
 	ToRef  *uuid.UUID `json:"to_ref,omitempty"`
 	Person *uuid.UUID `json:"person,omitempty"`
 	Why    string     `json:"why,omitempty"`
+	// Details is what the email about this action may say about the ticket (written into the email, never stored).
+	Details *Details `json:"details,omitempty"`
 	// Category re-files the ticket under one of the destination's categories; its time limit starts again from now.
 	Category string `json:"category,omitempty"`
 	// At backdates the change (history loading only; not settable over HTTP).
@@ -500,6 +505,7 @@ func (s *Service) Act(ctx context.Context, p *tenant.Principal, id uuid.UUID, a 
 				return err
 			}
 			if cfg.Notify.Assigned && *a.Handler != p.Person {
+				s.mailTicket(ctx, tx, &nb, p.Org, *a.Handler, "handover", cur, a.Details.clean(), p.Name, "")
 				if err := nb.Add(ctx, tx, p.Org, *a.Handler, "ticket", cur.Ref+" was handed over to you.", "#7CC4FF", cur.Ref); err != nil {
 					return err
 				}
@@ -524,6 +530,7 @@ func (s *Service) Act(ctx context.Context, p *tenant.Principal, id uuid.UUID, a 
 			set = "step=$2::smallint, hold=false, solved_at = case when $2::int >= 3 then coalesce(solved_at, now()) else null end"
 			text = "Moved it to " + stepNames[*a.Step]
 			if *a.Step == 3 && cfg.Notify.Solved {
+				s.mailTicket(ctx, tx, &nb, p.Org, cur.RaisedBy, "resolved", cur, a.Details.clean(), p.Name, "")
 				if err := nb.Add(ctx, tx, p.Org, cur.RaisedBy, "ticket", cur.Ref+" was resolved.", "#B8F36B", cur.Ref); err != nil {
 					return err
 				}
@@ -628,6 +635,7 @@ func (s *Service) Act(ctx context.Context, p *tenant.Principal, id uuid.UUID, a 
 				if err := s.A.Sign.Seal(ctx, tx, "ticket_assignees", "ticket_id=$1", id); err != nil {
 					return err
 				}
+				s.mailTicket(ctx, tx, &nb, p.Org, *a.Person, "escalated", cur, a.Details.clean(), p.Name, a.Why)
 				if err := nb.Add(ctx, tx, p.Org, *a.Person, "ticket", cur.Ref+" was escalated to you.", "#FF9B8A", cur.Ref); err != nil {
 					return err
 				}
@@ -707,6 +715,7 @@ func (s *Service) notifyEscalation(ctx context.Context, tx pgx.Tx, nb *notify.Ba
 	}
 	rs.Close()
 	for _, id := range ids {
+		s.mailTicket(ctx, tx, nb, org, id, "escalated", t, nil, "", "It passed its target time.")
 		if err := nb.Add(ctx, tx, org, id, "ticket", t.Ref+" was escalated to you.", "#FF9B8A", t.Ref); err != nil {
 			return err
 		}
@@ -768,11 +777,12 @@ func (s *Service) Sweep(ctx context.Context, org uuid.UUID) (late, near int, err
 				if err := s.event(ctx, tx, org, r.id, nil, "event", "Passed its TAT and was escalated to "+cfg.Escalate); err != nil {
 					return err
 				}
-				t := &Ticket{Ref: r.ref}
+				t := &Ticket{ID: r.id, Ref: r.ref}
 				if err := s.notifyEscalation(ctx, tx, &nb, org, t, cfg); err != nil {
 					return err
 				}
 				if r.handler != nil && cfg.Notify.Overdue {
+					s.mailTicket(ctx, tx, &nb, org, *r.handler, "overdue", &Ticket{ID: r.id, Ref: r.ref}, nil, "", "")
 					if err := nb.Add(ctx, tx, org, *r.handler, "ticket", r.ref+" is overdue.", "#FF9B8A", r.ref); err != nil {
 						return err
 					}
@@ -784,6 +794,7 @@ func (s *Service) Sweep(ctx context.Context, org uuid.UUID) (late, near int, err
 					return err
 				}
 				if !already {
+					s.mailTicket(ctx, tx, &nb, org, *r.handler, "near", &Ticket{ID: r.id, Ref: r.ref}, nil, "", "")
 					if err := nb.Add(ctx, tx, org, *r.handler, "ticket-near", r.ref+" is nearing its deadline.", "#FFB86B", r.ref); err != nil {
 						return err
 					}

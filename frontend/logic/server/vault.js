@@ -1,6 +1,6 @@
 // Holds this device's keys and turns sealed server data into plain objects (and back). Transport-agnostic:
 // `request(method, path, body)` returns parsed JSON (useBackend().request in the app, fetch in tests).
-import { Device, unb64, b64, open, wrap, newConversationKey, newId, toText, fromText } from './e2ee.js';
+import { Device, unb64, b64, open, wrap, newConversationKey, newId, toText, fromText, safetyCode } from './e2ee.js';
 
 export class Vault {
   constructor(request, { org, account, person, device, deviceId }) {
@@ -10,7 +10,29 @@ export class Vault {
     this.keys = new Map();      // conversation id -> Map(epoch -> 32-byte key)
     this.signing = new Map();   // account id -> Map(device id -> signing key)
     this.convs = new Map();     // conversation id -> latest known conversation (epoch, members)
+    this.idents = new Map();    // account id -> Map(device id -> identity key) as last seen
+    this.onNewDevice = null;    // called when a colleague we have seen before shows a device we have not seen
+    this.pins = this.loadPins();
   }
+
+  // Which devices each colleague had the first time we saw them. A device that appears later is reported: it may be a new phone,
+  // or the server adding a device to read along. People compare their safety codes to be sure.
+  loadPins() { try { return JSON.parse(localStorage.getItem('hub-pins:' + this.account) || '{}'); } catch (e) { return {}; } }
+  savePins() { try { localStorage.setItem('hub-pins:' + this.account, JSON.stringify(this.pins)); } catch (e) { /* not kept */ } }
+  observe(accountId, list) {
+    if (!accountId || accountId === this.account || !list.length) return;
+    const have = this.idents.get(accountId) || new Map();
+    list.forEach((d) => have.set(d.id, unb64(d.identity_key)));
+    this.idents.set(accountId, have);
+    const known = this.pins[accountId];
+    const ids = list.map((d) => d.id);
+    if (!known) { this.pins[accountId] = ids; this.savePins(); return; }
+    const fresh = ids.filter((id) => !known.includes(id));
+    if (fresh.length) { this.pins[accountId] = [...new Set([...known, ...ids])]; this.savePins(); if (this.onNewDevice) this.onNewDevice(accountId, fresh.length); }
+  }
+  // The safety code to compare with a colleague, once their device keys have been seen ('' until then).
+  safetyCodeOf(accountId) { const m = this.idents.get(accountId); return m && m.size ? safetyCode([...m.values()]) : ''; }
+  async ensureSafety(accountId, personId) { if (!this.idents.has(accountId) && personId) { try { await this.signingKey(accountId, personId); } catch (e) { /* not available */ } } }
 
   // One request per conversation at a time: opening a page of messages asks for the same keys hundreds of times at once.
   async epochKeys(conv, force = false) {
@@ -56,6 +78,9 @@ export class Vault {
     try {
       for (let i = 0; i < ids.length; i += 1000) {
         const { devices } = await this.request('POST', '/e2ee/people/devices', { people: ids.slice(i, i + 1000) });
+        const byAcct = new Map();
+        devices.forEach((d) => byAcct.set(d.account, (byAcct.get(d.account) || []).concat([d])));
+        byAcct.forEach((l, a) => this.observe(a, l));
         for (const d of devices) {
           const have = this.signing.get(d.account) || new Map();
           have.set(d.id, unb64(d.signing_key));
@@ -80,7 +105,9 @@ export class Vault {
             // first look: the batch (active devices). A device that is not there (revoked since) is asked for by itself.
             if (!byDev) { await this.batchSigning(personId); for (const [id, key] of this.signing.get(accountId) || []) have.set(id, key); }
             if (!have.size || (deviceId && !have.has(deviceId))) {
-              for (const d of (await this.request('GET', `/e2ee/people/${personId}/devices`)).devices) have.set(d.id, unb64(d.signing_key));
+              const list = (await this.request('GET', `/e2ee/people/${personId}/devices`)).devices;
+              this.observe(accountId, list);
+              for (const d of list) have.set(d.id, unb64(d.signing_key));
             }
           }
           this.signing.set(accountId, have);

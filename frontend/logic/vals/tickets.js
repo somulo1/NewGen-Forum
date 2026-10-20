@@ -1,4 +1,5 @@
 import * as ticketsW from '~/logic/server/widgets/tickets.js';
+import * as mentions from '~/logic/server/mentions.js';
 import { pickHandler } from '~/logic/ticketRouting.js';
 
 // Values and handlers the templates read through hubBindings: tickets.
@@ -34,6 +35,7 @@ export function valsTickets(ctx) {
       const text = this.state.tcomment.trim();
       if (!text || !cur_t || cur_t.step === 4) return;
       const tagged = tagNames.filter((n) => text.indexOf('@' + n) !== -1);
+      if (this.srv) mentions.tell(this.srv, 'ticket', cur_t.id, mentions.names(this.srv, text));
       ticketsW.comment(this, this.srv, cur_t, text).catch((e) => this.notify(e.message || 'Could not post the comment.', '#FF9B8A'));
       this.setState({ tcomment: '', tagOpen: false });
       if (tagged.length) this.notify('You tagged ' + tagged.join(', ') + ' on ' + cur_t.id + '. They have been notified.', '#C9B6FF', cur_t.id);

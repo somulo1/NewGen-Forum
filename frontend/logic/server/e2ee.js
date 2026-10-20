@@ -76,6 +76,15 @@ const aad = (c) => enc.encode(`hub/msg/v1|${c.org}|${c.conversation}|${c.sender}
 const signedBytes = (body, c) => cat(aad(c), sha256(body));
 const uuidBytes = (id) => Uint8Array.from(id.replace(/-/g, '').match(/../g).map((h) => parseInt(h, 16)));
 
+// A short code two people can read to each other to be sure they hold the same keys: 12 groups of 5 digits made from every active
+// device key of the person (sorted, so both sides get the same code).
+export function safetyCode(identityKeys) {
+  const h = sha256(cat(enc.encode('hub/safety/v1'), ...[...identityKeys].map(b64).sort().map((s) => enc.encode(s + '|'))));
+  const groups = [];
+  for (let i = 0; i < 12; i++) groups.push(String(((h[i * 2] << 8) | h[i * 2 + 1]) % 100000).padStart(5, '0'));
+  return groups.join(' ');
+}
+
 export const toText = (u8) => dec.decode(u8);
 export const fromText = (s) => enc.encode(s);
 export const newId = () => {

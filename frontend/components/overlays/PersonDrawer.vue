@@ -13,6 +13,7 @@
 <span style="color: var(--k-9DB0A6,#9DB0A6)">Reports to</span><span>{{ psn.manager }}</span>
 <span style="color: var(--k-9DB0A6,#9DB0A6)">Role in Hub</span><span>{{ psn.hubRole }}</span>
 <span style="color: var(--k-9DB0A6,#9DB0A6)">Email</span><span>{{ psn.email }}</span>
+<template v-if="psn.securityCode"><span style="color: var(--k-9DB0A6,#9DB0A6)">Security code</span><span style="font-family: monospace; font-size: 12px; word-spacing: 4px; overflow-wrap: anywhere">{{ psn.securityCode }}</span></template>
 </div>
 <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--k-9DB0A6,#9DB0A6)">Skills</span>
 <div style="display: flex; flex-wrap: wrap; gap: 6px"><template v-for="(sk, sk__i) in psn.skills" :key="sk__i"><span style="padding: 6px 12px; border-radius: 16px; background: var(--k-1F2C26,#1F2C26); border: 1px solid var(--k-2A3832,#2A3832); font-size: 12px">{{ sk.name }}</span></template></div>

@@ -11,6 +11,7 @@ import (
 type Message struct {
 	To, Subject, Body string
 	At                time.Time
+	HTML              string
 }
 
 type Mailer interface {
@@ -29,7 +30,7 @@ type Dev struct {
 func (d *Dev) Send(_ context.Context, to, subject, body string) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	d.box = append(d.box, Message{to, subject, body, time.Now()})
+	d.box = append(d.box, Message{To: to, Subject: subject, Body: body, At: time.Now()})
 	max := d.Cap
 	if max == 0 {
 		max = 200
@@ -40,6 +41,17 @@ func (d *Dev) Send(_ context.Context, to, subject, body string) error {
 	if !d.Quiet {
 		slog.Info("dev mail", "to", to, "subject", subject)
 	}
+	return nil
+}
+
+// SendHTML keeps the message with its HTML version, so a test (or the developer) can look at it.
+func (d *Dev) SendHTML(ctx context.Context, to, subject, text, html string) error {
+	if err := d.Send(ctx, to, subject, text); err != nil {
+		return err
+	}
+	d.mu.Lock()
+	d.box[len(d.box)-1].HTML = html
+	d.mu.Unlock()
 	return nil
 }
 

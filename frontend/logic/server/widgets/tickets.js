@@ -98,7 +98,10 @@ export async function reload(logic, srv, uid) {
 // ---- actions ----
 
 export async function act(logic, srv, t, body) {
-  await srv.request('POST', `/tickets/${t.uid}/act`, body);
+  // an email about this action may say what the ticket is about (never the files); the server writes it into the email and does not keep it
+  const readable = t.title && t.desc && !/^\(sealed/.test(t.desc);
+  const details = srv.emailDetails !== false && readable ? { title: t.title, description: t.desc, files: (t.activity || []).filter((x) => x.kind === 'file').length } : undefined;
+  await srv.request('POST', `/tickets/${t.uid}/act`, details ? { ...body, details } : body);
   return reload(logic, srv, t.uid);
 }
 export const setStep = (logic, srv, t, step) => act(logic, srv, t, { do: 'step', step });
@@ -170,7 +173,9 @@ export async function raise(logic, srv, nt, cat, target) {
     const fs = await srv.vault.seal(conv.id, { name: up.name, meta: up.meta, type: up.type, isImg: up.isImg, isVideo: up.isVideo, fileId: up.fileId, key: up.key });
     await srv.request('POST', `/conversations/${conv.id}/messages`, { ...fs, type: 'text' });
   }
-  await srv.request('POST', '/tickets', { conversation: conv.id, category: cat.name, priority: cat.prio || nt.prio, to_type: toType, to_ref: toRef });
+  await srv.request('POST', '/tickets', { conversation: conv.id, category: cat.name, priority: cat.prio || nt.prio, to_type: toType, to_ref: toRef,
+    // emails about this ticket may show these (only sent when the organization allows details in emails; files are never included)
+    ...(srv.emailDetails !== false ? { details: { title: nt.title, description: nt.desc || '', files: (nt.files || []).length } } : {}) });
   return reload(logic, srv, conv.id);
 }
 

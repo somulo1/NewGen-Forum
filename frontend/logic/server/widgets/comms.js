@@ -32,6 +32,10 @@ export async function markRead(logic, srv, c) {
   logic.setState((st) => ({ comms: st.comms.map((x) => (x.uid === c.uid ? { ...x, iRead: true } : x)) }));
 }
 
+// the label of a form field, for emails
+const LABELS = { priority: 'Priority', effective: 'Takes effect on', ref: 'Reference number', actionBy: 'Action needed by', actionFrom: 'Who must act', issue: 'Issue', team: 'Team', location: 'Location', employment: 'Employment type', closing: 'Closing date', apply: 'How to apply' };
+const labelOf = (type, k) => LABELS[k] || k;
+
 const AUDIENCE = { sectors: 'sector', branches: 'branch', units: 'unit', departments: 'department' };
 
 // Finds the wall for an audience (or makes it, wrapping its key for everyone it covers) and returns its conversation id.
@@ -87,7 +91,8 @@ export async function publish(logic, srv, c) {
     const refs = [];
     for (const f of c.files || []) { const u = await files.upload(srv, conv, f); refs.push({ fileId: u.fileId, name: u.name, meta: u.meta, type: u.type, isImg: u.isImg, key: u.key }); }
     const sealed = await srv.vault.seal(conv, { title: c.title, summary: c.summary || '', body: c.body, fields: c.fields || {}, files: refs, to, type: c.type, from: srv.me.name }, newId());
-    const res = await srv.request('POST', '/comms', { type: c.type, batch, conversation: conv, message: sealed.id, epoch: sealed.epoch, device: sealed.device, envelope: sealed.envelope });
+    const details = srv.emailDetails === false ? undefined : { title: c.title, summary: c.summary || '', body: c.body || '', fields: Object.entries(c.fields || {}).map(([k, v]) => [labelOf(c.type, k), String(v)]), files: (c.files || []).map((f) => f.name) };
+    const res = await srv.request('POST', '/comms', { type: c.type, batch, details, conversation: conv, message: sealed.id, epoch: sealed.epoch, device: sealed.device, envelope: sealed.envelope });
     if (res.approval) pending++;
   }
   await load(logic, srv);

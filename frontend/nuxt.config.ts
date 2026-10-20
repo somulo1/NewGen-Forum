@@ -42,5 +42,20 @@ export default defineNuxtConfig({
       }
     }]
   },
+  // Browser protections for the production site (the dev server is left alone). The content policy is report-only first: it lists
+  // what a page may load and connect to; switch it to enforcing once the browser console shows no violations on your pages.
+  $production: {
+    routeRules: {
+      '/**': {
+        headers: {
+          'X-Content-Type-Options': 'nosniff',
+          'X-Frame-Options': 'DENY',
+          'Referrer-Policy': 'no-referrer',
+          'Permissions-Policy': 'camera=(self), microphone=(self), display-capture=(self), geolocation=(), payment=()',
+          'Content-Security-Policy-Report-Only': "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' https: wss: blob:; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+        }
+      }
+    }
+  },
   compatibilityDate: '2024-10-01'
 });

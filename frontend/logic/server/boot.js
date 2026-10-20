@@ -1,5 +1,6 @@
 // Connects the Hub logic to the backend after sign-in: sets up this device's keys, then loads each widget's data from the
 // API into the logic state. Each widget has its own file in widgets/ exporting load(logic, srv) and, where it writes, actions.
+import { loadDevice, saveDevice } from './deviceStore.js';
 import { Device, unb64, b64 } from './e2ee.js';
 import { Vault } from './vault.js';
 import * as callsW from './calls.js';
@@ -31,12 +32,15 @@ async function openDevice(request, session) {
   const mine = (await request('GET', '/e2ee/devices')).devices.filter((d) => !d.revoked);
   const has = (dev) => mine.find((d) => d.identity_key === b64(dev.identity) && d.signing_key === b64(dev.signing));
   // 1. a seeded demo person: the device is derived from their email (development only)
-  const demo = Device.fromDemo(session.email);
-  if (has(demo)) return { device: demo, deviceId: has(demo).id };
+  // Never in a production build: those keys come from a public development secret.
+  if (import.meta.dev) {
+    const demo = Device.fromDemo(session.email);
+    if (has(demo)) return { device: demo, deviceId: has(demo).id };
+  }
   // 2. a device this browser registered earlier
   const slot = 'hub-device:' + account;
   try {
-    const saved = JSON.parse(localStorage.getItem(slot) || 'null');
+    const saved = await loadDevice(slot);
     if (saved) { const d = Device.import(saved); if (has(d)) return { device: d, deviceId: has(d).id }; }
   } catch (e) { /* unreadable: register a new one */ }
   // 3. register a new device for this browser
@@ -44,7 +48,7 @@ async function openDevice(request, session) {
   const reg = await request('POST', '/e2ee/devices', {
     label: 'Web browser', identity_key: b64(device.identity), signing_key: b64(device.signing), binding_sig: b64(device.binding(account))
   });
-  try { localStorage.setItem(slot, JSON.stringify(device.export())); } catch (e) { /* keys last for this tab only */ }
+  await saveDevice(slot, device.export());
   return { device, deviceId: reg.id };
 }
 
@@ -55,6 +59,10 @@ export async function startServerSync(logic, request, session, bytes) {
   const vault = new Vault(request, { org: session.org.id, account: session.account, person: session.org.person, device, deviceId });
   const srv = { request, bytes, vault, session, me, personOf: new Map(), nameOf: new Map(), reload: {} };
   logic.srv = srv;
+  vault.onNewDevice = (acct, n) => {
+    const who = (logic.dir.find((p) => p.account === acct) || {}).name || 'A colleague';
+    logic.notify(who + ' now has ' + (n === 1 ? 'a new device' : n + ' new devices') + ' that can read your shared chats. If you did not expect that, compare security codes with them (open their profile card).', '#FFB86B');
+  };
   vault.custody().catch(() => {});   // hand keys to colleagues' new devices if they are waiting
   // Signed in: the sample data built into the app must not show while (or if) the real data loads. Every list the server
   // fills starts empty, and whatever was open from the samples is closed.

@@ -16,6 +16,7 @@ import (
 	"hub/internal/app"
 	"hub/internal/authz"
 	"hub/internal/integrity"
+	"hub/internal/mail"
 	"hub/internal/modules/tickets"
 	"hub/internal/notify"
 )
@@ -109,6 +110,9 @@ func Evaluate(ctx context.Context, a *app.App, tx pgx.Tx, e *app.Entry) error {
 			if err := nb.Add(ctx, tx, e.Org, p, "alert", ref+": "+title, map[string]string{"High": "#FF9B8A", "Medium": "#FFB86B", "Low": "#7CC4FF"}[st.sev], ref); err != nil {
 				return err
 			}
+			nb.Mail(e.Org, p, "Security alert "+ref+": "+title, mail.Card{Title: "A security alert was raised", Preheader: ref + ": " + title,
+				Lead: "Hub's detection rules flagged something that needs a look.", Rows: [][2]string{{"Alert", ref}, {"What", title}, {"Severity", st.sev}, {"Rule", rule}, {"Raised", app.Now().UTC().Format("2 Jan 2006, 15:04 UTC")}},
+				Quote: [2]string{"Details", detail}, Action: [2]string{"Open the alert", "/security"}, Note: "Open the alert to investigate it. Every status change needs a comment, except closing a false alarm."})
 		}
 		return nil
 	}

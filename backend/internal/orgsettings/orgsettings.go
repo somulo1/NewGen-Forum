@@ -20,6 +20,7 @@ type Security struct {
 	Domains         string `json:"domains"`
 	Retention       string `json:"retention"` // months
 	ExternalSharing bool   `json:"externalSharing"`
+	EmailDetails    bool   `json:"emailDetails"` // emails may show the text of tickets and messages (the server then keeps a copy)
 	MaxFileMB       string `json:"maxFileMB"`  // largest file attached to a communication, in MB
 	FileTypes       string `json:"fileTypes"`  // extensions allowed on communications, separated by commas
 	MaxVideoMB      string `json:"maxVideoMB"` // largest video, in MB, that may be posted in forums, chats and the wall
@@ -59,7 +60,7 @@ func SessionMinutes(v string) int {
 var QuotaChoices = []string{"0", "100", "250", "500", "1024", "2048", "5120", "10240", "20480", "51200", "102400"}
 
 func DefaultSecurity() Security {
-	return Security{Session: "720", Retention: "12", ExternalSharing: true, MaxVideoMB: "50", MaxFileMB: "10", FileTypes: "pdf,doc,docx,xls,xlsx,ppt,pptx,csv,txt,png,jpg,jpeg", UserQuotaMB: "5120"}
+	return Security{Session: "720", Retention: "12", ExternalSharing: true, EmailDetails: true, MaxVideoMB: "50", MaxFileMB: "10", FileTypes: "pdf,doc,docx,xls,xlsx,ppt,pptx,csv,txt,png,jpg,jpeg", UserQuotaMB: "5120"}
 }
 
 func cx(org uuid.UUID, section string) crypto.Context {

@@ -19,6 +19,7 @@ import (
 	"hub/internal/db"
 	"hub/internal/httpx"
 	"hub/internal/integrity"
+	hubmail "hub/internal/mail"
 	"hub/internal/modules/approvals"
 	"hub/internal/modules/auth"
 	"hub/internal/modules/chat"
@@ -485,7 +486,8 @@ func (s *Service) Onboard(ctx context.Context, p *tenant.Principal, list []NewPe
 		return tx.QueryRow(ctx, `select name from hub.orgs where id=$1`, p.Org).Scan(&orgName)
 	})
 	for _, j := range jobs {
-		_ = s.A.Mail.Send(ctx, j.to, "You have been added to "+orgName+" on Hub", "Open this link to join: "+j.link+"\nIt works once and expires in 7 days.")
+		_ = hubmail.SendCard(ctx, s.A.Mail, j.to, "You have been added to "+orgName+" on Hub", hubmail.Card{Accent: hubmail.Green, Org: orgName, Title: "You have been added to " + orgName, Preheader: "Join your team on Hub",
+			Lead: "Your administrator added you to " + orgName + " on Hub. Open the link to set up your account and join.", Action: [2]string{"Join " + orgName, j.link}, Note: "The link works once and expires in 7 days."})
 	}
 	return out, nil
 }

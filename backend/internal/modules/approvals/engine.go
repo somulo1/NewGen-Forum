@@ -79,11 +79,11 @@ type Request struct {
 }
 
 type Flow struct {
-	Key       string   `json:"id"`
-	Module    string   `json:"mod"`
-	Action    string   `json:"action"`
-	Levels    int      `json:"levels"`
-	Approvers []string `json:"approvers"`
+	Key       string     `json:"id"`
+	Module    string     `json:"mod"`
+	Action    string     `json:"action"`
+	Levels    int        `json:"levels"`
+	Approvers []string   `json:"approvers"`
 	Designees []Designee `json:"designees"` // the person chosen for a level, where one was chosen
 }
 
@@ -162,7 +162,11 @@ func (e *Engine) Submit(ctx context.Context, tx pgx.Tx, p *tenant.Principal, flo
 		return nil, false, err
 	}
 	e.notifyLater(p.Org, id, ref(seq), status)
-	return &Request{ID: id, Ref: ref(seq), Flow: flowKey, Kind: kind, Title: title, Note: note, Requester: p.Person, By: p.Name, Level: 1, Levels: max(1, f.Levels), Status: status, History: []Step{}, CreatedAt: app.Now()}, applied, nil
+	made := &Request{ID: id, Ref: ref(seq), Flow: flowKey, Kind: kind, Title: title, Note: note, Requester: p.Person, By: p.Name, Level: 1, Levels: max(1, f.Levels), Status: status, History: []Step{}, CreatedAt: app.Now()}
+	if status == "Pending" {
+		e.mailWaiting(ctx, tx, p.Org, f, made)
+	}
+	return made, applied, nil
 }
 
 func ref(seq int) string { return fmt.Sprintf("AP-%d", seq) }
@@ -259,6 +263,13 @@ func (e *Engine) Decide(ctx context.Context, p *tenant.Principal, id uuid.UUID, 
 			return err
 		}
 		out, err = e.get(ctx, tx, p, id)
+		if err == nil && out != nil {
+			if newStatus == "Pending" {
+				e.mailWaiting(ctx, tx, p.Org, f, out)
+			} else {
+				e.mailDecided(ctx, tx, p.Org, out, p.Name, comment)
+			}
+		}
 		e.notifyLater(p.Org, id, ref(seq), newStatus)
 		return err
 	})

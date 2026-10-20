@@ -14,6 +14,7 @@ import (
 	"hub/internal/crypto"
 	"hub/internal/httpx"
 	"hub/internal/integrity"
+	hubmail "hub/internal/mail"
 )
 
 // Password recovery. Five steps, and nothing in any response tells an outsider whether an account exists:
@@ -110,7 +111,8 @@ func (s *Service) ResetStart(ctx context.Context, email, ip string) (uuid.UUID, 
 			return err
 		}
 		send = func() {
-			_ = s.A.Mail.Send(ctx, e, "Your Hub verification code", fmt.Sprintf("Your code is %s. It works for 10 minutes. If you did not ask for it, ignore this message.", code))
+			_ = hubmail.SendCard(ctx, s.A.Mail, e, "Your Hub verification code", hubmail.Card{Accent: hubmail.Blue, Title: "Your verification code", Preheader: "Your code is " + code,
+				Lead: "Enter this code to continue. If you did not ask for it, you can ignore this message.", Rows: [][2]string{{"Your code is", code}, {"Works for", "10 minutes"}}, Note: "Never share this code with anyone. Hub staff will never ask for it."})
 		}
 		return nil
 	})
@@ -234,7 +236,8 @@ func (s *Service) ResetQuiz(ctx context.Context, id uuid.UUID, answers []string)
 		}
 		link := fmt.Sprintf("%s/reset-password?token=%s.%s", s.siteBase(), id, secret)
 		send = func() {
-			_ = s.A.Mail.Send(ctx, email, "Reset your Hub password", fmt.Sprintf("Open this link to choose a new password:\n%s\n\nWhen asked, enter this code: %s\nThe link works once and expires in 30 minutes.", link, code))
+			_ = hubmail.SendCard(ctx, s.A.Mail, email, "Reset your Hub password", hubmail.Card{Accent: hubmail.Blue, Title: "Reset your password", Preheader: "Choose a new password",
+				Lead: "We got a request to reset your password. Open the link and enter the code when asked.", Rows: [][2]string{{"Your code is", code}, {"Link works", "once, for 30 minutes"}}, Action: [2]string{"Choose a new password", link}, Note: "If you did not ask for this, ignore this email. Your password stays the same."})
 		}
 		outErr = nil
 		return nil
@@ -313,7 +316,8 @@ func (s *Service) ResetComplete(ctx context.Context, token, code, newPassword st
 		return err
 	}
 	if notify != "" {
-		_ = s.A.Mail.Send(ctx, notify, "Your Hub password was changed", "Your password was just changed and you were signed out everywhere. If this was not you, reset it again now and tell your administrator.")
+		_ = hubmail.SendCard(ctx, s.A.Mail, notify, "Your Hub password was changed", hubmail.Card{Accent: hubmail.Red, Title: "Your password was changed", Preheader: "You were signed out everywhere",
+			Lead: "Your password was just changed and you were signed out on every device. If this was you, no action is needed.", Note: "If this was not you, reset your password again now and tell your administrator."})
 	}
 	return outErr
 }

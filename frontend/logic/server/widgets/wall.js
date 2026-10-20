@@ -1,6 +1,7 @@
 // Community wall: posts, comments (with replies), likes/loves, shares, polls and moments. Everything is a message in the
 // organization's wall conversation, sealed for its audience; reactions, comments and votes point at what they answer
 // (reply_to), so counts come from real people. Photos and videos are encrypted attachments of the wall.
+import * as mentions from '../mentions.js';
 import * as files from '../files.js';
 
 export const name = 'wall';
@@ -105,6 +106,7 @@ export async function post(logic, srv, p) {
   const media = [];
   for (const f of p.files || []) media.push(await files.upload(srv, srv.wallId, f));
   await send(srv, 'post', { text: p.text, department: p.audience && p.audience !== 'Everyone' ? p.audience : (logic.state.meInfo || {}).dept || '', postBg: p.postBg || undefined, media: media.map(({ fileId, name, meta, type, isImg, isVideo, key }) => ({ fileId, name, meta, type, isImg, isVideo, key })), poll: p.poll ? p.poll.map((label, i) => ({ id: 'o' + i, label })) : undefined, tags: p.tags || undefined, poster: p.poster || undefined });
+  if ((p.tags || []).length) mentions.tell(srv, 'wall', '', (p.tags || []).map((n) => [...srv.dirByUid.values()].find((d) => d.name === n)).filter(Boolean));
   await load(logic, srv);
 }
 

@@ -11,6 +11,7 @@ export async function load(logic, srv) {
   const all = await srv.request('GET', '/settings');
   apply(logic, all);
   srv.maxVideoMB = Number(all.security && all.security.maxVideoMB) || 50;
+  srv.emailDetails = !(all.security && all.security.emailDetails === false);
   srv.commFiles = { maxMB: Number(all.security && all.security.maxFileMB) || 10, types: String((all.security && all.security.fileTypes) || '').toLowerCase().split(/[\s,]+/).filter(Boolean) };
   srv.plans = all.plans; srv.addons = all.addons; srv.seatsInUse = all.seats_in_use;
   try {
@@ -36,6 +37,7 @@ export async function saveProfile(logic, srv, profile) {
 export async function saveSecurity(logic, srv, security) {
   await srv.request('PUT', '/settings/security', security);
   srv.maxVideoMB = Number(security.maxVideoMB) || 50;
+  srv.emailDetails = security.emailDetails !== false;
   await load(logic, srv);
 }
 // Starts the 30-day wait before the organization and all its data are erased.
