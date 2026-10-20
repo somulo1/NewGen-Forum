@@ -42,10 +42,10 @@
 <span :style="tk.slaBadgeStyle">{{ tk.slaLabel }}</span>
 </div>
 
-<ol aria-label="Ticket progress" style="list-style: none; margin: 0; padding: 16px; border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px">
+<ol class="tk-steps" aria-label="Ticket progress" style="list-style: none; margin: 0; padding: 16px; border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px">
 <template v-for="(st, st__i) in tk.steps" :key="st__i">
-<li style="display: flex; flex-direction: column; gap: 8px; min-width: 0">
-<span :style="st.barStyle"></span>
+<li class="tk-step" style="display: flex; flex-direction: column; gap: 8px; min-width: 0">
+<span class="tk-bar" :style="st.barStyle"></span>
 <span style="display: flex; align-items: center; gap: 8px; font-size: 13px"><span :style="st.dotStyle">{{ st.num }}</span><span :style="st.labelStyle">{{ st.label }}</span></span>
 <span style="font-size: 11px; color: var(--k-9DB0A6,#9DB0A6); line-height: 1.35">{{ st.note }}</span>
 </li>
@@ -173,3 +173,12 @@ export default {
   ...hubBindings(["ticketBackLabel","pickEmojiTicket","attachTicket","canRaise","closeTicket","createTicket","esc","handover","has","nt","ntBtnStyle","ntCatSel","ntCats","ntTargets","ntOpen","ntPrios","ntSetDesc","ntAttach","ntRemoveFile","ntSetTitle","onTCommentValue","onActivityClick","postTComment","showTicketList","showTicketView","tagOpen","tagPeople","tcomment","myTicketStats","ticketStats","tickets","ticketsTable","tk","toggleNewTicket","toggleTag"])
 };
 </script>
+
+<style>
+/* On a phone the five steps keep flowing left to right: each gets a fixed width and the row scrolls sideways, so names and notes never run into each other */
+@media (max-width: 700px) {
+  .tk-steps { display: flex !important; overflow-x: auto; gap: 14px !important; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; padding-bottom: 14px !important; }
+  .tk-step { flex: 0 0 132px; scroll-snap-align: start; }
+  .tk-step > span:nth-child(2) { flex-wrap: nowrap; }
+}
+</style>
