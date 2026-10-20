@@ -123,11 +123,15 @@ func noteCtx(org, id uuid.UUID) crypto.Context {
 
 var nextStatus = map[string]bool{"Investigating": true, "Resolved": true, "False alarm": true}
 
-// SetAlertStatus moves an alert along. A comment is always required: whoever reads the alert later sees why.
+// SetAlertStatus moves an alert along. A comment is required, except when closing as a false alarm.
 func (m *Module) SetAlertStatus(ctx context.Context, p *tenant.Principal, id uuid.UUID, status, comment string) error {
 	comment = strings.TrimSpace(comment)
 	if !nextStatus[status] {
 		return httpx.Bad("Choose Investigating, Resolved or False alarm.")
+	}
+	// a false alarm may be closed without a comment; everything else needs one
+	if comment == "" && status == "False alarm" {
+		comment = "Closed as a false alarm, no comment."
 	}
 	if len(comment) < 3 || len(comment) > 1000 {
 		return httpx.Bad("Say what you found or did (3 to 1,000 characters).")
