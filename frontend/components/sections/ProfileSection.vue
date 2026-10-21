@@ -97,7 +97,7 @@
 </template>
 </div>
 
-<div style="padding: 20px; border-radius: 18px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 14px">
+<div v-if="!me.isOther" style="padding: 20px; border-radius: 18px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 14px">
 <strong style="font-size: 15px">Recent activity</strong>
 <div tabindex="0" aria-label="Recent activity table" style="max-height: 300px; overflow: auto; border-radius: 12px; border: 1px solid var(--k-24322C,#24322C)">
 <table style="width: 100%; min-width: 460px; border-collapse: separate; border-spacing: 0; font-size: 14px">
