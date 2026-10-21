@@ -23,7 +23,7 @@ func main() {
 		slog.Error("config", "err", err)
 		os.Exit(1)
 	}
-	rdb := redis.NewClient(&redis.Options{Addr: cfg.RedisAddr, Password: cfg.RedisPass})
+	rdb := redis.NewClient(cfg.RedisClientOptions())
 	if err := rdb.Ping(context.Background()).Err(); err != nil {
 		slog.Error("redis", "err", err)
 		os.Exit(1)

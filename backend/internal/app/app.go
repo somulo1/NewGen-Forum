@@ -42,7 +42,7 @@ func New(ctx context.Context, cfg *config.Config, m mail.Mailer) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	rdb := redis.NewClient(&redis.Options{Addr: cfg.RedisAddr, Password: cfg.RedisPass, PoolSize: 50})
+	rdb := redis.NewClient(cfg.RedisClientOptions(50))
 	if err := rdb.Ping(ctx).Err(); err != nil {
 		return nil, err
 	}

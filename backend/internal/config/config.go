@@ -2,9 +2,12 @@
 package config
 
 import (
+	"crypto/tls"
 	"encoding/base64"
 	"fmt"
+	"github.com/redis/go-redis/v9"
 	"net"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -20,6 +23,7 @@ type Config struct {
 	MigrateURL  string // owner role, used only by cmd/migrate
 	RedisAddr   string
 	RedisPass   string
+	RedisTLS    bool // rediss:// address: connect over TLS
 
 	// Key material. In production these come from a KMS/HSM; here they are 32-byte keys supplied as base64.
 	KEK       []byte // key-encryption key: wraps per-organization data keys
@@ -98,6 +102,23 @@ func Load() (*Config, error) {
 		}
 		if len(missing) > 0 {
 			return nil, fmt.Errorf("required in production but not set: %s", strings.Join(missing, ", "))
+		}
+	}
+	// HUB_REDIS_ADDR may be host:port or the URL a provider shows (redis://[user:password@]host:port, rediss:// for TLS)
+	if strings.Contains(c.RedisAddr, "://") {
+		u, err := url.Parse(strings.TrimSpace(c.RedisAddr))
+		if err != nil || u.Host == "" {
+			return nil, fmt.Errorf("HUB_REDIS_ADDR is not a valid address or redis:// URL")
+		}
+		c.RedisTLS = u.Scheme == "rediss"
+		if u.User != nil {
+			if p, ok := u.User.Password(); ok && c.RedisPass == "" {
+				c.RedisPass = p
+			}
+		}
+		c.RedisAddr = u.Host
+		if u.Port() == "" {
+			c.RedisAddr = u.Host + ":6379"
 		}
 	}
 	c.FileServers = strings.FieldsFunc(os.Getenv("HUB_FILE_SERVERS"), func(r rune) bool { return r == ' ' || r == '\n' })
@@ -201,4 +222,16 @@ func (c *Config) DocsOn() bool {
 		}
 	}
 	return false
+}
+
+// RedisClientOptions are the connection settings every Redis client in Hub uses, so the address form and TLS apply everywhere.
+func (c *Config) RedisClientOptions(poolSize ...int) *redis.Options {
+	o := &redis.Options{Addr: c.RedisAddr, Password: c.RedisPass}
+	if len(poolSize) > 0 {
+		o.PoolSize = poolSize[0]
+	}
+	if c.RedisTLS {
+		o.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12, ServerName: strings.Split(c.RedisAddr, ":")[0]}
+	}
+	return o
 }
