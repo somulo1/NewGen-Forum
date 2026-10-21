@@ -78,7 +78,7 @@ export class HubLogic extends DCLogic {
   }
   setState(update, done) {
     const raw = typeof update === 'function' ? update(this.state, this.props) : update;
-    const patch = raw ? Object.assign({}, raw) : raw;
+    let patch = raw ? Object.assign({}, raw) : raw;
     if (patch) {
       const person = patch.personOpen !== undefined && patch.personOpen !== null ? this.peopleDir()[patch.personOpen] : null;
       if (person && this._canFullProfile) {
