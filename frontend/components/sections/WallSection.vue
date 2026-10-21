@@ -43,7 +43,7 @@
 <div v-if="!momentForm.open" style="padding: 16px; border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 12px">
 <div style="display: flex; gap: 12px; align-items: flex-start">
 <UserAvatar :name="meAv.name" :initials="meAv.initials" :color="meAv.color" :size="42" text-color="#fff" aria-label="Your profile photo"/>
-<RichTextInput style="flex: 1; min-width: 0" :model-value="draft" @update:model-value="onDraftValue" :placeholder="`What's on your mind${meAv.first ? ', ' + meAv.first : ''}?`" aria-label="Write a post" :rows="3" :input-style="`color: ${postBg ? 'var(--k-FFFFFF,#FFFFFF)' : 'var(--k-E8EFEA,#E8EFEA)'}; font-size: 15px`"/>
+<RichTextInput mentions style="flex: 1; min-width: 0" :model-value="draft" @update:model-value="onDraftValue" :placeholder="`What's on your mind${meAv.first ? ', ' + meAv.first : ''}?`" aria-label="Write a post" :rows="3" :input-style="`color: ${postBg ? 'var(--k-FFFFFF,#FFFFFF)' : 'var(--k-E8EFEA,#E8EFEA)'}; font-size: 15px`"/>
 </div>
 <div role="group" aria-label="Post background color" style="display: flex; flex-wrap: wrap; align-items: center; gap: 7px; padding-left: 54px">
 <span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Post color</span>
@@ -82,7 +82,7 @@
 <template v-if="wallFilter.active"><div style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px; background: var(--k-1B2A1E,#1B2A1E); font-size: 14px">Showing posts about <strong>#{{ wallFilter.tag }}</strong><button @click="wallFilter.clear" style="margin-left: auto; height: 32px; padding: 0 14px; border-radius: 16px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer">Clear</button></div></template>
 <template v-if="wallFilter.active && !posts.length"><p style="margin: 0; color: var(--k-9DB0A6,#9DB0A6)">No posts match this hashtag.</p></template>
 <template v-for="(p, p__i) in posts" :key="p__i">
-<article style="border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; overflow: hidden">
+<article @click="onActivityClick" style="border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; overflow: hidden">
 <div style="display: flex; gap: 12px; align-items: center; padding: 16px 16px 0">
 <UserAvatar :name="p.author" :initials="p.initials" :color="p.color" :size="42"/>
 <div style="flex: 1; display: flex; flex-direction: column"><strong style="font-size: 15px">{{ p.author }}<template v-if="p.saved"> <span style="font-size: 11px; color: var(--k-B8F36B,#B8F36B); font-weight: 500">· Saved</span></template></strong><span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">{{ p.meta }}</span></div>
@@ -202,7 +202,7 @@ export default {
     pickMomentFile(e) { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) this.momentFile = f; },
     wish() { this.wishBirthday(); this.$nextTick(() => this.$refs.composer && this.$refs.composer.focus()); }
   },
-  ...hubBindings(["meAv","wallBirthdays","pickEmojiWall","addMoment","momentForm","momentView","wpollView","openEventFromWall","wallAudience","wallAudiences","onAudience","wishBirthday","onlineList","trending","wallFilter","canPostWall","cannotPostWall","draft","hasWFiles","moments","onDraftValue","onPost","onWallFiles","people","postBtnStyle","posts","show","wfiles"])
+  ...hubBindings(["onActivityClick","meAv","wallBirthdays","pickEmojiWall","addMoment","momentForm","momentView","wpollView","openEventFromWall","wallAudience","wallAudiences","onAudience","wishBirthday","onlineList","trending","wallFilter","canPostWall","cannotPostWall","draft","hasWFiles","moments","onDraftValue","onPost","onWallFiles","people","postBtnStyle","posts","show","wfiles"])
 };
 </script>
 

@@ -4,7 +4,7 @@ export function buildAccess(ctx) {
   const s = this.state;
   const set = (o) => () => this.setState(o);
   const openPersonName = (n) => {
-    if (n === 'Sam' || n === 'Samwel Okoth Omulo') { this.setState({ section: 'profile', personOpen: null }); return; }
+    if (n === 'Sam' || n === (this.srv ? this.srv.me.name : 'Samwel Okoth Omulo')) { this.setState({ section: 'profile', personOpen: null }); return; }
     const d = this.dir.find((x) => x.name === n);
     if (d) this.setState({ personOpen: d.id });
   };

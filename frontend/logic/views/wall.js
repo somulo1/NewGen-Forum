@@ -1,9 +1,11 @@
 import { shareUrl } from '~/logic/shareOut.js';
 import * as wallW from '~/logic/server/widgets/wall.js';
-import { richTextHtml } from '~/logic/richText.js';
+import { richTextHtml, mentionLinker } from '~/logic/richText.js';
 // renderVals step: wall. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildWall(ctx) {
   const { can, flowById, forumsData, makeRequest, openPersonName, s } = ctx;
+  // a tagged person (@Name) is a link to their profile
+  const linkMentions = mentionLinker(this.dir.map((d) => d.name).concat(this.srv ? [this.srv.me.name] : []));
   const pollOpts = [
     { id: 'a', label: 'FIFA 26', base: 18 },
     { id: 'b', label: 'Call of Duty', base: 11 },
@@ -30,7 +32,7 @@ export function buildWall(ctx) {
   const buildComments = (p, list, path) => list.map((c, i) => {
     const here = path.concat([i]);
     const key = p.id + ':' + here.join('.');
-    return { key, who: c.who, initials: c.initials, color: c.color, text: c.text, htmlText: richTextHtml(c.text), time: c.time || '', depth: path.length, replying: s.replyFor === key,
+    return { key, who: c.who, initials: c.initials, color: c.color, text: c.text, htmlText: linkMentions(richTextHtml(c.text)), time: c.time || '', depth: path.length, replying: s.replyFor === key,
       startReply: () => this.setState({ replyFor: key }), cancel: () => this.setState({ replyFor: null }),
       send: (text) => { this.setState({ replyFor: null }); wallW.comment(this, this.srv, c.id || p.id, text).catch((e) => this.notify(e.message || 'That did not work.', '#FF9B8A')); },
       replies: buildComments(p, c.replies || [], here) };
@@ -48,7 +50,7 @@ export function buildWall(ctx) {
     const closeMenu = { postMenu: null };
     const userPoll = userPollOf(p);
     return {
-      ...p, htmlText: richTextHtml(p.text),
+      ...p, htmlText: linkMentions(richTextHtml(p.text)),
       menuOpen: s.postMenu === p.id,
       toggleMenu: () => this.setState((st) => ({ postMenu: st.postMenu === p.id ? null : p.id })),
       menuItems: [

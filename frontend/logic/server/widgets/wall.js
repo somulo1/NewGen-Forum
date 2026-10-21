@@ -131,11 +131,13 @@ export async function post(logic, srv, p) {
   const media = [];
   for (const f of p.files || []) media.push(await files.upload(srv, srv.wallId, f));
   await send(srv, 'post', { text: p.text, department: p.audience && p.audience !== 'Everyone' ? p.audience : (logic.state.meInfo || {}).dept || '', postBg: p.postBg || undefined, media: media.map(({ fileId, name, meta, type, isImg, isVideo, key }) => ({ fileId, name, meta, type, isImg, isVideo, key })), poll: p.poll ? p.poll.map((label, i) => ({ id: 'o' + i, label })) : undefined, tags: p.tags || undefined, poster: p.poster || undefined });
+  if (p.text && p.text.indexOf('@') !== -1) mentions.tell(srv, 'wall', '', mentions.names(srv, p.text).filter((d) => !(p.tags || []).includes(d.name)));
   if ((p.tags || []).length) mentions.tell(srv, 'wall', '', (p.tags || []).map((n) => [...srv.dirByUid.values()].find((d) => d.name === n)).filter(Boolean));
   await load(logic, srv);
 }
 
 export async function comment(logic, srv, targetId, text) {
+  if (text && text.indexOf('@') !== -1) mentions.tell(srv, 'wall', '', mentions.names(srv, text));
   await send(srv, 'comment', { text }, targetId);
   await load(logic, srv);
 }

@@ -13,6 +13,8 @@
 </template>
 
 <script>
+import { useHubStore } from '~/composables/useHub';
+
 const normalizedLink = (value) => {
   const trimmed = value.trim();
   if (!trimmed) return '';
@@ -35,7 +37,7 @@ export default {
     disabled: Boolean,
     inputStyle: { type: String, default: '' },
     toolbarInActions: Boolean,
-    mentions: { type: Array, default: () => [] }   // { uid, name, initials, color }: typing @ offers these people
+    mentions: { type: [Array, Boolean], default: false }   // an array of { uid, name, initials, color }, or true for everyone in Hub: typing @ offers them
   },
   emits: ['update:modelValue', 'keydown'],
   // Typing stays in this box and reaches the app a moment later (or at once on any key handled above, blur or format).
@@ -63,16 +65,23 @@ export default {
     matches() {
       if (!this.mq) return [];
       const t = this.mq.query.toLowerCase();
-      return this.mentions.filter((m) => !t || m.name.toLowerCase().includes(t))
+      return this.pool().filter((m) => !t || m.name.toLowerCase().includes(t))
         .sort((a, b) => (a.name.toLowerCase().startsWith(t) ? 0 : 1) - (b.name.toLowerCase().startsWith(t) ? 0 : 1) || a.name.localeCompare(b.name)).slice(0, 6);
     }
   },
   beforeUnmount() { this.flush(); },
   methods: {
+    // who can be tagged: the given list, or everyone already in Hub (except you)
+    pool() {
+      if (Array.isArray(this.mentions)) return this.mentions;
+      if (!this.mentions) return [];
+      const l = useHubStore().logic;
+      return (l.dir || []).filter((p) => p.hasAccount && p.uid).map((p) => ({ uid: p.uid, name: p.name, initials: p.initials, color: p.color }));
+    },
     // is the caret right after "@something"? then offer the people to tag
     watchMention() {
       const el = this.$refs.editor;
-      if (!el || !this.mentions.length) { this.mq = null; return; }
+      if (!el || !this.mentions) { this.mq = null; return; }
       const upto = this.local.slice(0, el.selectionStart);
       const m = /(^|\s)@([^\s@]{0,30})$/.exec(upto);
       if (m) { this.mq = { start: upto.length - m[2].length - 1, query: m[2] }; this.mActive = 0; } else this.mq = null;
