@@ -42,3 +42,24 @@ func TestSecretFilesNamedAfterSettings(t *testing.T) {
 		t.Fatalf("one=%q two=%q set=%q", os.Getenv("HUB_TEST_ONE"), os.Getenv("HUB_TEST_TWO"), os.Getenv("HUB_TEST_SET"))
 	}
 }
+
+func TestRedisAddressAcceptsProviderURLs(t *testing.T) {
+	for in, want := range map[string][3]string{
+		"127.0.0.1:6390":                      {"127.0.0.1:6390", "", "false"},
+		"redis://red-abc:6379":                {"red-abc:6379", "", "false"},
+		"redis://default:s3cret@red-abc:6379": {"red-abc:6379", "s3cret", "false"},
+		"rediss://:pw@host.example.com:6380":  {"host.example.com:6380", "pw", "true"},
+		"redis://red-abc":                     {"red-abc:6379", "", "false"},
+	} {
+		t.Setenv("HUB_REDIS_ADDR", in)
+		t.Setenv("HUB_REDIS_PASS", "")
+		c, err := Load()
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := [3]string{c.RedisAddr, c.RedisPass, map[bool]string{true: "true", false: "false"}[c.RedisTLS]}
+		if got != want {
+			t.Errorf("%q -> %v, want %v", in, got, want)
+		}
+	}
+}

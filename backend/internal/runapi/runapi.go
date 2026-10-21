@@ -102,7 +102,7 @@ func Run() {
 	au := auth.New(a)
 	var h http.Handler = server.Router(server.Deps{App: a, Auth: au, Dev: dev, Modules: modules.All(a, au)})
 	if os.Getenv("HUB_WITH_CALLS") == "on" {
-		rdb := redis.NewClient(&redis.Options{Addr: cfg.RedisAddr, Password: cfg.RedisPass})
+		rdb := redis.NewClient(cfg.RedisClientOptions())
 		calls := http.StripPrefix("/calls-signal", callsvc.New(cfg.CallsSecret, rdb, cfg.AllowedOrigins).Handler())
 		api := h
 		h = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
