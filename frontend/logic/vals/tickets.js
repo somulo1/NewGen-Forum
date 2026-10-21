@@ -29,7 +29,13 @@ export function valsTickets(ctx) {
     esc, tcomment: s.tcomment, tagOpen: s.tagOpen,
     onTComment: (e) => this.setState({ tcomment: e.target.value }),
     onTCommentValue: (value) => this.setState({ tcomment: value }),
-    onActivityClick: (e) => { const a = e.target && e.target.closest ? e.target.closest('[data-mention]') : null; if (a) { e.preventDefault(); ctx.openPersonName(a.getAttribute('data-mention')); } },
+    onActivityClick: (e) => {
+      const t = e.target && e.target.closest ? e.target : null;
+      const a = t && t.closest('[data-mention]');
+      if (a) { e.preventDefault(); ctx.openPersonName(a.getAttribute('data-mention')); return; }
+      const h = t && t.closest('[data-hashtag]');
+      if (h) { e.preventDefault(); this.setState({ wallTag: h.getAttribute('data-hashtag'), section: 'feed' }); }
+    },
     toggleTag: () => this.setState((st) => ({ tagOpen: !st.tagOpen })),
     postTComment: () => {
       const text = this.state.tcomment.trim();

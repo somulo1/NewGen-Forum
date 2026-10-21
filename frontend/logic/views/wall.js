@@ -1,6 +1,6 @@
 import { shareUrl } from '~/logic/shareOut.js';
 import * as wallW from '~/logic/server/widgets/wall.js';
-import { richTextHtml, mentionLinker } from '~/logic/richText.js';
+import { richTextHtml, mentionLinker, hashtagsOf, linkHashtags } from '~/logic/richText.js';
 // renderVals step: wall. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildWall(ctx) {
   const { can, flowById, forumsData, makeRequest, openPersonName, s } = ctx;
@@ -23,8 +23,7 @@ export function buildWall(ctx) {
       style: 'display:flex;align-items:center;min-height:44px;padding:0 14px;border-radius:10px;cursor:pointer;font-size:14px;color:var(--k-E8EFEA,#E8EFEA);text-align:left;border:1px solid ' + (mine ? '#B8F36B' : '#2A3832') + ';background:' + (s.vote ? 'linear-gradient(90deg,var(--k-2C3D34,#2C3D34) ' + pct + '%,#121B17 ' + pct + '%)' : 'var(--k-121B17,#121B17)')
     };
   });
-  const TAGS = { CharityRun: ['charity'], NewJoiners: ['new team members', 'joiner', 'welcome'], TournamentNight: ['tournament'] };
-  const tagHit = (p) => !s.wallTag || (TAGS[s.wallTag] || [s.wallTag.toLowerCase()]).some((k) => (p.text || '').toLowerCase().indexOf(k) !== -1);
+  const tagHit = (p) => !s.wallTag || hashtagsOf(p.text).some((t) => t.toLowerCase() === s.wallTag.toLowerCase());
   const countAll = (list) => list.reduce((n, c) => n + 1 + countAll(c.replies || []), 0);
   const newComment = (text) => ({ who: 'Sam', initials: 'S', color: '#F49AC1', text, time: 'Just now', replies: [] });
   // Adds a reply under the comment at `path` (indexes from the top-level list down).
@@ -32,7 +31,7 @@ export function buildWall(ctx) {
   const buildComments = (p, list, path) => list.map((c, i) => {
     const here = path.concat([i]);
     const key = p.id + ':' + here.join('.');
-    return { key, who: c.who, initials: c.initials, color: c.color, text: c.text, htmlText: linkMentions(richTextHtml(c.text)), time: c.time || '', depth: path.length, replying: s.replyFor === key,
+    return { key, who: c.who, initials: c.initials, color: c.color, text: c.text, htmlText: linkHashtags(linkMentions(richTextHtml(c.text))), time: c.time || '', depth: path.length, replying: s.replyFor === key,
       startReply: () => this.setState({ replyFor: key }), cancel: () => this.setState({ replyFor: null }),
       send: (text) => { this.setState({ replyFor: null }); wallW.comment(this, this.srv, c.id || p.id, text).catch((e) => this.notify(e.message || 'That did not work.', '#FF9B8A')); },
       replies: buildComments(p, c.replies || [], here) };
@@ -50,7 +49,7 @@ export function buildWall(ctx) {
     const closeMenu = { postMenu: null };
     const userPoll = userPollOf(p);
     return {
-      ...p, htmlText: linkMentions(richTextHtml(p.text)),
+      ...p, htmlText: linkHashtags(linkMentions(richTextHtml(p.text))),
       menuOpen: s.postMenu === p.id,
       toggleMenu: () => this.setState((st) => ({ postMenu: st.postMenu === p.id ? null : p.id })),
       menuItems: [
