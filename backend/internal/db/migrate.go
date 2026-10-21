@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -15,9 +16,11 @@ import (
 // Migrate applies the embedded SQL files with the owner role. Every applied file's SHA-256 is recorded; if a file
 // that was already applied has changed, Migrate stops: schema history must never be rewritten.
 func Migrate(ctx context.Context, ownerURL, guardToken string, files fs.FS) ([]string, error) {
-	conn, err := pgx.Connect(ctx, ownerURL)
+	cctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	conn, err := pgx.Connect(cctx, ownerURL)
 	if err != nil {
-		return nil, fmt.Errorf("owner connection: %w", err)
+		return nil, fmt.Errorf("owner connection (HUB_MIGRATE_URL): %w", err)
 	}
 	defer conn.Close(ctx)
 	// several nodes starting together must not run the same migration twice: one waits for the other
