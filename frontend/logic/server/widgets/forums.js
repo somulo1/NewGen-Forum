@@ -494,7 +494,8 @@ function resolvePeople(srv, text, logic) {
 export async function createForum(logic, srv, f) {
   const name = (f.name || '').trim();
   if (!name) throw new Error('Give the forum a name.');
-  const members = resolvePeople(srv, f.members, logic).filter((id) => id !== srv.me.person);
+  const typed = String(f.members || '').trim() ? resolvePeople(srv, f.members, logic) : [];
+  const members = [...new Set([...(f.memberIds || []), ...typed])].filter((id) => id !== srv.me.person);
   const { devices } = await ask(srv, 'POST', '/e2ee/people/devices', { people: [...new Set([srv.me.person, ...members])] });
   const key = newConversationKey();
   const keys = await Promise.all(devices.map(async (d) => ({ epoch: 1, device: d.id, wrapped_key: b64(await wrap(key, unb64(d.identity_key))) })));
@@ -505,12 +506,12 @@ export async function createForum(logic, srv, f) {
 }
 
 // names = 'names or emails, comma separated'. People already in the forum are left as they are.
-export async function invite(logic, srv, local, names) {
+export async function invite(logic, srv, local, names, ids = []) {
   const f = liveForum(logic, local);
   if (!f) throw new Error('This forum is not connected to the server.');
   const sid = f.sid;
   const have = new Set(f.memberList.map((m) => m.person));
-  const people = resolvePeople(srv, names, logic).filter((id) => !have.has(id));
+  const people = [...new Set([...ids, ...(String(names || '').trim() ? resolvePeople(srv, names, logic) : [])])].filter((id) => !have.has(id));
   if (!people.length) throw new Error('They are all in this forum already.');
   const conv = await srv.vault.conversation(sid, true);
   const key = await srv.vault.keyFor(sid, conv.epoch);

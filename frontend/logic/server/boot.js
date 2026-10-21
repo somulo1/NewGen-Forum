@@ -60,7 +60,7 @@ export async function startServerSync(logic, request, session, bytes) {
   const srv = { request, bytes, vault, session, me, personOf: new Map(), nameOf: new Map(), reload: {} };
   logic.srv = srv;
   vault.onNewDevice = (acct, n) => {
-    const who = (logic.dir.find((p) => p.account === acct) || {}).name || 'A colleague';
+    const who = (logic.dir.find((p) => p.uid === vault.personOfAcct.get(acct)) || {}).name || 'A colleague';
     logic.notify(who + ' now has ' + (n === 1 ? 'a new device' : n + ' new devices') + ' that can read your shared chats. If you did not expect that, compare security codes with them (open their profile card).', '#FFB86B');
   };
   vault.custody().catch(() => {});   // hand keys to colleagues' new devices if they are waiting

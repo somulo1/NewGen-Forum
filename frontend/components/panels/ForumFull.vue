@@ -37,6 +37,7 @@
 
 <template v-if="inviteOpen">
 <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; padding: 16px; border-radius: 14px; border: 1px solid var(--k-B8F36B,#B8F36B); background: var(--k-16201C,#16201C)">
+<div v-if="canAddToForum" style="flex: 1 1 100%; display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">Add someone already in Hub<PeoplePicker instant :people="pickerPeople" :exclude="forumMemberIds" placeholder="Search people by name…" @pick="addPersonToForum"/><span v-if="addErr" role="alert" style="font-size: 12px; color: #FF9B8A">{{ addErr }}</span></div>
 <label style="flex: 1 1 280px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">Add people by name or email<input type="text" :value="inviteText" @input="onInviteText" placeholder="name@company.com, Brian Kiprop…" style="height: 42px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA)"></label>
 <button :disabled="inviteBusy" @click="sendInvites" style="height: 42px; padding: 0 18px; border-radius: 10px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">{{ inviteBusy ? 'Adding…' : 'Send invites' }}</button>
 <span v-if="inviteErr" role="alert" style="flex: 1 1 100%; font-size: 13px; color: #FF9B8A">{{ inviteErr }}</span>
@@ -86,6 +87,13 @@
 
 <template v-if="ftab.members">
 <div style="flex: 1; min-height: 0; overflow-y: auto"><div style="max-width: 1100px; margin: 0 auto; padding: 18px clamp(16px, 3vw, 32px)">
+<div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap"><strong style="font-size: 15px; flex: 1">{{ cur.members }} {{ cur.members === 1 ? 'member' : 'members' }}</strong>
+<button v-if="canAddToForum" type="button" @click="toggleAdd" :aria-expanded="addOpen" aria-label="Add a person to this forum" style="display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 16px; border-radius: 17px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; font-size: 13px; cursor: pointer"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>Add</button></div>
+<div v-if="canAddToForum && addOpen" style="margin-bottom: 14px; padding: 12px; border-radius: 12px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-B8F36B,#B8F36B); display: flex; flex-direction: column; gap: 8px">
+<span style="font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">Search someone already in Hub. Picking them adds them to {{ cur.name }} straight away.</span>
+<PeoplePicker instant :people="pickerPeople" :exclude="forumMemberIds" placeholder="Search people by name…" @pick="addPersonToForum"/>
+<span v-if="addBusy" role="status" style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Adding…</span>
+<span v-if="addErr" role="alert" style="font-size: 12px; color: #FF9B8A">{{ addErr }}</span></div>
 <div style="margin-bottom: 12px"><ForumChatControls /></div>
 <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px">
 <template v-for="(m, m__i) in chatCtl.members" :key="m__i">
@@ -147,7 +155,7 @@ export default {
   components: { CallScreen, ChatSharedFiles, SecureInboxCard },
   props: { fit: { type: String, default: 'screen' } },
   computed: {
-    ...hubBindings(["pickEmojiForum","attachForum","chatRef","replyBar","chatCtl","closeChatFolder","composerNote","composerOff","cur","fKey","fdraft","fileFolders","ftab","has","inviteOpen","inviteText","inviteErr","inviteBusy","onInviteText","sendInvites","isFullForum","isPageForum","onFDraftValue","openChatFolder","pollView","selectedChatFolder","sendForum","showPanelCall","tab","tabTo","toClosed","toDocked","toFull","toMin","toPage","toggleInvite","videoCall","voiceCall"]).computed,
+    ...hubBindings(["canAddToForum","addErr","addOpen","addBusy","toggleAdd","addPersonToForum","pickerPeople","forumMemberIds","pickEmojiForum","attachForum","chatRef","replyBar","chatCtl","closeChatFolder","composerNote","composerOff","cur","fKey","fdraft","fileFolders","ftab","has","inviteOpen","inviteText","inviteErr","inviteBusy","onInviteText","sendInvites","isFullForum","isPageForum","onFDraftValue","openChatFolder","pollView","selectedChatFolder","sendForum","showPanelCall","tab","tabTo","toClosed","toDocked","toFull","toMin","toPage","toggleInvite","videoCall","voiceCall"]).computed,
     shown() { return this.fit === 'page' ? !!this.isPageForum : !!this.isFullForum; },
     rootStyle() {
       const base = 'background: var(--k-0F1714,#0F1714); display: flex; flex-direction: column; overflow: hidden; box-sizing: border-box;';
