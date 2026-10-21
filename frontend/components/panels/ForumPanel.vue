@@ -58,7 +58,7 @@
 <div v-if="!isDM && isPanelPolls" style="flex: 1; min-height: 0; overflow-y: auto; padding: 14px 14px 14px 20px"><ForumPolls /></div>
 <div v-if="isPanelCalls" style="flex: 1; min-height: 0; overflow-y: auto; padding: 14px 14px 14px 20px"><CallHistory /></div>
 <template v-if="isPanelChat || (isDM && !isPanelCalls)">
-<div :ref="chatRef" style="flex: 1; min-height: 0; overflow-y: auto; padding: 14px 14px 14px 20px; display: flex; flex-direction: column; gap: 12px">
+<div :ref="chatRef" @click="onActivityClick" style="flex: 1; min-height: 0; overflow-y: auto; padding: 14px 14px 14px 20px; display: flex; flex-direction: column; gap: 12px">
 <span style="align-self: center; font-size: 11px; color: var(--k-9DB0A6,#9DB0A6); padding: 4px 10px; border-radius: 10px; background: var(--k-1A2520,#1A2520)">Today</span>
 <template v-for="(u, u__i) in cur.chat" :key="u__i">
 <div :style="u.rowStyle + ';touch-action:pan-y'" @pointerdown="u.startHold" @pointerup="u.stopHold" @pointerleave="u.stopHold" @pointercancel="u.stopHold" @contextmenu="u.openActions">
@@ -87,7 +87,7 @@
 <EmojiButton :size="38" @pick="pickEmojiForum"/>
 <template v-if="!isDM"><button aria-label="Create a poll" title="Create a poll" :disabled="!pollView.canCreate" @click="pollView.compose" style="width: 38px; height: 38px; flex: none; border-radius: 50%; border: 0; background: transparent; color: var(--k-C9D6CF,#C9D6CF); cursor: pointer; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 20V10M12 20V4M19 20v-7"></path></svg></button></template>
  </div>
-<RichTextInput toolbar-in-actions style="min-width: 0" :model-value="fdraft" @update:model-value="onFDraftValue" @keydown="fKey" :disabled="composerOff" :placeholder="composerOff ? composerNote : `Message ${cur.name}…`" aria-label="Message in chat" :rows="1" input-style="font-size: 13px; min-height: 38px"/>
+<RichTextInput toolbar-in-actions :mentions="mentionList" style="min-width: 0" :model-value="fdraft" @update:model-value="onFDraftValue" @keydown="fKey" :disabled="composerOff" :placeholder="composerOff ? composerNote : `Message ${cur.name}…`" aria-label="Message in chat" :rows="1" input-style="font-size: 13px; min-height: 38px"/>
 <button aria-label="Send" :disabled="composerOff" @click="sendForum" style="grid-column: 3; grid-row: 1 / 3; align-self: center; width: 42px; height: 42px; border-radius: 50%; border: 0; background: #B8F36B; color: #0F1714; cursor: pointer; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 12l16-8-6 16-3-7z"></path></svg></button>
 </div>
 </div>
@@ -105,6 +105,6 @@ import SecureInboxCard from './SecureInboxCard.vue';
 export default {
   name: 'ForumPanel',
   components: { CallScreen, SecureInboxCard },
-  ...hubBindings(["isPanelMembers","goPanelMembers","chatCtl","canAddToForum","addOpen","addErr","addBusy","toggleAdd","addPersonToForum","pickerPeople","forumMemberIds","pickEmojiForum","attachForum","chatRef","composerNote","composerOff","cur","dmPriv","fKey","fdraft","goPanelChat","goPanelPolls","gripStyle","isDM","isDocked","isPanelChat","replyBar","isPanelCalls","goPanelCalls","isPanelPolls","menuOpen","onFDraftValue","panelChips","panelStyle","pollView","resizeKey","sendForum","showPanelCall","startDrag","toClosed","toFull","toMin","toPage","toggleMenu","videoCall","voiceCall"])
+  ...hubBindings(["mentionList","onActivityClick","isPanelMembers","goPanelMembers","chatCtl","canAddToForum","addOpen","addErr","addBusy","toggleAdd","addPersonToForum","pickerPeople","forumMemberIds","pickEmojiForum","attachForum","chatRef","composerNote","composerOff","cur","dmPriv","fKey","fdraft","goPanelChat","goPanelPolls","gripStyle","isDM","isDocked","isPanelChat","replyBar","isPanelCalls","goPanelCalls","isPanelPolls","menuOpen","onFDraftValue","panelChips","panelStyle","pollView","resizeKey","sendForum","showPanelCall","startDrag","toClosed","toFull","toMin","toPage","toggleMenu","videoCall","voiceCall"])
 };
 </script>

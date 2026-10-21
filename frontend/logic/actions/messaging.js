@@ -1,13 +1,21 @@
 // HubLogic actions: messaging. Mixed into HubLogic.prototype, so `this` is the HubLogic instance.
 import * as forumsW from '~/logic/server/widgets/forums.js';
 import * as dmsW from '~/logic/server/widgets/dms.js';
+import * as mentionsW from '~/logic/server/mentions.js';
 
 export const messagingActions = {
   postMsg(text, file, replyTo) {
     const gate = this._chatGate;
     if (gate && !gate.allowed) { this.notify(gate.reason, '#FFB86B'); return; }
     if (this.state.panelKind === 'dm' && this.state.dmId) this.addDmMsg(this.state.dmId, text, file, replyTo);
-    else this.addForumMsg(this.state.forum, text, file, replyTo);
+    else {
+      this.addForumMsg(this.state.forum, text, file, replyTo);
+      // people tagged with @ in a forum message are told (bell and email); the text itself stays encrypted
+      if (this.srv && text && text.indexOf('@') !== -1) {
+        const f = forumsW.liveForum(this, this.state.forum);
+        if (f) mentionsW.tell(this.srv, 'forum', f.name, mentionsW.names(this.srv, text).filter((d) => f.memberList.some((m) => m.person === d.uid)));
+      }
+    }
   },
 
   // Shows the message at once, then seals and sends it; the stored copy replaces it when the server echoes it back.

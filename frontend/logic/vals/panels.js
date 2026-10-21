@@ -71,6 +71,8 @@ export function valsPanels(ctx) {
     pickerPeople: this.dir.filter((p) => p.hasAccount && p.uid).map((p) => ({ uid: p.uid, name: p.name, title: p.title, dept: p.dept, initials: p.initials, color: p.color, email: p.email })),
     forumMemberIds: (() => { const f = this.srv && forumsW.liveForum(this, ctx.cur.id); return f ? f.memberList.map((m) => m.person) : []; })(),
     // shown for every forum on the server; who may add people is decided by the server, which says so if you may not
+    // people you can tag with @ in this forum: its members, except you
+    mentionList: (() => { const f = this.srv && forumsW.liveForum(this, ctx.cur.id); return f ? f.memberList.filter((m) => m.person !== this.srv.me.person).map((m) => ({ uid: m.person, name: m.name, initials: m.initials, color: m.color })) : []; })(),
     canAddToForum: !!this.srv && !isDM && forumsW.isLive(this.srv, ctx.cur.id),
     forumForm: s.forumForm,
     forumPicked: s.forumForm.picked || [],

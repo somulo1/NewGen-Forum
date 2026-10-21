@@ -1,5 +1,5 @@
 import * as dmsW from '~/logic/server/widgets/dms.js';
-import { richTextHtml } from '~/logic/richText.js';
+import { richTextHtml, mentionLinker } from '~/logic/richText.js';
 import { noteText, notesConnected, isMine, permLabel } from '~/logic/noteText.js';
 import * as forumsW from '~/logic/server/widgets/forums.js';
 // renderVals step: forums. Receives the names built by earlier steps and returns the ones later steps need.
@@ -32,7 +32,9 @@ export function buildForums(ctx) {
   const replyFn = (who, m) => () => this.setState({ replyTo: { key: replyKey, who, snippet: snip(m), mid: m.mid || '' } });
   const quote = (m) => ({ hasReply: !!m.replyTo, replyWho: m.replyTo ? m.replyTo.who : '', replySnippet: m.replyTo ? m.replyTo.snippet : '' });
   const fingerprint = (message) => encodeURIComponent([message.who || '', message.time || '', message.text || '', [].concat(message.file || []).map((file) => file.name || '').join(',')].join('|'));
-  const norm = (u, id) => ({ replies: 0, ...u, id: u.id || id, source: u, htmlText: richTextHtml(u.text), hasText: !!u.text, hasFile: !!u.file, fileList: [].concat(u.file || []), ...quote(u), hasShared: !!u.shared, sid: u.shared ? u.shared.sid : '', reply: replyFn(u.who === 'Sam' ? 'You' : u.who, u) });
+  // a tagged person (@Name) is a link to their profile
+  const linkMentions = mentionLinker(this.dir.map((d) => d.name).concat(this.srv ? [this.srv.me.name] : []));
+  const norm = (u, id) => ({ replies: 0, ...u, id: u.id || id, source: u, htmlText: linkMentions(richTextHtml(u.text)), hasText: !!u.text, hasFile: !!u.file, fileList: [].concat(u.file || []), ...quote(u), hasShared: !!u.shared, sid: u.shared ? u.shared.sid : '', reply: replyFn(u.who === 'Sam' ? 'You' : u.who, u) });
   const addedSource = s.added[cur.id] || [];
   const addedHere = addedSource.map((message) => norm(message, 'forum-' + cur.id + '-added-' + fingerprint(message)));
   const baseMsgs = cur.updates.map((message, index) => norm(message, 'forum-' + cur.id + '-sample-' + index));

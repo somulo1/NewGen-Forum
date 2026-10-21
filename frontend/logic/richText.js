@@ -34,3 +34,12 @@ export function richTextHtml(value) {
     .replace(/\n/g, '<br>');
   return formatted.replace(/\u0000(\d+)\u0000/g, (marker, index) => links[Number(index)] || marker);
 }
+
+// A tagged person (@Name) in a comment becomes a link that opens their profile (the click is handled where the list is shown).
+export function mentionLinker(names) {
+  const list = [...new Set(names)].filter(Boolean).sort((a, b) => b.length - a.length);
+  if (!list.length) return (h) => h;
+  const re = new RegExp('@(' + list.map((n) => escapeHtml(n).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')(?![\\w])', 'g');
+  return (html) => html.replace(re, (m, name) => '<a href="#" data-mention="' + name + '" style="color:var(--k-C9B6FF,#C9B6FF);font-weight:600;text-decoration:none">@' + name + '</a>');
+}
+
