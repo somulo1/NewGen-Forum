@@ -56,6 +56,9 @@ func Run() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	slog.Info("hub starting", "env", cfg.Env, "addr", cfg.HTTPAddr)
+	if os.Getenv("RENDER") != "" && cfg.Env != "prod" {
+		slog.Warn("running on Render without HUB_ENV=prod: none of the production settings reached this service. Add them under Environment (and save), or give them as a Secret File named .env")
+	}
 
 	// 1. the schema
 	if os.Getenv("HUB_AUTO_MIGRATE") != "off" {
