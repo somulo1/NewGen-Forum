@@ -1,8 +1,8 @@
 <!-- Community wall -->
 <template><template v-if="show.feed">
-<div style="width: 100%; display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start">
+<div style="width: 100%; display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; justify-content: center">
 
-<div style="flex: 999 1 460px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+<div style="flex: 999 1 460px; max-width: 760px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
 <div style="position: relative; display: flex; align-items: flex-start; gap: 10px"><div style="flex: 1; min-width: 0"><h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; letter-spacing: -0.02em">Community wall</h1>
 <p style="margin: 4px 0 0; color: var(--k-9DB0A6,#9DB0A6)">Everyone's space to post freely: photos, news, shout-outs, polls.</p></div>
 <button type="button" class="wall-dots" aria-label="Birthdays and trending" :aria-expanded="hl" @click.stop="hl = !hl" style="flex: none; width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; align-items: center; justify-content: center"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button>
@@ -102,7 +102,7 @@
 </div>
 </template>
 <template v-if="p.hasTags"><div style="padding: 0 16px 10px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center"><span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Tagged:</span><template v-for="(tg, tg__i) in p.tagList" :key="tg__i"><button @click="tg.open" style="height: 28px; padding: 0 10px; border-radius: 14px; border: 1px solid var(--k-4A4426,#4A4426); background: var(--k-24220F,#24220F); color: var(--k-FFD66B,#FFD66B); cursor: pointer; font-size: 12px; font-weight: 600">@{{ tg.name }}</button></template></div></template>
-<template v-if="p.hasMedia"><div style="padding: 0 16px 12px"><MediaCollage :files="p.media"/></div></template>
+<template v-if="p.hasMedia"><div style="padding: 0 12px 12px"><MediaCollage :files="p.media" :max-h="560" :row="230"/></div></template>
 <template v-if="p.hasPoll">
 <div style="display: flex; flex-direction: column; gap: 8px; padding: 0 16px 12px">
 <template v-for="(o, o__i) in p.poll" :key="o__i">
@@ -154,7 +154,7 @@
 </template>
 </div>
 
-<aside aria-label="Wall highlights" :class="['hub-static', 'wall-aside', { open: hl }]" @click="hl = false" style="flex: 1 1 250px; min-width: 0; position: sticky; top: 0; align-self: flex-start; overflow: visible; display: flex; flex-direction: column; gap: 16px">
+<aside aria-label="Wall highlights" :class="['hub-static', 'wall-aside', { open: hl }]" @click="hl = false" style="flex: 0 1 320px; min-width: 0; position: sticky; top: 0; align-self: flex-start; overflow: visible; display: flex; flex-direction: column; gap: 16px">
 <div style="padding: 16px; border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 10px">
 <strong style="font-size: 15px">Birthdays today</strong>
 <span style="font-size: 14px; line-height: 1.5; color: var(--k-C9D6CF,#C9D6CF)">{{ wallBirthdays.has ? wallBirthdays.text : 'No birthdays today.' }}</span>
