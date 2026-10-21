@@ -23,3 +23,22 @@ func TestEnvFileFillsOnlyMissingSettings(t *testing.T) {
 		}
 	}
 }
+
+// Render's Secret Files can be made one per setting: the file is named HUB_ENV and holds just the value.
+func TestSecretFilesNamedAfterSettings(t *testing.T) {
+	dir := t.TempDir()
+	old := secretsDir
+	secretsDir = dir
+	defer func() { secretsDir = old }()
+	_ = os.WriteFile(filepath.Join(dir, "HUB_TEST_ONE"), []byte("prod\n"), 0o600)
+	_ = os.WriteFile(filepath.Join(dir, "HUB_TEST_TWO"), []byte(" postgres://u:p@h/db?sslmode=require \n"), 0o600)
+	_ = os.WriteFile(filepath.Join(dir, "HUB_TEST_SET"), []byte("file"), 0o600)
+	os.Unsetenv("HUB_TEST_ONE")
+	os.Unsetenv("HUB_TEST_TWO")
+	t.Setenv("HUB_TEST_SET", "process")
+	t.Setenv("HUB_ENV_FILE", "")
+	loadEnvFile()
+	if os.Getenv("HUB_TEST_ONE") != "prod" || os.Getenv("HUB_TEST_TWO") != "postgres://u:p@h/db?sslmode=require" || os.Getenv("HUB_TEST_SET") != "process" {
+		t.Fatalf("one=%q two=%q set=%q", os.Getenv("HUB_TEST_ONE"), os.Getenv("HUB_TEST_TWO"), os.Getenv("HUB_TEST_SET"))
+	}
+}
