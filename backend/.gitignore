@@ -8,3 +8,4 @@
 
 # test runs write encrypted blobs next to the package under test
 **/data/blobs/
+!.env.example
