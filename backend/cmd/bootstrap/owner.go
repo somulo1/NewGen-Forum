@@ -65,9 +65,7 @@ func owner(ctx context.Context, a *app.App, cfg *config.Config, name, email, pas
 	if acct == uuid.Nil {
 		if password == "" {
 			generated = true
-			b := make([]byte, 12)
-			_, _ = rand.Read(b)
-			password = "Hub-" + strings.NewReplacer("+", "x", "/", "y", "=", "").Replace(base64.StdEncoding.EncodeToString(b)) + "9a"
+			password = readablePassword()
 		}
 		// Account recovery needs three security questions; the owner sets real ones in their profile. Until then the answers
 		// are random and unknown, so recovery by questions cannot be used by anyone else.
@@ -98,9 +96,7 @@ func owner(ctx context.Context, a *app.App, cfg *config.Config, name, email, pas
 	if generated || resetPassword {
 		if resetPassword && !generated {
 			if password == "" {
-				b := make([]byte, 12)
-				_, _ = rand.Read(b)
-				password = "Hub-" + strings.NewReplacer("+", "x", "/", "y", "=", "").Replace(base64.StdEncoding.EncodeToString(b)) + "9a"
+				password = readablePassword()
 				generated = true
 			}
 			if err := auth.CheckPassword(password); err != nil {
@@ -168,4 +164,22 @@ func owner(ctx context.Context, a *app.App, cfg *config.Config, name, email, pas
 		fmt.Printf("\nFirst sign-in password (shown once, must be changed at first sign-in):\n  %s\n", password)
 	}
 	return nil
+}
+
+// readablePassword makes a first sign-in password that is easy to copy by eye: no letters that look alike (I l 1 O 0), in
+// groups of four. It has an upper and a lower case letter and a number, as the password rules need.
+func readablePassword() string {
+	const letters = "ABCDEFGHJKLMNPQRSTUVWXYZ"
+	const lower = "abcdefghijkmnpqrstuvwxyz"
+	const digits = "23456789"
+	pick := func(set string, n int) string {
+		b := make([]byte, n)
+		_, _ = rand.Read(b)
+		out := make([]byte, n)
+		for i := range b {
+			out[i] = set[int(b[i])%len(set)]
+		}
+		return string(out)
+	}
+	return pick(letters, 4) + "-" + pick(lower, 4) + "-" + pick(digits, 4) + "-" + pick(lower+digits, 4)
 }
