@@ -55,6 +55,7 @@ func Run() {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+	slog.Info("hub starting", "env", cfg.Env, "addr", cfg.HTTPAddr)
 
 	// 1. the schema
 	if os.Getenv("HUB_AUTO_MIGRATE") != "off" {

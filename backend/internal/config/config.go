@@ -86,8 +86,18 @@ func Load() (*Config, error) {
 		BlobDir:      get("HUB_BLOB_DIR", "./data/blobs"),
 		MaxUpload:    num("HUB_MAX_UPLOAD", 100<<20),
 	}
-	if c.Env == "prod" && os.Getenv("HUB_DB_GUARD") == "" {
-		return nil, fmt.Errorf("HUB_DB_GUARD is required in production")
+	if c.Env == "prod" {
+		// in production nothing falls back to a development default: a missing setting is a clear error, not a silent attempt
+		// to reach a database on this machine
+		var missing []string
+		for _, k := range []string{"HUB_DB_GUARD", "HUB_DATABASE_URL", "HUB_MIGRATE_URL", "HUB_REDIS_ADDR", "HUB_ALLOWED_ORIGINS", "HUB_KEK", "HUB_MAC_KEY", "HUB_BLIND_KEY", "HUB_TOKEN_KEY", "HUB_LEDGER_KEY", "HUB_CALLS_SECRET"} {
+			if strings.TrimSpace(os.Getenv(k)) == "" {
+				missing = append(missing, k)
+			}
+		}
+		if len(missing) > 0 {
+			return nil, fmt.Errorf("required in production but not set: %s", strings.Join(missing, ", "))
+		}
 	}
 	c.FileServers = strings.FieldsFunc(os.Getenv("HUB_FILE_SERVERS"), func(r rune) bool { return r == ' ' || r == '\n' })
 	for _, fs := range c.FileServers {
