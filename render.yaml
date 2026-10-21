@@ -1,0 +1,63 @@
+# Render Blueprint for the backend (optional: you can also set the same values by hand in the dashboard).
+# New > Blueprint, pick this repository. Values marked sync:false are asked for once and stored by Render, never in git.
+services:
+  - type: web
+    name: hub-api
+    runtime: go
+    rootDir: backend
+    buildCommand: go build -tags netgo -ldflags '-s -w' -o app
+    startCommand: ./app          # NOT `go run .`: that recompiles at start and the port check times out
+    healthCheckPath: /readyz
+    envVars:
+      - key: GO_VERSION
+        value: 1.27.3
+      - key: HUB_ENV
+        value: prod
+      - key: HUB_DATABASE_URL
+        sync: false
+      - key: HUB_MIGRATE_URL
+        sync: false
+      - key: HUB_AUDIT_URL
+        sync: false
+      - key: HUB_REDIS_ADDR
+        sync: false
+      - key: HUB_REDIS_PASS
+        sync: false
+      - key: HUB_ALLOWED_ORIGINS
+        sync: false
+      - key: HUB_DB_GUARD
+        sync: false
+      - key: HUB_KEK
+        sync: false
+      - key: HUB_MAC_KEY
+        sync: false
+      - key: HUB_BLIND_KEY
+        sync: false
+      - key: HUB_TOKEN_KEY
+        sync: false
+      - key: HUB_LEDGER_KEY
+        sync: false
+      - key: HUB_CALLS_SECRET
+        sync: false
+      - key: HUB_METRICS_TOKEN
+        sync: false
+      - key: HUB_SMTP_HOST
+        sync: false
+      - key: HUB_SMTP_USER
+        sync: false
+      - key: HUB_SMTP_PASS
+        sync: false
+      - key: HUB_SMTP_FROM
+        sync: false
+      - key: HUB_FILE_SERVERS
+        sync: false
+      - key: HUB_OWNER_NAME
+        sync: false
+      - key: HUB_OWNER_EMAIL
+        sync: false
+      - key: HUB_OWNER_PASSWORD
+        sync: false
+      - key: HUB_ORG_NAME
+        sync: false
+      - key: HUB_ORG_SLUG
+        sync: false
