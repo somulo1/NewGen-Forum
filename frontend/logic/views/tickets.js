@@ -1,17 +1,8 @@
 import * as ticketsW from '~/logic/server/widgets/tickets.js';
 import { recipientOf, recipientLabel } from '~/logic/ticketRouting.js';
-import { richTextHtml } from '~/logic/richText.js';
+import { richTextHtml, mentionLinker } from '~/logic/richText.js';
 
 // renderVals step: tickets. Receives the names built by earlier steps and returns the ones later steps need.
-// A tagged person (@Name) in a comment becomes a link that opens their profile (the click is handled where the list is shown).
-const esc = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-function mentionLinker(names) {
-  const list = [...new Set(names)].filter(Boolean).sort((a, b) => b.length - a.length);
-  if (!list.length) return (h) => h;
-  const re = new RegExp('@(' + list.map((n) => esc(n).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')(?![\\w])', 'g');
-  return (html) => html.replace(re, (m, name) => '<a href="#" data-mention="' + name + '" style="color:var(--k-C9B6FF,#C9B6FF);font-weight:600;text-decoration:none">@' + name + '</a>');
-}
-
 export function buildTickets(ctx) {
   const { can, has, prio, s } = ctx;
   const withMentions = mentionLinker(this.dir.map((d) => d.name).concat(['Sam']));

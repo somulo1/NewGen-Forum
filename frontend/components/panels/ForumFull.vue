@@ -49,7 +49,7 @@
 
 <template v-if="ftab.discussions">
 <div style="flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px">
-<div :ref="chatRef" style="width: 100%; flex: 1; min-height: 0; box-sizing: border-box; overflow-y: auto">
+<div :ref="chatRef" @click="onActivityClick" style="width: 100%; flex: 1; min-height: 0; box-sizing: border-box; overflow-y: auto">
 <div style="max-width: 900px; min-height: 100%; box-sizing: border-box; margin: 0 auto; padding: 18px clamp(16px, 3vw, 32px); display: flex; flex-direction: column; gap: 12px">
 <template v-for="(u, u__i) in cur.topics" :key="u__i">
 <div style="display: flex; gap: 14px; padding: 16px; border-radius: 14px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); touch-action: pan-y" @pointerdown="u.startHold" @pointerup="u.stopHold" @pointerleave="u.stopHold" @pointercancel="u.stopHold" @contextmenu="u.openActions">
@@ -133,7 +133,7 @@
 <EmojiButton :size="38" @pick="pickEmojiForum"/>
 <button aria-label="Create a poll" title="Create a poll" :disabled="!pollView.canCreate" @click="pollView.compose" style="width: 38px; height: 38px; flex: none; border-radius: 50%; border: 0; background: transparent; color: var(--k-C9D6CF,#C9D6CF); cursor: pointer; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 20V10M12 20V4M19 20v-7"></path></svg></button>
  </div>
-<RichTextInput toolbar-in-actions style="min-width: 0" :model-value="fdraft" @update:model-value="onFDraftValue" @keydown="fKey" :disabled="composerOff" :placeholder="composerOff ? composerNote : `Start a topic in ${cur.name}…`" aria-label="Start a topic" :rows="2" input-style="font-size: 14px; min-height: 42px"/>
+<RichTextInput toolbar-in-actions :mentions="mentionList" style="min-width: 0" :model-value="fdraft" @update:model-value="onFDraftValue" @keydown="fKey" :disabled="composerOff" :placeholder="composerOff ? composerNote : `Start a topic in ${cur.name}…`" aria-label="Start a topic" :rows="2" input-style="font-size: 14px; min-height: 42px"/>
 <button aria-label="Post" title="Post" :disabled="composerOff" @click="sendForum" style="grid-column: 3; grid-row: 1 / 3; align-self: center; width: 42px; height: 42px; flex: none; border-radius: 50%; border: 0; background: #B8F36B; color: #0F1714; cursor: pointer; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 12l16-8-6 16-3-7z"></path></svg></button>
 </div>
 </div>
@@ -155,7 +155,7 @@ export default {
   components: { CallScreen, ChatSharedFiles, SecureInboxCard },
   props: { fit: { type: String, default: 'screen' } },
   computed: {
-    ...hubBindings(["canAddToForum","addErr","addOpen","addBusy","toggleAdd","addPersonToForum","pickerPeople","forumMemberIds","pickEmojiForum","attachForum","chatRef","replyBar","chatCtl","closeChatFolder","composerNote","composerOff","cur","fKey","fdraft","fileFolders","ftab","has","inviteOpen","inviteText","inviteErr","inviteBusy","onInviteText","sendInvites","isFullForum","isPageForum","onFDraftValue","openChatFolder","pollView","selectedChatFolder","sendForum","showPanelCall","tab","tabTo","toClosed","toDocked","toFull","toMin","toPage","toggleInvite","videoCall","voiceCall"]).computed,
+    ...hubBindings(["mentionList","onActivityClick","canAddToForum","addErr","addOpen","addBusy","toggleAdd","addPersonToForum","pickerPeople","forumMemberIds","pickEmojiForum","attachForum","chatRef","replyBar","chatCtl","closeChatFolder","composerNote","composerOff","cur","fKey","fdraft","fileFolders","ftab","has","inviteOpen","inviteText","inviteErr","inviteBusy","onInviteText","sendInvites","isFullForum","isPageForum","onFDraftValue","openChatFolder","pollView","selectedChatFolder","sendForum","showPanelCall","tab","tabTo","toClosed","toDocked","toFull","toMin","toPage","toggleInvite","videoCall","voiceCall"]).computed,
     shown() { return this.fit === 'page' ? !!this.isPageForum : !!this.isFullForum; },
     rootStyle() {
       const base = 'background: var(--k-0F1714,#0F1714); display: flex; flex-direction: column; overflow: hidden; box-sizing: border-box;';

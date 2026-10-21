@@ -1,6 +1,8 @@
 <template>
 <div :style="toolbarInActions ? 'display: contents' : 'width: 100%; min-width: 0; box-sizing: border-box; display: flex; flex-direction: column; align-items: flex-start; gap: 5px'">
-<textarea ref="editor" :value="local" :rows="rows" :aria-label="ariaLabel" :placeholder="placeholder" :disabled="disabled" @input="onInput" @keydown="onKeydown" @blur="flush" :style="`display: block; width: 100%; min-width: 0; box-sizing: border-box; padding: 10px 12px; border: 1px solid var(--k-2A3832,#2A3832); border-radius: 10px; outline: none; background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font: inherit; resize: vertical; ${toolbarInActions ? 'grid-column: 2; grid-row: 1 / 3; min-height: 80px; height: 100%;' : ''} ${inputStyle}`"></textarea>
+<div style="position: relative; width: 100%; min-width: 0; display: block"><div v-if="mq && matches.length" role="listbox" aria-label="People you can tag" style="position: absolute; left: 0; bottom: calc(100% + 6px); z-index: 90; min-width: 240px; max-width: 100%; max-height: 240px; overflow-y: auto; padding: 4px; border-radius: 12px; background: var(--k-1D2A25,#1D2A25); border: 1px solid var(--k-34453D,#34453D); box-shadow: 0 14px 30px rgba(0,0,0,0.45)">
+<button v-for="(m, i) in matches" :key="m.uid" type="button" role="option" :aria-selected="i === mActive" @mousedown.prevent="chooseMention(m)" @mouseenter="mActive = i" :style="`display: flex; align-items: center; gap: 10px; width: 100%; padding: 6px 8px; border: 0; border-radius: 8px; background: ${i === mActive ? 'var(--k-2C3D34,#2C3D34)' : 'transparent'}; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; text-align: left`"><span :style="`flex: none; width: 26px; height: 26px; border-radius: 50%; background: ${m.color || '#7CC4FF'}; color: #0F1714; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center`">{{ m.initials }}</span><span style="flex: 1; min-width: 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ m.name }}</span></button>
+</div><textarea ref="editor" :value="local" :rows="rows" :aria-label="ariaLabel" :placeholder="placeholder" :disabled="disabled" @input="onInput" @keydown="onKeydown" @keyup="onKeyup" @click="watchMention" @blur="flush" :style="`display: block; width: 100%; min-width: 0; box-sizing: border-box; padding: 10px 12px; border: 1px solid var(--k-2A3832,#2A3832); border-radius: 10px; outline: none; background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font: inherit; resize: vertical; ${toolbarInActions ? 'grid-column: 2; grid-row: 1 / 3; min-height: 80px; height: 100%;' : ''} ${inputStyle}`"></textarea></div>
 <div role="toolbar" aria-label="Text formatting" :style="`display: flex; align-items: center; gap: 3px; width: max-content; max-width: 100%; box-sizing: border-box; padding: 2px 5px; border: 1px solid var(--k-2A3832,#2A3832); border-radius: 8px; background: var(--k-121B17,#121B17); overflow-x: auto; ${toolbarInActions ? 'grid-column: 1; grid-row: 2; align-self: start;' : ''}`">
 <button v-for="tool in tools" :key="tool.key" type="button" :aria-label="tool.label" :title="tool.label" :disabled="disabled" @mousedown.prevent @click="format(tool.key)" :style="`flex: none; min-width: 32px; height: 30px; padding: 0 7px; border: 0; border-radius: 6px; background: transparent; color: ${disabled ? 'var(--k-66736C,#66736C)' : 'var(--k-E8EFEA,#E8EFEA)'}; cursor: ${disabled ? 'not-allowed' : 'pointer'}; font-weight: 700`">
 <svg v-if="tool.key === 'link'" aria-hidden="true" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.07 0l3-3A5 5 0 0 0 13 2.93l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.07 0l-3 3A5 5 0 0 0 11 21.07l1.71-1.71"></path></svg>
@@ -32,7 +34,8 @@ export default {
     placeholder: { type: String, default: '' },
     disabled: Boolean,
     inputStyle: { type: String, default: '' },
-    toolbarInActions: Boolean
+    toolbarInActions: Boolean,
+    mentions: { type: Array, default: () => [] }   // { uid, name, initials, color }: typing @ offers these people
   },
   emits: ['update:modelValue', 'keydown'],
   // Typing stays in this box and reaches the app a moment later (or at once on any key handled above, blur or format).
@@ -42,6 +45,8 @@ export default {
       local: this.modelValue || '',
       sent: this.modelValue || '',
       timer: null,
+      mq: null,      // the @word being typed: { start, query }
+      mActive: 0,
       tools: [
         { key: 'bold', label: 'Bold (Ctrl/⌘+B)', icon: 'B' },
         { key: 'italic', label: 'Italic (Ctrl/⌘+I)', icon: 'I' },
@@ -54,10 +59,38 @@ export default {
     // the app changed the text (cleared after sending, a draft restored): show it, unless it is our own pending value
     modelValue(v) { if ((v || '') !== this.sent) { clearTimeout(this.timer); this.timer = null; this.local = this.sent = v || ''; } }
   },
+  computed: {
+    matches() {
+      if (!this.mq) return [];
+      const t = this.mq.query.toLowerCase();
+      return this.mentions.filter((m) => !t || m.name.toLowerCase().includes(t))
+        .sort((a, b) => (a.name.toLowerCase().startsWith(t) ? 0 : 1) - (b.name.toLowerCase().startsWith(t) ? 0 : 1) || a.name.localeCompare(b.name)).slice(0, 6);
+    }
+  },
   beforeUnmount() { this.flush(); },
   methods: {
+    // is the caret right after "@something"? then offer the people to tag
+    watchMention() {
+      const el = this.$refs.editor;
+      if (!el || !this.mentions.length) { this.mq = null; return; }
+      const upto = this.local.slice(0, el.selectionStart);
+      const m = /(^|\s)@([^\s@]{0,30})$/.exec(upto);
+      if (m) { this.mq = { start: upto.length - m[2].length - 1, query: m[2] }; this.mActive = 0; } else this.mq = null;
+    },
+    chooseMention(person) {
+      const el = this.$refs.editor;
+      if (!el || !this.mq) return;
+      const caret = el.selectionStart;
+      const insert = '@' + person.name + ' ';
+      const pos = this.mq.start + insert.length;
+      this.local = this.local.slice(0, this.mq.start) + insert + this.local.slice(caret);
+      this.mq = null;
+      this.flush();
+      this.$nextTick(() => { el.focus(); el.setSelectionRange(pos, pos); });
+    },
     onInput(event) {
       this.local = event.target.value;
+      this.$nextTick(() => this.watchMention());
       clearTimeout(this.timer);
       this.timer = setTimeout(this.flush, 150);
     },
@@ -68,7 +101,14 @@ export default {
       this.sent = this.local;
       this.$emit('update:modelValue', this.local);
     },
+    onKeyup(event) { if (!['ArrowDown', 'ArrowUp', 'Enter', 'Tab', 'Escape'].includes(event.key)) this.watchMention(); },
     onKeydown(event) {
+      // while the list of people is open, these keys pick from it instead of sending or moving the caret
+      if (this.mq && this.matches.length) {
+        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); this.mActive = (this.mActive + (event.key === 'ArrowDown' ? 1 : -1) + this.matches.length) % this.matches.length; return; }
+        if (event.key === 'Enter' || event.key === 'Tab') { event.preventDefault(); event.stopPropagation(); this.chooseMention(this.matches[this.mActive]); return; }
+        if (event.key === 'Escape') { event.preventDefault(); this.mq = null; return; }
+      }
       // a key the app handles (Enter to send) must see everything typed so far
       if (event.key === 'Enter' || event.ctrlKey || event.metaKey) this.flush();
       const modifier = event.ctrlKey || event.metaKey;
