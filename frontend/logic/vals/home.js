@@ -119,6 +119,8 @@ export function valsHome(ctx) {
       if (!t && !media.length) return;
       const pollData = wp ? { opts: opts.map((label, i) => ({ id: 'o' + i, label, votes: 0 })) } : undefined;
       this.setState({ draft: '', wfiles: [], emojiW: false, wpoll: null });
+      // the post shows at once; the real one replaces it when the server has it
+      this.setState((st) => ({ posts: [{ id: 'pending-' + Date.now(), author: 'Sam', initials: 'S', color: '#F49AC1', mine: true, meta: 'Posting…', text: t, postBg: postBg || undefined, likes: 0, extra: 0, shares: 0, comments: [], media: media.map((m) => ({ id: m.id, name: m.name, meta: m.meta, isImg: m.isImg, isVideo: m.isVideo, url: m.url })), pollData, tags: [] }].concat(st.posts) }));
       wallW.post(this, this.srv, { text: t, postBg, files: media.map((m) => m.file).filter(Boolean), poll: wp ? opts : null, audience: this.state.wallAudience })
         .then(() => this.notify('Posted to the wall.', '#B8F36B'))
         .catch((e) => this.notify(e.message || 'Could not post.', '#FF9B8A'));
