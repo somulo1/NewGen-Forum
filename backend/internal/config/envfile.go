@@ -12,6 +12,26 @@ import (
 // never overridden. Lines starting with # are comments; values may be wrapped in single or double quotes; "export " is allowed.
 func loadEnvFile() {
 	paths := []string{os.Getenv("HUB_ENV_FILE"), ".env", "/etc/secrets/.env", "/etc/secrets/env"}
+	// any other file in the secrets folder whose name mentions "env" (a Secret File named .env.render, prod.env, ...)
+	if es, err := os.ReadDir("/etc/secrets"); err == nil {
+		for _, e := range es {
+			if !e.IsDir() && strings.Contains(strings.ToLower(e.Name()), "env") {
+				paths = append(paths, "/etc/secrets/"+e.Name())
+			}
+		}
+	}
+	found := false
+	defer func() {
+		if !found && os.Getenv("RENDER") != "" {
+			var names []string
+			if es, err := os.ReadDir("/etc/secrets"); err == nil {
+				for _, e := range es {
+					names = append(names, e.Name())
+				}
+			}
+			slog.Warn("no settings file found", "files in /etc/secrets", names, "looked for", []string{".env", "/etc/secrets/.env"})
+		}
+	}()
 	for _, p := range paths {
 		if p == "" {
 			continue
@@ -20,6 +40,7 @@ func loadEnvFile() {
 		if err != nil {
 			continue
 		}
+		found = true
 		n := 0
 		sc := bufio.NewScanner(f)
 		sc.Buffer(make([]byte, 1<<20), 1<<20)
