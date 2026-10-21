@@ -23,6 +23,7 @@ import (
 
 	"hub/internal/access"
 	"hub/internal/app"
+	"hub/internal/bootstrap"
 	"hub/internal/config"
 	"hub/internal/mail"
 	"hub/internal/modules/tones"
@@ -148,7 +149,7 @@ func main() {
 			fail(err)
 		}
 	case "owner":
-		if err := owner(ctx, a, cfg, *ownerName, *ownerEmail, "", *orgName, *slug, *resetPw, *keep); err != nil {
+		if err := bootstrap.Owner(ctx, a, cfg, *ownerName, *ownerEmail, "", *orgName, *slug, *resetPw, *keep); err != nil {
 			fail(err)
 		}
 	case "protect":

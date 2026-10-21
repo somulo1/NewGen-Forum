@@ -20,6 +20,11 @@ func Migrate(ctx context.Context, ownerURL, guardToken string, files fs.FS) ([]s
 		return nil, fmt.Errorf("owner connection: %w", err)
 	}
 	defer conn.Close(ctx)
+	// several nodes starting together must not run the same migration twice: one waits for the other
+	if _, err := conn.Exec(ctx, `select pg_advisory_lock(727274)`); err != nil {
+		return nil, err
+	}
+	defer func() { _, _ = conn.Exec(context.Background(), `select pg_advisory_unlock(727274)`) }()
 	if _, err := conn.Exec(ctx, `create schema if not exists hub;
 create table if not exists hub.migrations (version int primary key, name text not null, sha256 text not null, applied_at timestamptz not null default now())`); err != nil {
 		return nil, err

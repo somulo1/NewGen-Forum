@@ -1,4 +1,4 @@
-package main
+package bootstrap
 
 import (
 	"context"
@@ -19,13 +19,13 @@ import (
 	"hub/internal/modules/org"
 )
 
-// owner makes sure the person who runs the deployment exists, is active, and owns an organization. It is what a fresh go-live
+// Owner makes sure the person who runs the deployment exists, is active, and owns an organization. It is what a fresh go-live
 // runs after the migrations, so there is someone able to sign in and set everything else up.
 //
 // The details come from flags or the environment (HUB_OWNER_NAME, HUB_OWNER_EMAIL, HUB_OWNER_PASSWORD, HUB_ORG_NAME, HUB_ORG_SLUG),
 // never from the code. Running it again is safe: it activates and unlocks the account, and never resets a password unless
 // -reset-password is given. A password it generates is printed once and must be changed at first sign-in.
-func owner(ctx context.Context, a *app.App, cfg *config.Config, name, email, password, orgName, slug string, resetPassword, keepPassword bool) error {
+func Owner(ctx context.Context, a *app.App, cfg *config.Config, name, email, password, orgName, slug string, resetPassword, keepPassword bool) error {
 	first := func(vals ...string) string {
 		for _, v := range vals {
 			if strings.TrimSpace(v) != "" {
