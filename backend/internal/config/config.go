@@ -68,6 +68,7 @@ type CallLimits struct {
 }
 
 func Load() (*Config, error) {
+	loadEnvFile()
 	c := &Config{
 		Env:          get("HUB_ENV", "dev"),
 		HTTPAddr:     get("HUB_HTTP_ADDR", ":8080"),
