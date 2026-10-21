@@ -6,7 +6,7 @@ export function valsPanels(ctx) {
     panelStyle,
     chatCtl, chatGate, composerOff: !chatGate.allowed, composerNote: chatGate.reason, dmPriv, incomingView, pollView,
     panelTab: s.panelTab, isPanelChat: s.panelTab === 'chat', isPanelPolls: s.panelTab === 'polls', isPanelCalls: s.panelTab === 'calls', isPanelFiles: s.panelTab === 'files',
-    goPanelChat: set({ panelTab: 'chat' }), goPanelPolls: set({ panelTab: 'polls' }), goPanelCalls: set({ panelTab: 'calls' }), goPanelFiles: set({ panelTab: 'files' }),
+    goPanelChat: set({ panelTab: 'chat' }), goPanelPolls: set({ panelTab: 'polls' }), goPanelCalls: set({ panelTab: 'calls' }), goPanelFiles: set({ panelTab: 'files' }), goPanelMembers: set({ panelTab: 'members' }), isPanelMembers: s.panelTab === 'members',
     callHistory: (() => {
       const { cur, curDm, dmView } = ctx;
       const mine = (e) => (isDM ? e.ctx === 'dm' && curDm && e.ref === curDm.with : e.ctx === 'forum' && cur && e.ref === cur.id);
@@ -67,24 +67,44 @@ export function valsPanels(ctx) {
     toggleInvite: () => this.setState({ invite: !s.invite }),
     toggleCreate: () => this.setState({ create: !s.create }),
     // Make a forum (named, with the people to start with) and invite more people into the one that is open. Both need the server.
+    // People already in Hub, for the search-and-pick boxes (only people with an account can be given a key)
+    pickerPeople: this.dir.filter((p) => p.hasAccount && p.uid).map((p) => ({ uid: p.uid, name: p.name, title: p.title, dept: p.dept, initials: p.initials, color: p.color, email: p.email })),
+    forumMemberIds: (() => { const f = this.srv && forumsW.liveForum(this, ctx.cur.id); return f ? f.memberList.map((m) => m.person) : []; })(),
+    // shown for every forum on the server; who may add people is decided by the server, which says so if you may not
+    canAddToForum: !!this.srv && !isDM && forumsW.isLive(this.srv, ctx.cur.id),
     forumForm: s.forumForm,
+    forumPicked: s.forumForm.picked || [],
+    pickForumMember: (uid) => this.setState((st) => ({ forumForm: { ...st.forumForm, picked: (st.forumForm.picked || []).includes(uid) ? st.forumForm.picked : (st.forumForm.picked || []).concat([uid]), err: '' } })),
+    unpickForumMember: (uid) => this.setState((st) => ({ forumForm: { ...st.forumForm, picked: (st.forumForm.picked || []).filter((x) => x !== uid) } })),
+    // "Add": picking a person puts them in the open forum straight away
+    addOpen: !!s.addOpen, addErr: s.addErr, addBusy: !!s.addBusy,
+    toggleAdd: () => this.setState((st) => ({ addOpen: !st.addOpen, addErr: '' })),
+    addPersonToForum: (uid) => {
+      const fid = ctx.cur.id;
+      if (!this.srv || !forumsW.isLive(this.srv, fid)) { this.setState({ addErr: 'This forum is not on the server.' }); return; }
+      const who = (this.dir.find((p) => p.uid === uid) || {}).name || 'They';
+      this.setState({ addBusy: true, addErr: '' });
+      forumsW.invite(this, this.srv, fid, '', [uid])
+        .then(() => { this.setState({ addBusy: false, addOpen: false }); this.notify(who + ' was added to the forum.', '#B8F36B'); })
+        .catch((e) => this.setState({ addBusy: false, addErr: (e && e.message) || 'Could not add them.' }));
+    },
     onForumName: (e) => this.setState({ forumForm: { ...s.forumForm, name: e.target.value, err: '' } }),
     onForumMembers: (e) => this.setState({ forumForm: { ...s.forumForm, members: e.target.value, err: '' } }),
     createForumNow: () => {
       const f = this.state.forumForm;
       if (!this.srv) { this.notify('Sign in to an organization to create forums.', '#FFB86B'); return; }
       this.setState({ forumForm: { ...f, busy: true, err: '' } });
-      forumsW.createForum(this, this.srv, f).then((id) => {
-        this.setState({ forumForm: { name: '', members: '', err: '', busy: false }, create: false, forum: id, panelKind: 'forum', mode: this.isMobileViewport() ? 'page' : 'docked', menu: false, tab: 'discussions', forumsOpen: true });
+      forumsW.createForum(this, this.srv, { ...f, memberIds: f.picked || [] }).then((id) => {
+        this.setState({ forumForm: { name: '', members: '', picked: [], err: '', busy: false }, create: false, forum: id, panelKind: 'forum', mode: this.isMobileViewport() ? 'page' : 'docked', menu: false, tab: 'discussions', forumsOpen: true });
         this.notify('Forum created.', '#B8F36B');
       }).catch((e) => this.setState({ forumForm: { ...f, busy: false, err: e.message || 'Could not create the forum.' } }));
     },
     inviteText: s.inviteText, inviteErr: s.inviteErr, inviteBusy: s.inviteBusy,
     onInviteText: (e) => this.setState({ inviteText: e.target.value, inviteErr: '' }),
     sendInvites: () => {
-      if (!this.srv || !forumsW.isLive(this.srv, this.state.forum)) { this.notify('This forum is not on the server.', '#FFB86B'); return; }
+      if (!this.srv || !forumsW.isLive(this.srv, ctx.cur.id)) { this.notify('This forum is not on the server.', '#FFB86B'); return; }
       this.setState({ inviteBusy: true, inviteErr: '' });
-      forumsW.invite(this, this.srv, this.state.forum, this.state.inviteText)
+      forumsW.invite(this, this.srv, ctx.cur.id, this.state.inviteText)
         .then((n) => { this.setState({ inviteBusy: false, inviteText: '', invite: false }); this.notify(n + (n === 1 ? ' person' : ' people') + ' added to the forum.', '#B8F36B'); })
         .catch((e) => this.setState({ inviteBusy: false, inviteErr: e.message || 'Could not add them.' }));
     },

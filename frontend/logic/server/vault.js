@@ -10,6 +10,7 @@ export class Vault {
     this.keys = new Map();      // conversation id -> Map(epoch -> 32-byte key)
     this.signing = new Map();   // account id -> Map(device id -> signing key)
     this.convs = new Map();     // conversation id -> latest known conversation (epoch, members)
+    this.acctOfPerson = new Map(); this.personOfAcct = new Map();   // who is who, as far as the keys have shown
     this.idents = new Map();    // account id -> Map(device id -> identity key) as last seen
     this.onNewDevice = null;    // called when a colleague we have seen before shows a device we have not seen
     this.pins = this.loadPins();
@@ -32,7 +33,15 @@ export class Vault {
   }
   // The safety code to compare with a colleague, once their device keys have been seen ('' until then).
   safetyCodeOf(accountId) { const m = this.idents.get(accountId); return m && m.size ? safetyCode([...m.values()]) : ''; }
-  async ensureSafety(accountId, personId) { if (!this.idents.has(accountId) && personId) { try { await this.signingKey(accountId, personId); } catch (e) { /* not available */ } } }
+  // The account behind a colleague (the directory does not list account ids), found from their device list.
+  async accountOfPerson(personId) {
+    if (this.acctOfPerson.has(personId)) return this.acctOfPerson.get(personId);
+    try {
+      const r = await this.request('GET', `/e2ee/people/${personId}/devices`);
+      if (r && r.account) { this.acctOfPerson.set(personId, r.account); this.personOfAcct.set(r.account, personId); this.observe(r.account, r.devices || []); return r.account; }
+    } catch (e) { /* no account yet */ }
+    return null;
+  }
 
   // One request per conversation at a time: opening a page of messages asks for the same keys hundreds of times at once.
   async epochKeys(conv, force = false) {
@@ -105,7 +114,9 @@ export class Vault {
             // first look: the batch (active devices). A device that is not there (revoked since) is asked for by itself.
             if (!byDev) { await this.batchSigning(personId); for (const [id, key] of this.signing.get(accountId) || []) have.set(id, key); }
             if (!have.size || (deviceId && !have.has(deviceId))) {
-              const list = (await this.request('GET', `/e2ee/people/${personId}/devices`)).devices;
+              const r = await this.request('GET', `/e2ee/people/${personId}/devices`);
+              const list = r.devices;
+              this.acctOfPerson.set(personId, accountId); this.personOfAcct.set(accountId, personId);
               this.observe(accountId, list);
               for (const d of list) have.set(d.id, unb64(d.signing_key));
             }

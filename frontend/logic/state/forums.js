@@ -4,7 +4,7 @@ export function forumsState() {
     polls: [], chatFileFolder: null,
     pollForm: null, pollMenu: null, panelTab: 'chat',
     forumChat: {},
-    forumForm: { name: '', members: '', err: '', busy: false }, inviteText: '', inviteErr: '', inviteBusy: false,
+    forumForm: { name: '', members: '', picked: [], err: '', busy: false }, addOpen: false, addErr: '', addBusy: false, inviteText: '', inviteErr: '', inviteBusy: false,
     dmPrivacy: {}, privacyOpen: false, incoming: null
   };
 }

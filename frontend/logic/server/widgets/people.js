@@ -17,7 +17,7 @@ export async function load(logic, srv) {
   all.forEach((p) => {
     srv.nameOf.set(p.id, p.name);
     const row = (id) => ({
-      id, uid: p.id, account: p.account, accStatus: p.status || 'active', name: p.name, email: p.email || '', initials: p.initials, dept: p.department ? p.department.name : '',
+      id, uid: p.id, hasAccount: !!p.has_account, accStatus: p.status || 'active', name: p.name, email: p.email || '', initials: p.initials, dept: p.department ? p.department.name : '',
       title: p.title || '', loc: p.branch ? p.branch.name : '', sector: p.sector ? p.sector.name : '', unit: p.unit ? p.unit.name : '',
       color: p.color || '#7CC4FF', joined: p.joined_on || '', dob: p.date_of_birth || '', status: STATUS[p.availability] || 'Available', role: p.role || ''
     });
