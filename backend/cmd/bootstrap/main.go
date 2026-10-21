@@ -35,17 +35,18 @@ func fail(err error) {
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "usage: bootstrap platform | bootstrap owner | bootstrap protect [-slug <slug>] | bootstrap seal | bootstrap org -slug <slug> [-roles starter] [-dry-run]")
+		fmt.Fprintln(os.Stderr, "usage: bootstrap platform | bootstrap owner | bootstrap protect [-slug <slug>] | bootstrap seal | bootstrap member -name N -email E -password P [-roles <role key>] [-slug S] | bootstrap org -slug <slug> [-roles starter] [-dry-run]")
 		os.Exit(2)
 	}
 	cmd := os.Args[1]
 	fs := flag.NewFlagSet(cmd, flag.ExitOnError)
 	slug := fs.String("slug", "", "organization web name")
-	roles := fs.String("roles", "", "role pack to add: starter")
+	roles := fs.String("roles", "", "role pack to add (org: starter) or the role key to give (member)")
 	all := fs.Bool("all", false, "every organization (use after a release that adds rights)")
 	ownerName := fs.String("name", "", "owner: your full name")
 	ownerEmail := fs.String("email", "", "owner: your sign-in email")
 	orgName := fs.String("org", "", "owner: the organization's name")
+	memberPass := fs.String("password", "", "member: the password to set (development only)")
 	resetPw := fs.Bool("reset-password", false, "owner: set a new first-sign-in password even though the account exists")
 	keep := fs.Bool("keep-password", false, "owner: the password given is the one to keep: do not force a change at first sign-in")
 	dry := fs.Bool("dry-run", false, "show what would be added and change nothing")
@@ -142,6 +143,10 @@ func main() {
 			}
 		}
 		fmt.Println("done.")
+	case "member":
+		if err := member(ctx, a, cfg, *slug, *ownerName, *ownerEmail, *memberPass, *roles); err != nil {
+			fail(err)
+		}
 	case "owner":
 		if err := owner(ctx, a, cfg, *ownerName, *ownerEmail, "", *orgName, *slug, *resetPw, *keep); err != nil {
 			fail(err)
