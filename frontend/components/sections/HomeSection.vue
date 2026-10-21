@@ -280,6 +280,15 @@
 <template v-if="w.noUnits"><span style="font-size: 13px; color: var(--k-9DB0A6,#9DB0A6)">Add a Departments, Sectors, Branches or Units widget to track performance.</span></template>
 </template>
 
+<template v-if="w.t.levelEmpty">
+<div style="display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 12px; background: var(--k-121B17,#121B17); border: 1px dashed var(--k-2A3832,#2A3832)">
+<strong style="font-size: 14px">No {{ w.levelPlural }} yet</strong>
+<span style="font-size: 13px; line-height: 1.5; color: var(--k-9DB0A6,#9DB0A6)">Add your first {{ w.levelOne }} and it appears here, in people's profiles, in onboarding and in tickets.</span>
+<button v-if="w.canAddLevel" type="button" @click="w.addLevel" style="align-self: flex-start; height: 36px; padding: 0 16px; border-radius: 18px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">Add the first {{ w.levelOne }}</button>
+<span v-else style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Ask an administrator to add one.</span>
+</div>
+</template>
+
 <template v-if="w.t.branches">
 <div style="display: flex; flex-direction: column; gap: 8px">
 <template v-for="(br, br__i) in w.items" :key="br__i">
