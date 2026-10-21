@@ -123,7 +123,7 @@ export function buildProfile(ctx) {
         { label: 'Awards', n: opAwards.length, color: '#FFD66B' }
       ],
       projects: projects.filter((p) => opProjIds.indexOf(p.id) !== -1).map((p) => ({ ...p, myRole: 'Contributor' })),
-      activity: withKind(opActivity),
+      activity: [],   // someone's activity is private to them: it is not even built for other people's profiles
       contact: [
         { label: 'Work email', value: (pd && pd.email) || opDir.email || 'Not shared', color: '#E8EFEA' },
         { label: 'Phone', value: (pd && pd.phone) || 'Not shared', color: (pd && pd.phone) ? '#E8EFEA' : '#9DB0A6' },
