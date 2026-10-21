@@ -32,10 +32,6 @@ export class Device {
   static fromSeed(seed) {
     return new Device(hkdf(sha256, seed, undefined, 'hub/e2ee/x25519', 32), hkdf(sha256, seed, undefined, 'hub/e2ee/ed25519', 32));
   }
-  // Demo people only (backend/internal/seeder DeviceSeed): lets a development client act as a seeded person.
-  static fromDemo(email, secret = 'hub-demo-seed') {
-    return Device.fromSeed(hmac(sha256, enc.encode(secret), enc.encode('hub-demo-device|' + email)));
-  }
   export() { return { agree: b64(this.agree), sign: b64(this.sign) }; }
   static import(o) { return new Device(unb64(o.agree), unb64(o.sign)); }
   // Proves the two keys belong together and to this account (POST /e2ee/devices).

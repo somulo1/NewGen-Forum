@@ -31,19 +31,13 @@ async function openDevice(request, session) {
   const account = session.account;
   const mine = (await request('GET', '/e2ee/devices')).devices.filter((d) => !d.revoked);
   const has = (dev) => mine.find((d) => d.identity_key === b64(dev.identity) && d.signing_key === b64(dev.signing));
-  // 1. a seeded demo person: the device is derived from their email (development only)
-  // Never in a production build: those keys come from a public development secret.
-  if (import.meta.dev) {
-    const demo = Device.fromDemo(session.email);
-    if (has(demo)) return { device: demo, deviceId: has(demo).id };
-  }
-  // 2. a device this browser registered earlier
+  // 1. a device this browser registered earlier
   const slot = 'hub-device:' + account;
   try {
     const saved = await loadDevice(slot);
     if (saved) { const d = Device.import(saved); if (has(d)) return { device: d, deviceId: has(d).id }; }
   } catch (e) { /* unreadable: register a new one */ }
-  // 3. register a new device for this browser
+  // 2. register a new device for this browser
   const device = Device.generate();
   const reg = await request('POST', '/e2ee/devices', {
     label: 'Web browser', identity_key: b64(device.identity), signing_key: b64(device.signing), binding_sig: b64(device.binding(account))
