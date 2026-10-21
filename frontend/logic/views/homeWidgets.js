@@ -3,7 +3,7 @@ import * as commsW from '~/logic/server/widgets/comms.js';
 import * as dmsW from '~/logic/server/widgets/dms.js';
 // renderVals step: homeWidgets. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildHomeWidgets(ctx) {
-  const { todayISO, calItems, fmtDay, sharedNotes, forums, has, ini, myUnits, nOpen, nOver, nSoon, openCm, openEv, orgWidgetItems, people, projStats, projects, s, sessions, tickets } = ctx;
+  const { can, todayISO, calItems, fmtDay, sharedNotes, forums, has, ini, myUnits, nOpen, nOver, nSoon, openCm, openEv, orgWidgetItems, people, projStats, projects, s, sessions, tickets } = ctx;
   // ---- Files ----
   const kindColor = { PDF: '#FF9B8A', DOC: '#7CC4FF', XLS: '#B8F36B', PPT: '#FFB86B', IMG: '#F49AC1', ZIP: '#C9B6FF' };
   // "Shared notes" is a built-in folder: notes shared with me (live links) and the notes I share.
@@ -99,11 +99,13 @@ export function buildHomeWidgets(ctx) {
   };
   // structure widgets follow the organization's structure, not the person's choice
   const LEVELS = ['departments', 'sectors', 'branches', 'units'];
-  const ids = s.widgets.filter((x) => catalog[x] && (LEVELS.indexOf(x) === -1 || has[x]));
+  // A level (departments, sectors, branches, units) shows once the organization has one, or once the person added its widget:
+  // an empty one then offers to add the first.
+  const ids = [...new Set(s.widgets)].filter((x) => catalog[x] && (LEVELS.indexOf(x) === -1 || has[x] || (s.levelsAdded || {})[x]));
   const isHidden = (id) => s.hiddenWidgets.indexOf(id) !== -1;
   const toggleHide = (id) => () => this.setState((st) => ({ hiddenWidgets: st.hiddenWidgets.indexOf(id) !== -1 ? st.hiddenWidgets.filter((x) => x !== id) : st.hiddenWidgets.concat([id]) }));
   const removeWidget = (id) => this.setState((st) => {
-    const patch = { widgets: st.widgets.filter((x) => x !== id) };
+    const patch = { widgets: st.widgets.filter((x) => x !== id), levelsAdded: Object.fromEntries(Object.entries(st.levelsAdded || {}).filter(([k]) => k !== id)) };
     if (id === 'projects') Object.assign(patch, {
       section: st.section === 'projects' ? 'home' : st.section,
       projectOpen: null, projectForm: null, taskForm: null, taskOpen: null, msDialog: null
@@ -115,7 +117,11 @@ export function buildHomeWidgets(ctx) {
     ...catalog[id],
     title: (s.wcfg[id] && s.wcfg[id].title) || catalog[id].title,
     openSettings: () => this.setState({ settingsFor: id }),
-    t: { [id]: true },
+    t: LEVELS.indexOf(id) !== -1 && !has[id] ? { levelEmpty: true } : { [id]: true },
+    levelEmpty: LEVELS.indexOf(id) !== -1 && !has[id],
+    levelOne: ({ departments: 'department', sectors: 'sector', branches: 'branch', units: 'unit' })[id] || '', levelPlural: (catalog[id].title || '').toLowerCase(),
+    canAddLevel: !!this.srv && can('settings', 'Edit organization profile'),
+    addLevel: () => { const k = ({ departments: 'department', sectors: 'sector', branches: 'branch', units: 'unit' })[id]; this.setState({ section: 'orgedit', structEd: { kind: k, name: '', parent: '', err: '', ok: '', busy: false, edit: null, del: null, move: {}, sel: {}, into: {}, mergeAsk: null, tab: k, q: {} } }); },
     items: id === 'calendar' ? calItems : (id === 'memos' || id === 'newsletter' || id === 'jobposts') ? s.comms.filter((c) => c.type === (id === 'memos' ? 'Memo' : id === 'jobposts' ? 'Job post' : 'Newsletter') && c.status === 'Published').slice(0, 3).map((c) => ({ ...c, by: c.by === 'Samwel Okoth Omulo' ? 'You' : c.by, dateLabel: fmtDay(c.date), audience: c.to.length > 2 ? c.to.slice(0, 2).join(', ') + ' +' + (c.to.length - 2) : c.to.join(', '), readBar: 'height:100%;width:' + c.read + '%;background:#B8F36B' })) : (orgWidgetItems[id] || itemsFor[id] || []),
     isCommList: id === 'memos' || id === 'newsletter' || id === 'jobposts',
     noComms: (id === 'memos' || id === 'newsletter' || id === 'jobposts') && !s.comms.some((c) => c.type === (id === 'memos' ? 'Memo' : id === 'jobposts' ? 'Job post' : 'Newsletter')),
@@ -123,7 +129,7 @@ export function buildHomeWidgets(ctx) {
     composeLabel: id === 'memos' ? 'New memo' : id === 'newsletter' ? 'New issue' : id === 'jobposts' ? 'New job post' : 'New announcement',
     goComms: () => this.setState({ section: 'comms' }),
     newEvent: () => openEv('Personal'), goCalendar: () => this.setState({ section: 'calendar' }),
-    isOrgList: id === 'departments' || id === 'units',
+    isOrgList: (id === 'departments' || id === 'units') && has[id],
     orgNote: id === 'departments' ? 'Each sits under ' + (has.branches ? 'its branch' : has.sectors ? 'its sector' : 'the organization') + '. % = received items resolved on time.' : 'Units sit inside ' + (has.branches ? 'their branch' : 'the organization') + '.',
     goStructure: () => this.setState({ section: 'structure' }),
     noUnits: id === 'performance' && myUnits.length === 0,
@@ -152,12 +158,12 @@ export function buildHomeWidgets(ctx) {
       return { widgets: w };
     })
   }));
-  const gallery = Object.keys(catalog).filter((id) => (id !== 'performance' || has.structure) && (LEVELS.indexOf(id) === -1 || has[id])).map((id) => {
+  const gallery = Object.keys(catalog).filter((id) => (id !== 'performance' || has.structure)).map((id) => {
     const added = ids.indexOf(id) !== -1;
     return { ...catalog[id], added, hidden: added && isHidden(id), hideLabel: isHidden(id) ? 'Show on Home' : 'Hide on Home', toggleHide: toggleHide(id), remove: () => removeWidget(id), btnLabel: added ? 'Added' : 'Add to home',
       openSettings: () => this.setState({ settingsFor: id }),
       btnStyle: 'flex:1;height:38px;border-radius:10px;font-weight:600;cursor:' + (added ? 'default' : 'pointer') + ';' + (added ? 'border:1px solid var(--k-2A3832,#2A3832);background:transparent;color:var(--k-9DB0A6,#9DB0A6)' : 'border:0;background:#B8F36B;color:#0F1714'),
-      add: () => { if (!added) this.setState((st) => ({ widgets: st.widgets.concat(id) })); } };
+      add: () => { if (!added) this.setState((st) => ({ widgets: st.widgets.indexOf(id) !== -1 ? st.widgets : st.widgets.concat(id), levelsAdded: LEVELS.indexOf(id) !== -1 ? { ...(st.levelsAdded || {}), [id]: true } : (st.levelsAdded || {}) })); } };
   });
   // today's birthdays, for the Community wall card
   const bToday = celebrations.filter((c) => c.at === 0 && /^Birthday/.test(c.what));

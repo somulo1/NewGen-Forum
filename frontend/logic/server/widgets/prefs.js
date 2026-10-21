@@ -2,7 +2,9 @@
 // settings an admin sets for the whole organization (/settings/widgets). Changes are saved by watching the state.
 export const name = 'prefs';
 
-const PERSONAL = ['widgets', 'hiddenWidgets', 'theme', 'hiddenPosts', 'savedPosts', 'dmPrivacy'];
+const PERSONAL = ['widgets', 'hiddenWidgets', 'theme', 'hiddenPosts', 'savedPosts', 'dmPrivacy', 'hiddenChatMessages', 'levelsAdded'];
+// the settings have a size limit, so only the newest "deleted for me" messages are kept
+const trim = (k, v) => (k === 'hiddenChatMessages' && v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).slice(-150)) : v);
 
 export async function load(logic, srv) {
   const prefs = await srv.request('GET', '/me/prefs');
@@ -21,7 +23,7 @@ function watch(logic, srv) {
     const personal = JSON.stringify(PERSONAL.map((k) => s[k]));
     if (personal !== saved.personal) {
       saved.personal = personal;
-      const body = {}; PERSONAL.forEach((k) => { body[k] = s[k]; });
+      const body = {}; PERSONAL.forEach((k) => { body[k] = trim(k, s[k]); });
       srv.request('PUT', '/me/prefs', body).catch((e) => console.warn('Could not save your home layout:', e.message));
     }
     const wcfg = JSON.stringify(s.wcfg || {});
