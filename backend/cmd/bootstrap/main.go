@@ -47,6 +47,7 @@ func main() {
 	ownerEmail := fs.String("email", "", "owner: your sign-in email")
 	orgName := fs.String("org", "", "owner: the organization's name")
 	resetPw := fs.Bool("reset-password", false, "owner: set a new first-sign-in password even though the account exists")
+	keep := fs.Bool("keep-password", false, "owner: the password given is the one to keep: do not force a change at first sign-in")
 	dry := fs.Bool("dry-run", false, "show what would be added and change nothing")
 	_ = fs.Parse(os.Args[2:])
 
@@ -142,7 +143,7 @@ func main() {
 		}
 		fmt.Println("done.")
 	case "owner":
-		if err := owner(ctx, a, cfg, *ownerName, *ownerEmail, "", *orgName, *slug, *resetPw); err != nil {
+		if err := owner(ctx, a, cfg, *ownerName, *ownerEmail, "", *orgName, *slug, *resetPw, *keep); err != nil {
 			fail(err)
 		}
 	case "protect":
