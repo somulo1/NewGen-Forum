@@ -1,3 +1,4 @@
+import { hashtagsOf } from '~/logic/richText.js';
 // Values and handlers the Community wall reads through hubBindings: moments, polls, audience, hashtags, wishes.
 import * as wallW from '~/logic/server/widgets/wall.js';
 export function valsWall(ctx) {
@@ -6,14 +7,20 @@ export function valsWall(ctx) {
   const COLORS = ['#2B4A63', '#6B4A2B', '#5A2E47', '#3B5A2B', '#4A3A6B', '#6B2B2B'];
   const wp = s.wpoll;
   const setOpts = (fn) => this.setState((st) => ({ wpoll: { ...st.wpoll, opts: fn(st.wpoll.opts) } }));
-  const tags = ['CharityRun', 'NewJoiners', 'TournamentNight'];
+  // Trending: the hashtags people really used on the wall, most used first (ties: newest)
+  const counts = new Map();
+  (s.posts || []).forEach((p, i) => hashtagsOf(p.text).forEach((t) => { const k = t.toLowerCase(); const c = counts.get(k) || { tag: t, n: 0, first: i }; c.n++; c.first = Math.min(c.first, i); counts.set(k, c); }));
+  const tags = [...counts.values()].sort((a, b) => b.n - a.n || a.first - b.first).slice(0, 8).map((c) => c.tag);
   const m = s.momentOpen !== null && s.momentOpen !== undefined ? moments[s.momentOpen] : null;
   const mi = s.meInfo || {};
   const meAv = { name: mi.name || '', initials: mi.initials || ((mi.name || '').split(' ').map((x) => x[0]).join('').slice(0, 2).toUpperCase()), color: mi.color || '#C2185B', first: (mi.name || '').split(' ')[0] };
   return {
     meAv, sharedViews, settingsPage, orgName, orgLogo, notesPage, noteWidget,
     onlineList: people.map((p) => ({ ...p, open: () => openPersonName(p.name) })),
-    trending: tags.map((tg) => ({ tag: tg, on: s.wallTag === tg, pick: () => set({ wallTag: s.wallTag === tg ? '' : tg }) })),
+    trending: tags.map((tg) => ({ tag: tg, count: counts.get(tg.toLowerCase()).n, on: (s.wallTag || '').toLowerCase() === tg.toLowerCase(), pick: () => set({ wallTag: (s.wallTag || '').toLowerCase() === tg.toLowerCase() ? '' : tg }) })),
+    noTrending: tags.length === 0,
+    // one tap adds a popular hashtag to what you are writing
+    addHashtag: (tg) => this.setState((st) => ({ draft: (st.draft && !/\s$/.test(st.draft) ? st.draft + ' ' : st.draft || '') + '#' + tg + ' ' })),
     wallFilter: { active: !!s.wallTag, tag: s.wallTag, clear: () => set({ wallTag: '' }) },
     // Moments (stories): photo, video or text; like, love (double tap), and the owner sees who reacted.
     momentView: (() => {

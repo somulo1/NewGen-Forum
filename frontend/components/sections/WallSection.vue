@@ -43,8 +43,9 @@
 <div v-if="!momentForm.open" style="padding: 16px; border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 12px">
 <div style="display: flex; gap: 12px; align-items: flex-start">
 <UserAvatar :name="meAv.name" :initials="meAv.initials" :color="meAv.color" :size="42" text-color="#fff" aria-label="Your profile photo"/>
-<RichTextInput mentions style="flex: 1; min-width: 0" :model-value="draft" @update:model-value="onDraftValue" :placeholder="`What's on your mind${meAv.first ? ', ' + meAv.first : ''}?`" aria-label="Write a post" :rows="3" :input-style="`color: ${postBg ? 'var(--k-FFFFFF,#FFFFFF)' : 'var(--k-E8EFEA,#E8EFEA)'}; font-size: 15px`"/>
+<RichTextInput mentions hashtags style="flex: 1; min-width: 0" :model-value="draft" @update:model-value="onDraftValue" :placeholder="`What's on your mind${meAv.first ? ', ' + meAv.first : ''}?`" aria-label="Write a post" :rows="3" :input-style="`color: ${postBg ? 'var(--k-FFFFFF,#FFFFFF)' : 'var(--k-E8EFEA,#E8EFEA)'}; font-size: 15px`"/>
 </div>
+<div v-if="!noTrending" role="group" aria-label="Popular hashtags" style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-left: 54px"><span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Popular:</span><template v-for="tg in trending.slice(0, 5)" :key="tg.tag"><button type="button" @click="addHashtag(tg.tag)" :aria-label="`Add #${tg.tag} to your post`" style="height: 26px; padding: 0 10px; border-radius: 13px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-7CC4FF,#7CC4FF); font-size: 12px; font-weight: 600; cursor: pointer">#{{ tg.tag }}</button></template></div>
 <div role="group" aria-label="Post background color" style="display: flex; flex-wrap: wrap; align-items: center; gap: 7px; padding-left: 54px">
 <span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Post color</span>
 <button type="button" aria-label="Use default post background" :aria-pressed="!postBg" @click="postBg = ''" :style="`width: 24px; height: 24px; border-radius: 50%; border: 2px solid ${!postBg ? 'var(--k-E8EFEA,#E8EFEA)' : 'var(--k-526259,#526259)'}; background: var(--k-16201C,#16201C); cursor: pointer`"></button>
@@ -171,6 +172,7 @@
 </div>
 <div style="padding: 16px; border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 8px">
 <strong style="font-size: 15px">Trending</strong>
+<span v-if="noTrending" style="font-size: 13px; line-height: 1.5; color: var(--k-9DB0A6,#9DB0A6)">No hashtags yet. Add one to a post, like #Tuesday, and it shows up here.</span>
 <template v-for="tg in trending" :key="tg.tag"><button @click="tg.pick" :aria-pressed="tg.on" :style="`text-align: left; padding: 6px 8px; margin: 0 -8px; border: 0; border-radius: 8px; background: ${tg.on ? 'var(--k-22302A,#22302A)' : 'transparent'}; color: ${tg.on ? 'var(--k-B8F36B,#B8F36B)' : 'var(--k-C9D6CF,#C9D6CF)'}; cursor: pointer; font-size: 14px; font-family: inherit`">#{{ tg.tag }}</button></template>
 </div>
 </aside>
@@ -202,7 +204,7 @@ export default {
     pickMomentFile(e) { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) this.momentFile = f; },
     wish() { this.wishBirthday(); this.$nextTick(() => this.$refs.composer && this.$refs.composer.focus()); }
   },
-  ...hubBindings(["onActivityClick","meAv","wallBirthdays","pickEmojiWall","addMoment","momentForm","momentView","wpollView","openEventFromWall","wallAudience","wallAudiences","onAudience","wishBirthday","onlineList","trending","wallFilter","canPostWall","cannotPostWall","draft","hasWFiles","moments","onDraftValue","onPost","onWallFiles","people","postBtnStyle","posts","show","wfiles"])
+  ...hubBindings(["onActivityClick","meAv","wallBirthdays","pickEmojiWall","addMoment","momentForm","momentView","wpollView","openEventFromWall","wallAudience","wallAudiences","onAudience","wishBirthday","onlineList","trending","wallFilter","noTrending","addHashtag","canPostWall","cannotPostWall","draft","hasWFiles","moments","onDraftValue","onPost","onWallFiles","people","postBtnStyle","posts","show","wfiles"])
 };
 </script>
 

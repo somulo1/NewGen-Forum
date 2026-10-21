@@ -1,7 +1,7 @@
 <template>
 <div :style="toolbarInActions ? 'display: contents' : 'width: 100%; min-width: 0; box-sizing: border-box; display: flex; flex-direction: column; align-items: flex-start; gap: 5px'">
 <div style="position: relative; width: 100%; min-width: 0; display: block"><div v-if="mq && matches.length" role="listbox" aria-label="People you can tag" style="position: absolute; left: 0; bottom: calc(100% + 6px); z-index: 90; min-width: 240px; max-width: 100%; max-height: 240px; overflow-y: auto; padding: 4px; border-radius: 12px; background: var(--k-1D2A25,#1D2A25); border: 1px solid var(--k-34453D,#34453D); box-shadow: 0 14px 30px rgba(0,0,0,0.45)">
-<button v-for="(m, i) in matches" :key="m.uid" type="button" role="option" :aria-selected="i === mActive" @mousedown.prevent="chooseMention(m)" @mouseenter="mActive = i" :style="`display: flex; align-items: center; gap: 10px; width: 100%; padding: 6px 8px; border: 0; border-radius: 8px; background: ${i === mActive ? 'var(--k-2C3D34,#2C3D34)' : 'transparent'}; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; text-align: left`"><span :style="`flex: none; width: 26px; height: 26px; border-radius: 50%; background: ${m.color || '#7CC4FF'}; color: #0F1714; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center`">{{ m.initials }}</span><span style="flex: 1; min-width: 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ m.name }}</span></button>
+<button v-for="(m, i) in matches" :key="m.uid" type="button" role="option" :aria-selected="i === mActive" @mousedown.prevent="chooseMention(m)" @mouseenter="mActive = i" :style="`display: flex; align-items: center; gap: 10px; width: 100%; padding: 6px 8px; border: 0; border-radius: 8px; background: ${i === mActive ? 'var(--k-2C3D34,#2C3D34)' : 'transparent'}; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; text-align: left`"><span :style="`flex: none; width: 26px; height: 26px; border-radius: 50%; background: ${m.hash ? '#7CC4FF' : (m.color || '#7CC4FF')}; color: #0F1714; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center`">{{ m.hash ? '#' : m.initials }}</span><span style="flex: 1; min-width: 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ m.hash ? '#' : '' }}{{ m.name }}</span><span v-if="m.hint" style="flex: none; font-size: 11px; color: var(--k-9DB0A6,#9DB0A6)">{{ m.hint }}</span></button>
 </div><textarea ref="editor" :value="local" :rows="rows" :aria-label="ariaLabel" :placeholder="placeholder" :disabled="disabled" @input="onInput" @keydown="onKeydown" @keyup="onKeyup" @click="watchMention" @blur="flush" :style="`display: block; width: 100%; min-width: 0; box-sizing: border-box; padding: 10px 12px; border: 1px solid var(--k-2A3832,#2A3832); border-radius: 10px; outline: none; background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font: inherit; resize: vertical; ${toolbarInActions ? 'grid-column: 2; grid-row: 1 / 3; min-height: 80px; height: 100%;' : ''} ${inputStyle}`"></textarea></div>
 <div role="toolbar" aria-label="Text formatting" :style="`display: flex; align-items: center; gap: 3px; width: max-content; max-width: 100%; box-sizing: border-box; padding: 2px 5px; border: 1px solid var(--k-2A3832,#2A3832); border-radius: 8px; background: var(--k-121B17,#121B17); overflow-x: auto; ${toolbarInActions ? 'grid-column: 1; grid-row: 2; align-self: start;' : ''}`">
 <button v-for="tool in tools" :key="tool.key" type="button" :aria-label="tool.label" :title="tool.label" :disabled="disabled" @mousedown.prevent @click="format(tool.key)" :style="`flex: none; min-width: 32px; height: 30px; padding: 0 7px; border: 0; border-radius: 6px; background: transparent; color: ${disabled ? 'var(--k-66736C,#66736C)' : 'var(--k-E8EFEA,#E8EFEA)'}; cursor: ${disabled ? 'not-allowed' : 'pointer'}; font-weight: 700`">
@@ -14,6 +14,7 @@
 
 <script>
 import { useHubStore } from '~/composables/useHub';
+import { hashtagsOf } from '~/logic/richText.js';
 
 const normalizedLink = (value) => {
   const trimmed = value.trim();
@@ -37,6 +38,7 @@ export default {
     disabled: Boolean,
     inputStyle: { type: String, default: '' },
     toolbarInActions: Boolean,
+    hashtags: Boolean,   // typing # offers the hashtags already used on the wall, and the one being typed
     mentions: { type: [Array, Boolean], default: false }   // an array of { uid, name, initials, color }, or true for everyone in Hub: typing @ offers them
   },
   emits: ['update:modelValue', 'keydown'],
@@ -65,6 +67,7 @@ export default {
     matches() {
       if (!this.mq) return [];
       const t = this.mq.query.toLowerCase();
+      if (this.mq.kind === '#') return this.tagPool(t);
       return this.pool().filter((m) => !t || m.name.toLowerCase().includes(t))
         .sort((a, b) => (a.name.toLowerCase().startsWith(t) ? 0 : 1) - (b.name.toLowerCase().startsWith(t) ? 0 : 1) || a.name.localeCompare(b.name)).slice(0, 6);
     }
@@ -78,19 +81,32 @@ export default {
       const l = useHubStore().logic;
       return (l.dir || []).filter((p) => p.hasAccount && p.uid).map((p) => ({ uid: p.uid, name: p.name, initials: p.initials, color: p.color }));
     },
-    // is the caret right after "@something"? then offer the people to tag
+    // hashtags used on the wall (most used first) that start with, or contain, what is typed; plus the typed one as a new tag
+    tagPool(t) {
+      const counts = new Map();
+      ((useHubStore().logic.state || {}).posts || []).forEach((p) => hashtagsOf(p.text).forEach((x) => { const k = x.toLowerCase(); const c = counts.get(k) || { name: x, n: 0 }; c.n++; counts.set(k, c); }));
+      const list = [...counts.values()].filter((c) => !t || c.name.toLowerCase().includes(t))
+        .sort((a, b) => (a.name.toLowerCase().startsWith(t) ? 0 : 1) - (b.name.toLowerCase().startsWith(t) ? 0 : 1) || b.n - a.n).slice(0, 5)
+        .map((c) => ({ uid: '#' + c.name, name: c.name, hash: true, hint: c.n + (c.n === 1 ? ' post' : ' posts') }));
+      if (t.length >= 2 && !counts.has(t)) list.push({ uid: '#new', name: this.mq.query, hash: true, hint: 'New hashtag' });
+      return list.slice(0, 6);
+    },
+    // is the caret right after "@something" (or "#something")? then offer the people (or hashtags)
     watchMention() {
       const el = this.$refs.editor;
-      if (!el || !this.mentions) { this.mq = null; return; }
+      if (!el || !(this.mentions || this.hashtags)) { this.mq = null; return; }
       const upto = this.local.slice(0, el.selectionStart);
-      const m = /(^|\s)@([^\s@]{0,30})$/.exec(upto);
-      if (m) { this.mq = { start: upto.length - m[2].length - 1, query: m[2] }; this.mActive = 0; } else this.mq = null;
+      const m = this.mentions ? /(^|\s)@([^\s@]{0,30})$/.exec(upto) : null;
+      const h = !m && this.hashtags ? /(^|\s)#([\p{L}\p{N}_]{0,40})$/u.exec(upto) : null;
+      if (m) { this.mq = { kind: '@', start: upto.length - m[2].length - 1, query: m[2] }; this.mActive = 0; }
+      else if (h) { this.mq = { kind: '#', start: upto.length - h[2].length - 1, query: h[2] }; this.mActive = 0; }
+      else this.mq = null;
     },
     chooseMention(person) {
       const el = this.$refs.editor;
       if (!el || !this.mq) return;
       const caret = el.selectionStart;
-      const insert = '@' + person.name + ' ';
+      const insert = (this.mq.kind === '#' ? '#' : '@') + person.name + ' ';
       const pos = this.mq.start + insert.length;
       this.local = this.local.slice(0, this.mq.start) + insert + this.local.slice(caret);
       this.mq = null;

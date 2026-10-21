@@ -43,3 +43,14 @@ export function mentionLinker(names) {
   return (html) => html.replace(re, (m, name) => '<a href="#" data-mention="' + name + '" style="color:var(--k-C9B6FF,#C9B6FF);font-weight:600;text-decoration:none">@' + name + '</a>');
 }
 
+
+// #hashtags: found in a text, and turned into links the wall filters by.
+const TAG = /(^|[\s>(])#([\p{L}\p{N}_]{2,40})/gu;
+export function hashtagsOf(text) {
+  const out = [];
+  String(text || '').replace(TAG, (m, pre, tag) => { out.push(tag); return m; });
+  return out;
+}
+export function linkHashtags(html) {
+  return html.replace(TAG, (m, pre, tag) => pre + '<a href="#" data-hashtag="' + tag + '" style="color:var(--k-7CC4FF,#7CC4FF);font-weight:600;text-decoration:none">#' + tag + '</a>');
+}
