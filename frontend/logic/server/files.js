@@ -30,13 +30,19 @@ export async function upload(srv, container, file) {
   const sealed = await srv.vault.seal(container, info, id);
   await srv.request('POST', `/folders/${container}/files`, { id: sealed.id, epoch: sealed.epoch, device: sealed.device, envelope: sealed.envelope });
   await srv.bytes('PUT', `/files/${sealed.id}/content`, body);
+  urls.set(sealed.id, URL.createObjectURL(file));   // what was just sent is shown from here, not downloaded back
   return { fileId: sealed.id, name: file.name, meta: info.size_label, type: info.type, isImg: info.kind === 'IMG', isVideo: info.kind === 'VID', key: info.file_key };
 }
 
 const urls = new Map();
-// Downloads and decrypts an attachment; returns an object URL (cached for the session).
+const opening = new Map();
+// Downloads and decrypts an attachment; returns an object URL (cached for the session; one download per file at a time).
 export async function openUrl(srv, ref) {
   if (urls.has(ref.fileId)) return urls.get(ref.fileId);
+  if (!opening.has(ref.fileId)) opening.set(ref.fileId, fetchUrl(srv, ref).finally(() => opening.delete(ref.fileId)));
+  return opening.get(ref.fileId);
+}
+async function fetchUrl(srv, ref) {
   const data = await srv.bytes('GET', `/files/${ref.fileId}/content`);
   const k = await subtle().importKey('raw', unb64(ref.key), 'AES-GCM', false, ['decrypt']);
   // files made before the id was authenticated have no extra data: try the new form first, then the old

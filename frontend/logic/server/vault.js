@@ -159,8 +159,10 @@ export class Vault {
 
   // Seals a payload for a conversation at its current epoch. Returns the fields the API wants.
   async seal(conv, payload, id = newId()) {
-    const c = await this.conversation(conv, true);
-    const key = await this.keyFor(conv, c.epoch);
+    // the conversation is read again only when what we hold does not fit (a new epoch), not before every send
+    let c = await this.conversation(conv);
+    let key = await this.keyFor(conv, c.epoch);
+    if (!key) { c = await this.conversation(conv, true); key = await this.keyFor(conv, c.epoch); }
     if (!key) throw new Error('This device does not have the key for this conversation yet.');
     const env = await this.device.seal(key, fromText(typeof payload === 'string' ? payload : JSON.stringify(payload)), { org: this.org, conversation: conv, sender: this.account, id, epoch: c.epoch });
     return { id, epoch: c.epoch, device: this.deviceId, envelope: b64(env) };
