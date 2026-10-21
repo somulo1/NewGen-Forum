@@ -10,6 +10,7 @@
 //	                       wss://<this address>/calls-signal), so small calls need no second service
 //	HUB_OWNER_NAME, HUB_OWNER_EMAIL, HUB_OWNER_PASSWORD, HUB_ORG_NAME, HUB_ORG_SLUG   first owner and organization, created once
 //	                       when no account exists yet. The password must be changed at first sign-in unless HUB_OWNER_KEEP_PASSWORD=1.
+//	HUB_SEED_USERS         accounts kept in place on every start: "email|name|password|role; ..." (active, in the organization, with that role)
 //	PORT                   the port to listen on when HUB_HTTP_ADDR is not set (platforms such as Render set it)
 package runapi
 
@@ -93,6 +94,15 @@ func Run() {
 
 	// 3. the first owner and organization, once, when asked for and the database has no accounts
 	seedOwner(ctx, a, cfg)
+	// 3b. accounts that are kept in place on every start (HUB_SEED_USERS), once the organization exists
+	if spec := os.Getenv("HUB_SEED_USERS"); spec != "" {
+		users, err := bootstrap.ParseSeedUsers(spec)
+		if err != nil {
+			slog.Error("seed users", "err", err)
+		} else if err := bootstrap.EnsureUsers(ctx, a, cfg, os.Getenv("HUB_ORG_SLUG"), users); err != nil {
+			slog.Error("seed users", "err", err)
+		}
+	}
 
 	// 4. background jobs
 	if os.Getenv("HUB_WITH_WORKER") != "off" {
