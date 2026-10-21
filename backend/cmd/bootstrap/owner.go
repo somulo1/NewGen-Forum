@@ -25,7 +25,7 @@ import (
 // The details come from flags or the environment (HUB_OWNER_NAME, HUB_OWNER_EMAIL, HUB_OWNER_PASSWORD, HUB_ORG_NAME, HUB_ORG_SLUG),
 // never from the code. Running it again is safe: it activates and unlocks the account, and never resets a password unless
 // -reset-password is given. A password it generates is printed once and must be changed at first sign-in.
-func owner(ctx context.Context, a *app.App, cfg *config.Config, name, email, password, orgName, slug string, resetPassword bool) error {
+func owner(ctx context.Context, a *app.App, cfg *config.Config, name, email, password, orgName, slug string, resetPassword, keepPassword bool) error {
 	first := func(vals ...string) string {
 		for _, v := range vals {
 			if strings.TrimSpace(v) != "" {
@@ -112,9 +112,10 @@ func owner(ctx context.Context, a *app.App, cfg *config.Config, name, email, pas
 				return err
 			}
 		}
-		// a password this tool chose (or was handed through the environment) must be replaced at the first sign-in
+		// a password this tool chose (or was handed through the environment) must be replaced at the first sign-in, unless the
+		// owner said the password given is the one to keep
 		err = a.DB.Tx(ctx, func(tx pgx.Tx) error {
-			if _, e := tx.Exec(ctx, `update hub.accounts set must_change=true, `+integrity.Bump+` where id=$1`, acct); e != nil {
+			if _, e := tx.Exec(ctx, `update hub.accounts set must_change=$2, `+integrity.Bump+` where id=$1`, acct, !keepPassword); e != nil {
 				return e
 			}
 			return a.Sign.Seal(ctx, tx, "accounts", "id=$1", acct)
