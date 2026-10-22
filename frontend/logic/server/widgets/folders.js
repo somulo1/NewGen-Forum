@@ -51,5 +51,5 @@ export async function share(srv, f) {
 // Decrypts a file and opens it in a new tab.
 export async function open(srv, f) {
   const url = await files.openUrl(srv, { fileId: f.fileId, key: f.key, type: f.type, isImg: f.isImg });
-  window.open(url, '_blank');
+  window.open(url, '_blank', 'noopener');
 }

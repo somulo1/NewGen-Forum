@@ -34,6 +34,11 @@ export async function upload(srv, container, file) {
   return { fileId: sealed.id, name: file.name, meta: info.size_label, type: info.type, isImg: info.kind === 'IMG', isVideo: info.kind === 'VID', key: info.file_key };
 }
 
+// The type of a file comes from whoever uploaded it, and a blob: address belongs to this site. A page type (HTML, SVG, XML) opened
+// from one would run the sender's script here, so only types that cannot run script keep their type; everything else is a download.
+const SAFE_TYPES = /^(image\/(png|jpeg|gif|webp|avif|bmp)|video\/(mp4|webm|ogg|quicktime)|audio\/(mpeg|ogg|wav|webm|mp4)|application\/pdf|text\/(plain|csv))$/;
+const safeType = (t) => (SAFE_TYPES.test(String(t || '').toLowerCase().split(';')[0].trim()) ? String(t).toLowerCase().split(';')[0].trim() : 'application/octet-stream');
+
 const urls = new Map();
 const opening = new Map();
 // Downloads and decrypts an attachment; returns an object URL (cached for the session; one download per file at a time).
@@ -49,7 +54,7 @@ async function fetchUrl(srv, ref) {
   let pt;
   try { pt = await subtle().decrypt({ name: 'AES-GCM', iv: data.subarray(0, 12), additionalData: new TextEncoder().encode('hub/file/v1|' + ref.fileId) }, k, data.subarray(12)); }
   catch (e) { pt = await subtle().decrypt({ name: 'AES-GCM', iv: data.subarray(0, 12) }, k, data.subarray(12)); }
-  const url = URL.createObjectURL(new Blob([pt], { type: ref.type || (ref.isImg ? 'image/*' : 'application/octet-stream') }));
+  const url = URL.createObjectURL(new Blob([pt], { type: safeType(ref.type) }));
   urls.set(ref.fileId, url);
   return url;
 }
