@@ -37,7 +37,7 @@ export function connectRealtime(srv) {
     if (rt.closed) return;
     clearTimeout(rt.timer);
     rt.retry = Math.min(rt.retry + 1, 6);
-    rt.timer = setTimeout(open, Math.min(30000, 1000 * 2 ** rt.retry));
+    rt.timer = setTimeout(open, Math.min(30000, 500 * 2 ** rt.retry));   // 1 s, 2 s, 4 s ... (a ticket made just before the token rotated is refused once; the next one works)
   }
 
   rt.on = (type, fn) => {
