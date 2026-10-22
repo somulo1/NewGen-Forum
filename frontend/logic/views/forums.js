@@ -9,7 +9,8 @@ export function buildForums(ctx) {
   // Connected to the server: the forums you are in. Not connected (no sign-in to an organization): the built-in samples.
   const live = s.forumsLive || (this.srv ? [] : null);
   const forumsData = live ? live.map((f) => ({ ...f, updates: f.updates.slice() })) : sampleForums;
-  const NO_FORUM = { id: '', name: 'No forums yet', initials: '', color: '#9DB0A6', unread: 0, members: 0, online: 0, privacy: '', about: 'You are not in any forum yet.', updates: [], memberList: [] };
+  const loadingForums = !!this.srv && !s.forumsLive;   // signed in, and the forums have not arrived yet
+  const NO_FORUM = { id: '', name: loadingForums ? 'Loading your forums…' : 'No forums yet', initials: '', color: '#9DB0A6', unread: 0, members: 0, online: 0, privacy: '', about: loadingForums ? 'Your forums are loading.' : 'You are not in any forum yet.', updates: [], memberList: [] };
   const cur = forumsData.find((f) => f.id === s.forum) || forumsData[0] || NO_FORUM;
   const openMode = this.isMobileViewport() ? 'page' : s.mode === 'full' || s.mode === 'page' ? s.mode : 'docked';
   const forums = forumsData.map((f) => {

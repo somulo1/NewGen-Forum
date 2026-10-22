@@ -73,6 +73,7 @@ export async function startServerSync(logic, request, session, bytes) {
     console.debug('[hub] ' + (w.name || 'widget') + ' loaded in ' + Math.round(performance.now() - t0) + ' ms');
   };
   await loadOne(people);
+  // the chats start as soon as the directory is in, alongside roles and the organization (they only need the directory)
   await Promise.all([roles, orgW].map(loadOne));
   logic._accessPending = false;
   logic.forceUpdate();
