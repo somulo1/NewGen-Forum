@@ -60,3 +60,15 @@ export async function loadStructure(logic, srv) {
   org.mine = { departments: pick(mine.department), branches: pick(mine.branch), sectors: pick(mine.sector), units: pick(mine.unit) };
   logic.org = org;
 }
+
+// Onboards people on the server: each gets an active account and an email with a first password. Returns the server's result per person.
+export async function onboard(logic, srv, list) {
+  const id = (level, name) => (name && srv.structure && srv.structure[level].get(name)) || null;
+  const people = list.map((c) => ({
+    first_name: c.first, last_name: c.last, email: c.email, phone: c.phone, date_of_birth: c.dob, gender: c.gender, title: c.title || '',
+    sector_id: id('sectors', c.sector), branch_id: id('branches', c.branch), unit_id: id('units', c.unit), department_id: id('departments', c.department), role: '', color: ''
+  }));
+  const { results } = await srv.request('POST', '/people', { people });
+  await load(logic, srv);
+  return results;
+}

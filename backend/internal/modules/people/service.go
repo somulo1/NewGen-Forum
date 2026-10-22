@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -383,7 +384,10 @@ func (s *Service) Onboard(ctx context.Context, p *tenant.Principal, list []NewPe
 		return nil, httpx.Bad("Send between 1 and 500 people at a time.")
 	}
 	out := make([]Onboarded, len(list))
-	type mailJob struct{ to, link string }
+	type mailJob struct {
+		to, link, name string
+		id             uuid.UUID
+	}
 	var jobs []mailJob
 	err := s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
 		if err := authz.Require(ctx, tx, p.Person, "people", "Onboard people"); err != nil {
@@ -468,7 +472,7 @@ func (s *Service) Onboard(ctx context.Context, p *tenant.Principal, list []NewPe
 				continue
 			}
 			out[i].ID, out[i].Status = id, "invited"
-			jobs = append(jobs, mailJob{n.Email, link})
+			jobs = append(jobs, mailJob{to: n.Email, link: link, name: n.First + " " + n.Last, id: id})
 		}
 		var added int
 		for _, o := range out {
@@ -486,6 +490,16 @@ func (s *Service) Onboard(ctx context.Context, p *tenant.Principal, list []NewPe
 		return tx.QueryRow(ctx, `select name from hub.orgs where id=$1`, p.Org).Scan(&orgName)
 	})
 	for _, j := range jobs {
+		// The person gets a working account at once: active, with a first password in the email that they must change when they sign in.
+		temp, err := s.createLogin(ctx, p.Org, j.id, j.name, j.to)
+		if err == nil {
+			login := strings.TrimRight(s.A.Cfg.AllowedOrigins[0], "/") + "/auth/login"
+			_ = hubmail.SendCard(ctx, s.A.Mail, j.to, "Your Hub account at "+orgName+" is ready", hubmail.Card{Accent: hubmail.Green, Org: orgName, Title: "Your account is ready", Preheader: "Sign in with the password in this email",
+				Lead: "Your administrator added you to " + orgName + " on Hub. Sign in with the email and first password below. You will choose your own password the first time.",
+				Rows: [][2]string{{"Email", j.to}, {"First password", temp}}, Action: [2]string{"Sign in", login}, Note: "Keep this email private. The first password works until you change it."})
+			continue
+		}
+		slog.Warn("could not create the account for a new person; sending the invitation link instead", "err", err)
 		_ = hubmail.SendCard(ctx, s.A.Mail, j.to, "You have been added to "+orgName+" on Hub", hubmail.Card{Accent: hubmail.Green, Org: orgName, Title: "You have been added to " + orgName, Preheader: "Join your team on Hub",
 			Lead: "Your administrator added you to " + orgName + " on Hub. Open the link to set up your account and join.", Action: [2]string{"Join " + orgName, j.link}, Note: "The link works once and expires in 7 days."})
 	}
@@ -869,4 +883,45 @@ func (s *Service) applyUpdate(ctx context.Context, tx pgx.Tx, a approvals.Applie
 	data, _ := json.Marshal(map[string]any{"person": pl.Person})
 	go s.A.Publish(context.Background(), realtime.Event{Type: "person.updated", Channel: realtime.OrgChannel(a.Org), Org: a.Org.String(), Data: data})
 	return nil
+}
+
+// createLogin gives a newly added person an active account with a first password (they must change it at sign-in) and
+// joins the account to the person's record. It fails, leaving the invitation link as the way in, when the email already
+// has an account.
+func (s *Service) createLogin(ctx context.Context, org, person uuid.UUID, name, email string) (string, error) {
+	temp := crypto.RandomToken(9) + "aA1"
+	rnd := func() string { return crypto.RandomToken(9) }
+	quiz := []auth.QuizIn{{Question: "Set in profile 1", Answer: rnd()}, {Question: "Set in profile 2", Answer: rnd()}, {Question: "Set in profile 3", Answer: rnd()}}
+	acct, err := s.Auth.Signup(ctx, name, email, temp, quiz, "")
+	if err != nil {
+		return "", err
+	}
+	err = s.A.DB.Tx(ctx, func(tx pgx.Tx) error {
+		if err := db.SetOrg(ctx, tx, org); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `update hub.accounts set must_change=true, `+integrity.Bump+` where id=$1`, acct); err != nil {
+			return err
+		}
+		if err := s.A.Sign.Seal(ctx, tx, "accounts", "id=$1", acct); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `update hub.people set account_id=$2, status='active', joined_on=current_date, `+integrity.Bump+` where id=$1 and account_id is null`, person, acct); err != nil {
+			return err
+		}
+		if err := s.A.Sign.Seal(ctx, tx, "people", "id=$1", person); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `insert into hub.account_orgs (account_id, org_id) values ($1,$2) on conflict do nothing`, acct, org); err != nil {
+			return err
+		}
+		if err := s.A.Sign.Seal(ctx, tx, "account_orgs", "account_id=$1 and org_id=$2", acct, org); err != nil {
+			return err
+		}
+		return chat.SyncAudience(ctx, tx, s.A.Sign, org, acct)
+	})
+	if err != nil {
+		return "", err
+	}
+	return temp, nil
 }

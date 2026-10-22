@@ -20,7 +20,7 @@ const ago = (iso) => {
 async function allMessages(srv, conv) {
   const out = [];
   let before = '';
-  for (let i = 0; i < 40; i++) {
+  for (let i = 0; i < 3; i++) {   // the newest 300 messages: enough for the screen, and one slow page after another is what made it wait
     const { messages } = await srv.request('GET', `/conversations/${conv}/messages?limit=100${before ? '&before=' + before : ''}`);
     out.push(...messages);
     if (messages.length < 100) break;
