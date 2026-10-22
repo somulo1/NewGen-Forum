@@ -1,3 +1,4 @@
+import * as peopleW from '~/logic/server/widgets/people.js';
 import { mapHeaders, parseCsv, structureOptions, templateCsv, toDirectoryEntry, validatePerson, MANDATORY } from '~/logic/onboarding.js';
 import { todayIso } from '~/logic/projects.js';
 
@@ -124,6 +125,17 @@ export const onboardingActions = {
       this.applyPersonEdit(changes);
       return;
     }
+    if (this.srv) {
+      // saved on the server: the person gets an active account and an email with their first password
+      peopleW.onboard(this, this.srv, [clean]).then((res) => {
+        const r = res[0] || {};
+        if (r.status !== 'invited') { this.notify(r.error || 'Could not onboard this person.', '#FF9B8A'); return; }
+        const name = clean.first + ' ' + clean.last;
+        this.setState({ onboard: { ...ob, f: { ...BLANK }, errs: {}, done: { one: name } } });
+        this.notify(name + ' was onboarded. Their first password was emailed to them.', '#B8F36B');
+      }).catch((e) => this.notify((e && e.message) || 'Could not onboard this person.', '#FF9B8A'));
+      return;
+    }
     const entry = this.addPerson(clean);
     this.forceUpdate();
     this.setState({ onboard: { ...ob, f: { ...BLANK }, errs: {}, done: { one: entry.name } } });
@@ -164,6 +176,16 @@ export const onboardingActions = {
     if (!ob || !ob.bulk) return;
     const good = ob.bulk.rows.filter((r) => r.ok);
     if (!good.length) return;
+    if (this.srv) {
+      peopleW.onboard(this, this.srv, good.map((r) => r.clean)).then((res) => {
+        const ok = res.filter((r) => r.status === 'invited').length;
+        const skipped = ob.bulk.rows.length - ok;
+        this.setState({ onboard: { ...ob, bulkText: '', bulk: null, fileName: '', done: { count: ok, skipped } } });
+        const why = res.find((r) => r.status !== 'invited');
+        this.notify(ok + (ok === 1 ? ' person was' : ' people were') + ' onboarded and emailed their first password' + (skipped ? '. ' + skipped + ' skipped' + (why && why.error ? ': ' + why.error : '') : '.'), skipped ? '#FFB86B' : '#B8F36B');
+      }).catch((e) => this.notify((e && e.message) || 'Could not import these people.', '#FF9B8A'));
+      return;
+    }
     good.forEach((r) => this.addPerson(r.clean));
     this.forceUpdate();
     const skipped = ob.bulk.rows.length - good.length;

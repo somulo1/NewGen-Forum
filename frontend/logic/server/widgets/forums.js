@@ -305,7 +305,7 @@ export async function load(logic, srv) {
   const { conversations } = await ask(srv, 'GET', '/conversations?kind=forum&limit=200');
   const prev = new Map((logic.state.forumsLive || []).map((f) => [f.sid, f]));
   // a forum that fails to load keeps what was shown before (or is left out until the next reload) instead of failing them all
-  const built = (await pool(conversations, 4, (c) => fetchForum(srv, c).catch((e) => {
+  const built = (await pool(conversations, 8, (c) => fetchForum(srv, c).catch((e) => {
     console.warn('Could not load forum ' + c.id + ':', e);
     return prev.has(c.id) ? { forum: prev.get(c.id), todo: [] } : null;
   }))).filter(Boolean);
