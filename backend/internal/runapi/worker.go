@@ -55,11 +55,21 @@ func RunWorker(ctx context.Context, a *app.App) {
 	t := time.NewTicker(time.Minute)
 	defer t.Stop()
 	slog.Info("hub worker running")
+	ticks := 0
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-t.C:
+			ticks++
+			// uploads that were started and never finished, once an hour
+			if ticks%60 == 1 {
+				if n, err := fs.SweepUploads(ctx); err != nil {
+					slog.Error("unfinished uploads", "err", err)
+				} else if n > 0 {
+					slog.Info("unfinished uploads closed", "count", n)
+				}
+			}
 			if err := ts.SweepAll(ctx); err != nil {
 				slog.Error("ticket sweep", "err", err)
 			}
