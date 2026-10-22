@@ -16,19 +16,35 @@ func NewLimiter(rdb *redis.Client) *Limiter { return &Limiter{rdb: rdb} }
 // Allow counts one hit for (scope,id) and reports whether it is still within limit per window.
 // If Redis is unreachable it fails open for ordinary traffic; callers protecting logins pass strict=true to fail closed.
 func (l *Limiter) Allow(ctx context.Context, scope, id string, limit int, window time.Duration, strict bool) (bool, time.Duration) {
+	_, ok, retry := l.Take(ctx, scope, id, limit, window, strict)
+	return ok, retry
+}
+
+// Take is Allow that also says how many hits this window holds, this one included. The count and the decision come from one
+// atomic increment, so concurrent callers cannot all see "still room": the first `limit` get in, the rest are refused.
+func (l *Limiter) Take(ctx context.Context, scope, id string, limit int, window time.Duration, strict bool) (int64, bool, time.Duration) {
 	slot := time.Now().Unix() / int64(window.Seconds())
 	key := fmt.Sprintf("rl:%s:%s:%d", scope, id, slot)
 	pipe := l.rdb.TxPipeline()
 	incr := pipe.Incr(ctx, key)
 	pipe.Expire(ctx, key, window+time.Second)
 	if _, err := pipe.Exec(ctx); err != nil {
-		return !strict, 0
+		return 0, !strict, 0
 	}
 	n := incr.Val()
 	if n > int64(limit) {
-		return false, time.Duration(window.Seconds()-float64(time.Now().Unix()%int64(window.Seconds()))) * time.Second
+		return n, false, time.Duration(window.Seconds()-float64(time.Now().Unix()%int64(window.Seconds()))) * time.Second
 	}
-	return true, 0
+	return n, true, 0
+}
+
+// Refund gives one hit back (a sign-in that worked should not count against the address).
+func (l *Limiter) Refund(ctx context.Context, scope, id string, window time.Duration) {
+	slot := time.Now().Unix() / int64(window.Seconds())
+	key := fmt.Sprintf("rl:%s:%s:%d", scope, id, slot)
+	if n, err := l.rdb.Decr(ctx, key).Result(); err == nil && n < 0 {
+		l.rdb.Set(ctx, key, 0, window+time.Second)
+	}
 }
 
 // Sliding counts a hit like Allow, but weighs the previous window in, so a burst split across a window boundary cannot get
