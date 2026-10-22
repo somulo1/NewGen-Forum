@@ -204,12 +204,20 @@ func (s *Service) Login(ctx context.Context, in LoginIn) (*Tokens, error) {
 		return nil, errDomain
 	}
 	// brute-force guard: five wrong attempts (wrong password, or an email nobody has) from one address block that address for
-	// two minutes; the block is recorded for the Security page. Counting happens below, on each failure.
+	// two minutes; the block is recorded for the Security page. Each attempt is counted before its password is checked, with one
+	// atomic increment, so a burst of parallel guesses cannot all slip past an empty block: only the first five are processed. A
+	// sign-in that works gives its count back.
+	var tried int64
 	if in.IP != "" {
 		var n int
 		if err := s.A.DB.Tx(ctx, func(tx pgx.Tx) error {
 			return tx.QueryRow(ctx, `select count(*) from hub.login_blocks where ip=$1 and until > now()`, in.IP).Scan(&n)
 		}); err == nil && n > 0 {
+			return nil, errLocked
+		}
+		var ok bool
+		if tried, ok, _ = s.A.Limit.Take(ctx, "login-try", in.IP, maxTries, blockFor, true); !ok {
+			s.recordBlock(ctx, "address", s.emailIdx(email), email, in.IP, "Too many sign-in attempts from this address", blockFor)
 			return nil, errLocked
 		}
 	}
@@ -307,15 +315,16 @@ func (s *Service) Login(ctx context.Context, in LoginIn) (*Tokens, error) {
 		s.recordBlock(ctx, "account", s.emailIdx(email), email, in.IP, "Five wrong passwords in a row", time.Until(*ev.locked))
 		go s.mailLocked(email, ev.name, in.IP, *ev.locked)
 	}
-	if loginErr == errCreds {
-		// the fifth failure within two minutes (this one included) blocks the address
-		if ok, retry := s.A.Limit.Allow(ctx, "login-fail", in.IP, 4, blockFor, true); !ok {
-			kind, why := "address", "Five wrong sign-in attempts from this address"
-			if ev.acct != uuid.Nil {
-				why = "Five wrong sign-in attempts from this address on one account"
-			}
-			s.recordBlock(ctx, kind, s.emailIdx(email), email, in.IP, why, retry)
+	if loginErr == errCreds && tried >= maxTries {
+		// the fifth attempt of the window failed: the address is blocked for a full two minutes from now (not from the window's start)
+		kind, why := "address", "Five wrong sign-in attempts from this address"
+		if ev.acct != uuid.Nil {
+			why = "Five wrong sign-in attempts from this address on one account"
 		}
+		s.recordBlock(ctx, kind, s.emailIdx(email), email, in.IP, why, blockFor)
+	}
+	if loginErr == nil && in.IP != "" {
+		s.A.Limit.Refund(ctx, "login-try", in.IP, blockFor)
 	}
 	if loginErr != nil {
 		return nil, loginErr
@@ -701,6 +710,9 @@ func (s *Service) AdminSetTemporaryPassword(ctx context.Context, account uuid.UU
 
 // How long a sign-in block lasts. It lifts by itself; the record of it stays on the Security page.
 const blockFor = 2 * time.Minute
+
+// How many sign-in attempts one address gets per window before it is blocked.
+const maxTries = 5
 
 // recordBlock keeps a record of a sign-in block (once while it lasts). The account is found from the address when it belongs
 // to someone; otherwise the record shows only a masked address, because nobody in Hub owns it.
