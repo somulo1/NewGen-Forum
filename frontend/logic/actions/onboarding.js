@@ -112,6 +112,14 @@ export const onboardingActions = {
       if (Object.keys(rd).length) lines.push(Object.keys(rd).length + ' individual right change' + (Object.keys(rd).length === 1 ? '' : 's'));
       if (ob.reportDraft !== undefined && ob.reportDraft !== null && ob.reportDraft !== (this.state.personReports[p.name] || '')) lines.push(ob.reportDraft ? 'Reports to ' + ob.reportDraft : 'Reports to the role');
       if (!lines.length) { this.setState({ onboard: null }); this.notify('No changes to ' + p.name + '.', '#9DB0A6'); return; }
+      if (this.srv && p.uid) {
+        // saved on the server (its approval flow may hold the change for sign-off)
+        this.setState({ onboard: null });
+        peopleW.update(this, this.srv, p, clean, ob.orig, ob.roleDraft || null)
+          .then((r) => this.notify(r === 'pending' ? 'Changes to ' + p.name + ' were sent for approval.' : r === 'unchanged' ? 'No changes to save for ' + p.name + '.' : p.name + '\'s changes were saved.', r === 'pending' ? '#FFB86B' : '#B8F36B'))
+          .catch((e) => this.notify((e && e.message) || 'Could not save the changes.', '#FF9B8A'));
+        return;
+      }
       const pending = this.state.requests.find((r) => r.kind === 'personEdit' && r.personId === ob.edit && r.status === 'Pending');
       if (pending) { this.notify('Changes to ' + p.name + ' are already waiting for approval (' + pending.id + '). Wait for it to finish first.', '#FFB86B'); return; }
       const changes = { id: ob.edit, name: p.name, details, role: ob.roleDraft || null, rights: rd, report: ob.reportDraft === undefined ? null : ob.reportDraft };

@@ -72,3 +72,28 @@ export async function onboard(logic, srv, list) {
   await load(logic, srv);
   return results;
 }
+
+// Saves a person's edited details on the server. `now` is the cleaned form, `was` what the form held when it opened: only what
+// changed is sent. The organization's approval flow may hold the change for sign-off ('pending') instead of applying it.
+export async function update(logic, srv, person, now, was, role) {
+  const id = (level, name) => (name && srv.structure && srv.structure[level].get(name)) || null;
+  const body = {};
+  const diff = (k) => String(now[k] || '').trim() !== String((was || {})[k] || '').trim();
+  if (diff('first')) body.first_name = now.first;
+  if (diff('last')) body.last_name = now.last;
+  if (diff('title')) body.title = now.title;
+  if (diff('phone')) body.phone = now.phone;
+  if (diff('dob')) body.date_of_birth = now.dob;
+  if (diff('gender')) body.gender = now.gender;
+  if (diff('sector')) body.sector_id = id('sectors', now.sector);
+  if (diff('branch')) body.branch_id = id('branches', now.branch);
+  if (diff('unit')) body.unit_id = id('units', now.unit);
+  if (diff('department')) body.department_id = id('departments', now.department);
+  if (role && role !== person.role) body.role = role;
+  if (!Object.keys(body).length) return 'unchanged';
+  const res = await srv.request('PATCH', '/people/' + person.uid, body);
+  const applied = !res || res.applied !== false;
+  await load(logic, srv);
+  if (!applied && srv.reload.approvals) srv.reload.approvals();
+  return applied ? 'applied' : 'pending';
+}
