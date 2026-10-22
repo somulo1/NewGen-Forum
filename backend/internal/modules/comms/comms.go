@@ -269,6 +269,38 @@ func (s *Service) Content(ctx context.Context, p *tenant.Principal, id uuid.UUID
 	return out, err
 }
 
+// Contents is Content for many communications at once (the list screen opens them all), skipping the ones the caller may not see.
+func (s *Service) Contents(ctx context.Context, p *tenant.Principal, ids []uuid.UUID) ([]map[string]any, error) {
+	out := []map[string]any{}
+	err := s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
+		all, err := authz.Can(ctx, tx, p.Person, "announcements", "See who read")
+		if err != nil {
+			return err
+		}
+		rs, err := tx.Query(ctx, `select c.id, c.conversation_id, c.message_id, c.device, c.epoch, c.envelope, c.by_person, pe.account_id
+			from hub.comms c join hub.people pe on pe.id = c.by_person
+			where c.id = any($2) and ($3::boolean or c.by_person = $1 or (c.status = 'Published' and exists (select 1 from hub.conversation_members m where m.conversation_id = c.conversation_id and m.account_id = $4 and m.left_at is null)))`,
+			p.Person, ids, all, p.Account)
+		if err != nil {
+			return err
+		}
+		defer rs.Close()
+		for rs.Next() {
+			var id, conv, msg, device, by uuid.UUID
+			var epoch int
+			var env []byte
+			var acct *uuid.UUID
+			if err := rs.Scan(&id, &conv, &msg, &device, &epoch, &env, &by, &acct); err != nil {
+				return err
+			}
+			out = append(out, map[string]any{"id": id, "conversation": conv, "message": msg, "epoch": epoch, "device": device,
+				"envelope": base64.StdEncoding.EncodeToString(env), "sender_person": by, "sender_account": acct})
+		}
+		return rs.Err()
+	})
+	return out, err
+}
+
 // MarkRead records that the person read a communication (once).
 func (s *Service) MarkRead(ctx context.Context, p *tenant.Principal, id uuid.UUID) error {
 	return s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
@@ -667,6 +699,23 @@ func (s *Service) Private(r chi.Router) {
 			return err
 		}
 		httpx.JSON(w, 200, out)
+		return nil
+	}))
+	r.Post("/comms/contents", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
+		var in struct {
+			IDs []uuid.UUID `json:"ids"`
+		}
+		if err := httpx.Decode(r, &in, 64<<10); err != nil {
+			return err
+		}
+		if len(in.IDs) > 200 {
+			return httpx.Bad("Ask for up to 200 at a time.")
+		}
+		l, err := s.Contents(r.Context(), p, in.IDs)
+		if err != nil {
+			return err
+		}
+		httpx.JSON(w, 200, map[string]any{"contents": l})
 		return nil
 	}))
 	r.Post("/comms/{id}/read", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {

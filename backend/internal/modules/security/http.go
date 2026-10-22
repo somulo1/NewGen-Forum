@@ -92,23 +92,31 @@ func (m *Module) Alerts(ctx context.Context, p *tenant.Principal, openOnly bool)
 			out = append(out, a)
 		}
 		rs.Close()
-		for i := range out {
-			ns, err := tx.Query(ctx, `select n.id, n.status, n.comment_enc, p.first_name || ' ' || p.last_name, n.at from hub.alert_notes n join hub.people p on p.id = n.person where n.alert_id=$1 order by n.at, n.id`, out[i].ID)
+		if len(out) > 0 {
+			ids := make([]uuid.UUID, len(out))
+			at := make(map[uuid.UUID]int, len(out))
+			for i := range out {
+				ids[i] = out[i].ID
+				at[out[i].ID] = i
+			}
+			ns, err := tx.Query(ctx, `select n.alert_id, n.id, n.status, n.comment_enc, p.first_name || ' ' || p.last_name, n.at from hub.alert_notes n join hub.people p on p.id = n.person where n.alert_id = any($1) order by n.alert_id, n.at, n.id`, ids)
 			if err != nil {
 				return err
 			}
 			for ns.Next() {
-				var nid uuid.UUID
+				var aid, nid uuid.UUID
 				var n Note
 				var enc []byte
-				if err := ns.Scan(&nid, &n.Status, &enc, &n.Who, &n.At); err != nil {
+				if err := ns.Scan(&aid, &nid, &n.Status, &enc, &n.Who, &n.At); err != nil {
 					ns.Close()
 					return err
 				}
 				if b, err := crypto.FieldOpen(dek, noteCtx(p.Org, nid), enc); err == nil {
 					n.Comment = string(b)
 				}
-				out[i].Notes = append(out[i].Notes, n)
+				if i, ok := at[aid]; ok {
+					out[i].Notes = append(out[i].Notes, n)
+				}
 			}
 			ns.Close()
 		}

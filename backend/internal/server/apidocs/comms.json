@@ -79,6 +79,31 @@
    "404": "Not visible to you"
   }
  },
+ "POST /v1/comms/contents": {
+  "summary": "The sealed content of many communications at once",
+  "description": "Same as the single content call for up to 200 ids; ones the caller may not see are left out.",
+  "access": "any signed-in member of the organization (token issued with `org`)",
+  "request": {
+   "ids": "uuid[]. Up to 200"
+  },
+  "response": {
+   "contents": [
+    {
+     "id": "uuid",
+     "conversation": "uuid",
+     "message": "uuid",
+     "epoch": "integer",
+     "device": "uuid",
+     "envelope": "base64",
+     "sender_person": "uuid",
+     "sender_account": "uuid"
+    }
+   ]
+  },
+  "errors": {
+   "400": "More than 200 ids"
+  }
+ },
  "POST /v1/comms/{id}/read": {
   "summary": "Mark a communication read",
   "description": "Counted once per person.",

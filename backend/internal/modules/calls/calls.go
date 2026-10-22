@@ -139,10 +139,8 @@ func (m *Module) Start(ctx context.Context, p *tenant.Principal, in StartIn) (*E
 		if _, err := tx.Exec(ctx, `insert into hub.call_participants (org_id, call_id, person_id, invited, joined_at) values ($1,$2,$3,false,null)`, p.Org, id, p.Person); err != nil {
 			return err
 		}
-		for _, pid := range invited {
-			if _, err := tx.Exec(ctx, `insert into hub.call_participants (org_id, call_id, person_id, invited) values ($1,$2,$3,true)`, p.Org, id, pid); err != nil {
-				return err
-			}
+		if _, err := tx.Exec(ctx, `insert into hub.call_participants (org_id, call_id, person_id, invited) select $1, $2, x, true from unnest($3::uuid[]) x`, p.Org, id, invited); err != nil {
+			return err
 		}
 		c := &Call{ID: id, Kind: in.Kind, Context: in.Context, Conversation: in.Conversation, Host: p.Person, HostName: p.Name, Status: status, StartedAt: app.Now()}
 		if m.sfuFor(in.Context) {
@@ -308,18 +306,30 @@ func (m *Module) History(ctx context.Context, p *tenant.Principal, limit int, be
 			out = append(out, c)
 		}
 		rs.Close()
-		for _, c := range out {
-			ps, err := tx.Query(ctx, `select p.first_name || ' ' || p.last_name from hub.call_participants cp join hub.people p on p.id = cp.person_id where cp.call_id=$1 and cp.person_id <> $2 order by p.first_name limit 8`, c.ID, p.Person)
+		if len(out) > 0 {
+			ids := make([]uuid.UUID, len(out))
+			at := make(map[uuid.UUID]*Call, len(out))
+			for i, c := range out {
+				ids[i] = c.ID
+				at[c.ID] = c
+			}
+			ps, err := tx.Query(ctx, `select call_id, name from (
+				select cp.call_id, p.first_name || ' ' || p.last_name as name, row_number() over (partition by cp.call_id order by p.first_name) as n
+				from hub.call_participants cp join hub.people p on p.id = cp.person_id
+				where cp.call_id = any($1) and cp.person_id <> $2) x where n <= 8 order by call_id, n`, ids, p.Person)
 			if err != nil {
 				return err
 			}
 			for ps.Next() {
+				var cid uuid.UUID
 				var n string
-				if err := ps.Scan(&n); err != nil {
+				if err := ps.Scan(&cid, &n); err != nil {
 					ps.Close()
 					return err
 				}
-				c.People = append(c.People, n)
+				if c := at[cid]; c != nil {
+					c.People = append(c.People, n)
+				}
 			}
 			ps.Close()
 		}

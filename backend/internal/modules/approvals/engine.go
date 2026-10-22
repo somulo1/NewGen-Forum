@@ -386,21 +386,29 @@ func (e *Engine) list(ctx context.Context, tx pgx.Tx, p *tenant.Principal, where
 	if err := rs.Err(); err != nil {
 		return nil, err
 	}
+	// every request's steps in one query, and each "waiting for" / "may decide" answer worked out once per kind of request
+	ids := make([]uuid.UUID, len(out))
+	byID := make(map[uuid.UUID]*Request, len(out))
 	for i, x := range out {
-		x.Ref = ref(seqs[i])
-		if x.Status == "Pending" {
-			x.Waiting = e.waiting(ctx, tx, x.Flow, modules[i], x.Level)
-		}
-		ss, err := tx.Query(ctx, `select s.level, p.first_name || ' ' || p.last_name, s.decision, s.comment_enc, s.created_at from hub.approval_steps s join hub.people p on p.id = s.approver where s.request_id=$1 order by s.level`, x.ID)
+		ids[i] = x.ID
+		byID[x.ID] = x
+	}
+	if len(ids) > 0 {
+		ss, err := tx.Query(ctx, `select s.request_id, s.level, p.first_name || ' ' || p.last_name, s.decision, s.comment_enc, s.created_at from hub.approval_steps s join hub.people p on p.id = s.approver where s.request_id = any($1) order by s.request_id, s.level`, ids)
 		if err != nil {
 			return nil, err
 		}
 		for ss.Next() {
+			var rid uuid.UUID
 			var st Step
 			var cEnc []byte
-			if err := ss.Scan(&st.Level, &st.Who, &st.Decision, &cEnc, &st.At); err != nil {
+			if err := ss.Scan(&rid, &st.Level, &st.Who, &st.Decision, &cEnc, &st.At); err != nil {
 				ss.Close()
 				return nil, err
+			}
+			x := byID[rid]
+			if x == nil {
+				continue
 			}
 			if len(cEnc) > 0 {
 				if c, err := crypto.FieldOpen(dek, crypto.Context{Org: p.Org.String(), Table: "approval_steps", Column: "comment_enc", RowID: fmt.Sprintf("%s/%d", x.ID, st.Level)}, cEnc); err == nil {
@@ -410,10 +418,35 @@ func (e *Engine) list(ctx context.Context, tx pgx.Tx, p *tenant.Principal, where
 			x.History = append(x.History, st)
 		}
 		ss.Close()
-		if x.Status == "Pending" {
-			f := &Flow{Module: modules[i]}
-			x.CanDecide, _ = e.mayDecide(ctx, tx, p.Person, x.Requester, f, x.Level)
+		if err := ss.Err(); err != nil {
+			return nil, err
 		}
+	}
+	type kind struct {
+		flow, module string
+		level        int
+		mine         bool
+	}
+	waits := map[kind]string{}
+	may := map[kind]bool{}
+	for i, x := range out {
+		x.Ref = ref(seqs[i])
+		if x.Status != "Pending" {
+			continue
+		}
+		k := kind{x.Flow, modules[i], x.Level, x.Requester == p.Person}
+		w, ok := waits[k]
+		if !ok {
+			w = e.waiting(ctx, tx, x.Flow, modules[i], x.Level)
+			waits[k] = w
+		}
+		x.Waiting = w
+		c, ok := may[k]
+		if !ok {
+			c, _ = e.mayDecide(ctx, tx, p.Person, x.Requester, &Flow{Module: modules[i]}, x.Level)
+			may[k] = c
+		}
+		x.CanDecide = c
 	}
 	return out, nil
 }

@@ -73,11 +73,20 @@ func (s *Service) AddMembers(ctx context.Context, p *tenant.Principal, id uuid.U
 		if err := checkCovers(keys, epoch, devs); err != nil {
 			return err
 		}
+		mb := &pgx.Batch{}
 		for _, m := range ms {
-			if _, err := tx.Exec(ctx, `insert into hub.conversation_members (org_id, conversation_id, account_id, first_epoch) values ($1,$2,$3,$4)
-				on conflict (org_id, conversation_id, account_id) do update set left_at=null, first_epoch=excluded.first_epoch, joined_at=now(), `+integrity.BumpOn("conversation_members")+` where hub.conversation_members.left_at is not null`, p.Org, id, m.Account, epoch); err != nil {
+			mb.Queue(`insert into hub.conversation_members (org_id, conversation_id, account_id, first_epoch) values ($1,$2,$3,$4)
+				on conflict (org_id, conversation_id, account_id) do update set left_at=null, first_epoch=excluded.first_epoch, joined_at=now(), `+integrity.BumpOn("conversation_members")+` where hub.conversation_members.left_at is not null`, p.Org, id, m.Account, epoch)
+		}
+		mbr := tx.SendBatch(ctx, mb)
+		for range ms {
+			if _, err := mbr.Exec(); err != nil {
+				_ = mbr.Close()
 				return err
 			}
+		}
+		if err := mbr.Close(); err != nil {
+			return err
 		}
 		if err := s.A.Sign.Seal(ctx, tx, "conversation_members", "conversation_id=$1", id); err != nil {
 			return err
