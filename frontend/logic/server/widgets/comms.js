@@ -73,7 +73,7 @@ export async function insights(srv, c) {
 
 // Opens an attached file in a new tab.
 export async function openFile(srv, f) {
-  window.open(await files.openUrl(srv, f), '_blank');
+  window.open(await files.openUrl(srv, f), '_blank', 'noopener');
 }
 
 // c = { type, title, summary, body, fields, files: [File], wall, forum (server conversation id or ''), sel: { 'departments:Finance': true } }
