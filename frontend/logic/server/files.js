@@ -39,7 +39,7 @@ const opening = new Map();
 // Downloads and decrypts an attachment; returns an object URL (cached for the session; one download per file at a time).
 export async function openUrl(srv, ref) {
   if (urls.has(ref.fileId)) return urls.get(ref.fileId);
-  if (!opening.has(ref.fileId)) opening.set(ref.fileId, fetchUrl(srv, ref).finally(() => opening.delete(ref.fileId)));
+  if (!opening.has(ref.fileId)) opening.set(ref.fileId, fetchUrl(srv, ref).catch(async (e) => { await new Promise((r) => setTimeout(r, 1500)); try { return await fetchUrl(srv, ref); } catch (e2) { console.warn('Could not open attachment ' + ref.fileId + ':', e2); throw e2; } }).finally(() => opening.delete(ref.fileId)));
   return opening.get(ref.fileId);
 }
 async function fetchUrl(srv, ref) {
