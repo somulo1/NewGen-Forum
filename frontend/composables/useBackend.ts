@@ -113,7 +113,7 @@ export const useBackend = () => {
     // a call that needs no sign-in (forgot password)
     open: (method: string, path: string, body?: unknown) => raw(method, path, body),
     // A new access and refresh token on each page change; the old ones stop working at once.
-    rotate: () => refresh(4000),
+    rotate: () => refresh(10 * 60 * 1000),   // not on every page change: each rotation kills the access token that requests still in flight are using
     bytes,
     signedIn: () => !!read(),
     async login(email: string, password: string, totp = ''): Promise<Session> {
