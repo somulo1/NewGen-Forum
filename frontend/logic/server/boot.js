@@ -76,11 +76,15 @@ export async function startServerSync(logic, request, session, bytes) {
   await Promise.all([roles, orgW].map(loadOne));
   logic._accessPending = false;
   logic.forceUpdate();
-  for (const w of WIDGETS.filter((x) => ![people, roles, orgW].includes(x))) {
-    const t0 = performance.now();
-    try { await w.load(logic, srv); } catch (e) { console.warn('Could not load ' + (w.name || 'a widget') + ':', e); }
-    console.debug('[hub] ' + (w.name || 'widget') + ' loaded in ' + Math.round(performance.now() - t0) + ' ms');
-  }
+  // The rest load side by side (each used to wait for the one before it, one slow round trip after another). Awards and notes
+  // read the forum lists, so they start when the chats are in.
+  const rest = WIDGETS.filter((x) => ![people, roles, orgW].includes(x));
+  const afterChats = [awards, notes];
+  const chats = Promise.all([forums, dms].map(loadOne));
+  await Promise.all([
+    ...rest.filter((x) => ![forums, dms, ...afterChats].includes(x)).map(loadOne),
+    chats.then(() => Promise.all(afterChats.map(loadOne)))
+  ]);
   // incoming calls ring live; each chat's Calls tab shows the real history
   callsW.listen(logic, srv);
   callsW.loadHistory(logic, srv).catch(() => {});
