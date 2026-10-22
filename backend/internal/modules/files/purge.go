@@ -7,6 +7,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+
+	"hub/internal/integrity"
 )
 
 // Erasing file contents. Deleting a file must free its space for real, on whichever file server holds it. The erase
@@ -109,4 +111,61 @@ func (s *Service) EraseOrg(ctx context.Context, org uuid.UUID, records interface
 		}
 	}
 	return records.EraseOrg(ctx, org)
+}
+
+// SweepUploads closes uploads that were started but never finished (the browser closed, the connection dropped): after a day
+// they are marked deleted so they stop counting as open uploads. No bytes exist for them, so nothing is erased.
+func (s *Service) SweepUploads(ctx context.Context) (int, error) {
+	var orgs []uuid.UUID
+	if err := s.A.DB.Tx(ctx, func(tx pgx.Tx) error {
+		rs, err := tx.Query(ctx, `select id from hub.orgs where status='active'`)
+		if err != nil {
+			return err
+		}
+		defer rs.Close()
+		for rs.Next() {
+			var id uuid.UUID
+			if err := rs.Scan(&id); err != nil {
+				return err
+			}
+			orgs = append(orgs, id)
+		}
+		return rs.Err()
+	}); err != nil {
+		return 0, err
+	}
+	total := 0
+	for _, org := range orgs {
+		err := s.A.DB.WithOrg(ctx, org, func(tx pgx.Tx) error {
+			rs, err := tx.Query(ctx, `update hub.files set status='deleted', envelope='\x00'::bytea, blob_key=null, updated_at=now(), `+integrity.Bump+`
+				where status='uploading' and created_at < now() - interval '24 hours' returning id`)
+			if err != nil {
+				return err
+			}
+			var ids []uuid.UUID
+			for rs.Next() {
+				var id uuid.UUID
+				if err := rs.Scan(&id); err != nil {
+					rs.Close()
+					return err
+				}
+				ids = append(ids, id)
+			}
+			rs.Close()
+			if err := rs.Err(); err != nil {
+				return err
+			}
+			for _, id := range ids {
+				if err := s.A.Sign.Seal(ctx, tx, "files", "id=$1 and org_id=$2", id, org); err != nil {
+					return err
+				}
+			}
+			total += len(ids)
+			return nil
+		})
+		if err != nil {
+			return total, err
+		}
+	}
+	return total, nil
 }
