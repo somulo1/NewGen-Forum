@@ -10,11 +10,16 @@ const dayOf = (iso) => (iso || '').slice(0, 10);
 export async function load(logic, srv) {
   const { comms } = await srv.request('GET', '/comms');
   const { total } = await srv.request('GET', '/people?limit=1');
+  // all the sealed contents in one request (it was one request per communication)
+  const sealedBy = new Map();
+  for (let i = 0; i < comms.length; i += 200) {
+    try { (await srv.request('POST', '/comms/contents', { ids: comms.slice(i, i + 200).map((c) => c.id) })).contents.forEach((x) => sealedBy.set(x.id, x)); } catch (e) { /* none visible */ }
+  }
   const rows = await Promise.all(comms.map(async (c) => {
     let pl = null;
     try {
-      const sealed = await srv.request('GET', `/comms/${c.id}/content`);
-      pl = await srv.vault.openItem({ conversation: sealed.conversation, id: sealed.message, sender: sealed.sender_account, senderPerson: sealed.sender_person, senderDevice: sealed.device, epoch: sealed.epoch, envelope: sealed.envelope });
+      const sealed = sealedBy.get(c.id);
+      if (sealed) pl = await srv.vault.openItem({ conversation: sealed.conversation, id: sealed.message, sender: sealed.sender_account, senderPerson: sealed.sender_person, senderDevice: sealed.device, epoch: sealed.epoch, envelope: sealed.envelope });
     } catch (e) { /* not visible to this person */ }
     const dept = srv.dirByUid && srv.dirByUid.get(c.by) ? srv.dirByUid.get(c.by).dept : '';
     return {

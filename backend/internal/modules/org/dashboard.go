@@ -322,20 +322,27 @@ func (s *Service) Dashboard(ctx context.Context, p *tenant.Principal, id uuid.UU
 		if err := rs.Err(); err != nil {
 			return err
 		}
-		for i := range d.Requests {
-			ss, err := tx.Query(ctx, `select s.level, pe.first_name || ' ' || pe.last_name, s.decision, s.created_at from hub.approval_steps s join hub.people pe on pe.id = s.approver where s.request_id=$1 order by s.level`, reqIDs[i])
+		if len(reqIDs) > 0 {
+			at := make(map[uuid.UUID]int, len(reqIDs))
+			for i, id := range reqIDs {
+				at[id] = i
+			}
+			ss, err := tx.Query(ctx, `select s.request_id, s.level, pe.first_name || ' ' || pe.last_name, s.decision, s.created_at from hub.approval_steps s join hub.people pe on pe.id = s.approver where s.request_id = any($1) order by s.request_id, s.level`, reqIDs)
 			if err != nil {
 				return err
 			}
 			for ss.Next() {
+				var rid uuid.UUID
 				var st ReqStep
-				var at time.Time
-				if err := ss.Scan(&st.Level, &st.Who, &st.Decision, &at); err != nil {
+				var when time.Time
+				if err := ss.Scan(&rid, &st.Level, &st.Who, &st.Decision, &when); err != nil {
 					ss.Close()
 					return err
 				}
-				st.At = at.UTC().Format(time.RFC3339)
-				d.Requests[i].History = append(d.Requests[i].History, st)
+				st.At = when.UTC().Format(time.RFC3339)
+				if i, ok := at[rid]; ok {
+					d.Requests[i].History = append(d.Requests[i].History, st)
+				}
 			}
 			ss.Close()
 		}

@@ -177,12 +177,14 @@ export class Vault {
   async custody() {
     const { todo } = await this.request('GET', '/e2ee/todo');
     let done = 0;
-    for (const t of todo) {
-      try {
-        if (t.rotate) await this.rotate(t.conversation);
-        else await this.fillMissing(t.conversation);
-        done++;
-      } catch (e) { /* another member's device may handle it */ }
+    for (let i = 0; i < todo.length; i += 6) {   // a few conversations at a time rather than one after another
+      await Promise.all(todo.slice(i, i + 6).map(async (t) => {
+        try {
+          if (t.rotate) await this.rotate(t.conversation);
+          else await this.fillMissing(t.conversation);
+          done++;
+        } catch (e) { /* another member's device may handle it */ }
+      }));
     }
     return done;
   }
@@ -202,11 +204,7 @@ export class Vault {
     void members;
     const next = c.epoch + 1;
     const key = newConversationKey();
-    const devices = [];
-    for (const m of c.members || []) {
-      const r = await this.request('GET', `/e2ee/people/${m.person}/devices`);
-      devices.push(...r.devices);
-    }
+    const { devices } = await this.request('POST', '/e2ee/people/devices', { people: [...new Set((c.members || []).map((m) => m.person))] });   // one request for everyone
     const wraps = await this.wrapFor(conv, next, key, devices);
     await this.request('POST', `/conversations/${conv}/rotate`, { device: this.deviceId, keys: wraps });
     this.keys.delete(conv); this.convs.delete(conv);

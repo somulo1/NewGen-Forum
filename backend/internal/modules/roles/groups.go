@@ -147,10 +147,8 @@ func (s *Service) setGroupRoles(ctx context.Context, tx pgx.Tx, org, group uuid.
 	if _, err := tx.Exec(ctx, `delete from hub.role_group_roles where group_id=$1`, group); err != nil {
 		return err
 	}
-	for _, id := range ids {
-		if _, err := tx.Exec(ctx, `insert into hub.role_group_roles (org_id, group_id, role_id) values ($1,$2,$3)`, org, group, id); err != nil {
-			return err
-		}
+	if _, err := tx.Exec(ctx, `insert into hub.role_group_roles (org_id, group_id, role_id) select $1, $2, x from unnest($3::uuid[]) x`, org, group, ids); err != nil {
+		return err
 	}
 	return s.A.Sign.Seal(ctx, tx, "role_group_roles", "group_id=$1", group)
 }
