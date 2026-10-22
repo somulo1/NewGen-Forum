@@ -4,7 +4,7 @@ export function buildProfile(ctx) {
   const { reportOf, fmtDay, forums, has, nav, projects, s, skillsByDept, ts } = ctx;
   // ---- My profile ----
   nav.profileCard = 'margin-top:auto;display:flex;align-items:center;gap:10px;width:100%;min-height:58px;padding:8px 10px;border-radius:12px;cursor:pointer;color:var(--k-E8EFEA,#E8EFEA);font-family:inherit;border:1px solid ' + (s.section === 'profile' && !s.profileOf ? '#3F524A' : '#24322C') + ';background:' + (s.section === 'profile' && !s.profileOf ? 'var(--k-22302A,#22302A)' : 'var(--k-16201C,#16201C)');
-  const pf = s.profile;
+  const pf = { photo: '', bio: '', phone: '', skills: [], ...s.profile, skills: (s.profile && s.profile.skills) || [] };
   const statusDefs = [
     { label: 'Available', color: '#B8F36B', note: 'Available for chats and calls' },
     { label: 'In a meeting', color: '#FFB86B', note: 'In a meeting, replies may be slow' },
@@ -56,7 +56,7 @@ export function buildProfile(ctx) {
       style: 'width:26px;height:26px;border-radius:50%;cursor:pointer;background:' + c + ';border:2px solid ' + (pf.cover === c ? '#E8EFEA' : 'rgba(255,255,255,0.25)') })),
     complete, completeTip: tip, completeBar: 'height:100%;width:' + complete + '%;background:' + (complete === 100 ? '#B8F36B' : '#FFB86B') + ';border-radius:3px',
     bio: pf.bio, phone: pf.phone, newSkill: s.newSkill,
-    skills: pf.skills.map((n, i) => ({ name: n, editing: s.profileEdit, remove: () => this.setState((st) => ({ profile: { ...st.profile, skills: st.profile.skills.filter((x, j) => j !== i) } })) })),
+    skills: pf.skills.map((n, i) => ({ name: n, editing: s.profileEdit, remove: () => this.setState((st) => ({ profile: { ...st.profile, skills: (st.profile.skills || []).filter((x, j) => j !== i) } })) })),
     facts: [
       { label: 'Department', value: mi.dept || 'Not set', sub: mi.unit || mi.title },
       { label: 'Reports to', value: myReport.display, sub: myReport.sub },
@@ -138,7 +138,7 @@ export function buildProfile(ctx) {
   const addSkill = () => {
     const v = this.state.newSkill.trim();
     if (!v) return;
-    this.setState((st) => ({ newSkill: '', profile: { ...st.profile, skills: st.profile.skills.indexOf(v) === -1 ? st.profile.skills.concat([v]) : st.profile.skills } }));
+    this.setState((st) => ({ newSkill: '', profile: { ...st.profile, skills: (st.profile.skills || []).indexOf(v) === -1 ? (st.profile.skills || []).concat([v]) : st.profile.skills } }));
   };
   return { addSkill, me, setPf };
 }
