@@ -99,7 +99,14 @@ export const useBackend = () => {
     let s = read();
     if (s && Date.now() >= s.expiresAt) s = await refresh();
     if (!s) throw new ApiError(401, 'signed_out', 'Sign in to continue.');
-    const res = await fetch(base + '/v1' + path, { method, headers: { Authorization: 'Bearer ' + s.access, ...(body ? { 'Content-Type': 'application/octet-stream' } : {}) }, body });
+    const send = (access: string) => fetch(base + '/v1' + path, { method, headers: { Authorization: 'Bearer ' + access, ...(body ? { 'Content-Type': 'application/octet-stream' } : {}) }, body });
+    let res = await send(s.access);
+    if (res.status === 401) {
+      // the token was rotated while this transfer was in flight: use the newest one (or refresh) and try once more, as request() does
+      const cur = read();
+      const n = cur && cur.access !== s.access ? cur : await refresh();
+      if (n) res = await send(n.access);
+    }
     if (!res.ok) {
       let msg = 'Transfer failed (' + res.status + ').';
       try { msg = (await res.json()).error.message || msg; } catch (e) { /* not JSON */ }
