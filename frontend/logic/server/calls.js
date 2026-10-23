@@ -26,14 +26,17 @@ function setCall(logic, patch) {
   logic.setState((st) => (st.call ? { call: { ...st.call, ...patch } } : {}));
 }
 
+// Takes what the computer can give: microphone and camera together, then each on its own. A microphone or camera another app or
+// browser tab already holds (the usual case when two windows are tried on one computer) must not stop the call: whatever is
+// missing is simply not sent, and the call still carries what the other side sends (see peerConn).
 async function getMedia(kind) {
-  try {
-    return await navigator.mediaDevices.getUserMedia({ audio: true, video: kind === 'video' });
-  } catch (e) {
-    // no camera, in use by another app or tab, or permission refused: fall back to voice only (and say so)
-    if (kind === 'video') { try { return await navigator.mediaDevices.getUserMedia({ audio: true }); } catch (x) { /* nothing */ } }
-    return null;
+  const md = navigator.mediaDevices;
+  if (!md || !md.getUserMedia) return null;
+  const tries = kind === 'video' ? [{ audio: true, video: true }, { audio: true }, { video: true }] : [{ audio: true }];
+  for (const c of tries) {
+    try { return await md.getUserMedia(c); } catch (e) { /* busy, missing or refused: try the next */ }
   }
+  return null;
 }
 
 function peerConn(logic, peerId) {
@@ -44,6 +47,11 @@ function peerConn(logic, peerId) {
   room.pcs.set(peerId, pc);
   const local = media.local;
   if (local) local.getTracks().forEach((t) => pc.addTrack(t, local));
+  // Nothing to send of a kind (no microphone, no camera, or another app holds it): still ask for the other side's. Without this the
+  // offer has no media sections at all, and the call would carry nothing in either direction.
+  const has = (k) => !!(local && local.getTracks().some((t) => t.kind === k));
+  if (!has('audio')) pc.addTransceiver('audio', { direction: 'recvonly' });
+  if (room && room.kind === 'video' && !has('video')) pc.addTransceiver('video', { direction: 'recvonly' });
   pc.onicecandidate = (e) => { if (e.candidate) send({ type: 'ice', to: peerId, data: e.candidate }); };
   pc.ontrack = (e) => {
     const s = e.streams[0] || new MediaStream([e.track]);
@@ -113,14 +121,17 @@ async function connectRoom(logic, srv, entry, opts = {}) {
   if (opts.ringback) startRingback();
   const ctx = entry.call.context || 'meeting';
   media.local = await getMedia(entry.call.kind);
-  if (!media.local) logic.notify('Hub cannot use your microphone. Check the browser permission; you can still listen.', '#FFB86B');
-  if (media.local && entry.call.kind === 'video' && !media.local.getVideoTracks().length) {
+  if (!media.local || !media.local.getAudioTracks().length) {
+    logic.setState({ mic: false });
+    logic.notify('No microphone is available to Hub (another app or browser tab may be using it, or it is blocked in the browser settings). You can still hear and see the others; they will see you as muted.', '#FFB86B');
+  }
+  if (entry.call.kind === 'video' && !(media.local && media.local.getVideoTracks().length)) {
     logic.setState({ cam: false });
     logic.notify('Your camera is not available, so the other person cannot see you. It may be in use by another app or browser tab, or blocked in the browser settings.', '#FFB86B');
   }
   changed();
   const ws = new WebSocket(entry.url + '?token=' + encodeURIComponent(entry.token));
-  room = { ws, me: null, pcs: new Map(), callId: entry.call.id, host: entry.call.host, ctx, ice: entry.ice && entry.ice.length ? entry.ice : FALLBACK_ICE };
+  room = { ws, me: null, pcs: new Map(), callId: entry.call.id, host: entry.call.host, ctx, kind: entry.call.kind, ice: entry.ice && entry.ice.length ? entry.ice : FALLBACK_ICE };
   setCall(logic, { callId: entry.call.id, peers: [], me: null });
   // messages are handled one after another, in the order they arrive: an offer must be in before the candidates that follow it
   let chain = Promise.resolve();
@@ -200,7 +211,14 @@ async function connectRoom(logic, srv, entry, opts = {}) {
       default:
     }
   };
-  ws.onclose = () => { if (room && room.ws === ws && logic.state.call) { logic.notify('The call connection closed.', '#FFB86B'); logic.endCall(); } };
+  let opened = false;
+  ws.onopen = () => { opened = true; };
+  ws.onclose = () => {
+    if (room && room.ws === ws && logic.state.call) {
+      logic.notify(opened ? 'The call connection closed.' : 'Could not reach the call server, or the call pass expired. Start the call again.', '#FFB86B');
+      logic.endCall();
+    }
+  };
 }
 
 function dropPeer(id) {

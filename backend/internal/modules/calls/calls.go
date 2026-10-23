@@ -82,7 +82,9 @@ func (m *Module) roomURL(room string) string {
 func (m *Module) token(p *tenant.Principal, c *Call, role string) (string, error) {
 	claims := calltoken.Claims{Room: c.ID.String(), Org: p.Org.String(), Person: p.Person.String(), Name: p.Name, Role: role, Kind: c.Kind, MaxPeer: 8}
 	claims.ID = uuid.NewString()
-	return calltoken.Mint(m.A.Cfg.CallsSecret, claims, 90*time.Second)
+	// five minutes, because the browser asks for the camera and microphone before it uses the pass (a permission prompt, a slow
+	// network); the pass still works once
+	return calltoken.Mint(m.A.Cfg.CallsSecret, claims, 5*time.Minute)
 }
 
 // Start opens a room. For a direct message the other person's devices ring; for a forum or a meeting everyone in the
