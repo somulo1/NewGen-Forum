@@ -216,7 +216,7 @@ func openRedis(ctx context.Context, cfg *config.Config) (*redis.Client, *minired
 	// While a new version starts the old one still holds its connections, and a full Redis closes new ones ("EOF"): wait and try
 	// again instead of giving up on the first refusal.
 	var perr error
-	for i := 0; i < 12; i++ {
+	for i := 0; i < 6; i++ {
 		if perr = rdb.Ping(ctx).Err(); perr == nil {
 			break
 		}

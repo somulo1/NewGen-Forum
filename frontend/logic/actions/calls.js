@@ -15,7 +15,7 @@ export const callsActions = {
     if (this.callBusy()) return;
     clearInterval(this._ct);
     this._ct = setInterval(() => this.forceUpdate(), 1000);
-    const ns = { call: { mode: mode, title: title, initials: initials, color: color, start: Date.now(), people: people || null, context: context || null, ref: ref || null, dir: dir || 'out' }, callMode: 'docked', personOpen: null, mic: true, callOff: {}, cam: mode === 'video', sharing: false, hand: false, rec: false, callPanel: null, menu: false };
+    const ns = { call: { mode: mode, title: title, initials: initials, color: color, start: Date.now(), people: people || null, context: context || null, ref: ref || null, dir: dir || 'out' }, callMode: 'full', personOpen: null, mic: true, callOff: {}, cam: mode === 'video', sharing: false, hand: false, rec: false, callPanel: null, menu: false };
     if ((context === 'dm' || context === 'forum') && this.state.mode !== 'docked' && this.state.mode !== 'full' && this.state.mode !== 'page') ns.mode = 'docked';
     this.setState(ns);
     if (this.srv) {
