@@ -8,7 +8,9 @@ import { connectRealtime } from './realtime.js';
 import { connectSfu, leaveSfu, applySfu, sendChatSfu, sfuActive, control } from './sfuCall.js';
 import { startRing, stopRing, startRingback, stopRingback, connected, hangup, joinedTone, handTone } from '../tones.js';
 
-const ICE = [{ urls: 'stun:stun.l.google.com:19302' }];
+// STUN servers always; a TURN relay too when the server has one (it comes with the call, see the API's `ice`), so calls connect
+// across different networks, mobile data and strict firewalls.
+const FALLBACK_ICE = [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun.cloudflare.com:3478' }];
 
 // Live media, outside the reactive state (MediaStreams must not be proxied). Components read them with streamFor().
 const media = { local: null, screen: null, remote: new Map(), audio: new Map(), tracks: new Map(), version: 0, listeners: new Set() };
@@ -28,7 +30,7 @@ async function getMedia(kind) {
   try {
     return await navigator.mediaDevices.getUserMedia({ audio: true, video: kind === 'video' });
   } catch (e) {
-    // no camera or permission refused for video: fall back to voice only
+    // no camera, in use by another app or tab, or permission refused: fall back to voice only (and say so)
     if (kind === 'video') { try { return await navigator.mediaDevices.getUserMedia({ audio: true }); } catch (x) { /* nothing */ } }
     return null;
   }
@@ -36,7 +38,9 @@ async function getMedia(kind) {
 
 function peerConn(logic, peerId) {
   if (room.pcs.has(peerId)) return room.pcs.get(peerId);
-  const pc = new RTCPeerConnection({ iceServers: ICE });
+  const pc = new RTCPeerConnection({ iceServers: (room && room.ice) || FALLBACK_ICE });
+  pc.queued = [];          // candidates that arrived before the other side's description
+  pc.initiator = false;    // true on the side that made the first offer
   room.pcs.set(peerId, pc);
   const local = media.local;
   if (local) local.getTracks().forEach((t) => pc.addTrack(t, local));
@@ -48,12 +52,48 @@ function peerConn(logic, peerId) {
       const a = new Audio(); a.autoplay = true; a.srcObject = s; a.play().catch(() => {});
       media.audio.set(peerId, a);
     } else media.audio.get(peerId).srcObject = s;
+    e.track.onunmute = () => changed();   // some browsers show black until the first frame arrives
     changed();
   };
   pc.onconnectionstatechange = () => {
-    if (pc.connectionState === 'connected') { stopRingback(); setCall(logic, { connected: true }); }
+    if (pc.connectionState === 'connected') { clearTimeout(pc.lostT); pc.restarts = 0; stopRingback(); setCall(logic, { connected: true }); return; }
+    if (pc.connectionState === 'disconnected') {
+      // often a blip (wifi to mobile data): give it a few seconds, then try to reconnect
+      clearTimeout(pc.lostT);
+      pc.lostT = setTimeout(() => { if (room && room.pcs.get(peerId) === pc && pc.connectionState !== 'connected') lost(logic, peerId, pc); }, 6000);
+    }
+    if (pc.connectionState === 'failed') lost(logic, peerId, pc);
   };
   return pc;
+}
+
+
+// The path to a peer broke. Reconnect (the side that made the first offer asks for fresh candidates); when that does not work,
+// say so: in a private call it ends, in a group call that person's tile goes away.
+function lost(logic, peerId, pc) {
+  if (!room || room.pcs.get(peerId) !== pc) return;
+  pc.restarts = (pc.restarts || 0) + 1;
+  if (pc.restarts <= 2) {
+    if (pc.initiator) {
+      pc.restartIce();
+      pc.createOffer({ iceRestart: true }).then((o) => pc.setLocalDescription(o).then(() => send({ type: 'offer', to: peerId, data: o }))).catch(() => {});
+    }
+    clearTimeout(pc.lostT);
+    pc.lostT = setTimeout(() => { if (room && room.pcs.get(peerId) === pc && pc.connectionState !== 'connected') lost(logic, peerId, pc); }, 8000);
+    return;
+  }
+  const c = logic.state.call;
+  if (c && c.context === 'dm') { logic.notify('The call lost its connection and ended.', '#FFB86B'); logic.endCall(); return; }
+  const name = ((c && c.peers) || []).find((p) => p.id === peerId);
+  logic.notify((name ? name.name : 'Someone') + ' lost their connection.', '#FFB86B');
+  dropPeer(peerId);
+}
+
+// Candidates are added once the other side's description is in; any that came earlier wait here.
+async function flushCandidates(pc) {
+  const q = pc.queued || [];
+  pc.queued = [];
+  for (const c of q) await pc.addIceCandidate(c).catch(() => {});
 }
 
 function send(o) { if (room && room.ws && room.ws.readyState === 1) room.ws.send(JSON.stringify(o)); }
@@ -74,11 +114,18 @@ async function connectRoom(logic, srv, entry, opts = {}) {
   const ctx = entry.call.context || 'meeting';
   media.local = await getMedia(entry.call.kind);
   if (!media.local) logic.notify('Hub cannot use your microphone. Check the browser permission; you can still listen.', '#FFB86B');
+  if (media.local && entry.call.kind === 'video' && !media.local.getVideoTracks().length) {
+    logic.setState({ cam: false });
+    logic.notify('Your camera is not available, so the other person cannot see you. It may be in use by another app or browser tab, or blocked in the browser settings.', '#FFB86B');
+  }
   changed();
   const ws = new WebSocket(entry.url + '?token=' + encodeURIComponent(entry.token));
-  room = { ws, me: null, pcs: new Map(), callId: entry.call.id, host: entry.call.host, ctx };
+  room = { ws, me: null, pcs: new Map(), callId: entry.call.id, host: entry.call.host, ctx, ice: entry.ice && entry.ice.length ? entry.ice : FALLBACK_ICE };
   setCall(logic, { callId: entry.call.id, peers: [], me: null });
-  ws.onmessage = async (e) => {
+  // messages are handled one after another, in the order they arrive: an offer must be in before the candidates that follow it
+  let chain = Promise.resolve();
+  ws.onmessage = (e) => { chain = chain.then(() => handle(e)).catch((x) => console.warn('call message failed', x)); };
+  const handle = async (e) => {
     let m; try { m = JSON.parse(e.data); } catch (x) { return; }
     const peers = () => (logic.state.call && logic.state.call.peers) || [];
     switch (m.type) {
@@ -88,6 +135,7 @@ async function connectRoom(logic, srv, entry, opts = {}) {
         // the newcomer calls everyone already in the room
         for (const p of m.peers || []) {
           const pc = peerConn(logic, p.id);
+          pc.initiator = true;
           const offer = await pc.createOffer();
           await pc.setLocalDescription(offer);
           send({ type: 'offer', to: p.id, data: offer });
@@ -106,18 +154,25 @@ async function connectRoom(logic, srv, entry, opts = {}) {
       case 'peer-left':
         dropPeer(m.id);
         setCall(logic, { peers: peers().filter((p) => p.id !== m.id) });
-        if (logic.state.call && logic.state.call.context === 'dm' && !peers().filter((p) => p.id !== m.id).length) logic.endCall();
+        if (logic.state.call && logic.state.call.context === 'dm' && !peers().filter((p) => p.id !== m.id).length) { logic.notify(((logic.state.call && logic.state.call.title) || 'The other person').replace('Private call with ', '') + ' hung up.', '#7CC4FF'); logic.endCall(); }
         break;
       case 'offer': {
         const pc = peerConn(logic, m.from);
         await pc.setRemoteDescription(m.data);
+        await flushCandidates(pc);
         const ans = await pc.createAnswer();
         await pc.setLocalDescription(ans);
         send({ type: 'answer', to: m.from, data: ans });
         break;
       }
-      case 'answer': { const pc = room.pcs.get(m.from); if (pc) await pc.setRemoteDescription(m.data); break; }
-      case 'ice': { const pc = room.pcs.get(m.from); if (pc && m.data) await pc.addIceCandidate(m.data).catch(() => {}); break; }
+      case 'answer': { const pc = room.pcs.get(m.from); if (pc) { await pc.setRemoteDescription(m.data); await flushCandidates(pc); } break; }
+      case 'ice': {
+        const pc = room.pcs.get(m.from);
+        if (!pc || !m.data) break;
+        if (pc.remoteDescription) await pc.addIceCandidate(m.data).catch(() => {});
+        else pc.queued.push(m.data);
+        break;
+      }
       case 'state': {
         const before = peers().find((p) => p.id === m.peer.id);
         setCall(logic, { peers: peers().map((p) => (p.id === m.peer.id ? peerView(m.peer) : p)) });

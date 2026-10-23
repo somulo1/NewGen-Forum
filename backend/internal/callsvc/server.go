@@ -165,7 +165,7 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 	room.broadcast(peer.ID, map[string]any{"type": "peer-joined", "peer": peer})
 
 	go func() { // writer
-		t := time.NewTicker(20 * time.Second)
+		t := time.NewTicker(10 * time.Second)
 		defer t.Stop()
 		for {
 			select {
@@ -180,7 +180,7 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 			case <-t.C:
-				pc, c := context.WithTimeout(ctx, 8*time.Second)
+				pc, c := context.WithTimeout(ctx, 5*time.Second)
 				err := conn.Ping(pc)
 				c()
 				if err != nil {

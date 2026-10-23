@@ -569,6 +569,7 @@
   },
   "response": {
    "mode": "string. sfu | mesh",
+   "ice": "array. STUN and TURN servers for the browsers ({ urls, username, credential }), mesh rooms only",
    "call": {
     "id": "uuid",
     "kind": "string",
@@ -607,6 +608,7 @@
   "access": "someone invited, or a member of the call's conversation",
   "response": {
    "mode": "string. sfu | mesh",
+   "ice": "array. STUN and TURN servers for the browsers ({ urls, username, credential }), mesh rooms only",
    "call": "object. As above",
    "sfu": "object. As above",
    "token": "string. mesh only",

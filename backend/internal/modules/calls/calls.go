@@ -52,11 +52,12 @@ type Call struct {
 }
 
 type Entry struct {
-	Call  *Call    `json:"call"`
-	Token string   `json:"token,omitempty"`
-	URL   string   `json:"url,omitempty"`
-	Mode  string   `json:"mode"` // "mesh": small peer-to-peer room on the calls service. "sfu": big room on a media server.
-	SFU   *SFUInfo `json:"sfu,omitempty"`
+	Call  *Call       `json:"call"`
+	Token string      `json:"token,omitempty"`
+	URL   string      `json:"url,omitempty"`
+	Mode  string      `json:"mode"` // "mesh": small peer-to-peer room on the calls service. "sfu": big room on a media server.
+	SFU   *SFUInfo    `json:"sfu,omitempty"`
+	ICE   []ICEServer `json:"ice,omitempty"` // STUN and TURN servers the browsers use to find each other across networks
 }
 
 type StartIn struct {
@@ -159,7 +160,7 @@ func (m *Module) Start(ctx context.Context, p *tenant.Principal, in StartIn) (*E
 		if err != nil {
 			return err
 		}
-		out = &Entry{Call: c, Mode: "mesh", Token: tok, URL: m.roomURL(id.String())}
+		out = &Entry{Call: c, Mode: "mesh", Token: tok, URL: m.roomURL(id.String()), ICE: m.iceServers(p)}
 		return nil
 	})
 	if err != nil {
@@ -225,7 +226,7 @@ func (m *Module) Join(ctx context.Context, p *tenant.Principal, id uuid.UUID) (*
 		if err != nil {
 			return err
 		}
-		out = &Entry{Call: c, Mode: "mesh", Token: tok, URL: m.roomURL(id.String())}
+		out = &Entry{Call: c, Mode: "mesh", Token: tok, URL: m.roomURL(id.String()), ICE: m.iceServers(p)}
 		return nil
 	})
 	return out, err
