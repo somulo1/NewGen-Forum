@@ -52,16 +52,16 @@ func (d *DB) WithOrg(ctx context.Context, org uuid.UUID, fn func(pgx.Tx) error) 
 }
 
 func (d *DB) run(ctx context.Context, org uuid.UUID, fn func(pgx.Tx) error) error {
-	tx, err := d.Pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
+	opts := pgx.TxOptions{IsoLevel: pgx.ReadCommitted}
+	if org != uuid.Nil {
+		// begin and set the organization in one trip to the database (a uuid is only hex digits and dashes, so it cannot carry SQL)
+		opts.BeginQuery = "begin isolation level read committed; select set_config('hub.org_id', '" + org.String() + "', true)"
+	}
+	tx, err := d.Pool.BeginTx(ctx, opts)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	if org != uuid.Nil {
-		if _, err := tx.Exec(ctx, "select set_config('hub.org_id', $1, true)", org.String()); err != nil {
-			return err
-		}
-	}
 	if err := fn(tx); err != nil {
 		return err
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -56,7 +57,27 @@ func (s *Service) whyEnded(ctx context.Context, sid uuid.UUID) error {
 }
 
 // IdleLimit is how long a person in this organization may be inactive before being signed out (0: no limit).
+// idleCache keeps each organization's limit in this process for a short time: it is asked on every request, and each ask to
+// Redis costs a round trip. A change to the setting reaches this process within the minute.
+var idleCache sync.Map // org -> idleEntry
+
+type idleEntry struct {
+	d  time.Duration
+	at time.Time
+}
+
 func (s *Service) IdleLimit(ctx context.Context, org uuid.UUID) time.Duration {
+	if v, ok := idleCache.Load(org); ok {
+		if e := v.(idleEntry); time.Since(e.at) < time.Minute {
+			return e.d
+		}
+	}
+	d := s.idleLimitFresh(ctx, org)
+	idleCache.Store(org, idleEntry{d, time.Now()})
+	return d
+}
+
+func (s *Service) idleLimitFresh(ctx context.Context, org uuid.UUID) time.Duration {
 	key := "idle:" + org.String()
 	if v, err := s.A.Rdb.Get(ctx, key).Result(); err == nil {
 		n, _ := strconv.Atoi(v)

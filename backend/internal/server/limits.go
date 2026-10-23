@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"hub/internal/httpx"
+	"hub/internal/realtime"
 	"hub/internal/tenant"
 )
 
@@ -92,23 +93,29 @@ func (d Deps) ipLimit(next http.Handler) http.Handler {
 func (d Deps) rateLimit(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if p, ok := tenant.From(r.Context()); ok {
-			// a steady ceiling as well as the burst allowance below: 1,200 requests a minute from one account is far more than a person makes
-			if ok, retry, _ := d.App.Limit.Sliding(r.Context(), "acct-min", p.Account.String(), d.App.Cfg.RateAcctMin, time.Minute, false); !ok {
-				limited(w, retry, d.App.Cfg.RateAcctMin, "Slow down a little.")
-				return
-			}
+			// a steady ceiling as well as the burst allowance, and the route's own cap if it has one: all counted in one trip to Redis
 			rps := d.App.Cfg.RateRPS * 10
-			if ok, retry, _ := d.App.Limit.Sliding(r.Context(), "acct", p.Account.String(), rps, 10*time.Second, false); !ok {
-				limited(w, retry, rps, "Slow down a little.")
-				return
+			caps := []realtime.Cap{
+				{Scope: "acct-min", ID: p.Account.String(), Limit: d.App.Cfg.RateAcctMin, Window: time.Minute},
+				{Scope: "acct", ID: p.Account.String(), Limit: rps, Window: 10 * time.Second},
 			}
+			var tier *Tier
 			if rc := chi.RouteContext(r.Context()); rc != nil {
 				if t, ok := Tiers[r.Method+" "+rc.RoutePattern()]; ok {
-					if ok, retry, _ := d.App.Limit.Sliding(r.Context(), "tier:"+r.Method+rc.RoutePattern(), p.Account.String(), t.Limit, t.Window, false); !ok {
-						limited(w, retry, t.Limit, "You are doing that too often. Wait a moment and try again.")
-						return
-					}
+					tier = &t
+					caps = append(caps, realtime.Cap{Scope: "tier:" + r.Method + rc.RoutePattern(), ID: p.Account.String(), Limit: t.Limit, Window: t.Window})
 				}
+			}
+			if ok, over, retry := d.App.Limit.SlidingAll(r.Context(), caps); !ok {
+				switch {
+				case tier != nil && over == len(caps)-1:
+					limited(w, retry, tier.Limit, "You are doing that too often. Wait a moment and try again.")
+				case over == 1:
+					limited(w, retry, rps, "Slow down a little.")
+				default:
+					limited(w, retry, d.App.Cfg.RateAcctMin, "Slow down a little.")
+				}
+				return
 			}
 		}
 		next.ServeHTTP(w, r)

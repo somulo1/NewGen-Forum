@@ -71,3 +71,43 @@ func (l *Limiter) Sliding(ctx context.Context, scope, id string, limit int, wind
 	}
 	return true, 0, left
 }
+
+// Cap is one limit for SlidingAll: a counter name, who it counts, how many hits are allowed in the window.
+type Cap struct {
+	Scope, ID string
+	Limit     int
+	Window    time.Duration
+}
+
+// SlidingAll counts a hit against every cap in a single round trip to Redis (the caps used to be asked one after another, and
+// each ask costs a trip to Redis). It says which cap, if any, was passed first, and how long to wait.
+func (l *Limiter) SlidingAll(ctx context.Context, caps []Cap) (ok bool, over int, retry time.Duration) {
+	if len(caps) == 0 {
+		return true, -1, 0
+	}
+	now := time.Now()
+	pipe := l.rdb.Pipeline()
+	incr := make([]*redis.IntCmd, len(caps))
+	prev := make([]*redis.StringCmd, len(caps))
+	for i, c := range caps {
+		w := int64(c.Window.Seconds())
+		slot := now.Unix() / w
+		cur := fmt.Sprintf("rl:%s:%s:%d", c.Scope, c.ID, slot)
+		incr[i] = pipe.Incr(ctx, cur)
+		pipe.Expire(ctx, cur, 2*c.Window+time.Second)
+		prev[i] = pipe.Get(ctx, fmt.Sprintf("rl:%s:%s:%d", c.Scope, c.ID, slot-1))
+	}
+	if _, err := pipe.Exec(ctx); err != nil && err != redis.Nil {
+		return true, -1, 0 // ordinary traffic fails open when Redis is unreachable
+	}
+	for i, c := range caps {
+		w := int64(c.Window.Seconds())
+		p, _ := prev[i].Int64()
+		frac := float64(now.Unix()%w) / float64(w)
+		used := float64(incr[i].Val()) + float64(p)*(1-frac)
+		if used > float64(c.Limit) {
+			return false, i, time.Duration(float64(w)*(1-frac)+1) * time.Second
+		}
+	}
+	return true, -1, 0
+}
