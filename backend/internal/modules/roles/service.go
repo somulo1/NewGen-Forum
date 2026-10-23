@@ -571,3 +571,28 @@ func (s *Service) SetPrefs(ctx context.Context, p *tenant.Principal, raw json.Ra
 		return s.A.Sign.Seal(ctx, tx, "person_prefs", "person_id=$1", p.Person)
 	})
 }
+
+// PersonRights lists the personal overrides one person has on top of their role.
+func (s *Service) PersonRights(ctx context.Context, p *tenant.Principal, person uuid.UUID) ([]map[string]any, error) {
+	out := []map[string]any{}
+	err := s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
+		if err := authz.Require(ctx, tx, p.Person, "roles", "Manage roles & rights"); err != nil {
+			return err
+		}
+		rs, err := tx.Query(ctx, `select module, right_name, allowed from hub.person_rights where person_id=$1 order by module, right_name`, person)
+		if err != nil {
+			return err
+		}
+		defer rs.Close()
+		for rs.Next() {
+			var m, r string
+			var a bool
+			if err := rs.Scan(&m, &r, &a); err != nil {
+				return err
+			}
+			out = append(out, map[string]any{"module": m, "right": r, "allowed": a})
+		}
+		return rs.Err()
+	})
+	return out, err
+}

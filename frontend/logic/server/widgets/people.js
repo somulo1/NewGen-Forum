@@ -73,9 +73,18 @@ export async function onboard(logic, srv, list) {
   return results;
 }
 
+// A person's personal rights (on top of their role), read from the server into the form.
+export async function loadPersonRights(logic, srv, person) {
+  const { rights } = await srv.request('GET', '/people/' + person.uid + '/rights');
+  const map = {};
+  (rights || []).forEach((r) => { map[r.module + '|' + r.right] = r.allowed; });
+  logic.setState((st) => ({ personRights: { ...st.personRights, [person.name]: map } }));
+}
+
 // Saves a person's edited details on the server. `now` is the cleaned form, `was` what the form held when it opened: only what
-// changed is sent. The organization's approval flow may hold the change for sign-off ('pending') instead of applying it.
-export async function update(logic, srv, person, now, was, role) {
+// changed is sent. `extra` carries the personal rights drafted in the form ({ 'module|right': true | false | null }) and who they
+// report to. The organization's approval flow may hold a change for sign-off ('pending') instead of applying it.
+export async function update(logic, srv, person, now, was, role, extra = {}) {
   const id = (level, name) => (name && srv.structure && srv.structure[level].get(name)) || null;
   const body = {};
   const diff = (k) => String(now[k] || '').trim() !== String((was || {})[k] || '').trim();
@@ -90,10 +99,25 @@ export async function update(logic, srv, person, now, was, role) {
   if (diff('unit')) body.unit_id = id('units', now.unit);
   if (diff('department')) body.department_id = id('departments', now.department);
   if (role && role !== person.role) body.role = role;
-  if (!Object.keys(body).length) return 'unchanged';
-  const res = await srv.request('PATCH', '/people/' + person.uid, body);
-  const applied = !res || res.applied !== false;
+  const boss = extra.report ? srv.personOf.get(extra.report) : null;
+  if (boss && boss !== person.uid) body.manager_id = boss;
+  const rights = Object.entries(extra.rights || {});
+  if (!Object.keys(body).length && !rights.length) {
+    if (diff('email')) throw new Error('An email address cannot be changed here: it is the person\'s sign-in. Their other changes were not saved.');
+    return 'unchanged';
+  }
+  let pending = false;
+  if (Object.keys(body).length) {
+    const res = await srv.request('PATCH', '/people/' + person.uid, body);
+    if (res && res.applied === false) pending = true;
+  }
+  for (const [k, allowed] of rights) {
+    const at = k.indexOf('|');
+    const res = await srv.request('PUT', '/people/' + person.uid + '/rights', { module: k.slice(0, at), right: k.slice(at + 1), allowed });
+    if (res && res.applied === false) pending = true;
+  }
   await load(logic, srv);
-  if (!applied && srv.reload.approvals) srv.reload.approvals();
-  return applied ? 'applied' : 'pending';
+  if (rights.length) await loadPersonRights(logic, srv, person).catch(() => {});
+  if (pending && srv.reload.approvals) srv.reload.approvals();
+  return pending ? 'pending' : 'applied';
 }

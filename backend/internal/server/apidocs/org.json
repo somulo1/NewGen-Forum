@@ -979,6 +979,20 @@
    "409": "locked_role: a super admin cannot be limited"
   }
  },
+ "GET /v1/people/{id}/rights": {
+  "summary": "A person's personal rights",
+  "description": "The overrides this person has on top of their role.",
+  "access": "a role with Roles: Manage roles & rights",
+  "response": {
+   "rights": [
+    {
+     "module": "string",
+     "right": "string",
+     "allowed": "boolean"
+    }
+   ]
+  }
+ },
  "PUT /v1/people/{id}/rights": {
   "summary": "Give or take a right for one person",
   "description": "A personal override on top of their role. Send `allowed` null to remove the override. May need approval (flow f8).",

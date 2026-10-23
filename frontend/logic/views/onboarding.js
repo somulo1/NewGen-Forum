@@ -50,7 +50,7 @@ export function buildOnboarding(ctx) {
       onChange: (e) => this.setOnboardField(x.key, e.target.value) })),
     hasStructure: structure.length > 0, access, hasAccess: !!access,
     structureNote: structure.length ? 'These come from your organization: ' + structure.map((x) => x.label.toLowerCase()).join(', ') + '. Each choice narrows the next one.' : 'This organization has no sectors, branches, units or departments set up, so only the required details are needed.',
-    submit: () => this.submitOnboard(),
+    submit: () => this.submitOnboard(), saving: !!ob.saving, formError: ob.formError || '',
     bulk: { text: ob.bulkText, onText: (e) => this.parseBulk(e.target.value), columns: csvColumns(has).join(', '), template: () => this.downloadOnboardTemplate(),
       onFile: (e) => { const file = e.target.files && e.target.files[0]; e.target.value = ''; this.readBulkFile(file); }, fileName: ob.fileName,
       structureNote: structure.length ? 'Sector, branch, unit and department names must match the ones in your organization.' : 'No structure columns are needed because this organization has none set up.',
