@@ -38,10 +38,11 @@ type Config struct {
 
 	CallsURLs   []string // base URLs of the calls microservice instances (a room is pinned to one by hashing its id)
 	CallsSecret []byte   // shared secret used to mint call-room tokens
+	RedisOff    bool     // HUB_REDIS=off: no Redis server; an in-memory one inside this process is used (one instance only)
 	TurnURLs    []string // TURN relay servers (turn:host:3478?transport=udp, turns:host:443?transport=tcp) so calls work across networks
 	TurnUser    string   // a fixed TURN username and password (HUB_TURN_USER/HUB_TURN_PASS), or
 	TurnPass    string
-	TurnSecret  string   // the shared secret of a coturn server (HUB_TURN_SECRET): each call gets short-lived credentials made from it
+	TurnSecret  string // the shared secret of a coturn server (HUB_TURN_SECRET): each call gets short-lived credentials made from it
 	// Media servers (LiveKit SFU). Empty: calls fall back to the small peer-to-peer rooms on the calls service.
 	SFUNodes     []SFUNode
 	CallLimits   CallLimits
@@ -100,6 +101,9 @@ func Load() (*Config, error) {
 		// to reach a database on this machine
 		var missing []string
 		for _, k := range []string{"HUB_DB_GUARD", "HUB_DATABASE_URL", "HUB_MIGRATE_URL", "HUB_REDIS_ADDR", "HUB_ALLOWED_ORIGINS", "HUB_KEK", "HUB_MAC_KEY", "HUB_BLIND_KEY", "HUB_TOKEN_KEY", "HUB_LEDGER_KEY", "HUB_CALLS_SECRET"} {
+			if k == "HUB_REDIS_ADDR" && strings.EqualFold(strings.TrimSpace(os.Getenv("HUB_REDIS")), "off") {
+				continue // no Redis server is used
+			}
 			if strings.TrimSpace(os.Getenv(k)) == "" {
 				missing = append(missing, k)
 			}
@@ -108,6 +112,7 @@ func Load() (*Config, error) {
 			return nil, fmt.Errorf("required in production but not set: %s", strings.Join(missing, ", "))
 		}
 	}
+	c.RedisOff = strings.EqualFold(strings.TrimSpace(os.Getenv("HUB_REDIS")), "off")
 	// HUB_REDIS_ADDR may be host:port or the URL a provider shows (redis://[user:password@]host:port, rediss:// for TLS)
 	if strings.Contains(c.RedisAddr, "://") {
 		u, err := url.Parse(strings.TrimSpace(c.RedisAddr))
