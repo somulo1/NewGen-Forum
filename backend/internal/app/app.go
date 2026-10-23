@@ -5,6 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"log/slog"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -42,9 +46,30 @@ func New(ctx context.Context, cfg *config.Config, m mail.Mailer) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	rdb := redis.NewClient(cfg.RedisClientOptions(50))
-	if err := rdb.Ping(ctx).Err(); err != nil {
-		return nil, err
+	// A hosted Redis allows few connections at once (Redis Cloud's free plan: 30), so the pool is kept small and idle ones are let go.
+	pool := 20
+	if n, err := strconv.Atoi(os.Getenv("HUB_REDIS_POOL")); err == nil && n > 0 {
+		pool = n
+	}
+	ro := cfg.RedisClientOptions(pool)
+	ro.ConnMaxIdleTime = 5 * time.Minute
+	rdb := redis.NewClient(ro)
+	// While a new version starts the old one still holds its connections, and a full Redis closes new ones ("EOF"): wait and try
+	// again instead of giving up on the first refusal.
+	var perr error
+	for i := 0; i < 12; i++ {
+		if perr = rdb.Ping(ctx).Err(); perr == nil {
+			break
+		}
+		slog.Warn("redis not ready; trying again", "attempt", i+1, "err", perr)
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(5 * time.Second):
+		}
+	}
+	if perr != nil {
+		return nil, fmt.Errorf("redis: %w", perr)
 	}
 	return &App{Cfg: cfg, DB: d, Keys: crypto.NewOrgKeys(cfg.KEK), Sign: integrity.NewSigner(cfg.MACKey), Ledger: integrity.NewLedger(cfg.LedgerKey),
 		Rdb: rdb, Bus: realtime.NewBus(rdb), Hub: realtime.NewHub(), Limit: realtime.NewLimiter(rdb), Mail: m, PW: crypto.DefaultPassword}, nil
