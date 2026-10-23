@@ -19,7 +19,7 @@ export async function load(logic, srv) {
     const row = (id) => ({
       id, uid: p.id, hasAccount: !!p.has_account, accStatus: p.status || 'active', name: p.name, email: p.email || '', initials: p.initials, dept: p.department ? p.department.name : '',
       title: p.title || '', loc: p.branch ? p.branch.name : '', sector: p.sector ? p.sector.name : '', unit: p.unit ? p.unit.name : '',
-      color: p.color || '#7CC4FF', joined: p.joined_on || '', dob: p.date_of_birth || '', status: STATUS[p.availability] || 'Available', role: p.role || ''
+      color: p.color || '#7CC4FF', joined: p.joined_on || '', dob: p.date_of_birth || '', phone: p.phone || '', gender: p.gender || '', status: STATUS[p.availability] || 'Available', role: p.role || ''
     });
     // The signed-in person is "Sam"/"me" in the UI, so they are not in the pickers (assign, mention, message). They are in the
     // People page, where everyone is listed and searchable (logic.dirSelf).
