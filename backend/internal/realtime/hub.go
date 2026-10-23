@@ -215,8 +215,11 @@ type Upgrade struct {
 func (u Upgrade) Accept() (*websocket.Conn, error) {
 	patterns := make([]string, 0, len(u.Origins))
 	for _, o := range u.Origins {
+		o = strings.TrimRight(strings.TrimSpace(o), "/")
 		o = strings.TrimPrefix(strings.TrimPrefix(o, "https://"), "http://")
-		patterns = append(patterns, o)
+		if o != "" {
+			patterns = append(patterns, o)
+		}
 	}
 	return websocket.Accept(u.W, u.R, &websocket.AcceptOptions{OriginPatterns: patterns})
 }

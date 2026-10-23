@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -39,7 +40,16 @@ type Server struct {
 }
 
 func New(secret []byte, rdb *redis.Client, origins []string) *Server {
-	return &Server{Secret: secret, Rdb: rdb, Origins: origins, rooms: map[string]*Room{}}
+	// the browser's Origin header is matched against host names, so "https://hub.example.com/" must become "hub.example.com"
+	hosts := make([]string, 0, len(origins))
+	for _, o := range origins {
+		o = strings.TrimRight(strings.TrimSpace(o), "/")
+		o = strings.TrimPrefix(strings.TrimPrefix(o, "https://"), "http://")
+		if o != "" {
+			hosts = append(hosts, o)
+		}
+	}
+	return &Server{Secret: secret, Rdb: rdb, Origins: hosts, rooms: map[string]*Room{}}
 }
 
 type Room struct {
@@ -118,11 +128,13 @@ type msg struct {
 func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 	claims, err := calltoken.Verify(s.Secret, r.URL.Query().Get("token"))
 	if err != nil {
+		slog.Warn("call room refused: invalid or expired pass", "err", err)
 		http.Error(w, `{"error":"invalid or expired call pass"}`, http.StatusUnauthorized)
 		return
 	}
 	// a pass works once
-	if ok, _ := s.Rdb.SetNX(r.Context(), "callpass:"+claims.ID, 1, 3*time.Minute).Result(); !ok && claims.ID != "" {
+	if ok, err := s.Rdb.SetNX(r.Context(), "callpass:"+claims.ID, 1, 10*time.Minute).Result(); !ok && claims.ID != "" {
+		slog.Warn("call room refused: pass already used or the pass store is unreachable", "err", err)
 		http.Error(w, `{"error":"this call pass was already used"}`, http.StatusUnauthorized)
 		return
 	}
@@ -131,6 +143,7 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	peer := &Peer{ID: uuid.NewString(), Person: claims.Person, Name: claims.Name, Role: claims.Role, Mic: true, Cam: claims.Kind == "video", send: make(chan []byte, sendBuffer), cancel: cancel}
 	if err := room.add(peer, claims.MaxPeer); err != nil {
+		slog.Warn("call room refused", "err", err)
 		http.Error(w, `{"error":"`+err.Error()+`"}`, http.StatusConflict)
 		return
 	}
