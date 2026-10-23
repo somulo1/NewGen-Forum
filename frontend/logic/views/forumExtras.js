@@ -85,7 +85,8 @@ export function buildForumExtras(ctx) {
       tries: [{ label: 'Try a message', run: () => this.simulateIncoming(name, 'chat') }, { label: 'Try a call', run: () => this.simulateIncoming(name, 'call') }, { label: 'Try a video call', run: () => this.simulateIncoming(name, 'video') }] };
   }
   const inc = s.incoming;
-  const incomingView = inc ? { name: inc.name, kindLabel: inc.kind === 'video' ? 'Video call' : 'Voice call', accept: () => this.acceptIncoming(), decline: () => this.declineIncoming() } : null;
+  const incFor = inc && inc.context === 'forum' ? (s.forumsLive || []).find((f) => f.sid === inc.conversation) : null;
+  const incomingView = inc ? { name: inc.name + (incFor ? ' · ' + incFor.name : ''), kindLabel: (inc.context === 'forum' ? 'Forum ' : '') + (inc.kind === 'video' ? (inc.context === 'forum' ? 'video call' : 'Video call') : (inc.context === 'forum' ? 'voice call' : 'Voice call')), accept: () => this.acceptIncoming(), decline: () => this.declineIncoming() } : null;
 
   return { chatCtl, chatGate, dmPriv, incomingView, pollView };
 }

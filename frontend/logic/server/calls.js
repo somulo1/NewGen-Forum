@@ -337,9 +337,9 @@ export function listen(logic, srv) {
     const pr = (logic.state.dmPrivacy || {})[d.from_name] || {};
     if (d.context === 'dm' && (pr.blocked || pr.noCall || (d.kind === 'video' && pr.noVideo))) { decline(srv, d.call); return; }
     logic.setState({ incoming: { name: d.from_name, kind: d.kind, callId: d.call, context: d.context, conversation: d.conversation } });
-    // a private call rings until answered; a forum call or meeting shows the banner (and meetings a notice) without ringing
-    if (d.context === 'dm') startRing();
-    else if (d.context !== 'forum') logic.notify((d.from_name || 'A colleague') + ' started a ' + (d.context === 'standup' ? 'standup' : 'meeting') + '. Join from the banner.', '#7CC4FF');
+    // a private call and a forum call ring until answered (every member of the forum gets it); a meeting shows the banner and a notice
+    if (d.context === 'dm' || d.context === 'forum') startRing();
+    else logic.notify((d.from_name || 'A colleague') + ' started a ' + (d.context === 'standup' ? 'standup' : 'meeting') + '. Join from the banner.', '#7CC4FF');
     clearTimeout(srv.ringT);
     srv.ringT = setTimeout(() => { if (logic.state.incoming && logic.state.incoming.callId === d.call) { stopRing(); logic.setState({ incoming: null }); logic.notify('Missed ' + (d.kind === 'video' ? 'video call' : 'call') + ' from ' + d.from_name + '.', '#FFB86B'); loadHistory(logic, srv); } }, 45000);
   };

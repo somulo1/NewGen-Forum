@@ -64,7 +64,7 @@ export function buildCallState(ctx) {
       onFind: (e) => this.setState({ callFind: e.target.value }),
       muteAll: () => this.callCtl('mute_all'), lockRoom: () => this.callCtl(s.callLocked ? 'unlock' : 'lock'), lockLabel: s.callLocked ? 'Unlock room' : 'Lock room',
       endForAll: () => this.callCtl('end'),
-      modeLabel: isVideo ? 'Video meeting' : 'Voice call',
+      modeLabel: (s.call.context === 'dm' ? 'Private ' : s.call.context === 'forum' ? 'Forum ' : '') + (isVideo ? (s.call.context ? 'video call' : 'Video meeting') : (s.call.context ? 'voice call' : 'Voice call')),
       rec: s.rec, sharing: s.sharing && isVideo, notSharing: !(s.sharing && isVideo), tiles,
       panelOpen: !!s.callPanel, showChat: s.callPanel === 'chat', showPeople: s.callPanel === 'people',
       panelTitle: s.callPanel === 'people' ? 'People (' + (big ? s.call.total || all.length : all.length) + ')' : 'Meeting chat',
@@ -77,9 +77,11 @@ export function buildCallState(ctx) {
   }
   const panelCallMatch = !!s.call && ((s.call.context === 'dm' && isDM && curDm.with === s.call.ref) || (s.call.context === 'forum' && !isDM && cur.id === s.call.ref));
   const isMeetingCall = !!s.call && !s.call.context;
-  const showMeetingFull = isMeetingCall && s.callMode === 'full' && s.mode !== 'full' && s.mode !== 'page';
+  // Every call opens on the full call screen: a private call, a forum call and a meeting alike (voice shows who is speaking, video
+  // shows everyone's picture). "Minimise" docks it into the chat panel (private and forum calls) or the corner.
+  const showMeetingFull = !!s.call && s.callMode === 'full';
   const showMeetingDock = isMeetingCall && s.callMode === 'docked' && s.mode !== 'full';
-  const showPanelCall = panelCallMatch && (s.mode === 'docked' || s.mode === 'full' || s.mode === 'page');
+  const showPanelCall = panelCallMatch && s.callMode !== 'full' && (s.mode === 'docked' || s.mode === 'full' || s.mode === 'page');
   const showCallMini = !!s.call && !showMeetingFull && !showMeetingDock && !showPanelCall;
   const callMiniStyle = 'position:fixed;z-index:60;right:' + (s.mode === 'docked' ? pw + 36 : 20) + 'px;bottom:' + (s.mode === 'min' ? 92 : 20) + 'px';
   const restoreCall = () => {

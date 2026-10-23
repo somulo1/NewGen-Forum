@@ -14,6 +14,7 @@ PIDS=()  # (all children share this script's process group, so cleanup kills the
 cleanup() { trap - EXIT INT TERM; echo; echo "stopping..."; kill 0; }
 trap cleanup EXIT INT TERM
 
+HUB_HTTP_ADDR=${HUB_HTTP_ADDR:-:8080}
 REDIS_OFF=0; [[ "${HUB_REDIS:-}" == off ]] && REDIS_OFF=1   # no Redis at all: the API keeps an in-memory one, and serves the calls signalling itself
 
 if [[ $REDIS_OFF == 0 ]]; then
@@ -34,7 +35,7 @@ fi
 go build -o bin/hub-api . ; go build -o bin/hub-calls ./cmd/calls
 prefix() { sed -u "s/^/[$1] /"; }
 if [[ $REDIS_OFF == 1 ]]; then
-  HUB_WITH_CALLS=on HUB_CALLS_URL="http://127.0.0.1:${HUB_HTTP_PORT:-8080}/calls-signal" bin/hub-api 2>&1 | prefix api & PIDS+=($!)
+  HUB_WITH_CALLS=on HUB_CALLS_URL="http://127.0.0.1:${HUB_HTTP_ADDR##*:}/calls-signal" bin/hub-api 2>&1 | prefix api & PIDS+=($!)
 else
   bin/hub-api    2>&1 | prefix api    & PIDS+=($!)
   bin/hub-calls  2>&1 | prefix calls  & PIDS+=($!)
