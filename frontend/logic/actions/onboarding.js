@@ -33,6 +33,7 @@ export const onboardingActions = {
     const first = p.first || parts[0] || '', last = p.last || parts.slice(1).join(' ');
     const f = { ...BLANK, first, last, dob: p.dob || '', gender: p.gender || '', email: p.email || '', phone: p.phone || '', title: p.title || '', sector: p.sector || '', branch: p.loc || '', unit: p.unit || '', department: p.dept || '' };
     this.setState({ onboard: { tab: 'one', edit: id, orig: { ...f }, f, roleDraft: null, rightsDraft: {}, errs: {}, bulkText: '', bulk: null, fileName: '', done: null } });
+    if (this.srv && p.uid) peopleW.loadPersonRights(this, this.srv, p).catch(() => {});   // their personal rights, from the server
   },
   // Role and rights drafts while editing a person; saved together with the details.
   setOnboardReport(v) { this.setState((st) => ({ onboard: { ...st.onboard, reportDraft: v } })); },
@@ -113,11 +114,20 @@ export const onboardingActions = {
       if (ob.reportDraft !== undefined && ob.reportDraft !== null && ob.reportDraft !== (this.state.personReports[p.name] || '')) lines.push(ob.reportDraft ? 'Reports to ' + ob.reportDraft : 'Reports to the role');
       if (!lines.length) { this.setState({ onboard: null }); this.notify('No changes to ' + p.name + '.', '#9DB0A6'); return; }
       if (this.srv && p.uid) {
-        // saved on the server (its approval flow may hold the change for sign-off)
-        this.setState({ onboard: null });
-        peopleW.update(this, this.srv, p, clean, ob.orig, ob.roleDraft || null)
-          .then((r) => this.notify(r === 'pending' ? 'Changes to ' + p.name + ' were sent for approval.' : r === 'unchanged' ? 'No changes to save for ' + p.name + '.' : p.name + '\'s changes were saved.', r === 'pending' ? '#FFB86B' : '#B8F36B'))
-          .catch((e) => this.notify((e && e.message) || 'Could not save the changes.', '#FF9B8A'));
+        // saved on the server (its approval flow may hold the change for sign-off). The form stays open while it saves, and keeps
+        // everything typed if the server refuses, so nothing has to be typed again.
+        if (ob.saving) return;
+        this.setState({ onboard: { ...ob, saving: true, formError: '' } });
+        peopleW.update(this, this.srv, p, clean, ob.orig, ob.roleDraft || null, { rights: rd, report: ob.reportDraft })
+          .then((r) => {
+            this.setState({ onboard: null });
+            this.notify(r === 'pending' ? 'Changes to ' + p.name + ' were sent for approval.' : r === 'unchanged' ? 'No changes to save for ' + p.name + '.' : p.name + '\'s changes were saved.', r === 'pending' ? '#FFB86B' : r === 'unchanged' ? '#9DB0A6' : '#B8F36B');
+          })
+          .catch((e) => {
+            const msg = (e && e.message) || 'Could not save the changes.';
+            this.setState((st) => ({ onboard: st.onboard ? { ...st.onboard, saving: false, formError: msg } : st.onboard }));
+            this.notify(msg, '#FF9B8A');
+          });
         return;
       }
       const pending = this.state.requests.find((r) => r.kind === 'personEdit' && r.personId === ob.edit && r.status === 'Pending');

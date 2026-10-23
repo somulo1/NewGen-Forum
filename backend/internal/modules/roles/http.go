@@ -228,6 +228,22 @@ func (s *Service) Private(r chi.Router) {
 		reply(w, applied, req)
 		return nil
 	}))
+	r.Get("/people/{id}/rights", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
+		p, err := tenant.MustOrg(r.Context())
+		if err != nil {
+			return err
+		}
+		id, err := uuid.Parse(chi.URLParam(r, "id"))
+		if err != nil {
+			return httpx.ErrNotFound
+		}
+		l, err := s.PersonRights(r.Context(), p, id)
+		if err != nil {
+			return err
+		}
+		httpx.JSON(w, 200, map[string]any{"rights": l})
+		return nil
+	}))
 	r.Put("/people/{id}/rights", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
 		p, err := tenant.MustOrg(r.Context())
 		if err != nil {
