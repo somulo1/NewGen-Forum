@@ -734,6 +734,7 @@ type Changes struct {
 	Branch     *uuid.UUID `json:"branch_id,omitempty"`
 	Unit       *uuid.UUID `json:"unit_id,omitempty"`
 	Department *uuid.UUID `json:"department_id,omitempty"`
+	Email      *string    `json:"email,omitempty"`
 	Role       *string    `json:"role,omitempty"`
 	Manager    *uuid.UUID `json:"manager_id,omitempty"`
 }
@@ -806,6 +807,11 @@ func (s *Service) validateChanges(ctx context.Context, tx pgx.Tx, c Changes) err
 	if c.Phone != nil && (len(*c.Phone) < 5 || len(*c.Phone) > 24) {
 		return httpx.Bad("Enter a valid phone number.")
 	}
+	if c.Email != nil {
+		if _, err := auth.NormEmail(*c.Email); err != nil {
+			return err
+		}
+	}
 	if c.Role != nil && *c.Role != "" { // an empty role takes the person's role away
 		var ok bool
 		if err := tx.QueryRow(ctx, `select exists (select 1 from hub.roles where key=$1)`, *c.Role).Scan(&ok); err != nil {
@@ -849,6 +855,11 @@ func (s *Service) applyUpdate(ctx context.Context, tx pgx.Tx, a approvals.Applie
 	}
 	if err := s.A.Sign.Seal(ctx, tx, "people", "id=$1", pl.Person); err != nil {
 		return err
+	}
+	if c.Email != nil {
+		if err := s.changeEmail(ctx, tx, a, pl.Person, *c.Email); err != nil {
+			return err
+		}
 	}
 	var acct *uuid.UUID
 	if err := tx.QueryRow(ctx, `select account_id from hub.people where id=$1`, pl.Person).Scan(&acct); err == nil && acct != nil && (c.Sector != nil || c.Branch != nil || c.Unit != nil || c.Department != nil) {
@@ -924,4 +935,45 @@ func (s *Service) createLogin(ctx context.Context, org, person uuid.UUID, name, 
 		return "", err
 	}
 	return temp, nil
+}
+
+// changeEmail gives a person a new email address: on their record, and (when they have an account) as their sign-in. Their old
+// address is told.
+func (s *Service) changeEmail(ctx context.Context, tx pgx.Tx, a approvals.Applied, person uuid.UUID, email string) error {
+	e, err := auth.NormEmail(email)
+	if err != nil {
+		return err
+	}
+	enc, err := pp.Enc(a.DEK, a.Org, person, pp.ColEmail, e)
+	if err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, "savepoint person_email"); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `update hub.people set email_idx=$2, email_enc=$3, updated_at=now(), `+integrity.Bump+` where id=$1 and status <> 'deleted'`, person, pp.EmailIdx(s.A.Cfg.BlindKey, a.Org, e), enc); err != nil {
+		if strings.Contains(err.Error(), "people_email_uidx") {
+			_, _ = tx.Exec(ctx, "rollback to savepoint person_email")
+			return httpx.Err(409, "email_in_use", "Someone with this email is already in the organization.")
+		}
+		return err
+	}
+	if err := s.A.Sign.Seal(ctx, tx, "people", "id=$1", person); err != nil {
+		return err
+	}
+	var acct *uuid.UUID
+	if err := tx.QueryRow(ctx, `select account_id from hub.people where id=$1`, person).Scan(&acct); err != nil || acct == nil {
+		return nil
+	}
+	old, err := s.Auth.ChangeAccountEmail(ctx, tx, *acct, e)
+	if err != nil {
+		return err
+	}
+	if old != "" && old != e {
+		go func() {
+			_ = hubmail.SendCard(context.Background(), s.A.Mail, old, "The email you sign in to Hub with was changed", hubmail.Card{Accent: hubmail.Amber, Title: "Your sign-in email was changed",
+				Preheader: "An administrator changed it", Lead: "An administrator changed the email address of your Hub account to " + e + ". Use the new address to sign in. If you did not expect this, contact your administrator."})
+		}()
+	}
+	return nil
 }

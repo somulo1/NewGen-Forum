@@ -94,6 +94,7 @@ export async function update(logic, srv, person, now, was, role, extra = {}) {
   if (diff('phone')) body.phone = now.phone;
   if (diff('dob')) body.date_of_birth = now.dob;
   if (diff('gender')) body.gender = now.gender;
+  if (diff('email')) body.email = String(now.email || '').trim().toLowerCase();
   if (diff('sector')) body.sector_id = id('sectors', now.sector);
   if (diff('branch')) body.branch_id = id('branches', now.branch);
   if (diff('unit')) body.unit_id = id('units', now.unit);
@@ -102,10 +103,7 @@ export async function update(logic, srv, person, now, was, role, extra = {}) {
   const boss = extra.report ? srv.personOf.get(extra.report) : null;
   if (boss && boss !== person.uid) body.manager_id = boss;
   const rights = Object.entries(extra.rights || {});
-  if (!Object.keys(body).length && !rights.length) {
-    if (diff('email')) throw new Error('An email address cannot be changed here: it is the person\'s sign-in. Their other changes were not saved.');
-    return 'unchanged';
-  }
+  if (!Object.keys(body).length && !rights.length) return 'unchanged';
   let pending = false;
   if (Object.keys(body).length) {
     const res = await srv.request('PATCH', '/people/' + person.uid, body);

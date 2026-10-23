@@ -18,6 +18,7 @@ import (
 	"hub/internal/app"
 	"hub/internal/crypto"
 	"hub/internal/httpx"
+	"hub/internal/integrity"
 	hubmail "hub/internal/mail"
 )
 
@@ -783,4 +784,45 @@ func firstWord(n string) string {
 		return "there"
 	}
 	return n
+}
+
+// ChangeAccountEmail changes the address an account signs in with (an administrator editing a person). It returns the old address
+// so the caller can tell its owner. An address another account already uses is refused.
+func (s *Service) ChangeAccountEmail(ctx context.Context, tx pgx.Tx, account uuid.UUID, email string) (string, error) {
+	e, err := NormEmail(email)
+	if err != nil {
+		return "", err
+	}
+	if !s.domainAllowed(e) {
+		return "", errDomain
+	}
+	a, err := s.accountByID(ctx, tx, account, true)
+	if err != nil {
+		return "", err
+	}
+	old, err := s.decEmail(a)
+	if err != nil {
+		return "", err
+	}
+	if old == e {
+		return old, nil
+	}
+	ct, err := s.encEmail(account, e)
+	if err != nil {
+		return "", err
+	}
+	if _, err := tx.Exec(ctx, "savepoint email_change"); err != nil {
+		return "", err
+	}
+	if _, err := tx.Exec(ctx, `update hub.accounts set email_idx=$2, email_enc=$3, updated_at=now(), `+integrity.Bump+` where id=$1`, account, s.emailIdx(e), ct); err != nil {
+		if strings.Contains(err.Error(), "accounts_email_idx_key") {
+			_, _ = tx.Exec(ctx, "rollback to savepoint email_change")
+			return "", httpx.Err(409, "email_in_use", "Another account already uses this email address.")
+		}
+		return "", err
+	}
+	if err := s.A.Sign.Seal(ctx, tx, "accounts", "id=$1", account); err != nil {
+		return "", err
+	}
+	return old, nil
 }

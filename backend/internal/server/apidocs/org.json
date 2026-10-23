@@ -158,7 +158,7 @@
  },
  "PATCH /v1/people/{id}": {
   "summary": "Change a person's details, role or rights",
-  "description": "Name, title, phone, birth date, gender, place in the structure, manager and role. Changing a role also needs the Manage roles & rights right. Whether it applies at once or waits for approval depends on the organization's approval flow f11: 200 means applied, 202 means an approval request was raised.",
+  "description": "Name, email, title, phone, birth date, gender, place in the structure, manager and role. Changing a role also needs the Manage roles & rights right. Whether it applies at once or waits for approval depends on the organization's approval flow f11: 200 means applied, 202 means an approval request was raised.",
   "access": "a role with People: Edit profiles",
   "request": {
    "first_name": "string",
@@ -167,6 +167,7 @@
    "phone": "string",
    "date_of_birth": "date",
    "gender": "string",
+   "email": "string. New email: it is also what the person signs in with. 409 when another account or person uses it",
    "sector_id": "uuid",
    "branch_id": "uuid",
    "unit_id": "uuid",
