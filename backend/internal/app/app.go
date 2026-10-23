@@ -46,13 +46,14 @@ func New(ctx context.Context, cfg *config.Config, m mail.Mailer) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	// A hosted Redis allows few connections at once (Redis Cloud's free plan: 30), so the pool is kept small and idle ones are let go.
-	pool := 20
+	// A hosted Redis allows few connections at once (Redis Cloud's free plan: 30, shared by the old and new version while a deploy runs), so the pool is kept small and idle ones are let go.
+	pool := 8
 	if n, err := strconv.Atoi(os.Getenv("HUB_REDIS_POOL")); err == nil && n > 0 {
 		pool = n
 	}
 	ro := cfg.RedisClientOptions(pool)
-	ro.ConnMaxIdleTime = 5 * time.Minute
+	ro.ConnMaxIdleTime = 2 * time.Minute
+	ro.PoolTimeout = 10 * time.Second
 	rdb := redis.NewClient(ro)
 	// While a new version starts the old one still holds its connections, and a full Redis closes new ones ("EOF"): wait and try
 	// again instead of giving up on the first refusal.
