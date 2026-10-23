@@ -74,11 +74,17 @@ func Run() {
 
 	dev := &mail.Dev{}
 	var mailer mail.Mailer = dev // real email when HUB_SMTP_HOST is set; otherwise messages stay in memory (development)
-	if sm := mail.FromEnv(); sm != nil {
-		mailer = sm
+	if ap := mail.APIFromEnv(); ap != nil {
+		mailer = mail.Logged{M: ap}
+		slog.Info("email through a web API", "provider", ap.Provider, "from", ap.From)
+	} else if sm := mail.FromEnv(); sm != nil {
+		mailer = mail.Logged{M: sm}
 		slog.Info("email through SMTP", "host", sm.Host, "port", sm.Port, "security", sm.Security)
+		if os.Getenv("RENDER") != "" {
+			slog.Warn("Render blocks outgoing SMTP on free instances: if emails do not arrive, use HUB_MAIL_API (brevo or resend) instead")
+		}
 	} else if cfg.Env == "prod" {
-		slog.Warn("no HUB_SMTP_HOST set: password reset codes and notifications will not be delivered")
+		slog.Warn("no email set up (HUB_MAIL_API or HUB_SMTP_HOST): password reset codes and notifications will not be delivered")
 	}
 	a, err := app.New(ctx, cfg, mailer)
 	if err != nil {
