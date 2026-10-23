@@ -124,11 +124,11 @@ func (s *Service) Public(r chi.Router) {
 		if err := httpx.Decode(r, &in, 2<<10); err != nil {
 			return err
 		}
-		qs, err := s.ResetVerifyCode(r.Context(), in.ResetID, in.Code)
+		qs, skipped, err := s.ResetVerifyCode(r.Context(), in.ResetID, in.Code)
 		if err != nil {
 			return err
 		}
-		httpx.JSON(w, 200, map[string]any{"questions": qs})
+		httpx.JSON(w, 200, map[string]any{"questions": qs, "skipped": skipped})
 		return nil
 	}))
 	r.Post("/auth/reset/quiz", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {

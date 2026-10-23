@@ -48,7 +48,8 @@ const checkCode = async () => {
   busy.value = true;
   try {
     const r = await be.open('POST', '/auth/reset/code', { reset_id: st.resetId, code: code.value.trim() });
-    st.questions = r.questions || []; st.stage = 'quiz'; answers.value = st.questions.map(() => ''); save();
+    if (r.skipped) { st.questions = []; st.stage = 'sent'; save(); }   // no security questions were ever set: the link was emailed at once
+    else { st.questions = r.questions || []; st.stage = 'quiz'; answers.value = st.questions.map(() => ''); save(); }
   } catch (x) { err.value = msg(x, 'Incorrect code.'); }
   busy.value = false;
 };
