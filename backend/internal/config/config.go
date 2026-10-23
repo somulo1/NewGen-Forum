@@ -38,6 +38,10 @@ type Config struct {
 
 	CallsURLs   []string // base URLs of the calls microservice instances (a room is pinned to one by hashing its id)
 	CallsSecret []byte   // shared secret used to mint call-room tokens
+	TurnURLs    []string // TURN relay servers (turn:host:3478?transport=udp, turns:host:443?transport=tcp) so calls work across networks
+	TurnUser    string   // a fixed TURN username and password (HUB_TURN_USER/HUB_TURN_PASS), or
+	TurnPass    string
+	TurnSecret  string   // the shared secret of a coturn server (HUB_TURN_SECRET): each call gets short-lived credentials made from it
 	// Media servers (LiveKit SFU). Empty: calls fall back to the small peer-to-peer rooms on the calls service.
 	SFUNodes     []SFUNode
 	CallLimits   CallLimits
@@ -134,6 +138,10 @@ func Load() (*Config, error) {
 	}
 	c.DocsEnvs = strings.FieldsFunc(strings.ToLower(get("HUB_DOCS_ENVS", "dev,staging,prod")), func(r rune) bool { return r == ',' || r == ' ' })
 	c.Proxies = strings.FieldsFunc(get("HUB_TRUSTED_PROXIES", "127.0.0.0/8,::1/128"), func(r rune) bool { return r == ',' || r == ' ' })
+	for _, u := range strings.FieldsFunc(os.Getenv("HUB_TURN_URLS"), func(r rune) bool { return r == ',' || r == ' ' || r == '\n' }) {
+		c.TurnURLs = append(c.TurnURLs, u)
+	}
+	c.TurnUser, c.TurnPass, c.TurnSecret = strings.TrimSpace(os.Getenv("HUB_TURN_USER")), strings.TrimSpace(os.Getenv("HUB_TURN_PASS")), strings.TrimSpace(os.Getenv("HUB_TURN_SECRET"))
 	c.CallsURLs = strings.Split(get("HUB_CALLS_URL", "http://127.0.0.1:8090"), ",")
 	// On Render with no separate calls service named, calls signalling is served by this same service under /calls-signal
 	// (a browser cannot reach 127.0.0.1:8090 on the server).
