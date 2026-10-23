@@ -14,6 +14,9 @@ PIDS=()  # (all children share this script's process group, so cleanup kills the
 cleanup() { trap - EXIT INT TERM; echo; echo "stopping..."; kill 0; }
 trap cleanup EXIT INT TERM
 
+REDIS_OFF=0; [[ "${HUB_REDIS:-}" == off ]] && REDIS_OFF=1   # no Redis at all: the API keeps an in-memory one, and serves the calls signalling itself
+
+if [[ $REDIS_OFF == 0 ]]; then
 LOCAL_ADDR=${HUB_REDIS_ADDR#*://}; LOCAL_ADDR=${LOCAL_ADDR##*@}   # accept redis://user:pass@host:port too
 REDIS_HOST=${LOCAL_ADDR%:*}; REDIS_PORT=${LOCAL_ADDR##*:}
 if ! (exec 3<>"/dev/tcp/$REDIS_HOST/$REDIS_PORT") 2>/dev/null; then
@@ -25,12 +28,17 @@ if ! (exec 3<>"/dev/tcp/$REDIS_HOST/$REDIS_PORT") 2>/dev/null; then
     echo "Redis not reachable at $HUB_REDIS_ADDR and cannot be started locally. Install redis or fix HUB_REDIS_ADDR." >&2; exit 1
   fi
 fi
+fi
 
 
 go build -o bin/hub-api . ; go build -o bin/hub-calls ./cmd/calls
 prefix() { sed -u "s/^/[$1] /"; }
-bin/hub-api    2>&1 | prefix api    & PIDS+=($!)
-bin/hub-calls  2>&1 | prefix calls  & PIDS+=($!)
+if [[ $REDIS_OFF == 1 ]]; then
+  HUB_WITH_CALLS=on HUB_CALLS_URL="http://127.0.0.1:${HUB_HTTP_PORT:-8080}/calls-signal" bin/hub-api 2>&1 | prefix api & PIDS+=($!)
+else
+  bin/hub-api    2>&1 | prefix api    & PIDS+=($!)
+  bin/hub-calls  2>&1 | prefix calls  & PIDS+=($!)
+fi
 (cd "$ROOT/frontend" && npm run dev 2>&1 | prefix web) & PIDS+=($!)
 
 echo "api :8080  calls :8090  web :3000   (Ctrl+C to stop)"

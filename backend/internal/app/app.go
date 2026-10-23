@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/redis/go-redis/v9"
@@ -39,6 +40,8 @@ type App struct {
 	Geo func(ip string) string
 	// Fast, cheap password hashing in tests; production keeps crypto.DefaultPassword.
 	PW crypto.PasswordParams
+
+	mem *miniredis.Miniredis // the in-memory stand-in for Redis when HUB_REDIS=off
 }
 
 func New(ctx context.Context, cfg *config.Config, m mail.Mailer) (*App, error) {
@@ -46,37 +49,21 @@ func New(ctx context.Context, cfg *config.Config, m mail.Mailer) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	// A hosted Redis allows few connections at once (Redis Cloud's free plan: 30, shared by the old and new version while a deploy runs), so the pool is kept small and idle ones are let go.
-	pool := 8
-	if n, err := strconv.Atoi(os.Getenv("HUB_REDIS_POOL")); err == nil && n > 0 {
-		pool = n
-	}
-	ro := cfg.RedisClientOptions(pool)
-	ro.ConnMaxIdleTime = 2 * time.Minute
-	ro.PoolTimeout = 10 * time.Second
-	rdb := redis.NewClient(ro)
-	// While a new version starts the old one still holds its connections, and a full Redis closes new ones ("EOF"): wait and try
-	// again instead of giving up on the first refusal.
-	var perr error
-	for i := 0; i < 12; i++ {
-		if perr = rdb.Ping(ctx).Err(); perr == nil {
-			break
-		}
-		slog.Warn("redis not ready; trying again", "attempt", i+1, "err", perr)
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-time.After(5 * time.Second):
-		}
-	}
-	if perr != nil {
-		return nil, fmt.Errorf("redis: %w", perr)
+	rdb, mem, err := openRedis(ctx, cfg)
+	if err != nil {
+		return nil, err
 	}
 	return &App{Cfg: cfg, DB: d, Keys: crypto.NewOrgKeys(cfg.KEK), Sign: integrity.NewSigner(cfg.MACKey), Ledger: integrity.NewLedger(cfg.LedgerKey),
-		Rdb: rdb, Bus: realtime.NewBus(rdb), Hub: realtime.NewHub(), Limit: realtime.NewLimiter(rdb), Mail: m, PW: crypto.DefaultPassword}, nil
+		Rdb: rdb, Bus: realtime.NewBus(rdb), Hub: realtime.NewHub(), Limit: realtime.NewLimiter(rdb), Mail: m, PW: crypto.DefaultPassword, mem: mem}, nil
 }
 
-func (a *App) Close() { a.DB.Close(); _ = a.Rdb.Close() }
+func (a *App) Close() {
+	a.DB.Close()
+	_ = a.Rdb.Close()
+	if a.mem != nil {
+		a.mem.Close()
+	}
+}
 
 // Now is the clock used for stored times: UTC, microsecond precision, so MACs computed before and after a round trip agree.
 func Now() time.Time { return time.Now().UTC().Truncate(time.Microsecond) }
@@ -195,4 +182,53 @@ func (a *App) AuditAccount(ctx context.Context, account uuid.UUID, name, action,
 			return a.AuditEntry(ctx, tx, &Entry{Org: o, Actor: pid, Name: name, Action: action, Module: "Auth", IP: ip, Location: loc, Result: result})
 		})
 	}
+}
+
+// openRedis connects to Redis. With HUB_REDIS=off no Redis server is needed: a small one runs inside this process (rate limits, session
+// markers, realtime notices and call passes all work, but only for this one instance, and they start empty after a restart). Turn
+// it back on by removing HUB_REDIS=off and setting HUB_REDIS_ADDR.
+func openRedis(ctx context.Context, cfg *config.Config) (*redis.Client, *miniredis.Miniredis, error) {
+	if cfg.RedisOff {
+		mr, err := miniredis.Run()
+		if err != nil {
+			return nil, nil, fmt.Errorf("in-memory redis: %w", err)
+		}
+		go func() { // the in-memory server keeps its own clock: move it forward so expiries happen
+			t := time.NewTicker(time.Second)
+			defer t.Stop()
+			for range t.C {
+				mr.FastForward(time.Second)
+			}
+		}()
+		slog.Warn("HUB_REDIS=off: using an in-memory Redis inside this process; run one instance only, and state is lost on restart")
+		return redis.NewClient(&redis.Options{Addr: mr.Addr()}), mr, nil
+	}
+	// A hosted Redis allows few connections at once (Redis Cloud's free plan: 30, shared by the old and new version while a deploy
+	// runs), so the pool is kept small and idle ones are let go.
+	pool := 8
+	if n, err := strconv.Atoi(os.Getenv("HUB_REDIS_POOL")); err == nil && n > 0 {
+		pool = n
+	}
+	ro := cfg.RedisClientOptions(pool)
+	ro.ConnMaxIdleTime = 2 * time.Minute
+	ro.PoolTimeout = 10 * time.Second
+	rdb := redis.NewClient(ro)
+	// While a new version starts the old one still holds its connections, and a full Redis closes new ones ("EOF"): wait and try
+	// again instead of giving up on the first refusal.
+	var perr error
+	for i := 0; i < 12; i++ {
+		if perr = rdb.Ping(ctx).Err(); perr == nil {
+			break
+		}
+		slog.Warn("redis not ready; trying again", "attempt", i+1, "err", perr)
+		select {
+		case <-ctx.Done():
+			return nil, nil, ctx.Err()
+		case <-time.After(5 * time.Second):
+		}
+	}
+	if perr != nil {
+		return nil, nil, fmt.Errorf("redis: %w", perr)
+	}
+	return rdb, nil, nil
 }
