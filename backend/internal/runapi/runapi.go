@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/redis/go-redis/v9"
 
 	"hub/internal/app"
 	"hub/internal/bootstrap"
@@ -118,8 +117,7 @@ func Run() {
 	au := auth.New(a)
 	var h http.Handler = server.Router(server.Deps{App: a, Auth: au, Dev: dev, Modules: modules.All(a, au)})
 	if config.CallsInProcess() {
-		rdb := redis.NewClient(cfg.RedisClientOptions())
-		calls := http.StripPrefix("/calls-signal", callsvc.New(cfg.CallsSecret, rdb, cfg.AllowedOrigins).Handler())
+		calls := http.StripPrefix("/calls-signal", callsvc.New(cfg.CallsSecret, a.Rdb, cfg.AllowedOrigins).Handler()) // the same Redis connections as the API
 		api := h
 		h = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if strings.HasPrefix(r.URL.Path, "/calls-signal/") {
