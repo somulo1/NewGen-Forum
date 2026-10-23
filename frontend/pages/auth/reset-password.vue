@@ -125,7 +125,7 @@ const stepNo = computed(() => ({ email: 0, otp: 1, quiz: 2, sent: 3, link: 3 })[
 
     <div v-else-if="st.stage === 'sent'" role="status" style="display: flex; flex-direction: column; gap: 14px">
       <h1 :style="head">Check your email</h1>
-      <p style="margin: 0; color: var(--k-55645C,#55645C); font-size: 14px">If your answers were right, we sent a link and a code to {{ st.email }}. Open the link to choose a new password.</p>
+      <p style="margin: 0; color: var(--k-55645C,#55645C); font-size: 14px">If everything matched, we sent a link and a code to the email address on the account. Open the link to choose a new password.</p>
       <button type="button" @click="reset()" style="border: 0; background: transparent; color: var(--k-55645C,#55645C); cursor: pointer; font-size: 13px">Start over</button>
     </div>
 
