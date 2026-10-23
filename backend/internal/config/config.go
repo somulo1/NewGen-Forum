@@ -135,6 +135,11 @@ func Load() (*Config, error) {
 	c.DocsEnvs = strings.FieldsFunc(strings.ToLower(get("HUB_DOCS_ENVS", "dev,staging,prod")), func(r rune) bool { return r == ',' || r == ' ' })
 	c.Proxies = strings.FieldsFunc(get("HUB_TRUSTED_PROXIES", "127.0.0.0/8,::1/128"), func(r rune) bool { return r == ',' || r == ' ' })
 	c.CallsURLs = strings.Split(get("HUB_CALLS_URL", "http://127.0.0.1:8090"), ",")
+	// On Render with no separate calls service named, calls signalling is served by this same service under /calls-signal
+	// (a browser cannot reach 127.0.0.1:8090 on the server).
+	if os.Getenv("HUB_CALLS_URL") == "" && CallsInProcess() {
+		c.CallsURLs = []string{strings.TrimRight(os.Getenv("RENDER_EXTERNAL_URL"), "/") + "/calls-signal"}
+	}
 	// HUB_SFU_NODES="https://media-eu.example.com|APIKEY|SECRET,https://media-af.example.com|APIKEY|SECRET"
 	for _, n := range strings.Split(os.Getenv("HUB_SFU_NODES"), ",") {
 		if f := strings.Split(strings.TrimSpace(n), "|"); len(f) == 3 {
@@ -234,4 +239,16 @@ func (c *Config) RedisClientOptions(poolSize ...int) *redis.Options {
 		o.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12, ServerName: strings.Split(c.RedisAddr, ":")[0]}
 	}
 	return o
+}
+
+// CallsInProcess says whether this process also serves the calls signalling service: when asked for (HUB_WITH_CALLS=on), or on
+// Render when no separate calls service is named (HUB_CALLS_URL) and HUB_WITH_CALLS is not off.
+func CallsInProcess() bool {
+	switch strings.ToLower(os.Getenv("HUB_WITH_CALLS")) {
+	case "on":
+		return true
+	case "off":
+		return false
+	}
+	return os.Getenv("HUB_CALLS_URL") == "" && os.Getenv("RENDER_EXTERNAL_URL") != ""
 }
