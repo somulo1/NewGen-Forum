@@ -5,8 +5,8 @@
 <div style="flex: 999 1 460px; max-width: 760px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
 <div style="position: relative; display: flex; align-items: flex-start; gap: 10px"><div style="flex: 1; min-width: 0"><h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; letter-spacing: -0.02em">Community wall</h1>
 <p style="margin: 4px 0 0; color: var(--k-9DB0A6,#9DB0A6)">Everyone's space to post freely: photos, news, shout-outs, polls.</p></div>
-<button type="button" class="wall-dots" aria-label="Birthdays and trending" :aria-expanded="hl" @click.stop="hl = !hl" style="flex: none; width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; align-items: center; justify-content: center"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button>
-<Teleport to="body" :disabled="!phone"><template v-if="hl"><div class="wall-backdrop" @click="hl = false"></div></template></Teleport></div>
+<button type="button" ref="dots" class="wall-dots" aria-label="Birthdays and trending" :aria-expanded="hl" @click.stop="hl = !hl" style="flex: none; width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; align-items: center; justify-content: center"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button>
+<template v-if="hl"><div class="wall-backdrop" @click="hl = false"></div></template></div>
 
 <div style="display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px">
 <button @click="momentForm.toggle" :aria-expanded="momentForm.open" style="flex: none; width: 112px; height: 180px; border-radius: 14px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-16201C,#16201C); color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 8px; padding: 14px 8px; box-sizing: border-box">
@@ -155,7 +155,7 @@
 </template>
 </div>
 
-<Teleport to="body" :disabled="!(phone && hl)"><aside aria-label="Wall highlights" :class="['hub-static', 'wall-aside', { open: hl }]" :style="hl && phone ? panelPos : null" @click="hl = false" style="flex: 0 1 320px; min-width: 0; position: sticky; top: 0; align-self: flex-start; overflow: visible; display: flex; flex-direction: column; gap: 16px">
+<aside ref="aside" aria-label="Wall highlights" :class="['hub-static', 'wall-aside', { open: hl }]" :style="hl && phone ? panelPos : null" @click="hl = false" style="flex: 0 1 320px; min-width: 0; position: sticky; top: 0; align-self: flex-start; overflow: visible; display: flex; flex-direction: column; gap: 16px">
 <div style="padding: 16px; border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 10px">
 <strong style="font-size: 15px">Birthdays today</strong>
 <span style="font-size: 14px; line-height: 1.5; color: var(--k-C9D6CF,#C9D6CF)">{{ wallBirthdays.has ? wallBirthdays.text : 'No birthdays today.' }}</span>
@@ -175,7 +175,7 @@
 <span v-if="noTrending" style="font-size: 13px; line-height: 1.5; color: var(--k-9DB0A6,#9DB0A6)">No hashtags yet. Add one to a post, like #Tuesday, and it shows up here.</span>
 <template v-for="tg in trending" :key="tg.tag"><button @click="tg.pick" :aria-pressed="tg.on" :style="`text-align: left; padding: 6px 8px; margin: 0 -8px; border: 0; border-radius: 8px; background: ${tg.on ? 'var(--k-22302A,#22302A)' : 'transparent'}; color: ${tg.on ? 'var(--k-B8F36B,#B8F36B)' : 'var(--k-C9D6CF,#C9D6CF)'}; cursor: pointer; font-size: 14px; font-family: inherit`">#{{ tg.tag }}</button></template>
 </div>
-</aside></Teleport>
+</aside>
 </div>
 </template>
 </template>
@@ -195,13 +195,17 @@ export default {
     phone() { this.$nextTick(this.place); }
   },
   methods: {
-    // The panel opens right under the header's lower edge and ends above the bottom bar, measured from those bars themselves
-    // (so it is right whatever their height is on this phone, and wherever the page is scrolled).
+    // On a phone the panel drops down from the three-dot button: its top is the button's lower edge, it is as wide as the screen
+    // allows, and it ends above the bottom bar (it scrolls inside if there is more). It is positioned in the page, so it moves
+    // with the page and keeps the page's colours.
     place() {
-      const h = document.querySelector('.hub-header'), t = document.querySelector('.hub-tabbar');
-      const top = h ? Math.round(h.getBoundingClientRect().bottom) : 64;
-      const bottom = t ? Math.round(window.innerHeight - t.getBoundingClientRect().top) : 64;
-      this.panelPos = 'top:' + top + 'px;bottom:' + bottom + 'px';
+      const a = this.$refs.aside, d = this.$refs.dots;
+      if (!a || !d) return;
+      const par = a.offsetParent || document.body, pr = par.getBoundingClientRect(), br = d.getBoundingClientRect();
+      const bar = document.querySelector('.hub-tabbar');
+      const barH = bar ? bar.getBoundingClientRect().height : 64;
+      const room = Math.max(160, window.innerHeight - br.bottom - barH - 16);
+      this.panelPos = 'top:' + Math.round(br.bottom - pr.top + 8) + 'px;left:' + Math.round(12 - pr.left) + 'px;width:' + (window.innerWidth - 24) + 'px;max-height:' + Math.round(room) + 'px';
     },
     submitMoment() { if (this.addMoment(this.momentCaption, this.momentBg, this.momentFile)) { this.momentCaption = ''; this.momentFile = null; } },
     submitWallPost() { if (this.onPost(this.postBg)) this.postBg = ''; },
@@ -231,7 +235,7 @@ export default {
   .wall-dots { display: flex; }
   .wall-backdrop { display: block; position: fixed; inset: 0; z-index: 40; background: transparent; }
   .wall-aside { display: none !important; }
-  .wall-aside.open { display: flex !important; position: fixed !important; z-index: 56; left: 0; right: 0; flex: none !important; max-height: none; overflow-y: auto; overscroll-behavior: contain; padding: 12px 12px 16px; border-radius: 0 0 18px 18px; background: var(--k-121B17,#121B17); border: 1px solid var(--k-24322C,#24322C); border-top: 0; gap: 12px; box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35); }
+  .wall-aside.open { display: flex !important; position: absolute !important; z-index: 50; flex: none !important; overflow-y: auto; overscroll-behavior: contain; padding: 12px; border-radius: 18px; background: var(--k-121B17,#121B17); border: 1px solid var(--k-24322C,#24322C); gap: 12px; box-shadow: 0 12px 28px rgba(0, 0, 0, 0.3); }
   .wall-online { display: none !important; }
 }
 </style>
