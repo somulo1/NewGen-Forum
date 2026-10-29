@@ -251,6 +251,18 @@ func (s *Service) Private(r chi.Router) {
 		httpx.JSON(w, 200, map[string]any{"missing": m})
 		return nil
 	}))
+	r.Post("/e2ee/keys/request", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
+		p, err := tenant.MustOrg(r.Context())
+		if err != nil {
+			return err
+		}
+		n, err := s.RequestKeys(r.Context(), p)
+		if err != nil {
+			return err
+		}
+		httpx.JSON(w, 200, map[string]any{"waiting": n})
+		return nil
+	}))
 	r.Get("/e2ee/todo", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
 		p, err := tenant.MustOrg(r.Context())
 		if err != nil {

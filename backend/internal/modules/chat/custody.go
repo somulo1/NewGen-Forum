@@ -184,3 +184,51 @@ func (s *Service) Rotate(ctx context.Context, p *tenant.Principal, id uuid.UUID,
 	}
 	return err
 }
+
+// RequestKeys is a device saying "I am here and cannot open some conversations yet". Colleagues who hold those keys and are online are
+// told at once (up to a dozen of them, picked at random) so one of them hands the key over within a second or two, instead of the
+// newcomer waiting for the next time somebody's app happens to look. It returns how many conversations are waiting.
+func (s *Service) RequestKeys(ctx context.Context, p *tenant.Principal) (int, error) {
+	type item struct {
+		conv    uuid.UUID
+		holders []uuid.UUID
+	}
+	var items []item
+	err := s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
+		rs, err := tx.Query(ctx, `
+			select c.id,
+			  array(select a from (select distinct d.account_id a from hub.conversation_keys k join hub.devices d on d.id = k.device_id
+			        join hub.conversation_members m on m.account_id = d.account_id and m.conversation_id = c.id and m.left_at is null
+			        where k.conversation_id = c.id and k.epoch = c.epoch and d.revoked_at is null and d.account_id <> $1) h order by random() limit 12)
+			from hub.conversations c join hub.conversation_members me on me.conversation_id = c.id and me.account_id=$1 and me.left_at is null
+			where exists (select 1 from hub.devices d where d.account_id=$1 and d.revoked_at is null and not exists
+			        (select 1 from hub.conversation_keys k where k.conversation_id = c.id and k.epoch = c.epoch and k.device_id = d.id))
+			limit 60`, p.Account)
+		if err != nil {
+			return err
+		}
+		defer rs.Close()
+		for rs.Next() {
+			var it item
+			if err := rs.Scan(&it.conv, &it.holders); err != nil {
+				return err
+			}
+			items = append(items, it)
+		}
+		return rs.Err()
+	})
+	if err != nil {
+		return 0, err
+	}
+	byHolder := map[uuid.UUID][]uuid.UUID{}
+	for _, it := range items {
+		for _, h := range it.holders {
+			byHolder[h] = append(byHolder[h], it.conv)
+		}
+	}
+	for h, convs := range byHolder {
+		d, _ := json.Marshal(map[string]any{"conversations": convs})
+		s.A.Publish(ctx, realtime.Event{Type: "keys.requested", Channel: realtime.AcctChannel(h), Org: p.Org.String(), Data: d})
+	}
+	return len(items), nil
+}

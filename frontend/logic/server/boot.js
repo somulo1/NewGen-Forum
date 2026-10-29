@@ -60,6 +60,10 @@ export async function startServerSync(logic, request, session, bytes) {
     logic.notify(who + ' now has ' + (n === 1 ? 'a new device' : n + ' new devices') + ' that can read your shared chats. If you did not expect that, compare security codes with them (open their profile card).', '#FFB86B');
   };
   vault.custody().catch(() => {});   // hand keys to colleagues' new devices if they are waiting
+  // ...and keep doing it while this tab is open: a colleague added to the wall or a forum after you signed in gets their key from
+  // whoever of its members is online, so this must not wait for the next sign-in
+  clearInterval(srv.custodyT);
+  srv.custodyT = setInterval(() => { if (!document.hidden && logic.srv === srv) vault.custody().catch(() => {}); }, 30000);
   // Signed in: the sample data built into the app must not show while (or if) the real data loads. Every list the server
   // fills starts empty, and whatever was open from the samples is closed.
   logic.setState({
