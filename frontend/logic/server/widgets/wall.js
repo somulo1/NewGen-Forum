@@ -17,16 +17,21 @@ const ago = (iso) => {
   return d === 1 ? 'Yesterday' : d + ' days ago';
 };
 
-async function allMessages(srv, conv) {
-  const out = [];
-  let before = '';
-  for (let i = 0; i < 3; i++) {   // the newest 300 messages: enough for the screen, and one slow page after another is what made it wait
-    const { messages } = await srv.request('GET', `/conversations/${conv}/messages?limit=100${before ? '&before=' + before : ''}`);
-    out.push(...messages);
-    if (messages.length < 100) break;
-    before = messages[messages.length - 1].id;
-  }
-  return out;
+// The wall shows as soon as its newest page is in; older pages follow in the background (each page costs a round trip to the server).
+// What an earlier load already holds is kept, so a like or a comment only fetches the newest page again.
+async function page(srv, conv, before) {
+  const { messages } = await srv.request('GET', `/conversations/${conv}/messages?limit=100${before ? '&before=' + before : ''}`);
+  return messages;
+}
+
+async function render(logic, srv, all) {
+  const open = srv.wallOpened || (srv.wallOpened = new Map());
+  const msgs = [...all.values()].filter((m) => !m.deleted);
+  const opened = await Promise.all(msgs.map(async (m) => {
+    if (!open.has(m.id)) open.set(m.id, await srv.vault.openMessage(m));
+    return { m, pl: open.get(m.id) };
+  }));
+  build(logic, srv, opened.filter((x) => x.pl).sort((a, b) => (a.m.id < b.m.id ? -1 : 1)));
 }
 
 export async function load(logic, srv) {
@@ -34,9 +39,24 @@ export async function load(logic, srv) {
   const wall = conversations.find((c) => c.audience === 'org') || conversations[0];
   if (!wall) { logic.setState({ posts: [], moments: [] }); return; }
   srv.wallId = wall.id;
-  const msgs = (await allMessages(srv, wall.id)).filter((m) => !m.deleted);
-  const opened = await Promise.all(msgs.map(async (m) => ({ m, pl: await srv.vault.openMessage(m) })));
-  build(logic, srv, opened.filter((x) => x.pl).sort((a, b) => (a.m.id < b.m.id ? -1 : 1)));
+  const all = srv.wallAll && srv.wallAllId === wall.id ? srv.wallAll : new Map();   // messages held from earlier loads
+  srv.wallAll = all; srv.wallAllId = wall.id;
+  const first = await page(srv, wall.id, '');
+  first.forEach((m) => all.set(m.id, m));
+  await render(logic, srv, all);
+  if (first.length < 100 || srv.wallOlderDone === wall.id) return;
+  srv.wallOlderDone = wall.id;
+  // older posts (and the likes and comments on them), a page at a time, without holding up the screen
+  (async () => {
+    let before = first[first.length - 1].id;
+    for (let i = 0; i < 2; i++) {
+      const older = await page(srv, wall.id, before);
+      older.forEach((m) => { if (!all.has(m.id)) all.set(m.id, m); });
+      await render(logic, srv, all);
+      if (older.length < 100) break;
+      before = older[older.length - 1].id;
+    }
+  })().catch(() => { srv.wallOlderDone = null; });
 }
 
 function build(logic, srv, items) {
