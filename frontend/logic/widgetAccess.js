@@ -1,9 +1,9 @@
 // Which home widgets this person sees. The rule is simple: a widget exists for an organization only when the organization has switched it
 // on (Widget settings -> "Switched on for the organization"), and then only for the people it lets see it ("Everyone" or specific
 // groups). Everyone in the organization sees the same switched-on set; nobody gets one the organization never switched on, whoever they
-// are. An older setting that was saved before the switch existed counts as switched on. Until the organization's settings have arrived
+// are. Only the switch counts: a widget whose title or audience was saved, but never switched on, is off. Until the organization's settings have arrived
 // nothing is shown.
-export const switchedOn = (wc, id) => { const c = (wc || {})[id]; return !!c && c.enabled !== false; };
+export const switchedOn = (wc, id) => { const c = (wc || {})[id]; return !!c && c.enabled === true; };   // only an explicit switch counts: a saved title or audience does not
 
 export function widgetGate(logic, s, can) {
   const srv = !!logic.srv;

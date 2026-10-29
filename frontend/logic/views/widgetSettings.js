@@ -7,7 +7,7 @@ export function buildWidgetSettings(ctx) {
   let sw = { t: {} };
   if (sid && catalog[sid]) {
     const cfg = Object.assign({ title: catalog[sid].title, see: 'Everyone', manage: 'Admins' }, s.wcfg[sid] || {});
-    const isOn = !!s.wcfg[sid] && s.wcfg[sid].enabled !== false;   // switched on for the whole organization
+    const isOn = !!s.wcfg[sid] && s.wcfg[sid].enabled === true;   // switched on for the whole organization
     const setCfg = (k) => (e) => { const v = e.target.value; this.setState((st) => ({ wcfg: { ...st.wcfg, [sid]: Object.assign({ title: catalog[sid].title, see: 'Everyone', manage: 'Admins', enabled: false }, st.wcfg[sid] || {}, { [k]: v }) } })); };
     const wmod = sid;
     const rn = rightsDef[wmod] || genericRights;
