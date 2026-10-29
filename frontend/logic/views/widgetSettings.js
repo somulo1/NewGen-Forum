@@ -7,7 +7,8 @@ export function buildWidgetSettings(ctx) {
   let sw = { t: {} };
   if (sid && catalog[sid]) {
     const cfg = Object.assign({ title: catalog[sid].title, see: 'Everyone', manage: 'Admins' }, s.wcfg[sid] || {});
-    const setCfg = (k) => (e) => { const v = e.target.value; this.setState((st) => ({ wcfg: { ...st.wcfg, [sid]: Object.assign({ title: catalog[sid].title, see: 'Everyone', manage: 'Admins' }, st.wcfg[sid] || {}, { [k]: v }) } })); };
+    const isOn = !!s.wcfg[sid] && s.wcfg[sid].enabled !== false;   // switched on for the whole organization
+    const setCfg = (k) => (e) => { const v = e.target.value; this.setState((st) => ({ wcfg: { ...st.wcfg, [sid]: Object.assign({ title: catalog[sid].title, see: 'Everyone', manage: 'Admins', enabled: false }, st.wcfg[sid] || {}, { [k]: v }) } })); };
     const wmod = sid;
     const rn = rightsDef[wmod] || genericRights;
     const wflows = s.flows.filter((f) => f.mod === wmod).map(flowItem);
@@ -19,7 +20,7 @@ export function buildWidgetSettings(ctx) {
       groupMatrix: groupDefs.map((g) => ({ group: g.name, roles: g.roles.map((id) => (visibleRoles.find((r) => r.id === id) || {}).name).filter(Boolean).join(', ') || 'No roles yet', cells: rn.map((x) => ({ label: g.name + ' (user group): ' + x, on: groupRightOf(g.id, wmod, x), locked: false, pending: s.pendingRights['g:' + rKey(g.id, wmod, x)] !== undefined, toggle: () => toggleGroupRight(g.id, wmod, x) })) })),
       hasGroups: groupDefs.length > 0,
       flows: wflows, noFlows: wflows.length === 0,
-      title: cfg.title, see: cfg.see, manage: cfg.manage, setTitle: setCfg('title'), setSee: setCfg('see'), setManage: setCfg('manage') };
+      title: cfg.title, orgOn: isOn, orgOnLabel: isOn ? 'Switched on for the organization' : 'Switched off: nobody in the organization has this widget', toggleOrgOn: () => this.setState((st) => ({ wcfg: { ...st.wcfg, [sid]: Object.assign({ title: catalog[sid].title, see: 'Everyone', manage: 'Admins' }, st.wcfg[sid] || {}, { enabled: !isOn }) } })), see: cfg.see, manage: cfg.manage, setTitle: setCfg('title'), setSee: setCfg('see'), setManage: setCfg('manage') };
     // Visibility (groups) and management (roles)
     const setW = (patch) => this.setState((st) => ({ wcfg: { ...st.wcfg, [sid]: Object.assign({ title: catalog[sid].title, see: 'Everyone', groups: [], managers: [] }, st.wcfg[sid] || {}, typeof patch === 'function' ? patch(Object.assign({ groups: [], managers: [] }, st.wcfg[sid] || {})) : patch) } }));
     const groups = cfg.groups || [];
