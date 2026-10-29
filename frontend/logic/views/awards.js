@@ -1,9 +1,10 @@
 import * as awardsW from '~/logic/server/widgets/awards.js';
+import { widgetGate } from '~/logic/widgetAccess.js';
 // renderVals step: awards. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildAwards(ctx) {
   const { can, chip, chipS, flowById, fmtDay, forums, has, makeRequest, openPersonName, personOf, roleDefs, s, set, todayISO, visibleRoles } = ctx;
   // =============== Performance awards ===============
-  const awardsOn = s.widgets.indexOf('awards') !== -1;
+  const awardsOn = s.widgets.indexOf('awards') !== -1 && widgetGate(this, s, can).allows('awards');   // not before the organization's widget settings are in
   // Connected: only awards approved in the current weekly cycle are on the board (see logic/server/widgets/awards.js).
   const approvedAwards = s.awardList.filter((a) => a.status === 'Approved' && (!this.srv || a.inCycle));
   const stripBase = [];
