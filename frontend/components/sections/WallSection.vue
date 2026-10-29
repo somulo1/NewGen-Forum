@@ -215,7 +215,7 @@ export default {
   .wall-dots { display: flex; }
   .wall-backdrop { display: block; position: fixed; inset: 0; z-index: 40; background: transparent; }
   .wall-aside { display: none !important; }
-  .wall-aside.open { display: flex !important; position: fixed !important; z-index: 50; top: 72px; bottom: 76px; left: 12px; right: 12px; flex: none !important; max-height: none; overflow-y: auto; overscroll-behavior: contain; box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45); }
+  .wall-aside.open { display: flex !important; position: fixed !important; z-index: 50; top: 72px; bottom: 76px; left: 12px; right: 12px; flex: none !important; max-height: none; overflow-y: auto; overscroll-behavior: contain; padding: 12px; border-radius: 18px; background: var(--k-121B17,#121B17); border: 1px solid var(--k-24322C,#24322C); gap: 12px; box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45); }
   .wall-online { display: none !important; }
 }
 </style>
