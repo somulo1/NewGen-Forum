@@ -1,3 +1,4 @@
+import * as forumsW from '~/logic/server/widgets/forums.js';
 import { shareUrl } from '~/logic/shareOut.js';
 import * as wallW from '~/logic/server/widgets/wall.js';
 import { richTextHtml, mentionLinker, hashtagsOf, linkHashtags } from '~/logic/richText.js';
@@ -130,7 +131,7 @@ export function buildWall(ctx) {
   };
   const sharedViews = {};
   const addedMsgs = Object.values(s.added || {}).reduce((acc, arr) => acc.concat(arr), []);
-  forumsData.forEach((f) => (f.updates || []).forEach((m) => { if (m.shared) addedMsgs.push(m); }));
+  forumsData.forEach((f) => (f.updates || []).forEach((m) => { if (m.shared) addedMsgs.push({ ...m, __forum: f.id }); }));
   addedMsgs.filter((m) => m.shared).forEach((m) => {
     const sh = m.shared, orig = s.posts.find((q) => q.id === sh.postId), snap = sh.snap || {};
     const pi = orig ? pollInfo(orig) : { list: [], note: '', isPoll: false };
@@ -138,11 +139,16 @@ export function buildWall(ctx) {
     const own = pi.isPoll && orig ? (orig.comments || []) : (s.sharedComments[sh.sid] || []);
     sharedViews[sh.sid] = { ...snap, hasMedia: !!(snap.media && snap.media.length), isPoll: pi.isPoll, poll: pi.list, pollNote: pi.note, comments: own.map((c) => ({ who: c.who, initials: c.initials, color: c.color, text: c.text, time: c.time || '' })), hasComments: own.length > 0,
       syncNote: pi.isPoll ? 'Votes and comments are shared with the original post.' : 'Reactions stay on the wall. Comments here stay in this forum.',
-      addComment: (text) => this.setState((st) => (pi.isPoll && orig
+      addComment: (text) => {
+        // saved on the server: a comment on a shared poll is a comment on the wall post; any other comment is a reply in the forum
+        if (this.srv && pi.isPoll && orig) { wallW.comment(this, this.srv, orig.id, text).catch((e) => this.notify(e.message || 'That did not work.', '#FF9B8A')); return; }
+        if (this.srv && m.__forum && m.mid) { forumsW.send(this, this.srv, m.__forum, { text, replyTo: m.mid }).catch((e) => this.notify(e.message || 'That did not work.', '#FF9B8A')); return; }
+        return this.setState((st) => (pi.isPoll && orig
         ? { posts: st.posts.map((q) => (q.id === orig.id ? { ...q, comments: (q.comments || []).concat([{ who: 'Sam', initials: 'S', color: '#F49AC1', text, time: 'Just now', replies: [] }]) } : q)) }
-        : { sharedComments: { ...st.sharedComments, [sh.sid]: (st.sharedComments[sh.sid] || []).concat([{ who: 'Sam', initials: 'S', color: '#F49AC1', text, time: 'Just now' }]) } })) };
+        : { sharedComments: { ...st.sharedComments, [sh.sid]: (st.sharedComments[sh.sid] || []).concat([{ who: 'Sam', initials: 'S', color: '#F49AC1', text, time: 'Just now' }]) } }));
+      } };
   });
-  const moments = s.moments.map((m, i) => ({ ...m, key: m.id, mine: m.owner === 'Sam', hasMedia: !!m.media, mediaUrl: m.media ? m.media.url : '', mediaIsImg: !!(m.media && m.media.isImg), mediaIsVideo: !!(m.media && m.media.isVideo),
+  const moments = s.moments.map((m, i) => ({ ...m, key: m.id, mine: m.owner === (this.srv ? this.srv.me.name : 'Sam'), hasMedia: !!m.media, mediaUrl: m.media ? m.media.url : '', mediaIsImg: !!(m.media && m.media.isImg), mediaIsVideo: !!(m.media && m.media.isVideo),
     likeCount: m.likes.length, loveCount: m.loves.length, open: () => this.setState({ momentOpen: i }) }));
   const pollReady = !!(s.wpoll && s.wpoll.opts.filter((o) => o.trim()).length >= 2 && s.draft.trim());
   const canPost = s.draft.trim().length > 0 && (!s.wpoll || pollReady) || s.wfiles.length > 0;

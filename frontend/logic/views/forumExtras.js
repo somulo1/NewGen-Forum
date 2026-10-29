@@ -82,7 +82,7 @@ export function buildForumExtras(ctx) {
       anyOn: !!(priv.blocked || priv.noChat || priv.noCall || priv.noVideo),
       summary: priv.blocked ? 'Blocked. Nothing gets through in either direction.' : [priv.noChat && 'chats', priv.noCall && 'calls', priv.noVideo && 'video'].filter(Boolean).length ? 'Not receiving ' + [priv.noChat && 'chats', priv.noCall && 'calls', priv.noVideo && 'video'].filter(Boolean).join(', ') + ' from ' + name : 'You receive everything from ' + name,
       flags: [flag('blocked', 'Block ' + name, 'No messages, calls or video, and you cannot message or call them.'), flag('noChat', 'Do not receive their chats', 'Their messages are not delivered to you.'), flag('noCall', 'Do not receive their calls', 'Their voice calls will not ring.'), flag('noVideo', 'Do not receive their video', 'Their video calls and video requests are stopped.')],
-      tries: [{ label: 'Try a message', run: () => this.simulateIncoming(name, 'chat') }, { label: 'Try a call', run: () => this.simulateIncoming(name, 'call') }, { label: 'Try a video call', run: () => this.simulateIncoming(name, 'video') }] };
+      tries: this.srv ? [] : [{ label: 'Try a message', run: () => this.simulateIncoming(name, 'chat') }, { label: 'Try a call', run: () => this.simulateIncoming(name, 'call') }, { label: 'Try a video call', run: () => this.simulateIncoming(name, 'video') }] };
   }
   const inc = s.incoming;
   const incFor = inc && inc.context === 'forum' ? (s.forumsLive || []).find((f) => f.sid === inc.conversation) : null;

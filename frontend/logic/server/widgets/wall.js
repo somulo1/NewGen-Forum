@@ -61,9 +61,9 @@ export async function load(logic, srv) {
 
 function build(logic, srv, items) {
   const me = srv.me.account;
-  const who = (m) => (m.sender_account === me ? 'Sam' : m.sender_name);
+  const who = (m) => (m.sender_account === me ? srv.me.name : m.sender_name);
   const person = (m) => (srv.dirByUid && m.sender_person && srv.dirByUid.get(m.sender_person)) || null;
-  const look = (m) => { const p = person(m); const n = m.sender_name || ''; return { initials: m.sender_account === me ? 'S' : (p ? p.initials : n.split(' ').map((x) => x[0]).join('').slice(0, 2)), color: m.sender_account === me ? '#F49AC1' : (p ? p.color : '#C9B6FF') }; };
+  const look = (m) => { const p = person(m); const n = m.sender_name || ''; return { initials: m.sender_account === me ? (srv.me.name || 'You').split(' ').map((x) => x[0]).join('').slice(0, 2).toUpperCase() : (p ? p.initials : n.split(' ').map((x) => x[0]).join('').slice(0, 2)), color: m.sender_account === me ? '#F49AC1' : (p ? p.color : '#C9B6FF') }; };
   const byParent = new Map();
   items.forEach((x) => { if (x.m.reply_to) { const l = byParent.get(x.m.reply_to) || []; l.push(x); byParent.set(x.m.reply_to, l); } });
   const kids = (id, type) => (byParent.get(id) || []).filter((x) => x.m.type === type);
