@@ -451,14 +451,14 @@ export async function createPoll(logic, srv, local, question, options) {
   await reloadForum(logic, srv, local, { meta: false });
 }
 
-// Tapping your vote again takes it back; tapping another option changes it.
+// A vote is final: the first one counts, and it cannot be taken back or changed (the server refuses a second one too).
 export async function votePoll(logic, srv, pollId, optionId) {
   const hit = findPoll(logic, pollId);
   if (!hit) return;
   const { forum, poll } = hit;
+  if (poll.myVote) throw new Error('You have already voted on this poll. Your first vote is final.');
   const sid = serverId(srv, forum.id);
-  if (poll.myVoteMid) await unpost(srv, sid, poll.myVoteMid);
-  if (poll.myVote !== optionId) await post(srv, sid, 'vote', { option: optionId }, poll.mid);
+  await post(srv, sid, 'vote', { option: optionId }, poll.mid);
   await reloadForum(logic, srv, forum.id, { meta: false });
 }
 

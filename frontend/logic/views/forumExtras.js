@@ -59,10 +59,10 @@ export function buildForumExtras(ctx) {
       return { id: p.id, question: p.question, questionHtml: richTextHtml(p.question), by: p.by, when: agoLabel(p.at, nowMs), locked: p.locked,
         statusLabel: p.locked ? 'Voting blocked' : 'Live', statusColor: p.locked ? '#FFB86B' : '#B8F36B',
         totalLabel: total + (total === 1 ? ' vote' : ' votes') + ' · ' + p.members + ' members',
-        note: blockedMe ? 'You are blocked from voting on this poll.' : p.locked ? 'Voting is blocked. These results are final.' : p.myVote ? 'You voted. Tap it again to take it back, or tap another option to change.' : 'Tap an option to vote. Results update live.',
+        note: blockedMe ? 'You are blocked from voting on this poll.' : p.locked ? 'Voting is blocked. These results are final.' : p.myVote ? 'You voted. Your vote is final and cannot be changed.' : 'Tap an option to vote. Results update live.',
         options: p.options.map((o) => {
           const c = pollCount(p, o), pct = total ? Math.round((c / total) * 100) : 0, mine = p.myVote === o.id;
-          return { id: o.id, label: o.label, labelHtml: richTextHtml(o.label), count: c, pct, mine, canVote: open,
+          return { id: o.id, label: o.label, labelHtml: richTextHtml(o.label), count: c, pct, mine, canVote: open && !p.myVote,
             rowStyle: 'position:relative;display:flex;flex-direction:column;gap:6px;width:100%;padding:10px 12px;border-radius:10px;text-align:left;font-family:inherit;color:var(--k-E8EFEA,#E8EFEA);background:var(--k-121B17,#121B17);border:1px solid ' + (mine ? '#B8F36B' : '#24322C') + ';cursor:' + (open ? 'pointer' : 'default') + ';opacity:' + (open || mine ? '1' : '0.85'),
             barStyle: 'height:100%;width:' + pct + '%;background:' + (mine ? '#B8F36B' : 'var(--k-3F524A,#3F524A)') + ';border-radius:3px;transition:width .6s ease',
             vote: () => this.votePoll(p.id, o.id) };

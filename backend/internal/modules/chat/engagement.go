@@ -19,7 +19,7 @@ import (
 // Likes, reactions and poll votes. There is no counter anywhere: every like or vote is its own message, written only
 // through the API by a signed-in person, signed on their own device (the client drops anything whose signature does not
 // check), sealed with a row MAC the database cannot forge, and counted by the reader one per person. These rules keep each
-// person to one vote per poll and at most one of each reaction per post, and keep poll locks to the poll's author or a
+// person to one final vote per poll (it cannot be taken back or changed) and at most one of each reaction per post, and let only the person who gave a like take it back, and keep poll locks to the poll's author or a
 // moderator.
 
 const maxReactionsPerTarget = 2 // like and love
@@ -56,12 +56,13 @@ func (s *Service) checkEngagement(ctx context.Context, tx pgx.Tx, p *tenant.Prin
 		if targetType != "poll" && targetType != "post" && targetType != "announcement" && targetType != "memo" {
 			return httpx.Bad("You can only vote on a poll.")
 		}
-		n, err := live("vote")
-		if err != nil {
+		// a vote is final: any earlier vote of this person on this poll counts, whether or not it was somehow removed
+		var n int
+		if err := tx.QueryRow(ctx, `select count(*) from hub.messages where org_id=$1 and conversation_id=$2 and reply_to=$3 and sender_account=$4 and content_type='vote'`, p.Org, conv, *target, p.Account).Scan(&n); err != nil {
 			return err
 		}
 		if n > 0 {
-			return httpx.Err(409, "already_voted", "You have already voted on this poll. Take your vote back first to change it.")
+			return httpx.Err(409, "already_voted", "You have already voted on this poll. Your first vote is final.")
 		}
 	case "reaction":
 		if targetType == "reaction" || targetType == "vote" || targetType == "poll_lock" {

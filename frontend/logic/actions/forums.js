@@ -31,6 +31,7 @@ export const forumActions = {
     const live = this.srv && forumsW.findPoll(this, pid);
     if (live) {
       if (live.poll.locked) { this.notify('Voting is closed on this poll.', '#FFB86B'); return; }
+      if (live.poll.myVote) { this.notify('You have already voted on this poll. Your first vote is final.', '#FFB86B'); return; }
       forumsW.votePoll(this, this.srv, pid, oid).catch((e) => this.liveFail(e));
       return;
     }

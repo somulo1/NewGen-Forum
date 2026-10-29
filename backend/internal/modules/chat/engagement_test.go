@@ -36,12 +36,22 @@ func TestLikesAndVotesAreOnePerPersonAndTamperProof(t *testing.T) {
 	_, poll := send(o, "poll", `{"question":"Lunch?","options":[{"id":"o1","label":"Yes"}]}`, "")
 	_, post := send(o, "text", `{"text":"hello"}`, "")
 
-	// one vote each; a second needs the first taken back
-	if c, _ := send(a, "vote", `{"option":"o1"}`, poll); c != 201 {
-		t.Fatalf("vote: %d", c)
+	// one vote each, and it is final: it cannot be taken back (by its owner or a moderator), so a second can never follow
+	c0, vote := send(a, "vote", `{"option":"o1"}`, poll)
+	if c0 != 201 {
+		t.Fatalf("vote: %d", c0)
 	}
 	if c, _ := send(a, "vote", `{"option":"o1"}`, poll); c != 409 {
 		t.Fatalf("second vote: %d", c)
+	}
+	if c, _ := e.Do("DELETE", "/conversations/"+conv+"/messages/"+vote, nil, a.Access); c != 409 {
+		t.Fatalf("taking a vote back: %d", c)
+	}
+	if c, _ := e.Do("DELETE", "/conversations/"+conv+"/messages/"+vote, nil, ownerU.Access); c != 409 {
+		t.Fatalf("a moderator removing a vote: %d", c)
+	}
+	if c, _ := send(a, "vote", `{"option":"o1"}`, poll); c != 409 {
+		t.Fatalf("a vote after trying to take it back: %d", c)
 	}
 	if c, _ := send(a, "vote", `{"option":"o1"}`, post); c != 400 {
 		t.Fatalf("vote on a plain message: %d", c)
@@ -56,6 +66,10 @@ func TestLikesAndVotesAreOnePerPersonAndTamperProof(t *testing.T) {
 	}
 	if c, _ := send(a, "reaction", `{"kind":"like"}`, post); c != 409 {
 		t.Fatalf("third reaction: %d", c)
+	}
+	// a like can be taken back only by the person who gave it
+	if c, _ := e.Do("DELETE", "/conversations/"+conv+"/messages/"+like, nil, ownerU.Access); c != 403 {
+		t.Fatalf("someone else removing a like: %d", c)
 	}
 	// Amy did not make the poll and is not a moderator: she cannot lock it
 	if c, _ := send(a, "poll_lock", `{"locked":true}`, poll); c != 403 {
