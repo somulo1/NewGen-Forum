@@ -210,6 +210,8 @@ export default {
       try {
         if (useBackend().signedIn()) {
           await useBackend().post('/auth/password', { current_password: this.currentPassword, new_password: this.newPassword });
+          // the saved copy of your keys is locked with the password: lock it with the new one, or the next browser could not open it
+          try { const be = useBackend(); const kb = await import('~/logic/server/keyBackup.js'); await kb.rewrap((m, p, b) => be.request(m, p, b), be.session().account, this.newPassword); } catch (x) { /* the old copy still opens with the old password */ }
           this.currentPassword = '';
           this.newPassword = '';
           this.confirmPassword = '';
