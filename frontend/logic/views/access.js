@@ -1,3 +1,4 @@
+import { widgetGate } from '~/logic/widgetAccess.js';
 import * as rolesW from '~/logic/server/widgets/roles.js';
 // renderVals step: access. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildAccess(ctx) {
@@ -14,7 +15,12 @@ export function buildAccess(ctx) {
   const catalog = (s.catalog && s.catalog.modules) || [];
   const rightsDef = Object.fromEntries(catalog.map((m) => [m.key, m.rights.map((r) => r.name)]));
   const rightMeta = Object.fromEntries(catalog.map((m) => [m.key, Object.fromEntries(m.rights.map((r) => [r.name, r]))]));
-  const W = s.widgets;
+  // Which features (and so which sidebar items and pages) exist for this person: the ones the organization switched on for them. It is
+  // the organization's choice, not each person's own list: the person's own list only decides what is drawn on their Home. Without the
+  // server (the built-in samples) the person's own list decides, as before.
+  const FEATURES = ['tickets', 'projects', 'files', 'secureshare', 'sessions', 'awards', 'notes', 'chat', 'calendar', 'memos', 'newsletter', 'announcements', 'jobposts', 'performance', 'departments', 'sectors', 'branches', 'units'];
+  const gate = widgetGate(this, s, () => false);
+  const W = this.srv ? FEATURES.filter((id) => gate.allows(id)) : s.widgets;
   // A structure level exists when the organization has created at least one of it (People > Organization structure).
   // Without the server connected, the widgets still decide, as in the sample data.
   const lvl = (k) => (this.srv ? ((this.org && this.org[k]) || []).length > 0 : W.indexOf(k) !== -1);

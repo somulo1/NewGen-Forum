@@ -206,8 +206,8 @@ func (m *Module) Widgets(ctx context.Context, p *tenant.Principal) (map[string]a
 		}
 		if !manage {
 			for id, v := range out {
-				if c, ok := v.(map[string]any); !ok || c["enabled"] == false {
-					delete(out, id) // not switched on (an older setting without the switch counts as on)
+				if c, ok := v.(map[string]any); !ok || c["enabled"] != true {
+					delete(out, id) // only a widget the organization explicitly switched on reaches its people
 				}
 			}
 		}
@@ -260,10 +260,10 @@ func (m *Module) SetWidgets(ctx context.Context, p *tenant.Principal, in map[str
 		// the audit log says which widgets were switched on or off, not only that something changed
 		var on, off []string
 		for id, v := range in {
-			now := v.(map[string]any)["enabled"] != false
+			now := v.(map[string]any)["enabled"] == true
 			was := false
 			if b, ok := before[id].(map[string]any); ok {
-				was = b["enabled"] != false
+				was = b["enabled"] == true
 			}
 			if now && !was {
 				on = append(on, id)
@@ -273,7 +273,7 @@ func (m *Module) SetWidgets(ctx context.Context, p *tenant.Principal, in map[str
 		}
 		for id, v := range before {
 			if _, still := in[id]; !still {
-				if b, ok := v.(map[string]any); ok && b["enabled"] != false {
+				if b, ok := v.(map[string]any); ok && b["enabled"] == true {
 					off = append(off, id)
 				}
 			}
