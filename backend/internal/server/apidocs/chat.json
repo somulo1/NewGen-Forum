@@ -431,6 +431,14 @@
    ]
   }
  },
+ "POST /v1/e2ee/keys/request": {
+  "summary": "Ask colleagues who hold a key to share it with this device",
+  "description": "For a newcomer or a new device that cannot open some conversations yet. Up to a dozen online colleagues who hold the keys are told at once, so one of them hands the key over within a second or two.",
+  "access": "any signed-in member of the organization (token issued with `org`)",
+  "response": {
+   "waiting": "integer. Conversations this device cannot open yet"
+  }
+ },
  "POST /v1/containers/{id}/records": {
   "summary": "Add a record to a project, event, note or folder",
   "description": "A record is one sealed item: a task, milestone, sprint, risk, standup, comment, calendar entry, RSVP or note. The server enforces who may write it and that the few plain `meta` fields are valid; the content stays sealed. Collections and their `meta`: task {column: backlog|todo|doing|review|done, due: date, assignee: uuid, sprint, priority: low|medium|high}, milestone {due, closed}, sprint {start, end, milestone}, risk {level: Low|Medium|High}, standup {day}, rsvp {going: boolean}, note {book: uuid, pinned: boolean}, entry {date, start, repeat, ...}.",

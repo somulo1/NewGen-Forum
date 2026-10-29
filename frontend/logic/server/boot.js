@@ -3,6 +3,7 @@
 import { loadDevice, saveDevice } from './deviceStore.js';
 import { Device, unb64, b64 } from './e2ee.js';
 import { Vault } from './vault.js';
+import { connectRealtime } from './realtime.js';
 import * as keyBackup from './keyBackup.js';
 import * as callsW from './calls.js';
 import * as people from './widgets/people.js';
@@ -60,6 +61,18 @@ export async function startServerSync(logic, request, session, bytes) {
     logic.notify(who + ' now has ' + (n === 1 ? 'a new device' : n + ' new devices') + ' that can read your shared chats. If you did not expect that, compare security codes with them (open their profile card).', '#FFB86B');
   };
   vault.custody().catch(() => {});   // hand keys to colleagues' new devices if they are waiting
+  // Keys move in real time, like a chat app: when this device cannot open something yet, the colleagues who hold the key are told
+  // straight away and one of them hands it over within a second or two; the moment it arrives the screens open what was waiting.
+  const rt = srv.rt || (srv.rt = connectRealtime(srv));
+  let asked = false;
+  rt.on('open', () => { if (asked) return; asked = true; srv.request('POST', '/e2ee/keys/request', {}).catch(() => {}); });
+  rt.on('keys.requested', () => { setTimeout(() => vault.custody().catch(() => {}), Math.random() * 300); });
+  let reloadT = 0;
+  rt.on('keys.shared', () => {
+    vault.keys.clear();
+    clearTimeout(reloadT);
+    reloadT = setTimeout(() => { [wall, forums, dms].forEach((w) => w.load(logic, srv).catch(() => {})); }, 250);
+  });
   // ...and keep doing it while this tab is open: a colleague added to the wall or a forum after you signed in gets their key from
   // whoever of its members is online, so this must not wait for the next sign-in
   clearInterval(srv.custodyT);

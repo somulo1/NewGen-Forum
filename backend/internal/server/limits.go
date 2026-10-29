@@ -35,6 +35,7 @@ var Tiers = map[string]Tier{
 	"POST /v1/files/{id}/shares":          {30, time.Minute},
 	"POST /v1/folders/{id}/files":         {60, time.Minute},
 	"POST /v1/e2ee/devices":               {10, time.Minute},
+	"POST /v1/e2ee/keys/request":          {12, time.Minute},
 	"POST /v1/auth/password":              {5, time.Minute},  // changing a password checks the old one: guessing it must be slow
 	"POST /v1/auth/mfa/confirm":           {10, time.Minute}, // a six-digit code
 	"POST /v1/auth/mfa/setup":             {10, time.Minute},
