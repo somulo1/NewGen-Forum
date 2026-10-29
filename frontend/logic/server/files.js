@@ -47,8 +47,35 @@ export async function openUrl(srv, ref) {
   if (!opening.has(ref.fileId)) opening.set(ref.fileId, fetchUrl(srv, ref).catch(async (e) => { await new Promise((r) => setTimeout(r, 1500)); try { return await fetchUrl(srv, ref); } catch (e2) { console.warn('Could not open attachment ' + ref.fileId + ':', e2); throw e2; } }).finally(() => opening.delete(ref.fileId)));
   return opening.get(ref.fileId);
 }
+// A file's encrypted bytes never change (its id is part of what is authenticated), so this browser keeps the copy it downloaded:
+// the next time the wall opens, the picture comes from here instead of crossing the network again. What is kept is the same
+// ciphertext the server holds; it cannot be read without the key inside the post.
+const CACHE = 'hub-files-v1';
+async function cachedBytes(srv, id) {
+  const url = '/hub-file/' + id;
+  try {
+    if (globalThis.caches) {
+      const c = await caches.open(CACHE);
+      const hit = await c.match(url);
+      if (hit) return new Uint8Array(await hit.arrayBuffer());
+      const data = await srv.bytes('GET', `/files/${id}/content`);
+      c.put(url, new Response(data)).catch(() => {});
+      return data;
+    }
+  } catch (e) { /* no cache here: download as usual */ }
+  return srv.bytes('GET', `/files/${id}/content`);
+}
+
+// A few downloads at a time: each one costs the server a database check, so a wall of twenty pictures must not ask for all at once
+// and push the posts' own requests to the back of the line. Newest posts are asked for first.
+let running = 0; const waiting = [];
+const slot = () => new Promise((go) => { if (running < 4) { running++; go(); } else waiting.push(go); });
+const free = () => { const n = waiting.shift(); if (n) n(); else running--; };
+
 async function fetchUrl(srv, ref) {
-  const data = await srv.bytes('GET', `/files/${ref.fileId}/content`);
+  await slot();
+  let data;
+  try { data = await cachedBytes(srv, ref.fileId); } finally { free(); }
   const k = await subtle().importKey('raw', unb64(ref.key), 'AES-GCM', false, ['decrypt']);
   // files made before the id was authenticated have no extra data: try the new form first, then the old
   let pt;
