@@ -6,7 +6,7 @@
 <div style="position: relative; display: flex; align-items: flex-start; gap: 10px"><div style="flex: 1; min-width: 0"><h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; letter-spacing: -0.02em">Community wall</h1>
 <p style="margin: 4px 0 0; color: var(--k-9DB0A6,#9DB0A6)">Everyone's space to post freely: photos, news, shout-outs, polls.</p></div>
 <button type="button" class="wall-dots" aria-label="Birthdays and trending" :aria-expanded="hl" @click.stop="hl = !hl" style="flex: none; width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; align-items: center; justify-content: center"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button>
-<template v-if="hl"><div class="wall-backdrop" @click="hl = false"></div></template></div>
+<Teleport to="body" :disabled="!phone"><template v-if="hl"><div class="wall-backdrop" @click="hl = false"></div></template></Teleport></div>
 
 <div style="display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px">
 <button @click="momentForm.toggle" :aria-expanded="momentForm.open" style="flex: none; width: 112px; height: 180px; border-radius: 14px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-16201C,#16201C); color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 8px; padding: 14px 8px; box-sizing: border-box">
@@ -155,7 +155,7 @@
 </template>
 </div>
 
-<aside aria-label="Wall highlights" :class="['hub-static', 'wall-aside', { open: hl }]" @click="hl = false" style="flex: 0 1 320px; min-width: 0; position: sticky; top: 0; align-self: flex-start; overflow: visible; display: flex; flex-direction: column; gap: 16px">
+<Teleport to="body" :disabled="!(phone && hl)"><aside aria-label="Wall highlights" :class="['hub-static', 'wall-aside', { open: hl }]" @click="hl = false" style="flex: 0 1 320px; min-width: 0; position: sticky; top: 0; align-self: flex-start; overflow: visible; display: flex; flex-direction: column; gap: 16px">
 <div style="padding: 16px; border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 10px">
 <strong style="font-size: 15px">Birthdays today</strong>
 <span style="font-size: 14px; line-height: 1.5; color: var(--k-C9D6CF,#C9D6CF)">{{ wallBirthdays.has ? wallBirthdays.text : 'No birthdays today.' }}</span>
@@ -175,7 +175,7 @@
 <span v-if="noTrending" style="font-size: 13px; line-height: 1.5; color: var(--k-9DB0A6,#9DB0A6)">No hashtags yet. Add one to a post, like #Tuesday, and it shows up here.</span>
 <template v-for="tg in trending" :key="tg.tag"><button @click="tg.pick" :aria-pressed="tg.on" :style="`text-align: left; padding: 6px 8px; margin: 0 -8px; border: 0; border-radius: 8px; background: ${tg.on ? 'var(--k-22302A,#22302A)' : 'transparent'}; color: ${tg.on ? 'var(--k-B8F36B,#B8F36B)' : 'var(--k-C9D6CF,#C9D6CF)'}; cursor: pointer; font-size: 14px; font-family: inherit`">#{{ tg.tag }}</button></template>
 </div>
-</aside>
+</aside></Teleport>
 </div>
 </template>
 </template>
@@ -185,7 +185,11 @@ import { hubBindings } from '~/composables/useHub';
 
 export default {
   name: 'WallSection',
-  data() { return { hl: false, momentCaption: '', momentBg: '#2B4A63', momentFile: null, postBg: '' }; },
+  data() { return { phone: false, hl: false, momentCaption: '', momentBg: '#2B4A63', momentFile: null, postBg: '' }; },
+  // On a phone the panel is placed against the screen itself (moved out to the page body): inside the scrolling page it was placed
+  // against the page's own top, so it slid up under the header as the page was scrolled.
+  mounted() { this.mq = window.matchMedia('(max-width: 760px)'); this.phone = this.mq.matches; this.onMq = (e) => { this.phone = e.matches; }; this.mq.addEventListener('change', this.onMq); },
+  beforeUnmount() { if (this.mq) this.mq.removeEventListener('change', this.onMq); },
   methods: {
     submitMoment() { if (this.addMoment(this.momentCaption, this.momentBg, this.momentFile)) { this.momentCaption = ''; this.momentFile = null; } },
     submitWallPost() { if (this.onPost(this.postBg)) this.postBg = ''; },
