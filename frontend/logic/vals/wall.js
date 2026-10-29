@@ -24,18 +24,19 @@ export function valsWall(ctx) {
     wallFilter: { active: !!s.wallTag, tag: s.wallTag, clear: () => set({ wallTag: '' }) },
     // Moments (stories): photo, video or text; like, love (double tap), and the owner sees who reacted.
     momentView: (() => {
+      const ME = this.srv ? this.srv.me.name : 'Sam';   // the name a reaction of mine carries
       const react = (kind) => {
         if (!m) return;
         const other = kind === 'likes' ? 'loves' : null;
-        this.setState((st) => ({ moments: st.moments.map((x, i) => (i !== s.momentOpen ? x : { ...x, [kind]: x[kind].indexOf('Sam') !== -1 ? x[kind].filter((n) => n !== 'Sam') : x[kind].concat(['Sam']) })) }));
+        this.setState((st) => ({ moments: st.moments.map((x, i) => (i !== s.momentOpen ? x : { ...x, [kind]: x[kind].indexOf(ME) !== -1 ? x[kind].filter((n) => n !== ME) : x[kind].concat([ME]) })) }));
         wallW.toggleReaction(this, this.srv, m.id, kind === 'likes' ? 'like' : 'love').catch((e) => this.notify(e.message || 'That did not work.', '#FF9B8A'));
       };
-      const loveOn = () => { if (m && m.loves.indexOf('Sam') === -1) react('loves'); };
+      const loveOn = () => { if (m && m.loves.indexOf(ME) === -1) react('loves'); };
       const who = m && m.mine ? m.likes.map((n) => ({ name: n, kind: 'Liked' })).concat(m.loves.map((n) => ({ name: n, kind: 'Loved' }))) : [];
       return { open: !!m, item: m || {}, close: () => set({ momentOpen: null, reactorsOpen: false }),
         next: () => set({ momentOpen: s.momentOpen + 1 < moments.length ? s.momentOpen + 1 : null, reactorsOpen: false }), prev: () => set({ momentOpen: s.momentOpen > 0 ? s.momentOpen - 1 : 0, reactorsOpen: false }),
         counter: m ? (s.momentOpen + 1) + ' / ' + moments.length : '', index: s.momentOpen === null || s.momentOpen === undefined ? -1 : s.momentOpen, total: moments.length,
-        iLiked: !!m && m.likes.indexOf('Sam') !== -1, iLoved: !!m && m.loves.indexOf('Sam') !== -1,
+        iLiked: !!m && m.likes.indexOf(ME) !== -1, iLoved: !!m && m.loves.indexOf(ME) !== -1,
         like: () => react('likes'), love: () => react('loves'), loveOn,
         mine: !!m && m.mine, who, hasWho: who.length > 0, whoOpen: !!s.reactorsOpen, toggleWho: () => set({ reactorsOpen: !s.reactorsOpen }) };
     })(),

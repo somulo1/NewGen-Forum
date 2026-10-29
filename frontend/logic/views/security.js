@@ -32,7 +32,9 @@ export function buildSecurity(ctx) {
     const openDlg = (mode) => () => this.setState({ alertDlg: { id: a.id, mode, outcome: 'Resolved', comment: '', err: '' } });
     return { ...a, sev: sv, color: sevColor[sv], sevStyle: badge(sevColor[sv]), ruleName: r.name, when: a.ago === 0 ? 'Just now' : agoLabel(a.ago), status: st, statusStyle: badge(stC),
       notes, lastNote: notes.length ? notes[notes.length - 1] : null,
-      investigate: openDlg('investigate'), closeAlert: openDlg('close'), falsePos: openDlg('falsepos'), history: openDlg('history'), isOpen: st === 'Open' || st === 'Investigating', canInvestigate: st === 'Open', canClose: st === 'Investigating', canFalsePos: st === 'Open' || st === 'Investigating', isClosed: closed };
+      investigate: openDlg('investigate'), closeAlert: openDlg('close'), falsePos: () => this.srv
+        ? securityW.setAlert(this, this.srv, a.id, 'False positive', '').then(() => this.notify(a.id + ' closed as false positive.', '#7CC4FF')).catch((e) => this.notify((e && e.message) || 'That did not work.', '#FF9B8A'))   // one tap: no comment needed
+        : openDlg('falsepos')(), history: openDlg('history'), isOpen: st === 'Open' || st === 'Investigating', canInvestigate: st === 'Open', canClose: st === 'Investigating', canFalsePos: st === 'Open' || st === 'Investigating', isClosed: closed };
   });
   const openAlerts = alertsAll.filter((a) => a.isOpen);
   const lq = s.lq.trim().toLowerCase();

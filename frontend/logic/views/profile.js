@@ -109,7 +109,7 @@ export function buildProfile(ctx) {
       photo: '', hasPhoto: false, noPhoto: true, editing: false, notEditing: true,
       coverStyle: 'position:relative;height:190px;background:' + ((pd && pd.cover) || opDir.color + '40') + ';overflow:hidden', covers: [],
       complete: 100, completeTip: '', completeBar: '', bio: (pd && pd.bio) || opDir.name + ' works in ' + opDir.dept + ' as ' + opDir.title + '.', phone: (pd && pd.phone) || '', newSkill: '',
-      skills: ((pd && pd.skills && pd.skills.length ? pd.skills : null) || skillsByDept[opDir.dept] || ['Teamwork']).map((n) => ({ name: n, editing: false, remove: () => {} })),
+      skills: ((pd && pd.skills && pd.skills.length ? pd.skills : null) || (this.srv ? [] : (skillsByDept[opDir.dept] || ['Teamwork']))).map((n) => ({ name: n, editing: false, remove: () => {} })),
       facts: [
         { label: 'Department', value: opDir.dept, sub: opDir.title },
         { label: 'Reports to', value: opReport.display, sub: opReport.sub },
