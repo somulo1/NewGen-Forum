@@ -1,6 +1,6 @@
 <!-- Community wall -->
 <template><template v-if="show.feed">
-<div style="width: 100%; display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; justify-content: center">
+<div ref="wallRoot" :class="{ 'wall-narrow': narrow }" style="width: 100%; display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; justify-content: center">
 
 <div style="flex: 999 1 460px; max-width: 760px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
 <div style="position: relative; display: flex; align-items: flex-start; gap: 10px"><div style="flex: 1; min-width: 0"><h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; letter-spacing: -0.02em">Community wall</h1>
@@ -155,7 +155,7 @@
 </template>
 </div>
 
-<aside ref="aside" aria-label="Wall highlights" :class="['hub-static', 'wall-aside', { open: hl }]" :style="hl && phone ? panelPos : null" @click="hl = false" style="flex: 0 1 320px; min-width: 0; position: sticky; top: 0; align-self: flex-start; overflow: visible; display: flex; flex-direction: column; gap: 16px">
+<aside ref="aside" aria-label="Wall highlights" :class="['hub-static', 'wall-aside', { open: hl }]" :style="hl && narrow ? panelPos : null" @click="hl = false" style="flex: 0 1 320px; min-width: 0; position: sticky; top: 0; align-self: flex-start; overflow: visible; display: flex; flex-direction: column; gap: 16px">
 <div style="padding: 16px; border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 10px">
 <strong style="font-size: 15px">Birthdays today</strong>
 <span style="font-size: 14px; line-height: 1.5; color: var(--k-C9D6CF,#C9D6CF)">{{ wallBirthdays.has ? wallBirthdays.text : 'No birthdays today.' }}</span>
@@ -185,27 +185,39 @@ import { hubBindings } from '~/composables/useHub';
 
 export default {
   name: 'WallSection',
-  data() { return { panelPos: '', phone: false, hl: false, momentCaption: '', momentBg: '#2B4A63', momentFile: null, postBg: '' }; },
-  // On a phone the panel is placed against the screen itself (moved out to the page body): inside the scrolling page it was placed
-  // against the page's own top, so it slid up under the header as the page was scrolled.
-  mounted() { this.mq = window.matchMedia('(max-width: 760px)'); this.phone = this.mq.matches; this.onMq = (e) => { this.phone = e.matches; }; window.addEventListener('resize', this.place); this.mq.addEventListener('change', this.onMq); },
-  beforeUnmount() { window.removeEventListener('resize', this.place); if (this.mq) this.mq.removeEventListener('change', this.onMq); },
+  data() { return { panelPos: '', narrow: false, hl: false, momentCaption: '', momentBg: '#2B4A63', momentFile: null, postBg: '' }; },
+  mounted() { this.watchWidth(); window.addEventListener('resize', this.place); },
+  updated() { this.watchWidth(); },
+  beforeUnmount() { window.removeEventListener('resize', this.place); if (this.ro) this.ro.disconnect(); },
   watch: {
     hl(v) { if (v) this.$nextTick(this.place); },
-    phone() { this.$nextTick(this.place); }
+    narrow() { this.$nextTick(this.place); }
   },
   methods: {
-    // On a phone the panel drops down from the three-dot button: its top is the button's lower edge, it is as wide as the screen
-    // allows, and it ends above the bottom bar (it scrolls inside if there is more). It is positioned in the page, so it moves
-    // with the page and keeps the page's colours.
+    // The wall decides by its own width, not the screen's: the space beside the posts shrinks when a side panel is open or the window is
+    // made small. Under 860px the right-hand items move behind the three-dot button.
+    watchWidth() {
+      const el = this.$refs.wallRoot;
+      if (!el || this.watched === el) return;
+      if (this.ro) this.ro.disconnect();
+      this.watched = el;
+      this.ro = new ResizeObserver(() => { const n = el.clientWidth < 860; if (n !== this.narrow) { this.narrow = n; if (!n) this.hl = false; } else if (this.hl) this.place(); });
+      this.ro.observe(el);
+      this.narrow = el.clientWidth < 860;
+    },
+    // The panel drops down from the three-dot button: its top is the button's lower edge, it ends right-aligned with the button, is as
+    // wide as the wall allows (up to 440px), and ends above the bottom bar (it scrolls inside if there is more). It is placed in the
+    // page, so it moves with the page and keeps the page's colours.
     place() {
-      const a = this.$refs.aside, d = this.$refs.dots;
-      if (!a || !d) return;
-      const par = a.offsetParent || document.body, pr = par.getBoundingClientRect(), br = d.getBoundingClientRect();
+      const a = this.$refs.aside, d = this.$refs.dots, root = this.$refs.wallRoot;
+      if (!a || !d || !root) return;
+      const par = a.offsetParent || document.body, pr = par.getBoundingClientRect(), br = d.getBoundingClientRect(), rr = root.getBoundingClientRect();
       const bar = document.querySelector('.hub-tabbar');
-      const barH = bar ? bar.getBoundingClientRect().height : 64;
+      const barH = bar && bar.getBoundingClientRect().height ? bar.getBoundingClientRect().height : 0;
+      const width = Math.min(440, rr.width - 24);
+      const left = Math.max(rr.left + 12, Math.min(br.right - width, rr.right - 12 - width));
       const room = Math.max(160, window.innerHeight - br.bottom - barH - 16);
-      this.panelPos = 'top:' + Math.round(br.bottom - pr.top + 8) + 'px;left:' + Math.round(12 - pr.left) + 'px;width:' + (window.innerWidth - 24) + 'px;max-height:' + Math.round(room) + 'px';
+      this.panelPos = 'top:' + Math.round(br.bottom - pr.top + 8) + 'px;left:' + Math.round(left - pr.left) + 'px;width:' + Math.round(width) + 'px;max-height:' + Math.round(room) + 'px';
     },
     submitMoment() { if (this.addMoment(this.momentCaption, this.momentBg, this.momentFile)) { this.momentCaption = ''; this.momentFile = null; } },
     submitWallPost() { if (this.onPost(this.postBg)) this.postBg = ''; },
@@ -231,11 +243,11 @@ export default {
 <style scoped>
 .wall-dots { display: none; }
 .wall-backdrop { display: none; }
-@media (max-width: 760px) {
-  .wall-dots { display: flex; }
-  .wall-backdrop { display: block; position: fixed; inset: 0; z-index: 40; background: transparent; }
-  .wall-aside { display: none !important; }
-  .wall-aside.open { display: flex !important; position: absolute !important; z-index: 50; flex: none !important; overflow-y: auto; overscroll-behavior: contain; padding: 12px; border-radius: 18px; background: var(--k-121B17,#121B17); border: 1px solid var(--k-24322C,#24322C); gap: 12px; box-shadow: 0 12px 28px rgba(0, 0, 0, 0.3); }
-  .wall-online { display: none !important; }
-}
+/* When the wall itself is narrow (a small phone, or a desktop window or side panel made small), the right-hand items do not squeeze in
+   or drop under the posts: they sit behind the three-dot button and open from it. */
+.wall-narrow .wall-dots { display: flex; }
+.wall-narrow .wall-backdrop { display: block; position: fixed; inset: 0; z-index: 40; background: transparent; }
+.wall-narrow .wall-aside { display: none !important; }
+.wall-narrow .wall-aside.open { display: flex !important; position: absolute !important; z-index: 50; flex: none !important; overflow-y: auto; overscroll-behavior: contain; padding: 12px; border-radius: 18px; background: var(--k-121B17,#121B17); border: 1px solid var(--k-24322C,#24322C); gap: 12px; box-shadow: 0 12px 28px rgba(0, 0, 0, 0.3); }
+.wall-narrow .wall-online { display: none !important; }
 </style>
