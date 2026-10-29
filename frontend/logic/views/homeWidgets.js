@@ -120,7 +120,8 @@ export function buildHomeWidgets(ctx) {
     if (c.see === 'Specific groups') return (c.groups || []).some(inGroup);   // only for the groups it named
     return true;
   };
-  const ids = [...new Set(s.widgets)].filter((x) => catalog[x] && orgAllows(x) && (LEVELS.indexOf(x) === -1 || has[x] || (s.levelsAdded || {})[x]));
+  const loadingHome = !!this.srv && !s.widgetsReady;   // signed in, and the organization's widget settings have not arrived yet
+  const ids = loadingHome ? [] : [...new Set(s.widgets)].filter((x) => catalog[x] && orgAllows(x) && (LEVELS.indexOf(x) === -1 || has[x] || (s.levelsAdded || {})[x]));
   const isHidden = (id) => s.hiddenWidgets.indexOf(id) !== -1;
   const toggleHide = (id) => () => this.setState((st) => ({ hiddenWidgets: st.hiddenWidgets.indexOf(id) !== -1 ? st.hiddenWidgets.filter((x) => x !== id) : st.hiddenWidgets.concat([id]) }));
   const removeWidget = (id) => this.setState((st) => {
@@ -187,5 +188,5 @@ export function buildHomeWidgets(ctx) {
   // today's birthdays, for the Community wall card
   const bToday = celebrations.filter((c) => c.at === 0 && /^Birthday/.test(c.what));
   const wallBirthdays = { has: bToday.length > 0, text: bToday.length ? bToday[0].name + (bToday.length > 1 ? ' and ' + (bToday.length - 1) + (bToday.length === 2 ? ' other' : ' others') : '') + '. Send them a wish on the wall.' : '', names: bToday.map((c) => c.name) };
-  return { catalog, cur_f, folders, fv, gallery, ids, isHidden, toggleHide, wallBirthdays, widgets };
+  return { catalog, cur_f, folders, fv, gallery, ids, isHidden, loadingHome, toggleHide, wallBirthdays, widgets };
 }

@@ -93,12 +93,12 @@ export async function startServerSync(logic, request, session, bytes) {
   };
   await loadOne(people);
   // the chats start as soon as the directory is in, alongside roles and the organization (they only need the directory)
-  await Promise.all([roles, orgW].map(loadOne));
+  await Promise.all([roles, orgW, prefs].map(loadOne));   // the home layout and the organization's widget settings come before anything is drawn
   logic._accessPending = false;
   logic.forceUpdate();
   // The rest load side by side (each used to wait for the one before it, one slow round trip after another). Awards and notes
   // read the forum lists, so they start when the chats are in.
-  const rest = WIDGETS.filter((x) => ![people, roles, orgW].includes(x));
+  const rest = WIDGETS.filter((x) => ![people, roles, orgW, prefs].includes(x));
   const afterChats = [awards, notes];
   const chats = Promise.all([forums, dms].map(loadOne));
   await Promise.all([

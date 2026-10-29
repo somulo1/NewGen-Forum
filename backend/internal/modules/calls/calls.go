@@ -52,12 +52,13 @@ type Call struct {
 }
 
 type Entry struct {
-	Call  *Call       `json:"call"`
-	Token string      `json:"token,omitempty"`
-	URL   string      `json:"url,omitempty"`
-	Mode  string      `json:"mode"` // "mesh": small peer-to-peer room on the calls service. "sfu": big room on a media server.
-	SFU   *SFUInfo    `json:"sfu,omitempty"`
-	ICE   []ICEServer `json:"ice,omitempty"` // STUN and TURN servers the browsers use to find each other across networks
+	Call   *Call       `json:"call"`
+	Token  string      `json:"token,omitempty"`
+	URL    string      `json:"url,omitempty"`
+	Mode   string      `json:"mode"` // "mesh": small peer-to-peer room on the calls service. "sfu": big room on a media server.
+	SFU    *SFUInfo    `json:"sfu,omitempty"`
+	Online *bool       `json:"online,omitempty"` // private calls: whether the other person is signed in right now (false: they will only see a missed call)
+	ICE    []ICEServer `json:"ice,omitempty"`    // STUN and TURN servers the browsers use to find each other across networks
 }
 
 type StartIn struct {
@@ -167,6 +168,11 @@ func (m *Module) Start(ctx context.Context, p *tenant.Principal, in StartIn) (*E
 	})
 	if err != nil {
 		return nil, err
+	}
+	if in.Context == "dm" && len(invited) == 1 {
+		n, _ := m.A.Rdb.Exists(ctx, "pres:"+p.Org.String()+":"+invited[0].String()).Result()
+		on := n > 0
+		out.Online = &on
 	}
 	d, _ := json.Marshal(map[string]any{"call": out.Call.ID, "kind": in.Kind, "context": in.Context, "conversation": in.Conversation, "from": p.Person, "from_name": p.Name})
 	typ := "call.started"

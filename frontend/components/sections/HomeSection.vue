@@ -9,6 +9,9 @@
 </template>
 </div>
 
+<template v-if="loadingHome">
+<div role="status" style="padding: 40px 20px; border-radius: 18px; border: 1px dashed var(--k-4A5C54,#4A5C54); text-align: center; color: var(--k-9DB0A6,#9DB0A6)">Loading your home…</div>
+</template>
 <template v-if="noWidgets">
 <div style="padding: 40px 20px; border-radius: 18px; border: 1px dashed var(--k-4A5C54,#4A5C54); text-align: center; color: var(--k-9DB0A6,#9DB0A6)">No widgets yet. Use Add widget to build your home page.</div>
 </template>
@@ -326,6 +329,6 @@ import { hubBindings } from '~/composables/useHub';
 
 export default {
   name: 'HomeSection',
-  ...hubBindings(["noteWidget","awardStrip","awardsOn","canCustomize","canWidgetsPage","customizeBtnStyle","customizeLabel","customizing","noWidgets","openAward","openGallery","secureShare","show","toggleCustomize","toggleNewDm","widgets"])
+  ...hubBindings(["noteWidget","awardStrip","awardsOn","canCustomize","canWidgetsPage","customizeBtnStyle","customizeLabel","customizing","loadingHome","noWidgets","openAward","openGallery","secureShare","show","toggleCustomize","toggleNewDm","widgets"])
 };
 </script>
