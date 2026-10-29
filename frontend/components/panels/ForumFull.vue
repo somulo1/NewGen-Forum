@@ -51,6 +51,7 @@
 <div style="flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px">
 <div :ref="chatRef" @click="onActivityClick" style="width: 100%; flex: 1; min-height: 0; box-sizing: border-box; overflow-y: auto">
 <div style="max-width: 900px; min-height: 100%; box-sizing: border-box; margin: 0 auto; padding: 18px clamp(16px, 3vw, 32px); display: flex; flex-direction: column; gap: 12px">
+<template v-if="olderCount > 0 || moreOlder"><button type="button" @click="showOlder" style="align-self: center; height: 32px; padding: 0 14px; border-radius: 16px; border: 1px solid var(--k-6B7A72,#6B7A72); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; font-size: 12px">{{ olderCount > 0 ? 'Show ' + olderCount + ' earlier ' + (olderCount === 1 ? 'message' : 'messages') : 'Load earlier messages' }}</button></template>
 <template v-for="(u, u__i) in cur.topics" :key="u__i">
 <div style="display: flex; gap: 14px; padding: 16px; border-radius: 14px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); touch-action: pan-y" @pointerdown="u.startHold" @pointerup="u.stopHold" @pointerleave="u.stopHold" @pointercancel="u.stopHold" @contextmenu="u.openActions">
 <UserAvatar :name="u.who" :initials="u.initials" :color="u.color" :size="40"/>
@@ -155,7 +156,7 @@ export default {
   components: { CallScreen, ChatSharedFiles, SecureInboxCard },
   props: { fit: { type: String, default: 'screen' } },
   computed: {
-    ...hubBindings(["mentionList","onActivityClick","canAddToForum","addErr","addOpen","addBusy","toggleAdd","addPersonToForum","pickerPeople","forumMemberIds","pickEmojiForum","attachForum","chatRef","replyBar","chatCtl","closeChatFolder","composerNote","composerOff","cur","fKey","fdraft","fileFolders","ftab","has","inviteOpen","inviteText","inviteErr","inviteBusy","onInviteText","sendInvites","isFullForum","isPageForum","onFDraftValue","openChatFolder","pollView","selectedChatFolder","sendForum","showPanelCall","tab","tabTo","toClosed","toDocked","toFull","toMin","toPage","toggleInvite","videoCall","voiceCall"]).computed,
+    ...hubBindings(["olderCount","moreOlder","showOlder","mentionList","onActivityClick","canAddToForum","addErr","addOpen","addBusy","toggleAdd","addPersonToForum","pickerPeople","forumMemberIds","pickEmojiForum","attachForum","chatRef","replyBar","chatCtl","closeChatFolder","composerNote","composerOff","cur","fKey","fdraft","fileFolders","ftab","has","inviteOpen","inviteText","inviteErr","inviteBusy","onInviteText","sendInvites","isFullForum","isPageForum","onFDraftValue","openChatFolder","pollView","selectedChatFolder","sendForum","showPanelCall","tab","tabTo","toClosed","toDocked","toFull","toMin","toPage","toggleInvite","videoCall","voiceCall"]).computed,
     shown() { return this.fit === 'page' ? !!this.isPageForum : !!this.isFullForum; },
     rootStyle() {
       const base = 'background: var(--k-0F1714,#0F1714); display: flex; flex-direction: column; overflow: hidden; box-sizing: border-box;';

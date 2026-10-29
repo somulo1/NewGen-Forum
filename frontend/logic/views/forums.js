@@ -157,5 +157,19 @@ export function buildForums(ctx) {
   const selectedChatFolder = fileFolders.find((folder) => folder.id === s.chatFileFolder) || null;
   this._chatKey = (isDM ? curDm.id : cur.id) + ':' + curView.chat.length;
   const wfiles = s.wfiles.map((w) => ({ ...w, notImg: !w.isImg, remove: () => this.setState((st) => ({ wfiles: st.wfiles.filter((x) => x.id !== w.id) })) }));
-  return { cur, curDm, curView, dmPerson, dmStatusCol, dmView, fileFolders, forums, forumsData, isDM, selectedChatFolder, wfiles };
+  // Only the newest messages are drawn (a chat of hundreds of messages made every open and every keystroke slow); "Show earlier"
+  // brings back more, a page at a time. Everything else (files, search) still uses the whole chat.
+  const chatKey = isDM ? 'dm:' + curDm.id : 'f:' + cur.id;
+  const shown = 50 + ((s.chatMore || {})[chatKey] || 0);
+  const olderCount = Math.max(0, curView.chat.length - shown);
+  const moreOlder = isDM ? !!(curDm && curDm.more) : !!cur.more;   // the server has older messages that are not loaded yet
+  const curShown = olderCount ? { ...curView, chat: curView.chat.slice(olderCount), topics: curView.topics.length ? curView.topics.slice(olderCount) : curView.topics } : curView;
+  const showOlder = () => {
+    this.setState((st) => ({ chatMore: { ...(st.chatMore || {}), [chatKey]: ((st.chatMore || {})[chatKey] || 0) + 50 } }));
+    // running out of loaded messages: fetch the next page from the server, in the background
+    if (this.srv && moreOlder && olderCount <= 50) {
+      (isDM ? dmsW.loadOlder(this, this.srv, curDm.id) : forumsW.loadOlder(this, this.srv, cur.id)).catch((e) => this.notify((e && e.message) || 'Could not load earlier messages.', '#FF9B8A'));
+    }
+  };
+  return { cur, curShown, olderCount, moreOlder, showOlder, curDm, curView, dmPerson, dmStatusCol, dmView, fileFolders, forums, forumsData, isDM, selectedChatFolder, wfiles };
 }

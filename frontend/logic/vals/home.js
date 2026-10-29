@@ -1,7 +1,7 @@
 import * as wallW from '~/logic/server/widgets/wall.js';
 // Values and handlers the templates read through hubBindings: home.
 export function valsHome(ctx) {
-  const { loadingHome, canPost, curView, fileFolders, files, forums, ftab, gallery, go, ids, moments, nav, people, posts, s, selectedChatFolder, sessions, set, show, tab, tabTo, tickets, wfiles, widgets } = ctx;
+  const { loadingHome, canPost, curView, curShown, olderCount, moreOlder, showOlder, fileFolders, files, forums, ftab, gallery, go, ids, moments, nav, people, posts, s, selectedChatFolder, sessions, set, show, tab, tabTo, tickets, wfiles, widgets } = ctx;
   return {
     secureShare: {
       draft: s.secureShareDraft,
@@ -60,7 +60,7 @@ export function valsHome(ctx) {
     toggleCustomize: () => this.setState((st) => ({ customize: !st.customize })),
     customizeLabel: s.customize ? 'Done' : 'Customize',
     customizeBtnStyle: 'height:40px;padding:0 18px;border-radius:20px;font-weight:600;cursor:pointer;' + (s.customize ? 'border:0;background:var(--k-E8EFEA,#E8EFEA);color:var(--k-0F1714,#0F1714)' : 'border:1px solid var(--k-2A3832,#2A3832);background:transparent;color:var(--k-E8EFEA,#E8EFEA)'),
-    forums, cur: curView, nav, go, show, tab, tabTo, ftab, posts, sessions, tickets, files, fileFolders, selectedChatFolder, people, moments,
+    forums, cur: curShown, olderCount, moreOlder, showOlder, nav, go, show, tab, tabTo, ftab, posts, sessions, tickets, files, fileFolders, selectedChatFolder, people, moments,
     openChatFolder: (folder) => this.setState({ chatFileFolder: folder.id }),
     closeChatFolder: () => this.setState({ chatFileFolder: null }),
     wfiles,
