@@ -153,7 +153,7 @@ export function buildWall(ctx) {
   const pollReady = !!(s.wpoll && s.wpoll.opts.filter((o) => o.trim()).length >= 2 && s.draft.trim());
   const canPost = s.draft.trim().length > 0 && (!s.wpoll || pollReady) || s.wfiles.length > 0;
   const pw = Math.min(s.pw, this.panelMax());
-  const panelStyle = 'position:relative;flex:0 0 ' + pw + 'px;width:' + pw + 'px;max-width:60%;min-height:0;box-sizing:border-box;margin:12px;border-radius:22px;border:1px solid var(--k-2A3832,#2A3832);background:var(--k-131D19,#131D19);box-shadow:0 12px 36px rgba(0,0,0,0.35);display:flex;flex-direction:column;overflow:hidden';
+  const panelStyle = 'position:relative;flex:0 0 ' + pw + 'px;width:' + pw + 'px;max-width:60%;min-height:0;box-sizing:border-box;margin:12px;border-radius:22px;border:2px solid var(--k-6B7A72,#6B7A72);background:var(--k-131D19,#131D19);box-shadow:none;display:flex;flex-direction:column;overflow:hidden';
   const prio = (p) => {
     const c = { High: '#FF9B8A', Medium: '#FFB86B', Low: '#9DB0A6' }[p];
     return 'padding:3px 10px;border-radius:12px;font-size:12px;font-weight:600;border:1px solid ' + c + ';color:' + c;
