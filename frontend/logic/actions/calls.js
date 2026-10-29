@@ -15,9 +15,10 @@ export const callsActions = {
     if (this.callBusy()) return;
     clearInterval(this._ct);
     this._ct = setInterval(() => this.forceUpdate(), 1000);
-    const ns = { call: { mode: mode, title: title, initials: initials, color: color, start: Date.now(), people: people || null, context: context || null, ref: ref || null, dir: dir || 'out' }, callMode: 'full', personOpen: null, mic: true, callOff: {}, cam: mode === 'video', sharing: false, hand: false, rec: false, callPanel: null, menu: false };
+    const ns = { call: { mode: mode, title: title, initials: initials, color: color, start: Date.now(), people: people || null, context: context || null, ref: ref || null, dir: dir || 'out' }, callMode: 'docked', personOpen: null, mic: true, callOff: {}, cam: mode === 'video', sharing: false, hand: false, rec: false, callPanel: null, menu: false };
     if ((context === 'dm' || context === 'forum') && this.state.mode !== 'docked' && this.state.mode !== 'full' && this.state.mode !== 'page') ns.mode = 'docked';
     this.setState(ns);
+    this.showCallChat(context, ref);
     if (this.srv) {
       this.setState({ callMsgs: [], callDraft: '', sharing: false, hand: false });
       // a real call: the server opens the room (or this.joinCallId joins the one that rang)
@@ -28,6 +29,16 @@ export const callsActions = {
     }
     // The caller hears ringing until the other side answers; the person who accepted a call does not.
     if ((context === 'dm' || context === 'forum') && dir !== 'in') startRingback(3200);
+  },
+
+  // The call takes the place of the chat it belongs to (the chat comes back when the call ends), so that chat must be the one open.
+  showCallChat(context, ref) {
+    if (context === 'dm') {
+      const d = this.state.dms.find((x) => x.with === ref);
+      if (d) this.setState((st) => ({ dmId: d.id, panelKind: 'dm', mode: this.isMobileViewport() ? 'page' : st.mode === 'full' || st.mode === 'page' ? st.mode : 'docked' }));
+    } else if (context === 'forum' && ref) {
+      this.setState((st) => ({ forum: ref, panelKind: 'forum', mode: this.isMobileViewport() ? 'page' : st.mode === 'full' || st.mode === 'page' ? st.mode : 'docked' }));
+    }
   },
 
   startDmCall(kind, name, initials, color, dir) {

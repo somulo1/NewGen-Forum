@@ -11,6 +11,7 @@ export async function load(logic, srv) {
   const patch = {};
   PERSONAL.forEach((k) => { if (prefs[k] !== undefined) patch[k] = prefs[k]; });
   try { patch.wcfg = await srv.request('GET', '/settings/widgets'); } catch (e) { /* not allowed to see it */ }
+  patch.widgetsReady = true;   // the home page may now decide which widgets to show
   logic.setState(patch);
   watch(logic, srv);
 }

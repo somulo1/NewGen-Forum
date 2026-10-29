@@ -1,7 +1,7 @@
 import * as wallW from '~/logic/server/widgets/wall.js';
 // Values and handlers the templates read through hubBindings: home.
 export function valsHome(ctx) {
-  const { canPost, curView, fileFolders, files, forums, ftab, gallery, go, ids, moments, nav, people, posts, s, selectedChatFolder, sessions, set, show, tab, tabTo, tickets, wfiles, widgets } = ctx;
+  const { loadingHome, canPost, curView, fileFolders, files, forums, ftab, gallery, go, ids, moments, nav, people, posts, s, selectedChatFolder, sessions, set, show, tab, tabTo, tickets, wfiles, widgets } = ctx;
   return {
     secureShare: {
       draft: s.secureShareDraft,
@@ -47,7 +47,8 @@ export function valsHome(ctx) {
       }
     },
     widgets, gallery,
-    noWidgets: ids.length === 0,
+    noWidgets: ids.length === 0 && !loadingHome,
+    loadingHome,
     openGallery: go.widgets,
     closeGallery: go.home,
     wgTab: { all: s.wgFilter === 'all', added: s.wgFilter === 'added', available: s.wgFilter === 'available' },
