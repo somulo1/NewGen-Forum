@@ -128,6 +128,9 @@ export const useBackend = () => {
       const t = await raw('POST', '/auth/login', { email: e, password, ...(totp ? { totp } : {}) });
       const s = toSession(t, e.toLowerCase());
       write(s);
+      // The account's device keys come back to this browser (locked with the password, which is only here for this moment), so posts,
+      // forums and private chats open on any browser or phone. A failure here must not stop the sign-in.
+      try { const kb = await import('~/logic/server/keyBackup.js'); await kb.onLogin((m: string, p: string, b?: unknown) => raw(m, p, b, s.access), s.account, password); } catch (x) { /* signs in without it */ }
       return s;
     },
     async signup(name: string, email: string, password: string, quiz: { question: string; answer: string }[]) {
@@ -136,6 +139,7 @@ export const useBackend = () => {
     async logout() {
       const s = read();
       write(null);
+      try { sessionStorage.removeItem('hub-keybackup'); } catch (x) { /* nothing to clear */ }
       if (s) { try { await raw('POST', '/auth/logout', { refresh_token: s.refresh }, s.access); } catch (e) { /* already signed out server-side */ } }
     },
     request,

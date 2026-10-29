@@ -3,6 +3,7 @@
 import { loadDevice, saveDevice } from './deviceStore.js';
 import { Device, unb64, b64 } from './e2ee.js';
 import { Vault } from './vault.js';
+import * as keyBackup from './keyBackup.js';
 import * as callsW from './calls.js';
 import * as people from './widgets/people.js';
 import * as comms from './widgets/comms.js';
@@ -49,6 +50,7 @@ async function openDevice(request, session) {
 export async function startServerSync(logic, request, session, bytes) {
   if (logic.srv) return logic.srv;
   const { device, deviceId } = await openDevice(request, session);
+  keyBackup.finish(request, session.account, device).catch(() => {});   // the account's keys are kept safe on the server for the next browser
   const me = await request('GET', '/me');
   const vault = new Vault(request, { org: session.org.id, account: session.account, person: session.org.person, device, deviceId });
   const srv = { request, bytes, vault, session, me, personOf: new Map(), nameOf: new Map(), reload: {} };

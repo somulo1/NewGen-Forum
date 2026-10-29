@@ -61,6 +61,13 @@ export function startSessionGuard({ logic, be, goLogin }) {
     stops.push(() => rtOff && rtOff());
   };
   watchRealtime();
+  // Without waiting for the live connection: a sign-in on another browser or phone ends this session, so ask the server now and then
+  // and the moment this tab is looked at again. A 401 for an ended session signs this tab out at once.
+  const probe = () => { if (!document.hidden) be.request('GET', '/auth/session').catch(() => {}); };
+  const probeT = setInterval(probe, 15000);
+  document.addEventListener('visibilitychange', probe);
+  window.addEventListener('focus', probe);
+  stops.push(() => { clearInterval(probeT); document.removeEventListener('visibilitychange', probe); window.removeEventListener('focus', probe); });
 
   // ---- activity ----
   let lastActive = Date.now(), lastSent = 0, timer = 0, limitMs = 0;
