@@ -1,4 +1,4 @@
-import { widgetGate } from '~/logic/widgetAccess.js';
+import { widgetGate, switchedOn } from '~/logic/widgetAccess.js';
 import * as calendarW from '~/logic/server/widgets/calendar.js';
 import * as commsW from '~/logic/server/widgets/comms.js';
 import * as dmsW from '~/logic/server/widgets/dms.js';
@@ -165,12 +165,15 @@ export function buildHomeWidgets(ctx) {
       return { widgets: w };
     })
   }));
-  const gallery = Object.keys(catalog).filter((id) => (id !== 'performance' || has.structure) && orgAllows(id)).map((id) => {
+  // the gallery: what the organization switched on for this person; people who manage widget settings also see the rest, to switch them on
+  const gallery = Object.keys(catalog).filter((id) => (id !== 'performance' || has.structure) && (orgAllows(id) || (gate.manage && !switchedOn(s.wcfg, id)))).map((id) => {
     const added = ids.indexOf(id) !== -1;
-    return { ...catalog[id], added, hidden: added && isHidden(id), hideLabel: isHidden(id) ? 'Show on Home' : 'Hide on Home', toggleHide: toggleHide(id), remove: () => removeWidget(id), btnLabel: added ? 'Added' : 'Add to home',
+    return { ...catalog[id], added, hidden: added && isHidden(id), hideLabel: isHidden(id) ? 'Show on Home' : 'Hide on Home', toggleHide: toggleHide(id), remove: () => removeWidget(id), btnLabel: added ? 'Added' : (switchedOn(s.wcfg, id) ? 'Add to home' : 'Switch on and add'),
       openSettings: () => this.setState({ settingsFor: id }),
       btnStyle: 'flex:1;height:38px;border-radius:10px;font-weight:600;cursor:' + (added ? 'default' : 'pointer') + ';' + (added ? 'border:1px solid var(--k-2A3832,#2A3832);background:transparent;color:var(--k-9DB0A6,#9DB0A6)' : 'border:0;background:#B8F36B;color:#0F1714'),
-      add: () => { if (!added) this.setState((st) => ({ widgets: st.widgets.indexOf(id) !== -1 ? st.widgets : st.widgets.concat(id), levelsAdded: LEVELS.indexOf(id) !== -1 ? { ...(st.levelsAdded || {}), [id]: true } : (st.levelsAdded || {}) })); } };
+      orgOff: !switchedOn(s.wcfg, id),
+      switchOn: () => this.setState((st) => ({ wcfg: { ...st.wcfg, [id]: Object.assign({ title: catalog[id].title, see: 'Everyone', manage: 'Admins' }, st.wcfg[id] || {}, { enabled: true }) } })),
+      add: () => { if (!switchedOn(s.wcfg, id)) { this.setState((st) => ({ wcfg: { ...st.wcfg, [id]: Object.assign({ title: catalog[id].title, see: 'Everyone', manage: 'Admins' }, st.wcfg[id] || {}, { enabled: true }) } })); } if (!added) this.setState((st) => ({ widgets: st.widgets.indexOf(id) !== -1 ? st.widgets : st.widgets.concat(id), levelsAdded: LEVELS.indexOf(id) !== -1 ? { ...(st.levelsAdded || {}), [id]: true } : (st.levelsAdded || {}) })); } };
   });
   // today's birthdays, for the Community wall card
   const bToday = celebrations.filter((c) => c.at === 0 && /^Birthday/.test(c.what));
