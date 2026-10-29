@@ -242,6 +242,8 @@ func (s *Service) AddKeys(ctx context.Context, p *tenant.Principal, id uuid.UUID
 	})
 	if err == nil {
 		s.A.Publish(ctx, realtime.Event{Type: "keys.updated", Channel: realtime.ConvChannel(id), Org: p.Org.String()})
+		// tell the people who just received a key, wherever they are looking, so their screens open the conversation now
+		go s.tellKeyed(context.Background(), p.Org, id, keys)
 	}
 	return n, err
 }
@@ -461,4 +463,34 @@ func (s *Service) SetMemberRole(ctx context.Context, p *tenant.Principal, id, pe
 		}
 		return s.A.Sign.Seal(ctx, tx, "conversation_members", "conversation_id=$1", id)
 	})
+}
+
+// tellKeyed sends "keys.shared" to the accounts whose devices were just given a key to a conversation.
+func (s *Service) tellKeyed(ctx context.Context, org, conv uuid.UUID, keys []KeyWrap) {
+	devs := make([]uuid.UUID, 0, len(keys))
+	for _, k := range keys {
+		devs = append(devs, k.Device)
+	}
+	var accts []uuid.UUID
+	if err := s.A.DB.WithOrg(ctx, org, func(tx pgx.Tx) error {
+		rs, err := tx.Query(ctx, `select distinct account_id from hub.devices where id = any($1)`, devs)
+		if err != nil {
+			return err
+		}
+		defer rs.Close()
+		for rs.Next() {
+			var a uuid.UUID
+			if err := rs.Scan(&a); err != nil {
+				return err
+			}
+			accts = append(accts, a)
+		}
+		return rs.Err()
+	}); err != nil {
+		return
+	}
+	d, _ := json.Marshal(map[string]any{"conversation": conv})
+	for _, a := range accts {
+		s.A.Publish(ctx, realtime.Event{Type: "keys.shared", Channel: realtime.AcctChannel(a), Org: org.String(), Data: d})
+	}
 }

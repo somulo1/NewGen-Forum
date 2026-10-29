@@ -163,7 +163,7 @@ export class Vault {
     let c = await this.conversation(conv);
     let key = await this.keyFor(conv, c.epoch);
     if (!key) { c = await this.conversation(conv, true); key = await this.keyFor(conv, c.epoch); }
-    if (!key) throw new Error('This device does not have the key for this conversation yet.');
+    if (!key) throw new Error('You do not have the key for this conversation yet. It is shared with you automatically as soon as someone who already has it is online (this can take up to a minute). Try again shortly.');
     const env = await this.device.seal(key, fromText(typeof payload === 'string' ? payload : JSON.stringify(payload)), { org: this.org, conversation: conv, sender: this.account, id, epoch: c.epoch });
     return { id, epoch: c.epoch, device: this.deviceId, envelope: b64(env) };
   }
