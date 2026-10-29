@@ -23,6 +23,7 @@ import (
 	"hub/internal/crypto"
 	"hub/internal/httpx"
 	"hub/internal/orgsettings"
+	"hub/internal/realtime"
 	"hub/internal/tenant"
 )
 
@@ -190,26 +191,103 @@ func (m *Module) SetSecurity(ctx context.Context, p *tenant.Principal, in orgset
 	return err
 }
 
-// Widgets is the organization-wide configuration of the home widgets (titles, who sees them, who manages them).
+// Widgets is the organization-wide configuration of the home widgets (titles, who sees them, who manages them, and whether the
+// organization has switched each one on). A widget the organization switched on is what its people get: someone who does not manage
+// widget settings is sent only the switched-on ones, so a widget that was never switched on does not even reach their screen.
 func (m *Module) Widgets(ctx context.Context, p *tenant.Principal) (map[string]any, error) {
 	out := map[string]any{}
-	err := m.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error { return orgsettings.Get(ctx, m.A, tx, p.Org, "widgets", &out) })
+	err := m.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
+		if err := orgsettings.Get(ctx, m.A, tx, p.Org, "widgets", &out); err != nil {
+			return err
+		}
+		manage, err := authz.Can(ctx, tx, p.Person, "home", "Manage widget settings")
+		if err != nil {
+			return err
+		}
+		if !manage {
+			for id, v := range out {
+				if c, ok := v.(map[string]any); !ok || c["enabled"] == false {
+					delete(out, id) // not switched on (an older setting without the switch counts as on)
+				}
+			}
+		}
+		return nil
+	})
 	return out, err
+}
+
+var widgetID = regexp.MustCompile(`^[a-z][a-z0-9_]{0,31}$`)
+
+// validWidgets checks the shape of the configuration before it is saved: a widget id maps to an object, `enabled` is a yes or no, and
+// who may see it is one of the known choices.
+func validWidgets(in map[string]any) error {
+	if len(in) > 80 {
+		return httpx.Bad("That is too many widgets.")
+	}
+	for id, v := range in {
+		c, ok := v.(map[string]any)
+		if !widgetID.MatchString(id) || !ok {
+			return httpx.Bad("A widget setting is not valid.")
+		}
+		if e, has := c["enabled"]; has {
+			if _, isBool := e.(bool); !isBool {
+				return httpx.Bad("Switched on must be yes or no.")
+			}
+		}
+		if see, has := c["see"]; has && see != "Everyone" && see != "Specific groups" {
+			return httpx.Bad("Choose who can see the widget from the list.")
+		}
+	}
+	return nil
 }
 
 func (m *Module) SetWidgets(ctx context.Context, p *tenant.Principal, in map[string]any) error {
 	if raw, _ := json.Marshal(in); len(raw) > 32<<10 {
 		return httpx.Bad("That is too much widget configuration.")
 	}
-	return m.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
+	if err := validWidgets(in); err != nil {
+		return err
+	}
+	var before map[string]any
+	err := m.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
 		if err := authz.Require(ctx, tx, p.Person, "home", "Manage widget settings"); err != nil {
 			return err
 		}
+		_ = orgsettings.Get(ctx, m.A, tx, p.Org, "widgets", &before)
 		if err := orgsettings.Set(ctx, m.A, tx, p.Org, "widgets", in); err != nil {
 			return err
 		}
-		return m.A.Audit(ctx, tx, p.Org, &p.Person, p.Name, "Changed the home widget settings", "Settings", p.IP, nil)
+		// the audit log says which widgets were switched on or off, not only that something changed
+		var on, off []string
+		for id, v := range in {
+			now := v.(map[string]any)["enabled"] != false
+			was := false
+			if b, ok := before[id].(map[string]any); ok {
+				was = b["enabled"] != false
+			}
+			if now && !was {
+				on = append(on, id)
+			} else if !now && was {
+				off = append(off, id)
+			}
+		}
+		for id, v := range before {
+			if _, still := in[id]; !still {
+				if b, ok := v.(map[string]any); ok && b["enabled"] != false {
+					off = append(off, id)
+				}
+			}
+		}
+		slices.Sort(on)
+		slices.Sort(off)
+		return m.A.Audit(ctx, tx, p.Org, &p.Person, p.Name, "Changed the home widget settings", "Settings", p.IP, map[string]any{"switched_on": on, "switched_off": off})
 	})
+	if err != nil {
+		return err
+	}
+	// everyone signed in to this organization is told, so the change shows on their screen now, not at their next sign-in
+	m.A.Publish(ctx, realtime.Event{Type: "widgets.changed", Channel: realtime.OrgChannel(p.Org), Org: p.Org.String(), Actor: p.Person.String()})
+	return nil
 }
 
 // monthly price of a subscription in major units

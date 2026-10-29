@@ -31,9 +31,19 @@ function watch(logic, srv) {
     const wcfg = JSON.stringify(s.wcfg || {});
     if (wcfg !== saved.wcfg) {
       saved.wcfg = wcfg;
-      srv.request('PUT', '/settings/widgets', s.wcfg || {}).catch((e) => console.warn('Could not save the widget settings:', e.message));
+      srv.request('PUT', '/settings/widgets', s.wcfg || {}).catch((e) => {
+        // not saved (no right, or the server refused it): say so, and show what the organization really has
+        logic.notify((e && e.message) || 'The widget settings could not be saved.', '#FF9B8A');
+        reloadCfg();
+      });
     }
   };
+  // what the organization has set, as the server holds it (also after someone else changed it)
+  async function reloadCfg() {
+    try { const w = await srv.request('GET', '/settings/widgets'); saved.wcfg = JSON.stringify(w); logic.setState({ wcfg: w }); } catch (e) { /* keeps what it has */ }
+  }
+  // another administrator switched widgets on or off: it shows here now, without a reload
+  if (srv.rt) srv.rt.on('widgets.changed', (ev) => { if (ev && ev.actor === srv.me.person) return; reloadCfg(); });
   const orig = logic.setState.bind(logic);
   logic.setState = (update, done) => { orig(update, done); clearTimeout(timer); timer = setTimeout(flush, 700); };
 }
