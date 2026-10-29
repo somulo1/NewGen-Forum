@@ -78,7 +78,7 @@ export default {
     rootStyle() {
       const base = 'background: var(--k-0F1714,#0F1714); display: flex; flex-direction: column; overflow: hidden; box-sizing: border-box;';
       return this.fit === 'page'
-        ? base + ' position: absolute; inset: 24px 12px 12px 12px; z-index: 30; border-radius: 22px; border: 1px solid var(--k-2A3832,#2A3832); box-shadow: 0 12px 36px rgba(0,0,0,0.35)'
+        ? base + ' position: absolute; inset: 24px 12px 12px 12px; z-index: 30; border-radius: 22px; border: 2px solid var(--k-6B7A72,#6B7A72); box-shadow: none'
         : base + ' position: fixed; inset: 0; z-index: 40';
     }
   }
