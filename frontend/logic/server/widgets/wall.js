@@ -155,8 +155,13 @@ export async function vote(logic, srv, postId, option) {
   await load(logic, srv);
 }
 
+// The post leaves the screen at once. If the server refuses (no right to delete, or it is not saved yet), it comes back and the
+// reason is shown: nothing claims a deletion that did not happen.
 export async function remove(logic, srv, id) {
-  await del(srv, id);
+  const gone = (st) => ({ posts: st.posts.filter((x) => x.id !== id), moments: st.moments.filter((x) => x.id !== id) });
+  logic.setState(gone);
+  if (String(id).startsWith('pending-')) { await load(logic, srv); return; }   // still being saved: the next load shows whatever the server has
+  try { await del(srv, id); } catch (e) { await load(logic, srv).catch(() => {}); throw e; }
   await load(logic, srv);
 }
 
