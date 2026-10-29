@@ -13,7 +13,8 @@ export const name = 'forums';
 const LOCAL_ID = { 'IT Operations': 'it', 'Product Builders': 'dev', 'Weekend Gamers': 'game', 'Choir & Worship': 'choir', 'Risk & Compliance': 'risk' };
 const PRIVACY = { invite: 'Invite only', open: 'Open to everyone' };
 const PALETTE = ['#B8F36B', '#7CC4FF', '#FFB86B', '#F49AC1', '#6EE7C8', '#C9B6FF', '#FFD66B'];
-const PAGE = 100, MAX_MESSAGES = 300;
+// A chat opens with its newest page only; older pages are fetched when the person asks for them ("Show earlier"), a page at a time.
+const PAGE = 50, MAX_MESSAGES = 800;
 
 // The API allows a burst of requests per person; the app's first load can use it all. A "slow down" answer is retried.
 async function ask(srv, method, path, body) {
@@ -62,7 +63,7 @@ export const liveForum = (logic, local) => (logic.state.forumsLive || []).find((
 async function allMessages(srv, conv) {
   const out = [];
   let before = '';
-  while (out.length < MAX_MESSAGES) {
+  while (out.length < PAGE) {   // the newest page only
     // a failed page fails the whole read, so a reload keeps what is on screen instead of showing an empty forum
     const { messages } = await ask(srv, 'GET', `/conversations/${conv}/messages?limit=${PAGE}${before ? '&before=' + before : ''}`);
     out.push(...messages);
@@ -204,7 +205,7 @@ const fetchMeta = (srv, sid) => Promise.all([
 // Reads a forum from scratch: its details, rules and recent history.
 async function fetchFull(srv, sid) {
   const [[detail, rules], msgs] = await Promise.all([fetchMeta(srv, sid), allMessages(srv, sid)]);
-  const h = { detail, rules, msgs: new Map(msgs.map((m) => [m.id, m])), since: markerAfter(msgs) };
+  const h = { detail, rules, msgs: new Map(msgs.map((m) => [m.id, m])), since: markerAfter(msgs), more: msgs.length >= PAGE };
   held(srv).set(sid, h);
   return h;
 }
@@ -250,7 +251,7 @@ async function build(srv, h) {
   return {
     forum: {
       id: local, sid: detail.id, live: true, name: detail.name, initials: initialsOf(detail.name) || detail.initials,
-      color: detail.color || '#7CC4FF', unread: detail.unread || 0, members: detail.member_count || members.length, online: 0, privacy: PRIVACY[detail.privacy] || 'Invite only', about: detail.about || '',
+      more: !!h.more, color: detail.color || '#7CC4FF', unread: detail.unread || 0, members: detail.member_count || members.length, online: 0, privacy: PRIVACY[detail.privacy] || 'Invite only', about: detail.about || '',
       myRole: cap(detail.my_role), myForumRole: forumRoleOf(detail.my_role), epoch: detail.epoch, created: detail.created_at, memberList: members, updates: items, polls: toPolls(srv, local, opened, detail.member_count || members.length),
       rules: rules || { post_mode: 'everyone', roles: [], blocked: [], allowed: [] }, newest: live.length ? live[0].id : ''
     },
@@ -317,6 +318,26 @@ export async function load(logic, srv) {
   built.forEach((b) => loadFiles(logic, srv, b.todo));
   watch(logic, srv);   // subscribe before presence so no message is missed while it loads
   loadPresence(logic, srv).catch(() => {});
+}
+
+// Fetches the next older page of a forum's history ("Show earlier"). Returns how many messages came.
+export async function loadOlder(logic, srv, local) {
+  const sid = serverId(srv, local);
+  const h = sid && held(srv).get(sid);
+  if (!h || !h.more || h.loadingOlder) return 0;
+  h.loadingOlder = true;
+  try {
+    const oldest = [...h.msgs.keys()].sort()[0];
+    const { messages } = await ask(srv, 'GET', `/conversations/${sid}/messages?limit=${PAGE}${oldest ? '&before=' + oldest : ''}`);
+    messages.forEach((m) => { if (!h.msgs.has(m.id)) h.msgs.set(m.id, m); });
+    h.more = messages.length >= PAGE;
+    const { forum, todo } = await build(srv, h);
+    const prev = liveForum(logic, local);
+    const merged = { ...forum, online: prev ? prev.online : 0, unread: prev ? prev.unread : forum.unread, memberList: prev ? prev.memberList : forum.memberList };
+    logic.setState((st) => ({ forumsLive: (st.forumsLive || []).map((f) => (f.id === local ? merged : f)) }));
+    loadFiles(logic, srv, todo);
+    return messages.length;
+  } finally { h.loadingOlder = false; }
 }
 
 // Reloads one forum (its messages, members, polls, rules and unread count) and, if you are looking at it, marks it read.

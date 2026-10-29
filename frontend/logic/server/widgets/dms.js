@@ -55,20 +55,24 @@ function loadFiles(logic, srv, dmId, msgs) {
   }).catch(() => {})));
 }
 
+const PAGE = 50;
+
 // The catch-up marker of each chat: refresh asks the server only for what changed after it.
 const marks = (srv) => srv.dmSince || (srv.dmSince = new Map());
 
 async function history(srv, conv) {
-  const { messages } = await ask(srv, 'GET', `/conversations/${conv}/messages?limit=100`);
+  const { messages } = await ask(srv, 'GET', `/conversations/${conv}/messages?limit=${PAGE}`);   // the newest page; older ones on request
   // a little before the newest message, so nothing stored around it is skipped
   marks(srv).set(conv, messages.length ? new Date(new Date(messages[0].created_at).getTime() - 120000).toISOString() : '2000-01-01T00:00:00Z');
   const out = (await Promise.all(messages.filter((m) => !m.deleted).map((m) => toMsg(srv, m)))).filter(Boolean);
-  return out.sort((a, b) => (a.id < b.id ? -1 : 1));
+  const sorted = out.sort((a, b) => (a.id < b.id ? -1 : 1));
+  sorted.more = messages.length >= PAGE;
+  return sorted;
 }
 
 function rowOf(srv, c, msgs) {
   const other = (c.members || []).find((m) => m.account !== srv.me.account) || {};
-  return { id: c.id, with: other.name || 'Unknown', person: other.person, unread: c.unread || 0, msgs };
+  return { id: c.id, with: other.name || 'Unknown', person: other.person, unread: c.unread || 0, msgs, more: !!(msgs && msgs.more) };
 }
 
 export async function load(logic, srv) {
@@ -215,4 +219,23 @@ export async function refresh(logic, srv, dmId) {
     return { ...d, msgs: all.concat(d.msgs.filter((m) => m.pending)) };
   }) }));
   loadFiles(logic, srv, dmId, added);
+}
+
+// Fetches the next older page of a private chat ("Show earlier").
+export async function loadOlder(logic, srv, dmId) {
+  const d = logic.state.dms.find((x) => x.id === dmId);
+  if (!d || !d.more || d.loadingOlder) return 0;
+  const oldest = d.msgs.filter((m) => !m.pending).map((m) => m.id).sort()[0];
+  if (!oldest) return 0;
+  logic.setState((st) => ({ dms: st.dms.map((x) => (x.id === dmId ? { ...x, loadingOlder: true } : x)) }));
+  try {
+    const { messages } = await ask(srv, 'GET', `/conversations/${dmId}/messages?limit=${PAGE}&before=${oldest}`);
+    const older = (await Promise.all(messages.filter((m) => !m.deleted).map((m) => toMsg(srv, m)))).filter(Boolean).sort((a, b) => (a.id < b.id ? -1 : 1));
+    logic.setState((st) => ({ dms: st.dms.map((x) => (x.id !== dmId ? x : { ...x, loadingOlder: false, more: messages.length >= PAGE, msgs: older.concat(x.msgs) })) }));
+    loadFiles(logic, srv, dmId, older);
+    return messages.length;
+  } catch (e) {
+    logic.setState((st) => ({ dms: st.dms.map((x) => (x.id === dmId ? { ...x, loadingOlder: false } : x)) }));
+    throw e;
+  }
 }
