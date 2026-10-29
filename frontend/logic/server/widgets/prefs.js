@@ -7,7 +7,8 @@ const PERSONAL = ['widgets', 'hiddenWidgets', 'theme', 'hiddenPosts', 'savedPost
 const trim = (k, v) => (k === 'hiddenChatMessages' && v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).slice(-150)) : v);
 
 export async function load(logic, srv) {
-  const prefs = await srv.request('GET', '/me/prefs');
+  // if the layout cannot be read, the home still opens (with the defaults) instead of waiting forever
+  const prefs = await srv.request('GET', '/me/prefs').catch((e) => { logic.setState({ widgetsReady: true }); throw e; });
   const patch = {};
   PERSONAL.forEach((k) => { if (prefs[k] !== undefined) patch[k] = prefs[k]; });
   try { patch.wcfg = await srv.request('GET', '/settings/widgets'); } catch (e) { /* not allowed to see it */ }

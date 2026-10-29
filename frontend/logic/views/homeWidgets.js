@@ -1,3 +1,4 @@
+import { widgetGate } from '~/logic/widgetAccess.js';
 import * as calendarW from '~/logic/server/widgets/calendar.js';
 import * as commsW from '~/logic/server/widgets/comms.js';
 import * as dmsW from '~/logic/server/widgets/dms.js';
@@ -104,24 +105,10 @@ export function buildHomeWidgets(ctx) {
   // The organization decides which widgets exist for its people. Once it has set any (Widget settings), a widget it never set is not
   // shown to the others, and one it limited to specific groups (departments, branches, forums...) shows only to their members. People
   // who manage widget settings see every widget, so they can set them up.
-  const wc = s.wcfg || {};
-  const orgSetsWidgets = !!this.srv && Object.keys(wc).length > 0;
-  const manageWidgets = can('home', 'Manage widget settings');
-  const inGroup = (key) => {
-    const [kind, ref] = String(key).split(':');
-    if (kind === 'forum') return (s.forumsLive || []).some((f) => f.id === ref);
-    const mine = (this.org && this.org.mine) || {};
-    return mine[kind] === ref;
-  };
-  const orgAllows = (id) => {
-    if (!orgSetsWidgets || manageWidgets) return true;
-    const c = wc[id];
-    if (!c) return false;                                                      // never set by the organization
-    if (c.see === 'Specific groups') return (c.groups || []).some(inGroup);   // only for the groups it named
-    return true;
-  };
-  const loadingHome = !!this.srv && !s.widgetsReady;   // signed in, and the organization's widget settings have not arrived yet
-  const ids = loadingHome ? [] : [...new Set(s.widgets)].filter((x) => catalog[x] && orgAllows(x) && (LEVELS.indexOf(x) === -1 || has[x] || (s.levelsAdded || {})[x]));
+  const gate = widgetGate(this, s, can);
+  const orgAllows = gate.allows;
+  const loadingHome = gate.loading;   // signed in, and the organization's widget settings have not arrived yet
+  const ids = [...new Set(s.widgets)].filter((x) => catalog[x] && orgAllows(x) && (LEVELS.indexOf(x) === -1 || has[x] || (s.levelsAdded || {})[x]));
   const isHidden = (id) => s.hiddenWidgets.indexOf(id) !== -1;
   const toggleHide = (id) => () => this.setState((st) => ({ hiddenWidgets: st.hiddenWidgets.indexOf(id) !== -1 ? st.hiddenWidgets.filter((x) => x !== id) : st.hiddenWidgets.concat([id]) }));
   const removeWidget = (id) => this.setState((st) => {
