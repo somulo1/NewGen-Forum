@@ -155,7 +155,7 @@
 </template>
 </div>
 
-<Teleport to="body" :disabled="!(phone && hl)"><aside aria-label="Wall highlights" :class="['hub-static', 'wall-aside', { open: hl }]" @click="hl = false" style="flex: 0 1 320px; min-width: 0; position: sticky; top: 0; align-self: flex-start; overflow: visible; display: flex; flex-direction: column; gap: 16px">
+<Teleport to="body" :disabled="!(phone && hl)"><aside aria-label="Wall highlights" :class="['hub-static', 'wall-aside', { open: hl }]" :style="hl && phone ? panelPos : null" @click="hl = false" style="flex: 0 1 320px; min-width: 0; position: sticky; top: 0; align-self: flex-start; overflow: visible; display: flex; flex-direction: column; gap: 16px">
 <div style="padding: 16px; border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 10px">
 <strong style="font-size: 15px">Birthdays today</strong>
 <span style="font-size: 14px; line-height: 1.5; color: var(--k-C9D6CF,#C9D6CF)">{{ wallBirthdays.has ? wallBirthdays.text : 'No birthdays today.' }}</span>
@@ -185,12 +185,24 @@ import { hubBindings } from '~/composables/useHub';
 
 export default {
   name: 'WallSection',
-  data() { return { phone: false, hl: false, momentCaption: '', momentBg: '#2B4A63', momentFile: null, postBg: '' }; },
+  data() { return { panelPos: '', phone: false, hl: false, momentCaption: '', momentBg: '#2B4A63', momentFile: null, postBg: '' }; },
   // On a phone the panel is placed against the screen itself (moved out to the page body): inside the scrolling page it was placed
   // against the page's own top, so it slid up under the header as the page was scrolled.
-  mounted() { this.mq = window.matchMedia('(max-width: 760px)'); this.phone = this.mq.matches; this.onMq = (e) => { this.phone = e.matches; }; this.mq.addEventListener('change', this.onMq); },
-  beforeUnmount() { if (this.mq) this.mq.removeEventListener('change', this.onMq); },
+  mounted() { this.mq = window.matchMedia('(max-width: 760px)'); this.phone = this.mq.matches; this.onMq = (e) => { this.phone = e.matches; }; window.addEventListener('resize', this.place); this.mq.addEventListener('change', this.onMq); },
+  beforeUnmount() { window.removeEventListener('resize', this.place); if (this.mq) this.mq.removeEventListener('change', this.onMq); },
+  watch: {
+    hl(v) { if (v) this.$nextTick(this.place); },
+    phone() { this.$nextTick(this.place); }
+  },
   methods: {
+    // The panel opens right under the header's lower edge and ends above the bottom bar, measured from those bars themselves
+    // (so it is right whatever their height is on this phone, and wherever the page is scrolled).
+    place() {
+      const h = document.querySelector('.hub-header'), t = document.querySelector('.hub-tabbar');
+      const top = h ? Math.round(h.getBoundingClientRect().bottom) : 64;
+      const bottom = t ? Math.round(window.innerHeight - t.getBoundingClientRect().top) : 64;
+      this.panelPos = 'top:' + top + 'px;bottom:' + bottom + 'px';
+    },
     submitMoment() { if (this.addMoment(this.momentCaption, this.momentBg, this.momentFile)) { this.momentCaption = ''; this.momentFile = null; } },
     submitWallPost() { if (this.onPost(this.postBg)) this.postBg = ''; },
     insertMomentEmoji(emoji) {
@@ -219,7 +231,7 @@ export default {
   .wall-dots { display: flex; }
   .wall-backdrop { display: block; position: fixed; inset: 0; z-index: 40; background: transparent; }
   .wall-aside { display: none !important; }
-  .wall-aside.open { display: flex !important; position: fixed !important; z-index: 50; top: 72px; bottom: 76px; left: 12px; right: 12px; flex: none !important; max-height: none; overflow-y: auto; overscroll-behavior: contain; padding: 12px; border-radius: 18px; background: var(--k-121B17,#121B17); border: 1px solid var(--k-24322C,#24322C); gap: 12px; box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45); }
+  .wall-aside.open { display: flex !important; position: fixed !important; z-index: 56; left: 0; right: 0; flex: none !important; max-height: none; overflow-y: auto; overscroll-behavior: contain; padding: 12px 12px 16px; border-radius: 0 0 18px 18px; background: var(--k-121B17,#121B17); border: 1px solid var(--k-24322C,#24322C); border-top: 0; gap: 12px; box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35); }
   .wall-online { display: none !important; }
 }
 </style>
