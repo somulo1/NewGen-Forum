@@ -39,7 +39,7 @@ export function buildWall(ctx) {
   const userPollOf = (p) => (p.pollData ? (() => {
       const my = s.pollVotes[p.id];
       const tot = p.pollData.opts.reduce((n, o) => n + o.votes, 0) + (my ? 1 : 0);
-      return { tot, list: p.pollData.opts.map((o) => { const v = o.votes + (my === o.id ? 1 : 0); return { label: o.label + (my === o.id ? '  ✓' : ''), pct: my ? Math.round((v / tot) * 100) + '%' : '', vote: () => { this.setState((st) => ({ pollVotes: { ...st.pollVotes, [p.id]: o.id } })); wallW.vote(this, this.srv, p.id, o.id).catch((e) => this.notify(e.message || 'That did not work.', '#FF9B8A')); },
+      return { tot, list: p.pollData.opts.map((o) => { const v = o.votes + (my === o.id ? 1 : 0); return { label: o.label + (my === o.id ? '  ✓' : ''), pct: my ? Math.round((v / tot) * 100) + '%' : '', vote: () => { if (my) { this.notify('You have already voted on this poll. Your first vote is final.', '#FFB86B'); return; } this.setState((st) => ({ pollVotes: { ...st.pollVotes, [p.id]: o.id } })); wallW.vote(this, this.srv, p.id, o.id).catch((e) => this.notify(e.message || 'That did not work.', '#FF9B8A')); },
         style: 'display:flex;align-items:center;min-height:44px;padding:0 14px;border-radius:10px;cursor:pointer;font-size:14px;color:var(--k-E8EFEA,#E8EFEA);text-align:left;border:1px solid ' + (my === o.id ? '#B8F36B' : '#2A3832') + ';background:var(--k-121B17,#121B17)' }; }) };
   })() : null);
   const posts = s.posts.filter((p) => !s.hiddenPosts[p.id] && tagHit(p)).map((p) => {

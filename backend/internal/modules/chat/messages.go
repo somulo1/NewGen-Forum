@@ -298,10 +298,19 @@ func (s *Service) Delete(ctx context.Context, p *tenant.Principal, conv, id uuid
 			return err
 		}
 		var sender uuid.UUID
-		if err := tx.QueryRow(ctx, `select sender_account from hub.messages where org_id=$1 and id=$2 and conversation_id=$3 and deleted_at is null`, p.Org, id, conv).Scan(&sender); errors.Is(err, pgx.ErrNoRows) {
+		var ctype string
+		if err := tx.QueryRow(ctx, `select sender_account, content_type from hub.messages where org_id=$1 and id=$2 and conversation_id=$3 and deleted_at is null`, p.Org, id, conv).Scan(&sender, &ctype); errors.Is(err, pgx.ErrNoRows) {
 			return httpx.ErrNotFound
 		} else if err != nil {
 			return err
+		}
+		// votes and likes are protected: a vote is final for everyone (it is never removed, not even by its owner or a moderator), and a
+		// like can be taken back only by the person who gave it
+		if ctype == "vote" {
+			return httpx.Err(409, "vote_final", "A vote is final and cannot be taken back.")
+		}
+		if ctype == "reaction" && sender != p.Account {
+			return httpx.ErrForbidden
 		}
 		if rule, ok := messageRules[kind]; ok {
 			if err := authz.RequireOwn(ctx, tx, p.Person, rule.module, rule.moderate, rule.del, sender == p.Account); err != nil {

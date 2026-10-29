@@ -169,14 +169,13 @@ export async function toggleReaction(logic, srv, targetId, kind) {
   await load(logic, srv);
 }
 
+// A vote is final: the first one counts and cannot be taken back or changed.
 export async function vote(logic, srv, postId, option) {
-  if (srv.wallMine['vote:' + postId]) await del(srv, srv.wallMine['vote:' + postId]);
-  await send(srv, 'vote', { option }, postId);
+  if (srv.wallMine['vote:' + postId]) throw new Error('You have already voted on this poll. Your first vote is final.');
+  try { await send(srv, 'vote', { option }, postId); } catch (e) { await load(logic, srv).catch(() => {}); throw e; }
   await load(logic, srv);
 }
 
-// The post leaves the screen at once. If the server refuses (no right to delete, or it is not saved yet), it comes back and the
-// reason is shown: nothing claims a deletion that did not happen.
 export async function remove(logic, srv, id) {
   const gone = (st) => ({ posts: st.posts.filter((x) => x.id !== id), moments: st.moments.filter((x) => x.id !== id) });
   logic.setState(gone);
