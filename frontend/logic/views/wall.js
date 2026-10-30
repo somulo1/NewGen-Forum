@@ -35,6 +35,12 @@ export function buildWall(ctx) {
     return { key, who: c.who, initials: c.initials, color: c.color, text: c.text, htmlText: linkHashtags(linkMentions(richTextHtml(c.text))), time: c.time || '', depth: path.length, replying: s.replyFor === key,
       startReply: () => this.setState({ replyFor: key }), cancel: () => this.setState({ replyFor: null }),
       send: (text) => { this.setState({ replyFor: null }); wallW.comment(this, this.srv, c.id || p.id, text).catch((e) => this.notify(e.message || 'That did not work.', '#FF9B8A')); },
+      id: c.id || '', likes: c.likes || 0, dislikes: c.dislikes || 0, iLiked: !!c.iLiked, iDisliked: !!c.iDisliked, canReact: !!(this.srv && c.id),
+      react: (kind) => {
+        if (!this.srv || !c.id || (this._reacting || (this._reacting = new Set())).has(c.id)) return;
+        this._reacting.add(c.id);
+        wallW.reactToComment(this, this.srv, c.id, kind).catch((e) => this.notify((e && e.message) || 'That did not work.', '#FF9B8A')).finally(() => { this._reacting.delete(c.id); this.forceUpdate(); });
+      },
       replies: buildComments(p, c.replies || [], here) };
   });
   const userPollOf = (p) => (p.pollData ? (() => {

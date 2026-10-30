@@ -68,7 +68,15 @@ function build(logic, srv, items) {
   items.forEach((x) => { if (x.m.reply_to) { const l = byParent.get(x.m.reply_to) || []; l.push(x); byParent.set(x.m.reply_to, l); } });
   const kids = (id, type) => (byParent.get(id) || []).filter((x) => x.m.type === type);
   srv.wallMine = {};   // my reaction / vote message per target, so they can be undone
-  const comments = (id) => kids(id, 'comment').map(({ m, pl }) => ({ id: m.id, who: who(m), ...look(m), text: pl.text || '', time: ago(m.created_at), replies: comments(m.id), mine: m.sender_account === me }));
+  // a comment or reply: who wrote it, its likes and dislikes (one of each per person, counted from signed reactions) and its replies
+  const comments = (id) => kids(id, 'comment').map(({ m, pl }) => {
+    const likes = reacts(m.id, 'like'), dislikes = reacts(m.id, 'dislike');
+    const mineL = likes.find((x) => x.m.sender_account === me), mineD = dislikes.find((x) => x.m.sender_account === me);
+    if (mineL) srv.wallMine['like:' + m.id] = mineL.m.id;
+    if (mineD) srv.wallMine['dislike:' + m.id] = mineD.m.id;
+    return { id: m.id, who: who(m), ...look(m), text: pl.text || '', time: ago(m.created_at), replies: comments(m.id), mine: m.sender_account === me,
+      likes: likes.length, dislikes: dislikes.length, iLiked: !!mineL, iDisliked: !!mineD };
+  });
   // Counts are never stored: each like or vote is a signed message (ones whose signature fails never get here), and each
   // person counts once, with their latest one, however many the server holds.
   const onePer = (list) => [...new Map(list.map((x) => [x.m.sender_account, x])).values()];
@@ -159,6 +167,16 @@ export async function post(logic, srv, p) {
 export async function comment(logic, srv, targetId, text) {
   if (text && text.indexOf('@') !== -1) mentions.tell(srv, 'wall', '', mentions.names(srv, text));
   await send(srv, 'comment', { text }, targetId);
+  await load(logic, srv);
+}
+
+// Like or dislike a comment or reply: one or the other, and tapping it again takes it back.
+export async function reactToComment(logic, srv, commentId, kind) {
+  const other = kind === 'like' ? 'dislike' : 'like';
+  const old = srv.wallMine[other + ':' + commentId];
+  if (old) { await del(srv, old); delete srv.wallMine[other + ':' + commentId]; }
+  const mine = srv.wallMine[kind + ':' + commentId];
+  if (mine) { await del(srv, mine); delete srv.wallMine[kind + ':' + commentId]; } else await send(srv, 'reaction', { kind }, commentId);
   await load(logic, srv);
 }
 
