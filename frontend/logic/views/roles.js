@@ -146,8 +146,8 @@ export function buildRoles(ctx) {
         if (failed.length) this.notify(failed.length + ' did not go through: ' + failed[0].message, '#FF9B8A');
       }).catch((e) => { this.setState((st) => ({ apBusy: { ...(st.apBusy || {}), [g.key]: false } })); this.notify((e && e.message) || 'That did not go through.', '#FF9B8A'); });
     };
-    return { key: g.key, scope: g.scope, target: g.target, title: 'Change rights · ' + g.scope + ': ' + g.target, sub: g.rows.length + ' rights waiting · requested by ' + g.by + ' · ' + g.when,
-      open: !!open[g.key], toggle: () => this.setState((st) => ({ apOpen: { ...(st.apOpen || {}), [g.key]: !(st.apOpen || {})[g.key] } })), toggleLabel: open[g.key] ? 'Hide rights' : 'Review rights (' + g.rows.length + ')',
+    return { key: g.key, ref: g.rows.length + ' rights', by: g.by, when: g.when, scope: g.scope, target: g.target, title: 'Change rights · ' + g.scope + ': ' + g.target, sub: g.rows.length + ' rights waiting · requested by ' + g.by + ' · ' + g.when,
+      open: s.apReview === g.key, toggle: () => this.setState({ apReview: g.key }), toggleLabel: 'Review rights (' + g.rows.length + ')',
       items, count: g.rows.length, selectedCount: picked.length, allChecked: picked.length === all.length,
       toggleAll: () => this.setState((st) => ({ apSel: { ...(st.apSel || {}), ...Object.fromEntries(all.map((rq) => [rq.uid, picked.length !== all.length])) } })),
       note: (s.apNote || {})[g.key] || '', onNote: (e) => { const v = e.target.value; this.setState((st) => ({ apNote: { ...(st.apNote || {}), [g.key]: v } })); },
@@ -178,8 +178,8 @@ export function buildRoles(ctx) {
         this.notify((approve ? 'Approved ' : 'Rejected ') + n + (n === 1 ? ' right' : ' rights') + (picked.length && picked.length < its.length ? '. ' + (its.length - picked.length) + ' still waiting.' : '.'), approve ? '#B8F36B' : '#FF9B8A');
       }).catch((e) => { this.setState((st) => ({ apBusy: { ...(st.apBusy || {}), [key]: false } })); this.notify((e && e.message) || 'That did not go through.', '#FF9B8A'); });
     };
-    return { key, uid: rq.uid, title: rq.id + ' · ' + rq.title, sub: its.length + (its.length === 1 ? ' right' : ' rights') + ' waiting · requested by ' + rq.by + ' · ' + rq.when + (rq.levels > 1 ? ' · level ' + rq.level + ' of ' + rq.levels : ''),
-      open: !!open[key], toggle: () => this.setState((st) => ({ apOpen: { ...(st.apOpen || {}), [key]: !(st.apOpen || {})[key] } })), toggleLabel: open[key] ? 'Hide rights' : 'View rights (' + its.length + ')',
+    return { key, ref: rq.id, by: rq.by, when: rq.when, uid: rq.uid, title: rq.id + ' · ' + rq.title, sub: its.length + (its.length === 1 ? ' right' : ' rights') + ' waiting · requested by ' + rq.by + ' · ' + rq.when + (rq.levels > 1 ? ' · level ' + rq.level + ' of ' + rq.levels : ''),
+      open: s.apReview === key, toggle: () => this.setState({ apReview: key }), toggleLabel: 'Review rights (' + its.length + ')',
       items: its, count: its.length, selectedCount: picked.length, allChecked: picked.length === its.length,
       toggleAll: () => this.setState((st) => ({ apSel: { ...(st.apSel || {}), ...Object.fromEntries(its.map((i) => [i.uid, picked.length !== its.length])) } })),
       note: (s.apNote || {})[key] || '', onNote: (e) => { const v = e.target.value; this.setState((st) => ({ apNote: { ...(st.apNote || {}), [key]: v } })); },

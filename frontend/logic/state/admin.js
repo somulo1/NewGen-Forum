@@ -1,7 +1,7 @@
 // Initial state: admin.
 export function adminState() {
   return {
-    orgOpen: false, ou: null, ouTab: 'comms', targets: {}, rolesTab: 'roles', rightsMod: '', memberRoles: {}, reportsTo: {}, personRights: {}, personReports: {}, reportsPerson: {}, reportPDraft: null, reportDraft: null,
+    orgOpen: false, ou: null, ouTab: 'comms', targets: {}, rolesTab: 'roles', apReview: '', rightsMod: '', memberRoles: {}, reportsTo: {}, personRights: {}, personReports: {}, reportsPerson: {}, reportPDraft: null, reportDraft: null,
     // the last theme this browser used, so the page opens in it at once; the server's saved choice replaces it when it arrives
     theme: (() => { try { return localStorage.getItem('hub-theme') === 'light' ? 'light' : 'dark'; } catch (e) { return 'dark'; } })(),
     commRules: {

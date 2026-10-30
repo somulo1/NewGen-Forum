@@ -32,6 +32,14 @@
 <template v-if="cl.isBar"><div style="display: flex; align-items: center; gap: 8px; min-width: 120px"><div style="flex: 1; height: 6px; border-radius: 3px; background: var(--k-22302A,#22302A); overflow: hidden"><div :style="cl.barStyle"></div></div><span style="font-size: 11px; font-weight: 600; min-width: 34px; text-align: right">{{ cl.text }}</span></div></template>
 <template v-if="cl.isActions"><div style="display: flex; gap: 6px; justify-content: flex-end"><template v-for="(b, b__i) in cl.buttons" :key="b__i"><button @click="b.run" :disabled="b.disabled" :aria-label="b.aria" :style="b.style">{{ b.label }}</button></template></div></template>
 </td></template></tr>
+<template v-if="r.detail && r.detail.open"><tr><td :colspan="colCount" style="padding: 0; background: var(--k-121B17,#121B17); border-top: 1px solid var(--k-24322C,#24322C)">
+<div style="padding: 10px 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px">
+<label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer"><input type="checkbox" :checked="r.detail.allChecked" @change="r.detail.toggleAll"> Select all ({{ r.detail.count }})</label>
+<span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">{{ r.detail.selectedCount }} selected{{ r.detail.selectedCount ? '' : '. With none ticked, a decision covers all of them.' }}</span>
+<input type="text" :value="r.detail.note" @input="r.detail.onNote" placeholder="Comment (optional)" aria-label="Comment for this decision" style="flex: 1 1 220px; min-width: 0; height: 34px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-16201C,#16201C); color: var(--k-E8EFEA,#E8EFEA); font-size: 13px">
+</div>
+<template v-for="(it, it__i) in r.detail.items" :key="it__i"><label style="display: flex; align-items: center; gap: 12px; padding: 8px 16px 8px 28px; border-top: 1px solid var(--k-24322C,#24322C); cursor: pointer; font-size: 13px"><input type="checkbox" :checked="it.checked" @change="it.toggle"><span :style="`flex: none; width: 18px; text-align: center; font-weight: 700; color: ${it.signColor}`">{{ it.sign }}</span><span style="flex: 1; min-width: 0">{{ it.right }} <span style="color: var(--k-9DB0A6,#9DB0A6); font-size: 12px">· {{ it.module }} · {{ it.verbLabel }}</span></span></label></template>
+</td></tr></template>
 </template>
 <template v-if="empty"><tr><td :colspan="colCount" style="padding: 30px; text-align: center; color: var(--k-9DB0A6,#9DB0A6)">{{ emptyText }}</td></tr></template>
 </tbody>
@@ -101,6 +109,7 @@ class Component extends DCLogic {
         };
       }),
       rows: rows.slice(page * ps, (page + 1) * ps).map((r) => ({
+        detail: r.detail || null,
         style: 'border-top:1px solid var(--k-24322C,#24322C);' + (r.tint ? 'background:' + r.tint + '14' : ''),
         cells: cols.map((c, i) => {
           const cl = (r.cells || [])[i] || { text: '' };

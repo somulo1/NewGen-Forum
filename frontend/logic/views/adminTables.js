@@ -3,7 +3,7 @@ import { LEVEL_LABEL, catsFor, levelsOf } from '~/logic/ticketRouting.js';
 
 // renderVals step: adminTables. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildAdminTables(ctx) {
-  const { C, O, can, agoLabel, rightMeta, defaultCats, deskTickets, myTickets, alertsAll, alertsRange, logsRange, allLogs, chip, corePeople, f8, flowItem, fmtDay, has, modEnabled, modInfo, nowMs, rKey, requestsShown, rightOf, rightsDef, roleScope, ruleDefs, ruleOn, ruleSev, s, sec, sevColor, tickets, titleOf, toggleRight, tz9, visibleRoles } = ctx;
+  const { C, O, can, apGroups, agoLabel, rightMeta, defaultCats, deskTickets, myTickets, alertsAll, alertsRange, logsRange, allLogs, chip, corePeople, f8, flowItem, fmtDay, has, modEnabled, modInfo, nowMs, rKey, requestsShown, rightOf, rightsDef, roleScope, ruleDefs, ruleOn, ruleSev, s, sec, sevColor, tickets, titleOf, toggleRight, tz9, visibleRoles } = ctx;
   // =============== Tables for existing pages ===============
   const prioColor = { High: '#FF9B8A', Medium: '#FFB86B', Low: '#9DB0A6' };
   const ticketCols = [{ label: 'ID', filter: 'text' }, { label: 'Title', filter: 'text' }];
@@ -216,7 +216,10 @@ export function buildAdminTables(ctx) {
     }) };
   const approvalsTable = { id: 'approvals-' + s.apTab, pageSize: 8, minWidth: '1080px', emptyText: s.apTab === 'waiting' ? 'Nothing is waiting for approval.' : 'No requests yet.',
     cols: [{ label: 'ID', filter: 'text' }, { label: 'Request', filter: 'text' }, { label: 'Widget', filter: 'select' }, { label: 'Requested by', filter: 'text' }, { label: 'Approval path' }, { label: 'Status', filter: 'select' }, { label: '', align: 'right' }],
-    rows: requestsShown.map((rq) => {
+    // requests made of several rights come first, one row each; "Review" opens the list to tick which rights to decide
+    rows: (apGroups || []).map((g) => ({ tint: '#FFB86B', detail: { open: g.open, items: g.items, count: g.count, selectedCount: g.selectedCount, allChecked: g.allChecked, toggleAll: g.toggleAll, note: g.note, onNote: g.onNote }, cells: [C.t(g.ref, { mono: true, nowrap: true }), C.t(g.title.replace(/^[A-Z0-9-]+ · /, ''), { strong: true, sub: g.count + ' rights waiting' }), C.t('Roles & rights', { fv: 'Roles & rights' }),
+      C.p(g.by, { sub: g.when, fv: g.by }), C.t('Needs your decision', { sub: 'Each right can be decided on its own' }), C.b('Waiting', '#FFB86B', { fv: 'Waiting' }),
+      C.a([{ label: (g.open ? 'Hide ▴ ' : 'View ▾ ') + '(' + g.count + ')', run: g.open ? () => this.setState({ apReview: '' }) : g.toggle }, { label: g.approveLabel, kind: 'primary', run: g.approve }, { label: g.rejectLabel, kind: 'danger', run: g.reject }])] })).concat(requestsShown.map((rq) => {
       const path = rq.steps.map((st) => (st.n === '✓' ? '✓ ' : st.n + '. ') + st.who).join('  →  ');
       const cur = rq.steps.find((st) => st.state === 'Waiting now');
       const stFv = rq.status;
@@ -224,7 +227,7 @@ export function buildAdminTables(ctx) {
         C.p(rq.by, { sub: rq.when, fv: rq.by }), C.t(path, { sub: rq.levelsLabel + (cur ? ' · waiting for ' + cur.who : '') }),
         C.b(rq.statusLabel, rq.status === 'Approved' ? '#B8F36B' : rq.status === 'Rejected' ? '#FF9B8A' : '#FFB86B', { fv: stFv }),
         C.a(rq.canAct ? [{ label: rq.approveLabel, kind: 'primary', run: rq.approve }, { label: 'Reject', kind: 'danger', run: rq.reject }] : [])] };
-    }) };
+    })) };
   const rolesTabs = [['roles', 'Roles'], ['groups', 'User groups'], ['rights', 'Rights'], ['members', 'Members'], ['reporting', 'Reporting lines'], ['flows', 'Approval rules']].map(([k, l]) => ({ label: l, go: () => this.setState({ rolesTab: k }),
     style: 'min-height:44px;padding:0 16px;border:0;background:transparent;cursor:pointer;font-size:14px;font-family:inherit;border-bottom:2px solid ' + (s.rolesTab === k ? '#B8F36B' : 'transparent') + ';color:' + (s.rolesTab === k ? 'var(--k-E8EFEA,#E8EFEA)' : 'var(--k-9DB0A6,#9DB0A6)') + ';font-weight:' + (s.rolesTab === k ? '600' : '500') }));
   const rolesView = { isRoles: s.rolesTab === 'roles', isRights: s.rolesTab === 'rights', isMembers: s.rolesTab === 'members', isReporting: s.rolesTab === 'reporting', isFlows: s.rolesTab === 'flows', isGroups: s.rolesTab === 'groups' };
