@@ -5,6 +5,7 @@
 //   start/join   -> POST /calls or /calls/{id}/join -> { call, token, url }
 //   room socket  -> welcome { you, peers } | peer-joined | peer-left | offer/answer/ice (relayed) | state | chat | mod | ended
 import { connectRealtime } from './realtime.js';
+import * as dmsW from './widgets/dms.js';
 import { connectSfu, leaveSfu, applySfu, sendChatSfu, sfuActive, control } from './sfuCall.js';
 import { startRing, stopRing, startRingback, stopRingback, connected, hangup, joinedTone, handTone } from '../tones.js';
 
@@ -300,7 +301,6 @@ export function moderate(logic, peerName, what) {
 // Which conversation a call belongs to: the private chat, the forum, or the calendar event's container.
 async function conversationFor(logic, srv, context, ref) {
   if (context === 'dm') {
-    const dmsW = await import('./widgets/dms.js');
     return dmsW.ensure(logic, srv, ref);
   }
   if (context === 'forum') return (srv.forumServerId && srv.forumServerId.get(ref)) || null;
