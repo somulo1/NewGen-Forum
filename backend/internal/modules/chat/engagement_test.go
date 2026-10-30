@@ -71,6 +71,17 @@ func TestLikesAndVotesAreOnePerPersonAndTamperProof(t *testing.T) {
 	if c, _ := e.Do("DELETE", "/conversations/"+conv+"/messages/"+like, nil, ownerU.Access); c != 403 {
 		t.Fatalf("someone else removing a like: %d", c)
 	}
+	// a comment can be liked or disliked too (and a reply to it, the same way); the server keeps them per person
+	_, comment := send(o, "comment", `{"text":"nice"}`, post)
+	_, reply := send(a, "comment", `{"text":"agreed"}`, comment)
+	for _, target := range []string{comment, reply} {
+		if c, _ := send(a, "reaction", `{"kind":"dislike"}`, target); c != 201 {
+			t.Fatalf("dislike on a comment: %d", c)
+		}
+		if c, _ := send(o, "reaction", `{"kind":"like"}`, target); c != 201 {
+			t.Fatalf("like on a comment by someone else: %d", c)
+		}
+	}
 	// Amy did not make the poll and is not a moderator: she cannot lock it
 	if c, _ := send(a, "poll_lock", `{"locked":true}`, poll); c != 403 {
 		t.Fatalf("lock by a member: %d", c)
