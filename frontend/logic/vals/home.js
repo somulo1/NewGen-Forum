@@ -127,6 +127,6 @@ export function valsHome(ctx) {
         .catch((e) => this.notify(e.message || 'Could not post.', '#FF9B8A'));
       return true;
     },
-    postBtnStyle: 'height:38px;padding:0 22px;border-radius:19px;border:0;font-weight:600;cursor:' + (canPost ? 'pointer' : 'default') + ';background:#B8F36B;color:#0F1714;opacity:' + (canPost ? '1' : '0.45')
+    postBtnStyle: 'height:38px;padding:0 22px;border-radius:19px;border:0;font-weight:600;cursor:' + (canPost ? 'pointer' : 'default') + ';background:#B8F36B;color:#0F1714'
   };
 }
