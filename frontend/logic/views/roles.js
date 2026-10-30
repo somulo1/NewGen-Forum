@@ -106,6 +106,56 @@ export function buildRoles(ctx) {
       approve: decide(true), reject: decide(false) };
   });
   const pendingCount = reqItems.filter((r) => r.status === 'Pending').length;
-  const requestsShown = s.apTab === 'waiting' ? reqItems.filter((r) => r.status === 'Pending') : reqItems;
-  return { f8, flowItem, flowsAll, pendingCount, requestsShown, roleList, roleSel, roleTab };
+  // Rights changes that wait for approval and belong together (one role, user group or person, from one requester) are listed as one
+  // row that opens to the single rights, each with a checkbox, so some can be approved or rejected and the rest left waiting.
+  const RIGHTS_TITLES = [
+    ['Role', /^Change rights: (.+?) · (.+?) · (.+) \((.+)\)$/, (m) => [m[1], m[2], m[3], m[4]]],
+    ['User group', /^Change rights of user group: (.+?) · (.+?) · (.+) \((.+)\)$/, (m) => [m[1], m[2], m[3], m[4]]],
+    ['Person', /^Change rights for (.+?): (.+?) · (.+) \((.+)\)$/, (m) => [m[1], m[2], m[3], m[4]]]
+  ];
+  const parseRights = (title) => { for (const [scope, re, pick] of RIGHTS_TITLES) { const m = re.exec(title || ''); if (m) { const [target, module, right, verb] = pick(m); return { scope, target, module, right, verb }; } } return null; };
+  const byKey = new Map();
+  reqItems.filter((r) => r.status === 'Pending' && r.canAct).forEach((r) => {
+    const pr = parseRights(r.title);
+    if (!pr) return;
+    const key = [r.flowId, pr.scope, pr.target, r.by].join('|');
+    if (!byKey.has(key)) byKey.set(key, { key, ...pr, by: r.by, when: r.when, rows: [] });
+    byKey.get(key).rows.push({ rq: r, pr });
+  });
+  const sel = s.apSel || {};
+  const open = s.apOpen || {};
+  const apGroups = [...byKey.values()].filter((g) => g.rows.length > 1).map((g) => {
+    const items = g.rows.map(({ rq, pr }) => ({
+      uid: rq.uid, id: rq.id, module: modInfo[pr.module] ? modInfo[pr.module][0] : pr.module, right: pr.right,
+      sign: pr.verb === 'allow' ? '+' : pr.verb === 'remove' ? '−' : '↺', signColor: pr.verb === 'allow' ? '#B8F36B' : pr.verb === 'remove' ? '#FF9B8A' : '#9DB0A6',
+      verbLabel: pr.verb === 'allow' ? 'Give' : pr.verb === 'remove' ? 'Take away' : 'Back to the role', checked: !!sel[rq.uid],
+      toggle: () => this.setState((st) => ({ apSel: { ...(st.apSel || {}), [rq.uid]: !(st.apSel || {})[rq.uid] } }))
+    }));
+    const picked = g.rows.filter(({ rq }) => sel[rq.uid]).map(({ rq }) => rq);
+    const all = g.rows.map(({ rq }) => rq);
+    const run = (approve) => {
+      if (!this.srv) return;
+      const targets = picked.length ? picked : all;   // nothing ticked: all of them
+      if (!approve && !picked.length && typeof window !== 'undefined' && !window.confirm('Reject all ' + all.length + ' rights in this request?')) return;
+      const comment = ((s.apNote || {})[g.key] || '').trim();
+      this.setState((st) => ({ apBusy: { ...(st.apBusy || {}), [g.key]: true } }));
+      approvalsW.decideMany(this, this.srv, targets, approve, comment).then((failed) => {
+        this.setState((st) => ({ apBusy: { ...(st.apBusy || {}), [g.key]: false }, apSel: Object.fromEntries(Object.entries(st.apSel || {}).filter(([uid]) => !targets.some((t) => t.uid === uid))) }));
+        const done = targets.length - failed.length;
+        if (done) this.notify((approve ? 'Approved ' : 'Rejected ') + done + (done === 1 ? ' right' : ' rights') + (picked.length && all.length > picked.length ? '. ' + (all.length - picked.length) + ' still waiting.' : '.'), approve ? '#B8F36B' : '#FF9B8A');
+        if (failed.length) this.notify(failed.length + ' did not go through: ' + failed[0].message, '#FF9B8A');
+      }).catch((e) => { this.setState((st) => ({ apBusy: { ...(st.apBusy || {}), [g.key]: false } })); this.notify((e && e.message) || 'That did not go through.', '#FF9B8A'); });
+    };
+    return { key: g.key, scope: g.scope, target: g.target, title: 'Change rights · ' + g.scope + ': ' + g.target, sub: g.rows.length + ' rights waiting · requested by ' + g.by + ' · ' + g.when,
+      open: !!open[g.key], toggle: () => this.setState((st) => ({ apOpen: { ...(st.apOpen || {}), [g.key]: !(st.apOpen || {})[g.key] } })), toggleLabel: open[g.key] ? 'Hide rights' : 'Review rights (' + g.rows.length + ')',
+      items, count: g.rows.length, selectedCount: picked.length, allChecked: picked.length === all.length,
+      toggleAll: () => this.setState((st) => ({ apSel: { ...(st.apSel || {}), ...Object.fromEntries(all.map((rq) => [rq.uid, picked.length !== all.length])) } })),
+      note: (s.apNote || {})[g.key] || '', onNote: (e) => { const v = e.target.value; this.setState((st) => ({ apNote: { ...(st.apNote || {}), [g.key]: v } })); },
+      busy: !!(s.apBusy || {})[g.key], approveLabel: picked.length ? 'Approve selected (' + picked.length + ')' : 'Approve all (' + all.length + ')', rejectLabel: picked.length ? 'Reject selected (' + picked.length + ')' : 'Reject all',
+      approve: () => run(true), reject: () => run(false) };
+  });
+  const grouped = new Set(apGroups.flatMap((g) => g.items.map((i) => i.uid)));
+  const waitingRows = reqItems.filter((r) => r.status === 'Pending' && !grouped.has(r.uid));
+  const requestsShown = s.apTab === 'waiting' ? waitingRows : reqItems;
+  return { apGroups: s.apTab === 'waiting' ? apGroups : [], f8, flowItem, flowsAll, pendingCount, requestsShown, roleList, roleSel, roleTab };
 }
