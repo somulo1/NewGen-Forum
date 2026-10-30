@@ -31,7 +31,7 @@ export function buildHomeWidgets(ctx) {
     files: { title: 'Recent files', sub: 'Across your forums', tint: '#C9B6FF', desc: 'The latest documents shared with you.' },
     joiners: { title: 'New joiners', sub: 'This week', tint: '#B8F36B', desc: 'Welcome new colleagues and help them settle in.' },
     sessions: { title: 'Meetings & standups', sub: 'Live & upcoming', tint: '#6EE7C8', desc: 'Live meetings and daily standups you can join, plus a button to start one.' },
-    notes: { title: 'My notes', sub: 'Only you can see this', tint: '#FFD66B', desc: 'A private sticky note for your own reminders.' },
+    notes: { title: 'My notes', tint: '#FFD66B', desc: 'A private sticky note for your own reminders.' },
     branches: { title: 'Branches', sub: 'Your locations', tint: '#7CC4FF', desc: 'For organizations with several locations: each branch, its head, staff count and contacts.' },
     sectors: { title: 'Sectors', sub: 'Top level of the structure', tint: '#FFB86B', desc: 'Groups branches (or departments) into sectors under the organization. Turns on sector dashboards and the Sector manager role.' },
     departments: { title: 'Departments', sub: 'Teams and how they perform', tint: '#B8F36B', desc: 'Departments sit under their branch or sector. Tickets go to departments, and each department gets a dashboard and a Head of department role.' },
