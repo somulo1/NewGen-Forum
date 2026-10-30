@@ -569,7 +569,6 @@
   },
   "response": {
    "mode": "string. sfu | mesh",
-   "online": "boolean. Private calls only: false when the other person is not signed in right now",
    "ice": "array. STUN and TURN servers for the browsers ({ urls, username, credential }), mesh rooms only",
    "call": {
     "id": "uuid",
@@ -598,7 +597,7 @@
   "errors": {
    "400": "Unknown kind or context",
    "404": "Not in that conversation",
-   "409": "room_full: the room holds its limit",
+   "409": "Private calls only: caller_busy (you are already in a call), callee_offline (the other person is not signed in; nothing rings), callee_busy (they are on another call)",
    "429": "too_many_calls: the organization is already running its limit of calls",
    "503": "calls_busy or calls_unavailable: try again in a moment"
   }
@@ -609,7 +608,6 @@
   "access": "someone invited, or a member of the call's conversation",
   "response": {
    "mode": "string. sfu | mesh",
-   "online": "boolean. Private calls only: false when the other person is not signed in right now",
    "ice": "array. STUN and TURN servers for the browsers ({ urls, username, credential }), mesh rooms only",
    "call": "object. As above",
    "sfu": "object. As above",

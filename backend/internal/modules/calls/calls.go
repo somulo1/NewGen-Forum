@@ -129,6 +129,13 @@ func (m *Module) Start(ctx context.Context, p *tenant.Principal, in StartIn) (*E
 				return httpx.ErrNotFound
 			}
 		}
+		// A private call is made only to someone who is signed in right now and free, and only by someone who is free themselves: nobody
+		// is rung (and nothing is created) for a person who is offline or already on a call.
+		if in.Context == "dm" {
+			if err := m.checkReachable(ctx, tx, p, invited); err != nil {
+				return err
+			}
+		}
 		id := app.NewID()
 		status := "active"
 		if in.Context == "dm" {
@@ -168,11 +175,6 @@ func (m *Module) Start(ctx context.Context, p *tenant.Principal, in StartIn) (*E
 	})
 	if err != nil {
 		return nil, err
-	}
-	if in.Context == "dm" && len(invited) == 1 {
-		n, _ := m.A.Rdb.Exists(ctx, "pres:"+p.Org.String()+":"+invited[0].String()).Result()
-		on := n > 0
-		out.Online = &on
 	}
 	d, _ := json.Marshal(map[string]any{"call": out.Call.ID, "kind": in.Kind, "context": in.Context, "conversation": in.Conversation, "from": p.Person, "from_name": p.Name})
 	typ := "call.started"
