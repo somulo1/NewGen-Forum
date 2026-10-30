@@ -23,6 +23,7 @@ export default {
     people: { type: Array, default: () => [] },      // { uid, name, title, dept, initials, color }
     exclude: { type: Array, default: () => [] },     // uids that cannot be picked (already in)
     selected: { type: Array, default: () => [] },    // uids shown as chips (not instant)
+    scope: { type: Array, default: null },           // when given, only these uids can be found (chips still show anyone picked)
     instant: Boolean,
     placeholder: { type: String, default: 'Search people by name…' }
   },
@@ -34,7 +35,7 @@ export default {
       const t = this.q.trim().toLowerCase();
       if (!t) return [];
       const skip = new Set(this.exclude.concat(this.selected));
-      return this.people.filter((p) => !skip.has(p.uid) && [p.name, p.title, p.dept, p.email].some((x) => (x || '').toLowerCase().includes(t)))
+      return this.people.filter((p) => !skip.has(p.uid) && (!this.scope || this.scope.includes(p.uid)) && [p.name, p.title, p.dept, p.email].some((x) => (x || '').toLowerCase().includes(t)))
         .sort((a, b) => (a.name.toLowerCase().startsWith(t) ? 0 : 1) - (b.name.toLowerCase().startsWith(t) ? 0 : 1) || a.name.localeCompare(b.name)).slice(0, 8);
     }
   },

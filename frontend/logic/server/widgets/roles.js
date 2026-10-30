@@ -66,6 +66,22 @@ export async function deleteGroup(logic, srv, id) {
   await loadGroups(logic, srv);
 }
 
+// Sends several rights of a role as ONE approval (or applies them at once when no approval is needed). Returns 'applied' or 'pending'.
+export async function setRightsBatch(logic, srv, role, changes) {
+  const res = await srv.request('PUT', `/roles/${role}/rights/batch`, { changes });
+  await load(logic, srv);
+  if (srv.reload.approvals) srv.reload.approvals();
+  return res && res.applied ? 'applied' : 'pending';
+}
+
+// Sends several rights of a user group as ONE approval. Returns 'applied' or 'pending'.
+export async function setGroupRightsBatch(logic, srv, group, changes) {
+  const res = await srv.request('PUT', `/groups/${group}/rights/batch`, { changes });
+  await loadGroups(logic, srv);
+  if (srv.reload.approvals) srv.reload.approvals();
+  return res && res.applied ? 'applied' : 'pending';
+}
+
 // Allows or removes one right for a role. Returns 'applied' or 'pending'.
 export async function setRight(logic, srv, role, mod, right, allowed) {
   const res = await srv.request('PUT', `/roles/${role}/rights`, { module: mod, right, allowed });

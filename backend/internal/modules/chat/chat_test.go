@@ -39,7 +39,7 @@ func b64(b []byte) string { return base64.StdEncoding.EncodeToString(b) }
 func newMember(t *testing.T, e *testkit.Env, owner *testkit.User, slug, first string) *member {
 	t.Helper()
 	email := testkit.Uniq()
-	out := e.MustDo(201, "POST", "/people", map[string]any{"people": []any{map[string]any{"first_name": first, "last_name": "T", "email": email, "phone": "+254700000001", "date_of_birth": "1990-04-05", "gender": "Male"}}}, owner.Access)
+	out := e.MustDo(201, "POST", "/people", map[string]any{"people": []any{map[string]any{"first_name": first, "last_name": "T", "email": email, "phone": "+254700000001", "date_of_birth": "1990-04-05", "gender": "Male", "invite_link": true}}}, owner.Access)
 	pid := out["results"].([]any)[0].(map[string]any)["id"].(string)
 	tok := tokenRe.FindStringSubmatch(e.Dev.To(email)[0].Body)[1]
 	e.Signup(first, email)

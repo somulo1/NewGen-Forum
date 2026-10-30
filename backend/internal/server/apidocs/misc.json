@@ -530,6 +530,14 @@
    "400": "A date is not RFC 3339"
   }
  },
+ "GET /v1/security/logs/{id}": {
+  "summary": "One audit log entry with its context",
+  "description": "The entry plus what surrounds it: other entries by the same person and from the same address.",
+  "access": "a role with Security: View logs",
+  "errors": {
+   "404": "No such entry"
+  }
+ },
  "GET /v1/security/logs/export": {
   "summary": "Export the audit log",
   "description": "Same filters as the log. The export is itself logged. Cells that start with = + - or @ are escaped so spreadsheets do not run them.",

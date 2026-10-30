@@ -7,12 +7,12 @@ import * as projects from './projects.js';
 
 export const name = 'approvals';
 
-const KIND = { 'comm.publish': 'comm', 'award.grant': 'award', 'project.activate': 'project', 'rights.role': 'rights', 'rights.group': 'rights', 'person.update': 'personEdit', 'share.activate': 'share' };
+const KIND = { 'comm.publish': 'comm', 'award.grant': 'award', 'project.activate': 'project', 'rights.role': 'rights', 'rights.group': 'rights', 'rights.batch': 'rights', 'person.update': 'personEdit', 'share.activate': 'share' };
 
 const mapRequest = (r) => ({
   id: r.ref, uid: r.id, flowId: r.flow, title: r.title, by: r.by, when: when(r.created_at), level: r.level, status: r.status, kind: KIND[r.kind] || r.kind,
   history: (r.history || []).map((h) => ({ level: h.level, who: h.who, decision: h.decision, when: when(h.at), comment: h.comment || '' })),
-  note: r.note || '', canDecide: !!r.can_decide, waitingFor: r.waiting_for || ''
+  note: r.note || '', canDecide: !!r.can_decide, waitingFor: r.waiting_for || '', items: r.items || []
 });
 
 export async function load(logic, srv) {
@@ -30,6 +30,13 @@ export async function decide(logic, srv, rq, approve, comment = '') {
   if (rq.kind === 'award') await awards.load(logic, srv);
   if (rq.kind === 'project') await projects.load(logic, srv);
   if (rq.kind === 'rights' || rq.kind === 'personEdit') { const r = await import('./roles.js'); await r.load(logic, srv); }
+}
+
+// Decides some parts of one request made of several (rights marked together); with no parts given, the whole request.
+export async function decideItems(logic, srv, rq, approve, comment = '', items = []) {
+  await srv.request('POST', `/approvals/${rq.uid}/${approve ? 'approve' : 'reject'}`, { comment, ...(items.length ? { items } : {}) });
+  await load(logic, srv);
+  const r = await import('./roles.js'); await r.load(logic, srv);
 }
 
 // Decides several requests at once (the same decision and comment for each), then reloads once. Returns the ones that did not go through.

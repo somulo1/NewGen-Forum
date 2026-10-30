@@ -97,5 +97,20 @@
   "errors": {
    "409": "gone: that group or right no longer exists"
   }
+ },
+ "PUT /v1/groups/{key}/rights/batch": {
+  "summary": "Mark many rights of a user group and send them as ONE approval",
+  "description": "Each right in the request has its own id. The approver can approve some, reject some and leave the rest: `POST /v1/approvals/{id}/approve` or `/reject` with `items` (ids) decides only those; the others move into a new request that waits at the same level. With no `items`, the whole request is decided. When the rights flow needs no approval the changes apply at once (200).",
+  "access": "a role with Roles: Manage roles & rights",
+  "request": {
+   "changes": "array of { module, right, allowed }. 1 to 300. `allowed` null removes a person's own override (people only)"
+  },
+  "response": {
+   "applied": "boolean",
+   "request": "object. Has `items`: [{ id, label, verb }]"
+  },
+  "errors": {
+   "409": "locked_role: a super admin cannot be limited"
+  }
  }
 }

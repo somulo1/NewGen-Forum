@@ -5,7 +5,9 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -14,9 +16,10 @@ import (
 )
 
 var tokenRe = regexp.MustCompile(`/join\?t=(\S+)`)
+var passwordRe = regexp.MustCompile(`First password: (\S+)`)
 
 func person(first, email, title string) map[string]any {
-	return map[string]any{"first_name": first, "last_name": "Tester", "email": email, "phone": "+254700000001", "date_of_birth": "1990-04-05", "gender": "Female", "title": title}
+	return map[string]any{"first_name": first, "last_name": "Tester", "email": email, "phone": "+254700000001", "date_of_birth": "1990-04-05", "gender": "Female", "title": title, "invite_link": true}
 }
 
 // join onboards a person as owner and makes them sign up and accept the emailed invitation.
@@ -265,5 +268,61 @@ func TestReportsToFollowsReportingLines(t *testing.T) {
 	}
 	if staff["reports_to_role"] != "owner" || staff["reports_to_person"] != ownerID {
 		t.Fatalf("roles list lost the reporting line: %v", staff)
+	}
+}
+
+// A person onboarded without the "invitation link" option gets an active account at once and their first password by email; they must
+// choose their own password when they sign in, and they are in the organization with their role.
+func TestOnboardGivesAnActiveAccountAndFirstPassword(t *testing.T) {
+	e := testkit.New(t)
+	owner, slug := e.NewOrg("Olivia Owner")
+	email := testkit.Uniq()
+	body := person("Dora", email, "Analyst")
+	delete(body, "invite_link")
+	body["role"] = "staff"
+	out := e.MustDo(201, "POST", "/people", map[string]any{"people": []any{body}}, owner.Access)
+	if st := out["results"].([]any)[0].(map[string]any)["status"]; st != "invited" {
+		t.Fatalf("not onboarded: %v", out)
+	}
+	msgs := e.Dev.To(email)
+	// the mail goes out in the background
+	for i := 0; i < 50 && len(msgs) == 0; i++ {
+		time.Sleep(100 * time.Millisecond)
+		msgs = e.Dev.To(email)
+	}
+	if len(msgs) != 1 {
+		t.Fatalf("no first-password email")
+	}
+	m := passwordRe.FindStringSubmatch(msgs[0].Body)
+	if m == nil {
+		t.Fatalf("the email does not carry a first password: %q", msgs[0].Body)
+	}
+	lg := e.MustDo(200, "POST", "/auth/login", map[string]any{"email": email, "password": m[1], "org": slug}, "")
+	access := lg["access_token"].(string)
+	if lg["must_change_password"] != true {
+		t.Fatalf("the first password must be replaced at the first sign-in: %v", lg)
+	}
+	if code, _ := e.Do("GET", "/me", nil, access); code != 403 {
+		t.Fatalf("before choosing a password the account should be limited to that: %d", code)
+	}
+	e.MustDo(200, "POST", "/auth/password", map[string]any{"current_password": m[1], "new_password": "Brand-new-pass9"}, access)
+	lg2 := e.MustDo(200, "POST", "/auth/login", map[string]any{"email": email, "password": "Brand-new-pass9", "org": slug}, "")
+	u2 := &testkit.User{Access: lg2["access_token"].(string)}
+	me := e.MustDo(200, "GET", "/me", nil, u2.Access)
+	if me["role"] != "staff" {
+		t.Fatalf("role: %v", me["role"])
+	}
+}
+
+func TestFirstPasswordEmailLinksToTheSignInPage(t *testing.T) {
+	e := testkit.New(t)
+	owner, _ := e.NewOrg("Olivia Owner")
+	email := testkit.Uniq()
+	body := person("Eve", email, "")
+	delete(body, "invite_link")
+	e.MustDo(201, "POST", "/people", map[string]any{"people": []any{body}}, owner.Access)
+	msgs := e.Dev.To(email)
+	if len(msgs) != 1 || !strings.Contains(msgs[0].Body, "/login") || strings.Contains(msgs[0].Body, "/auth/login") {
+		t.Fatalf("the sign-in link must open the sign-in page (/login): %v", msgs)
 	}
 }

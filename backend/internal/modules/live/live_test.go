@@ -50,7 +50,7 @@ func TestRealtimeDeliversAndGuards(t *testing.T) {
 	owner, slug := e.NewOrg("Olivia Owner")
 	// a second member
 	email := testkit.Uniq()
-	out := e.MustDo(201, "POST", "/people", map[string]any{"people": []any{map[string]any{"first_name": "Sam", "last_name": "T", "email": email, "phone": "+254700000001", "date_of_birth": "1990-04-05", "gender": "Male"}}}, owner.Access)
+	out := e.MustDo(201, "POST", "/people", map[string]any{"people": []any{map[string]any{"first_name": "Sam", "last_name": "T", "email": email, "phone": "+254700000001", "date_of_birth": "1990-04-05", "gender": "Male", "invite_link": true}}}, owner.Access)
 	sid := out["results"].([]any)[0].(map[string]any)["id"].(string)
 	tok := tokenRe.FindStringSubmatch(e.Dev.To(email)[0].Body)[1]
 	e.Signup("Sam", email)

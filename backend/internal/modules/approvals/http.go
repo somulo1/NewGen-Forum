@@ -37,11 +37,14 @@ func (e *Engine) Private(r chi.Router) {
 			if err != nil {
 				return httpx.ErrNotFound
 			}
-			var in struct{ Comment string }
+			var in struct {
+				Comment string
+				Items   []string `json:"items"`
+			}
 			if err := httpx.Decode(r, &in, 8<<10); err != nil {
 				return err
 			}
-			x, err := e.Decide(r.Context(), p, id, approve, in.Comment)
+			x, err := e.Decide(r.Context(), p, id, approve, in.Comment, in.Items...)
 			if err != nil {
 				return err
 			}
@@ -84,13 +87,17 @@ func (e *Engine) Private(r chi.Router) {
 			return err
 		}
 		var in struct {
-			Person *uuid.UUID `json:"person"`
+			People []uuid.UUID `json:"people"`
+			Person *uuid.UUID  `json:"person"` // one person (older callers)
 		}
 		if err := httpx.Decode(r, &in, 8<<10); err != nil {
 			return err
 		}
 		lv, _ := strconv.Atoi(chi.URLParam(r, "level"))
-		if err := e.SetDesignee(r.Context(), p, chi.URLParam(r, "key"), lv, in.Person); err != nil {
+		if in.Person != nil && len(in.People) == 0 {
+			in.People = []uuid.UUID{*in.Person}
+		}
+		if err := e.SetDesignee(r.Context(), p, chi.URLParam(r, "key"), lv, in.People); err != nil {
 			return err
 		}
 		w.WriteHeader(204)

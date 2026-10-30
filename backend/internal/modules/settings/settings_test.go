@@ -57,7 +57,7 @@ func TestSettingsAreEncryptedValidatedAndGuarded(t *testing.T) {
 	sub["seats"] = 2 // owner + Sam
 	e.MustDo(200, "PUT", "/settings/subscription", sub, ownerU.Access)
 	// the plan is full, so no one else can be added
-	if code, body := e.Do("POST", "/people", map[string]any{"people": []any{map[string]any{"first_name": "X", "last_name": "Y", "email": testkit.Uniq(), "phone": "+254700000001", "date_of_birth": "1990-04-05", "gender": "Male"}}}, ownerU.Access); code != 402 {
+	if code, body := e.Do("POST", "/people", map[string]any{"people": []any{map[string]any{"first_name": "X", "last_name": "Y", "email": testkit.Uniq(), "phone": "+254700000001", "date_of_birth": "1990-04-05", "gender": "Male", "invite_link": true}}}, ownerU.Access); code != 402 {
 		t.Fatalf("seat limit not enforced: %d %v", code, body)
 	}
 	// billing keeps only the last four digits
