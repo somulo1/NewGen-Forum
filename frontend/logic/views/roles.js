@@ -2,13 +2,13 @@ import { shareUrl } from '~/logic/shareOut.js';
 import * as approvalsW from '~/logic/server/widgets/approvals.js';
 // renderVals step: roles. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildRoles(ctx) {
-  const { badge, flowById, ini, modInfo, pColor, rKey, rightOf, rightsDef, roleDefs, s, set, tabS, toggleRight } = ctx;
+  const { badge, flowById, ini, modEnabled, modInfo, pColor, rKey, rightOf, rightsDef, roleDefs, s, set, tabS, toggleRight } = ctx;
   // ---- Roles page ----
   const roleSelDef = roleDefs.find((r) => r.id === s.roleSel) || roleDefs.find((r) => r.isDefault) || roleDefs[0] || { id: '', name: '', desc: '', locked: false, count: 0 };
   const roleList = roleDefs.map((r) => ({ ...r, pick: () => this.setState({ roleSel: r.id }), style: 'display:flex;align-items:center;gap:8px;width:100%;min-height:52px;padding:6px 12px;border-radius:10px;cursor:pointer;color:var(--k-E8EFEA,#E8EFEA);border:1px solid ' + (s.roleSel === r.id ? '#3F524A' : 'transparent') + ';background:' + (s.roleSel === r.id ? 'var(--k-22302A,#22302A)' : 'transparent') }));
   const roleSel = { ...roleSelDef,
     members: Object.keys(s.memberRoles).filter((n) => s.memberRoles[n] === roleSelDef.id).slice(0, 12).map((n) => ({ name: n, initials: this.srv && n === this.srv.me.name ? 'S' : ini(n), color: pColor[n] || '#C9B6FF' })),
-    modules: Object.keys(rightsDef).map((m) => {
+    modules: Object.keys(rightsDef).filter(modEnabled).map((m) => {
       const rights = rightsDef[m].map((r) => { const k = rKey(roleSelDef.id, m, r); return { name: r, on: rightOf(roleSelDef.id, m, r), locked: !!roleSelDef.locked, pending: s.pendingRights[k] !== undefined, toggle: () => toggleRight(roleSelDef.id, m, r) }; });
       return { label: modInfo[m][0], tint: modInfo[m][1], rights, onCount: rights.filter((x) => x.on).length, total: rights.length };
     }) };
@@ -154,7 +154,40 @@ export function buildRoles(ctx) {
       busy: !!(s.apBusy || {})[g.key], approveLabel: picked.length ? 'Approve selected (' + picked.length + ')' : 'Approve all (' + all.length + ')', rejectLabel: picked.length ? 'Reject selected (' + picked.length + ')' : 'Reject all',
       approve: () => run(true), reject: () => run(false) };
   });
-  const grouped = new Set(apGroups.flatMap((g) => g.items.map((i) => i.uid)));
+  // Rights marked together and sent as ONE approval: one card per request, its rights listed with checkboxes. Ticked ones are decided;
+  // the rest stay waiting (the server moves them into a request of their own).
+  const batchCards = reqItems.filter((r) => r.status === 'Pending' && r.canAct && (r.items || []).length).map((rq) => {
+    const key = 'b:' + rq.uid;
+    const its = rq.items.map((it) => {
+      const sk = rq.uid + ':' + it.id;
+      const [mod, ...rest] = String(it.label || '').split(' · ');
+      return { uid: sk, itemId: it.id, module: modInfo[mod] ? modInfo[mod][0] : mod, right: rest.join(' · ') || it.label,
+        sign: it.verb === 'allow' ? '+' : it.verb === 'remove' ? '−' : '↺', signColor: it.verb === 'allow' ? '#B8F36B' : it.verb === 'remove' ? '#FF9B8A' : '#9DB0A6',
+        verbLabel: it.verb === 'allow' ? 'Give' : it.verb === 'remove' ? 'Take away' : 'Back to the role', checked: !!sel[sk],
+        toggle: () => this.setState((st) => ({ apSel: { ...(st.apSel || {}), [sk]: !(st.apSel || {})[sk] } })) };
+    });
+    const picked = its.filter((i) => i.checked);
+    const run = (approve) => {
+      if (!this.srv) return;
+      if (!approve && !picked.length && typeof window !== 'undefined' && !window.confirm('Reject all ' + its.length + ' rights in ' + rq.id + '?')) return;
+      const comment = ((s.apNote || {})[key] || '').trim();
+      this.setState((st) => ({ apBusy: { ...(st.apBusy || {}), [key]: true } }));
+      approvalsW.decideItems(this, this.srv, rq, approve, comment, picked.map((i) => i.itemId)).then(() => {
+        this.setState((st) => ({ apBusy: { ...(st.apBusy || {}), [key]: false }, apSel: Object.fromEntries(Object.entries(st.apSel || {}).filter(([k]) => !k.startsWith(rq.uid + ':'))) }));
+        const n = picked.length || its.length;
+        this.notify((approve ? 'Approved ' : 'Rejected ') + n + (n === 1 ? ' right' : ' rights') + (picked.length && picked.length < its.length ? '. ' + (its.length - picked.length) + ' still waiting.' : '.'), approve ? '#B8F36B' : '#FF9B8A');
+      }).catch((e) => { this.setState((st) => ({ apBusy: { ...(st.apBusy || {}), [key]: false } })); this.notify((e && e.message) || 'That did not go through.', '#FF9B8A'); });
+    };
+    return { key, uid: rq.uid, title: rq.id + ' · ' + rq.title, sub: its.length + (its.length === 1 ? ' right' : ' rights') + ' waiting · requested by ' + rq.by + ' · ' + rq.when + (rq.levels > 1 ? ' · level ' + rq.level + ' of ' + rq.levels : ''),
+      open: !!open[key], toggle: () => this.setState((st) => ({ apOpen: { ...(st.apOpen || {}), [key]: !(st.apOpen || {})[key] } })), toggleLabel: open[key] ? 'Hide rights' : 'View rights (' + its.length + ')',
+      items: its, count: its.length, selectedCount: picked.length, allChecked: picked.length === its.length,
+      toggleAll: () => this.setState((st) => ({ apSel: { ...(st.apSel || {}), ...Object.fromEntries(its.map((i) => [i.uid, picked.length !== its.length])) } })),
+      note: (s.apNote || {})[key] || '', onNote: (e) => { const v = e.target.value; this.setState((st) => ({ apNote: { ...(st.apNote || {}), [key]: v } })); },
+      busy: !!(s.apBusy || {})[key], approveLabel: picked.length ? 'Approve selected (' + picked.length + ')' : 'Approve all (' + its.length + ')', rejectLabel: picked.length ? 'Reject selected (' + picked.length + ')' : 'Reject all',
+      approve: () => run(true), reject: () => run(false), requestUid: rq.uid };
+  });
+  apGroups.unshift(...batchCards);
+  const grouped = new Set(apGroups.flatMap((g) => (g.requestUid ? [g.requestUid] : g.items.map((i) => i.uid))));
   const waitingRows = reqItems.filter((r) => r.status === 'Pending' && !grouped.has(r.uid));
   const requestsShown = s.apTab === 'waiting' ? waitingRows : reqItems;
   return { apGroups: s.apTab === 'waiting' ? apGroups : [], f8, flowItem, flowsAll, pendingCount, requestsShown, roleList, roleSel, roleTab };

@@ -15,12 +15,19 @@ import (
 // approversOf lists who may decide a level: the person chosen for it, or, when nobody was chosen, everyone who holds the right
 // "Approve level N" in the flow's module (owners included). The requester never decides their own request.
 func (e *Engine) approversOf(ctx context.Context, tx pgx.Tx, f *Flow, level int, requester uuid.UUID) []uuid.UUID {
-	var chosen uuid.UUID
-	if tx.QueryRow(ctx, `select person_id from hub.approval_designees where flow_key=$1 and level=$2`, f.Key, level).Scan(&chosen) == nil {
-		if chosen == requester {
-			return nil
+	if rs, err := tx.Query(ctx, `select person_id from hub.approval_designees where flow_key=$1 and level=$2 and person_id <> $3`, f.Key, level, requester); err == nil {
+		var chosen []uuid.UUID
+		for rs.Next() {
+			var id uuid.UUID
+			if rs.Scan(&id) == nil {
+				chosen = append(chosen, id)
+			}
 		}
-		return []uuid.UUID{chosen}
+		rs.Close()
+		var n int
+		if tx.QueryRow(ctx, `select count(*) from hub.approval_designees where flow_key=$1 and level=$2`, f.Key, level).Scan(&n) == nil && n > 0 {
+			return chosen
+		}
 	}
 	rs, err := tx.Query(ctx, `select p.id from hub.people p
 		left join hub.person_roles pr on pr.person_id = p.id left join hub.roles r on r.id = pr.role_id

@@ -342,6 +342,9 @@ type NewPerson struct {
 	Department *uuid.UUID `json:"department_id"`
 	Role       string     `json:"role"`
 	Color      string     `json:"color"`
+	// InviteLink sends the emailed join link instead of a ready account with a first password (the person makes their own account and
+	// accepts the link). Without it, the person gets an active account and their first password by email.
+	InviteLink bool `json:"invite_link"`
 }
 
 type Onboarded struct {
@@ -387,6 +390,7 @@ func (s *Service) Onboard(ctx context.Context, p *tenant.Principal, list []NewPe
 	type mailJob struct {
 		to, link, name string
 		id             uuid.UUID
+		inviteLink     bool
 	}
 	var jobs []mailJob
 	err := s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
@@ -472,7 +476,7 @@ func (s *Service) Onboard(ctx context.Context, p *tenant.Principal, list []NewPe
 				continue
 			}
 			out[i].ID, out[i].Status = id, "invited"
-			jobs = append(jobs, mailJob{to: n.Email, link: link, name: n.First + " " + n.Last, id: id})
+			jobs = append(jobs, mailJob{to: n.Email, link: link, name: n.First + " " + n.Last, id: id, inviteLink: n.InviteLink})
 		}
 		var added int
 		for _, o := range out {
@@ -491,15 +495,21 @@ func (s *Service) Onboard(ctx context.Context, p *tenant.Principal, list []NewPe
 	})
 	for _, j := range jobs {
 		// The person gets a working account at once: active, with a first password in the email that they must change when they sign in.
-		temp, err := s.createLogin(ctx, p.Org, j.id, j.name, j.to)
+		var temp string
+		var err error = errors.New("invitation link requested")
+		if !j.inviteLink {
+			temp, err = s.createLogin(ctx, p.Org, j.id, j.name, j.to)
+		}
 		if err == nil {
-			login := strings.TrimRight(s.A.Cfg.AllowedOrigins[0], "/") + "/auth/login"
+			login := strings.TrimRight(s.A.Cfg.AllowedOrigins[0], "/") + "/login"
 			_ = hubmail.SendCard(ctx, s.A.Mail, j.to, "Your Hub account at "+orgName+" is ready", hubmail.Card{Accent: hubmail.Green, Org: orgName, Title: "Your account is ready", Preheader: "Sign in with the password in this email",
 				Lead: "Your administrator added you to " + orgName + " on Hub. Sign in with the email and first password below. You will choose your own password the first time.",
 				Rows: [][2]string{{"Email", j.to}, {"First password", temp}}, Action: [2]string{"Sign in", login}, Note: "Keep this email private. The first password works until you change it."})
 			continue
 		}
-		slog.Warn("could not create the account for a new person; sending the invitation link instead", "err", err)
+		if !j.inviteLink {
+			slog.Warn("could not create the account for a new person; sending the invitation link instead", "err", err)
+		}
 		_ = hubmail.SendCard(ctx, s.A.Mail, j.to, "You have been added to "+orgName+" on Hub", hubmail.Card{Accent: hubmail.Green, Org: orgName, Title: "You have been added to " + orgName, Preheader: "Join your team on Hub",
 			Lead: "Your administrator added you to " + orgName + " on Hub. Open the link to set up your account and join.", Action: [2]string{"Join " + orgName, j.link}, Note: "The link works once and expires in 7 days."})
 	}

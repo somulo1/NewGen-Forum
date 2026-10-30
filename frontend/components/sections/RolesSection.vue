@@ -44,6 +44,7 @@
 <button type="submit" style="height: 36px; padding: 0 14px; border-radius: 18px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; font-size: 13px">Add page</button>
 <span v-if="newModuleForm.hasErr" role="alert" style="flex: 1 1 100%; font-size: 13px; color: #FF9B8A">{{ newModuleForm.err }}</span>
 </form></details>
+<template v-if="rightsMarkBar.show"><div role="region" aria-label="Marked rights" style="position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 14px; border: 2px solid #FFB86B; background: var(--k-1B1A12,#1B1A12)"><strong style="flex: 1 1 220px; font-size: 14px">{{ rightsMarkBar.label }}</strong><button type="button" @click="rightsMarkBar.clear" style="height: 36px; padding: 0 14px; border-radius: 18px; border: 1px solid var(--k-6B7A72,#6B7A72); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer">Clear</button><button type="button" :disabled="rightsMarkBar.busy" @click="rightsMarkBar.send" style="height: 36px; padding: 0 18px; border-radius: 18px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 700; cursor: pointer">{{ rightsMarkBar.busy ? 'Sending…' : 'Send ' + rightsMarkBar.count + ' for approval' }}</button></div></template>
 <DataTable :t="rightsTable" /></template>
 <template v-if="rolesView.isMembers"><DataTable :t="membersTable" /></template>
 <template v-if="rolesView.isReporting">
@@ -66,6 +67,6 @@ import { hubBindings } from '~/composables/useHub';
 
 export default {
   name: 'RolesSection',
-  ...hubBindings(["reportingTable","reportingBar","actingRole","flowsTable","membersTable","rightsHint","rightsTable","roleBar","rolesTable","rolesTabs","newRoleForm","newRightForm","newModuleForm","previewOptions","rolesView","setActingRole","setRoleSel","addToRole","show"])
+  ...hubBindings(["rightsMarkBar","reportingTable","reportingBar","actingRole","flowsTable","membersTable","rightsHint","rightsTable","roleBar","rolesTable","rolesTabs","newRoleForm","newRightForm","newModuleForm","previewOptions","rolesView","setActingRole","setRoleSel","addToRole","show"])
 };
 </script>

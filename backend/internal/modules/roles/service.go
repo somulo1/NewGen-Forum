@@ -33,6 +33,7 @@ func New(a *app.App, ap *approvals.Engine) *Service {
 	ap.Register("rights.role", s.applyRoleRight)
 	ap.Register("rights.person", s.applyPersonRight)
 	ap.Register("rights.group", s.applyGroupRight)
+	ap.Register("rights.batch", s.applyBatch)
 	return s
 }
 

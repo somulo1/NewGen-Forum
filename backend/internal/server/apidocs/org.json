@@ -508,7 +508,8 @@
   "description": "Moves it to the next level, or applies the change when this was the last level. The approver needs the module's `Approve level N` right for the level the request is at.",
   "access": "a role with Approve level N on the flow's module",
   "request": {
-   "comment": "string. Optional note"
+   "comment": "string. Optional note",
+   "items": "array of item ids. Only for a request made of several parts (rights marked together): decide just those; the rest wait in a new request at the same level"
   },
   "response": {
    "id": "uuid",
@@ -545,7 +546,8 @@
   "summary": "Reject a request",
   "access": "a role with Approve level N on the flow's module",
   "request": {
-   "comment": "string. Optional reason"
+   "comment": "string. Optional reason",
+   "items": "array of item ids. Only for a request made of several parts (rights marked together): decide just those; the rest wait in a new request at the same level"
   },
   "response": {
    "id": "uuid",
@@ -625,12 +627,12 @@
   }
  },
  "PUT /v1/approvals/flows/{key}/approvers/{level}": {
-  "summary": "Choose the person who approves at a level",
-  "description": "Instead of anyone with the level's right, only this person decides at that level. Send null to go back to anyone with the right.",
+  "summary": "Choose the people who approve at a level",
+  "description": "Instead of anyone with the level's right, only the people chosen decide at that level (any one of them is enough; the owner role can always stand in). The list replaces the earlier choice; send an empty list to go back to anyone with the right.",
   "access": "a role with Roles: Configure approvals",
   "status": 204,
   "request": {
-   "person": "uuid. An active person, or null to clear"
+   "people": "array of uuid. Active people (up to 50); empty to clear"
   },
   "response": null,
   "errors": {
@@ -980,6 +982,21 @@
    "409": "locked_role: a super admin cannot be limited"
   }
  },
+ "PUT /v1/roles/{key}/rights/batch": {
+  "summary": "Mark many rights of a role and send them as ONE approval",
+  "description": "Each right in the request has its own id. The approver can approve some, reject some and leave the rest: `POST /v1/approvals/{id}/approve` or `/reject` with `items` (ids) decides only those; the others move into a new request that waits at the same level. With no `items`, the whole request is decided. When the rights flow needs no approval the changes apply at once (200).",
+  "access": "a role with Roles: Manage roles & rights",
+  "request": {
+   "changes": "array of { module, right, allowed }. 1 to 300. `allowed` null removes a person's own override (people only)"
+  },
+  "response": {
+   "applied": "boolean",
+   "request": "object. Has `items`: [{ id, label, verb }]"
+  },
+  "errors": {
+   "409": "locked_role: a super admin cannot be limited"
+  }
+ },
  "GET /v1/people/{id}/rights": {
   "summary": "A person's personal rights",
   "description": "The overrides this person has on top of their role.",
@@ -1006,6 +1023,21 @@
   "response": {
    "applied": "boolean",
    "request": "object"
+  },
+  "errors": {
+   "409": "locked_role: a super admin cannot be limited"
+  }
+ },
+ "PUT /v1/people/{id}/rights/batch": {
+  "summary": "Mark many rights of a person and send them as ONE approval",
+  "description": "Each right in the request has its own id. The approver can approve some, reject some and leave the rest: `POST /v1/approvals/{id}/approve` or `/reject` with `items` (ids) decides only those; the others move into a new request that waits at the same level. With no `items`, the whole request is decided. When the rights flow needs no approval the changes apply at once (200).",
+  "access": "a role with Roles: Manage roles & rights",
+  "request": {
+   "changes": "array of { module, right, allowed }. 1 to 300. `allowed` null removes a person's own override (people only)"
+  },
+  "response": {
+   "applied": "boolean",
+   "request": "object. Has `items`: [{ id, label, verb }]"
   },
   "errors": {
    "409": "locked_role: a super admin cannot be limited"

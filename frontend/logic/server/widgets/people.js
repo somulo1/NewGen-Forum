@@ -109,9 +109,10 @@ export async function update(logic, srv, person, now, was, role, extra = {}) {
     const res = await srv.request('PATCH', '/people/' + person.uid, body);
     if (res && res.applied === false) pending = true;
   }
-  for (const [k, allowed] of rights) {
-    const at = k.indexOf('|');
-    const res = await srv.request('PUT', '/people/' + person.uid + '/rights', { module: k.slice(0, at), right: k.slice(at + 1), allowed });
+  if (rights.length) {
+    // all the personal rights changed in the form go as ONE approval
+    const changes = rights.map(([k, allowed]) => { const at = k.indexOf('|'); return { module: k.slice(0, at), right: k.slice(at + 1), allowed }; });
+    const res = await srv.request('PUT', '/people/' + person.uid + '/rights/batch', { changes });
     if (res && res.applied === false) pending = true;
   }
   await load(logic, srv);

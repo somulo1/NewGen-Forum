@@ -16,7 +16,7 @@ func join(t *testing.T, e *testkit.Env, owner *testkit.User, slug, first, role s
 	t.Helper()
 	email := testkit.Uniq()
 	out := e.MustDo(201, "POST", "/people", map[string]any{"people": []any{map[string]any{"first_name": first, "last_name": "T", "email": email, "phone": "+254700000001",
-		"date_of_birth": "1990-04-05", "gender": "Male", "role": role}}}, owner.Access)
+		"date_of_birth": "1990-04-05", "gender": "Male", "invite_link": true, "role": role}}}, owner.Access)
 	id := out["results"].([]any)[0].(map[string]any)["id"].(string)
 	tok := tokenRe.FindStringSubmatch(e.Dev.To(email)[0].Body)[1]
 	e.Signup(first, email)

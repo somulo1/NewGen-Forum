@@ -187,6 +187,7 @@ func (m *Module) SetSecurity(ctx context.Context, p *tenant.Principal, in orgset
 	if err == nil {
 		// every server applies the new inactivity limit on the next request
 		m.A.Rdb.Set(ctx, "idle:"+p.Org.String(), strconv.Itoa(orgsettings.SessionMinutes(in.Session)), 10*time.Minute)
+		orgsettings.ForgetIdle(p.Org)
 	}
 	return err
 }

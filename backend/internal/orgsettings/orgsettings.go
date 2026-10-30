@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -161,3 +163,14 @@ func SeatLimit(ctx context.Context, a *app.App, tx pgx.Tx, org uuid.UUID) (int, 
 	}
 	return min(s.Seats, p.Seats), nil
 }
+
+// IdleCache keeps each organization's inactivity limit in this process for a short while (it is asked on every request). Whoever
+// changes the setting calls ForgetIdle so the change counts at once.
+var IdleCache sync.Map // org id -> IdleEntry
+
+type IdleEntry struct {
+	D  time.Duration
+	At time.Time
+}
+
+func ForgetIdle(org uuid.UUID) { IdleCache.Delete(org) }

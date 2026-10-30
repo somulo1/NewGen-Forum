@@ -38,7 +38,7 @@ func (e *Env) Owner(u *User) *Member {
 func (e *Env) Join(owner *User, slug, first, role string) *Member {
 	e.T.Helper()
 	email := Uniq()
-	body := map[string]any{"first_name": first, "last_name": "T", "email": email, "phone": "+254700000001", "date_of_birth": "1990-04-05", "gender": "Male"}
+	body := map[string]any{"first_name": first, "last_name": "T", "email": email, "phone": "+254700000001", "date_of_birth": "1990-04-05", "gender": "Male", "invite_link": true}
 	if role != "" {
 		body["role"] = role
 	}

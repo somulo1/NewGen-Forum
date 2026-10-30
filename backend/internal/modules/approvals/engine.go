@@ -76,7 +76,18 @@ type Request struct {
 	CreatedAt time.Time  `json:"created_at"`
 	DecidedAt *time.Time `json:"decided_at,omitempty"`
 	CanDecide bool       `json:"can_decide"`
+	Items     []Item     `json:"items,omitempty"` // a request made of several parts (rights marked together): each can be decided on its own
 }
+
+// Item is one part of a request that carries several (see Decide with items).
+type Item struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
+	Verb  string `json:"verb,omitempty"`
+}
+
+// itemKinds are the kinds of request whose payload has an "items" list of { id, label, verb }.
+var itemKinds = map[string]bool{"rights.batch": true}
 
 type Flow struct {
 	Key       string     `json:"id"`
@@ -189,7 +200,7 @@ func (e *Engine) notifyLater(org, id uuid.UUID, r, status string) {
 }
 
 // Decide records one person's decision at the request's current level.
-func (e *Engine) Decide(ctx context.Context, p *tenant.Principal, id uuid.UUID, approve bool, comment string) (*Request, error) {
+func (e *Engine) Decide(ctx context.Context, p *tenant.Principal, id uuid.UUID, approve bool, comment string, items ...string) (*Request, error) {
 	var out *Request
 	err := e.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
 		var level, seq int
@@ -219,6 +230,34 @@ func (e *Engine) Decide(ctx context.Context, p *tenant.Principal, id uuid.UUID, 
 		if err != nil {
 			return err
 		}
+		// Deciding only some items of a request that has several: the chosen ones go on with this decision, the rest wait in a request of
+		// their own, at the same level, to be decided later.
+		var splitRef string
+		if len(items) > 0 {
+			if !itemKinds[kind] {
+				return httpx.Bad("This request has no separate parts to choose from.")
+			}
+			raw, err := crypto.FieldOpen(dek, fieldCtx(p.Org, id, "payload_enc"), pEnc)
+			if err != nil {
+				return err
+			}
+			chosen := map[string]bool{}
+			for _, it := range items {
+				chosen[it] = true
+			}
+			kept, rest, err := e.splitItems(ctx, tx, p, dek, id, level, raw, chosen)
+			if err != nil {
+				return err
+			}
+			if rest != "" {
+				pEnc, err = crypto.Field(dek, fieldCtx(p.Org, id, "payload_enc"), kept)
+				if err != nil {
+					return err
+				}
+				splitRef = rest
+			}
+		}
+		_ = splitRef
 		decision := "Rejected"
 		if approve {
 			decision = "Approved"
@@ -283,27 +322,26 @@ func (e *Engine) mayDecide(ctx context.Context, tx pgx.Tx, who, requester uuid.U
 	if who == requester {
 		return false, nil
 	}
-	var chosen uuid.UUID
-	err := tx.QueryRow(ctx, `select person_id from hub.approval_designees where flow_key=$1 and level=$2`, f.Key, level).Scan(&chosen)
-	if err == nil {
-		if who == chosen {
+	var n, mine int
+	if err := tx.QueryRow(ctx, `select count(*), count(*) filter (where person_id=$3) from hub.approval_designees where flow_key=$1 and level=$2`, f.Key, level, who).Scan(&n, &mine); err != nil {
+		return false, err
+	}
+	if n > 0 {
+		if mine > 0 {
 			return true, nil
 		}
-		var locked bool
-		err = tx.QueryRow(ctx, `select coalesce(bool_or(r.locked), false) from hub.person_roles pr join hub.roles r on r.id = pr.role_id where pr.person_id=$1`, who).Scan(&locked)
+		var locked bool // the owner role can always stand in
+		err := tx.QueryRow(ctx, `select coalesce(bool_or(r.locked), false) from hub.person_roles pr join hub.roles r on r.id = pr.role_id where pr.person_id=$1`, who).Scan(&locked)
 		return locked, err
-	}
-	if err != pgx.ErrNoRows {
-		return false, err
 	}
 	return authz.Can(ctx, tx, who, f.Module, access.ApproveRight(level))
 }
 
-// designee names the person chosen for a level, or "" when none was.
+// designee names the people chosen for a level (comma separated), or "" when nobody was.
 func (e *Engine) designee(ctx context.Context, tx pgx.Tx, key string, level int) string {
-	var n string
-	if tx.QueryRow(ctx, `select p.first_name || ' ' || p.last_name from hub.approval_designees d join hub.people p on p.id = d.person_id where d.flow_key=$1 and d.level=$2`, key, level).Scan(&n) == nil {
-		return n
+	var n *string
+	if tx.QueryRow(ctx, `select string_agg(p.first_name || ' ' || p.last_name, ', ' order by p.first_name) from hub.approval_designees d join hub.people p on p.id = d.person_id where d.flow_key=$1 and d.level=$2`, key, level).Scan(&n) == nil && n != nil {
+		return *n
 	}
 	return ""
 }
@@ -351,7 +389,7 @@ func (e *Engine) list(ctx context.Context, tx pgx.Tx, p *tenant.Principal, where
 	}
 	rs, err := tx.Query(ctx, `
 		select r.id, r.seq, r.flow_key, r.kind, r.title_enc, r.note_enc, r.requester, p.first_name || ' ' || p.last_name, r.level, r.status, r.created_at, r.decided_at,
-		       f.levels, f.module
+		       f.levels, f.module, case when r.kind = 'rights.batch' then r.payload_enc end
 		from hub.approval_requests r join hub.people p on p.id = r.requester join hub.approval_flows f on f.key = r.flow_key
 		where `+where+` order by r.created_at desc, r.id desc limit `+fmt.Sprint(limit), args...)
 	if err != nil {
@@ -362,14 +400,19 @@ func (e *Engine) list(ctx context.Context, tx pgx.Tx, p *tenant.Principal, where
 	var seqs []int
 	for rs.Next() {
 		x := &Request{History: []Step{}}
-		var tEnc, nEnc []byte
+		var tEnc, nEnc, pEnc []byte
 		var mod string
 		var sq int
-		if err := rs.Scan(&x.ID, &sq, &x.Flow, &x.Kind, &tEnc, &nEnc, &x.Requester, &x.By, &x.Level, &x.Status, &x.CreatedAt, &x.DecidedAt, &x.Levels, &mod); err != nil {
+		if err := rs.Scan(&x.ID, &sq, &x.Flow, &x.Kind, &tEnc, &nEnc, &x.Requester, &x.By, &x.Level, &x.Status, &x.CreatedAt, &x.DecidedAt, &x.Levels, &mod, &pEnc); err != nil {
 			rs.Close()
 			return nil, err
 		}
 		x.Levels = max(1, x.Levels)
+		if len(pEnc) > 0 && itemKinds[x.Kind] {
+			if raw, err := crypto.FieldOpen(dek, fieldCtx(p.Org, x.ID, "payload_enc"), pEnc); err == nil {
+				x.Items = itemsOf(raw)
+			}
+		}
 		out = append(out, x)
 		modules = append(modules, mod)
 		seqs = append(seqs, sq)
@@ -561,8 +604,12 @@ func (e *Engine) Flows(ctx context.Context, p *tenant.Principal) ([]Flow, error)
 	return out, err
 }
 
-// SetDesignee chooses (or, with a nil person, clears) who decides one level of a flow.
-func (e *Engine) SetDesignee(ctx context.Context, p *tenant.Principal, key string, level int, person *uuid.UUID) error {
+// SetDesignee chooses who decides one level of a flow: the people given replace whoever was chosen before (none clears it).
+// Any one of them may decide the level.
+func (e *Engine) SetDesignee(ctx context.Context, p *tenant.Principal, key string, level int, people []uuid.UUID) error {
+	if len(people) > 50 {
+		return httpx.Bad("Choose up to 50 people for a level.")
+	}
 	if level < 1 || level > 3 {
 		return httpx.Bad("A flow has levels 1 to 3.")
 	}
@@ -577,24 +624,24 @@ func (e *Engine) SetDesignee(ctx context.Context, p *tenant.Principal, key strin
 		if level > levels {
 			return httpx.Bad("This flow has only " + fmt.Sprint(levels) + " levels.")
 		}
-		if person == nil {
-			if _, err := tx.Exec(ctx, `delete from hub.approval_designees where flow_key=$1 and level=$2`, key, level); err != nil {
-				return err
-			}
-		} else {
+		for _, id := range people {
 			var ok bool
-			if err := tx.QueryRow(ctx, `select exists (select 1 from hub.people where id=$1 and status='active')`, *person).Scan(&ok); err != nil || !ok {
-				return httpx.Bad("Choose someone who is active in the organization.")
+			if err := tx.QueryRow(ctx, `select exists (select 1 from hub.people where id=$1 and status='active')`, id).Scan(&ok); err != nil || !ok {
+				return httpx.Bad("Choose people who are active in the organization.")
 			}
-			if _, err := tx.Exec(ctx, `insert into hub.approval_designees (org_id, flow_key, level, person_id) values ($1,$2,$3,$4)
-				on conflict (org_id, flow_key, level) do update set person_id=excluded.person_id, updated_at=now(), `+integrity.Bump, p.Org, key, level, *person); err != nil {
-				return err
-			}
-			if err := e.A.Sign.Seal(ctx, tx, "approval_designees", "flow_key=$1 and level=$2", key, level); err != nil {
+		}
+		if _, err := tx.Exec(ctx, `delete from hub.approval_designees where flow_key=$1 and level=$2 and not (person_id = any($3))`, key, level, people); err != nil {
+			return err
+		}
+		for _, id := range people {
+			if _, err := tx.Exec(ctx, `insert into hub.approval_designees (org_id, flow_key, level, person_id) values ($1,$2,$3,$4) on conflict do nothing`, p.Org, key, level, id); err != nil {
 				return err
 			}
 		}
-		return e.A.Audit(ctx, tx, p.Org, &p.Person, p.Name, fmt.Sprintf("Chose the approver of level %d of flow %s", level, key), "Roles", p.IP, map[string]any{"flow": key, "level": level, "person": person})
+		if err := e.A.Sign.Seal(ctx, tx, "approval_designees", "flow_key=$1 and level=$2", key, level); err != nil {
+			return err
+		}
+		return e.A.Audit(ctx, tx, p.Org, &p.Person, p.Name, fmt.Sprintf("Chose %d approver(s) for level %d of flow %s", len(people), level, key), "Roles", p.IP, map[string]any{"flow": key, "level": level, "people": people})
 	})
 }
 
@@ -620,4 +667,162 @@ func (e *Engine) SetFlow(ctx context.Context, p *tenant.Principal, key string, l
 		}
 		return e.A.Audit(ctx, tx, p.Org, &p.Person, p.Name, fmt.Sprintf("Set approval flow %s to %d levels", key, levels), "Roles", p.IP, map[string]any{"flow": key, "levels": levels})
 	})
+}
+
+// itemsOf reads the "items" list of a request's payload.
+func itemsOf(raw []byte) []Item {
+	var pl struct {
+		Items []Item `json:"items"`
+	}
+	if json.Unmarshal(raw, &pl) != nil {
+		return nil
+	}
+	return pl.Items
+}
+
+// splitItems keeps the chosen items in this request and moves the others into a new request that waits exactly where this one is:
+// same flow, same level, same requester, with the decisions already taken at lower levels copied. It returns the chosen payload and
+// the new request's reference. The decision then goes on to the chosen ones; the rest are left for later.
+func (e *Engine) splitItems(ctx context.Context, tx pgx.Tx, p *tenant.Principal, dek []byte, id uuid.UUID, level int, raw []byte, chosen map[string]bool) ([]byte, string, error) {
+	var pl map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &pl); err != nil {
+		return nil, "", err
+	}
+	var all []json.RawMessage
+	if err := json.Unmarshal(pl["items"], &all); err != nil {
+		return nil, "", err
+	}
+	var keep, rest []json.RawMessage
+	for _, it := range all {
+		var head struct{ ID string }
+		_ = json.Unmarshal(it, &head)
+		if chosen[head.ID] {
+			keep = append(keep, it)
+		} else {
+			rest = append(rest, it)
+		}
+	}
+	if len(keep) != len(chosen) {
+		return nil, "", httpx.Bad("One of the chosen items is not part of this request.")
+	}
+	if len(rest) == 0 {
+		return raw, "", nil
+	}
+	mk := func(items []json.RawMessage) ([]byte, error) {
+		cp := map[string]json.RawMessage{}
+		for k, v := range pl {
+			cp[k] = v
+		}
+		b, err := json.Marshal(items)
+		if err != nil {
+			return nil, err
+		}
+		cp["items"] = b
+		return json.Marshal(cp)
+	}
+	keepRaw, err := mk(keep)
+	if err != nil {
+		return nil, "", err
+	}
+	restRaw, err := mk(rest)
+	if err != nil {
+		return nil, "", err
+	}
+	newID := app.NewID()
+	var seq int
+	if err := tx.QueryRow(ctx, `insert into hub.counters (org_id, name, value) values ($1,'approvals',1) on conflict (org_id, name) do update set value = hub.counters.value + 1 returning value`, p.Org).Scan(&seq); err != nil {
+		return nil, "", err
+	}
+	var tEnc, nEnc []byte
+	var flowKey, kind string
+	var requester uuid.UUID
+	var title, note string
+	var tOld, nOld []byte
+	if err := tx.QueryRow(ctx, `select flow_key, kind, requester, title_enc, note_enc from hub.approval_requests where id=$1`, id).Scan(&flowKey, &kind, &requester, &tOld, &nOld); err != nil {
+		return nil, "", err
+	}
+	if b, err := crypto.FieldOpen(dek, fieldCtx(p.Org, id, "title_enc"), tOld); err == nil {
+		title = string(b)
+	}
+	if len(nOld) > 0 {
+		if b, err := crypto.FieldOpen(dek, fieldCtx(p.Org, id, "note_enc"), nOld); err == nil {
+			note = string(b)
+		}
+	}
+	if tEnc, err = crypto.Field(dek, fieldCtx(p.Org, newID, "title_enc"), []byte(title)); err != nil {
+		return nil, "", err
+	}
+	if note != "" {
+		if nEnc, err = crypto.Field(dek, fieldCtx(p.Org, newID, "note_enc"), []byte(note)); err != nil {
+			return nil, "", err
+		}
+	}
+	pEnc, err := crypto.Field(dek, fieldCtx(p.Org, newID, "payload_enc"), restRaw)
+	if err != nil {
+		return nil, "", err
+	}
+	if _, err := tx.Exec(ctx, `insert into hub.approval_requests (id, org_id, seq, flow_key, kind, title_enc, note_enc, payload_enc, requester, status, level) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,'Pending',$10)`,
+		newID, p.Org, seq, flowKey, kind, tEnc, nEnc, pEnc, requester, level); err != nil {
+		return nil, "", err
+	}
+	if err := e.A.Sign.Seal(ctx, tx, "approval_requests", "id=$1", newID); err != nil {
+		return nil, "", err
+	}
+	// what lower levels already decided about these items stands for the part that is left
+	hs, err := tx.Query(ctx, `select level, approver, decision, comment_enc, created_at from hub.approval_steps where request_id=$1 and level < $2 order by level`, id, level)
+	if err != nil {
+		return nil, "", err
+	}
+	type prior struct {
+		level    int
+		approver uuid.UUID
+		decision string
+		comment  string
+		at       time.Time
+	}
+	var priors []prior
+	for hs.Next() {
+		var x prior
+		var cEnc []byte
+		if err := hs.Scan(&x.level, &x.approver, &x.decision, &cEnc, &x.at); err != nil {
+			hs.Close()
+			return nil, "", err
+		}
+		if len(cEnc) > 0 {
+			if b, err := crypto.FieldOpen(dek, crypto.Context{Org: p.Org.String(), Table: "approval_steps", Column: "comment_enc", RowID: fmt.Sprintf("%s/%d", id, x.level)}, cEnc); err == nil {
+				x.comment = string(b)
+			}
+		}
+		priors = append(priors, x)
+	}
+	hs.Close()
+	for _, x := range priors {
+		var cEnc []byte
+		if x.comment != "" {
+			if cEnc, err = crypto.Field(dek, crypto.Context{Org: p.Org.String(), Table: "approval_steps", Column: "comment_enc", RowID: fmt.Sprintf("%s/%d", newID, x.level)}, []byte(x.comment)); err != nil {
+				return nil, "", err
+			}
+		}
+		if _, err := tx.Exec(ctx, `insert into hub.approval_steps (org_id, request_id, level, approver, decision, comment_enc, created_at) values ($1,$2,$3,$4,$5,$6,$7)`, p.Org, newID, x.level, x.approver, x.decision, cEnc, x.at); err != nil {
+			return nil, "", err
+		}
+	}
+	if len(priors) > 0 {
+		if err := e.A.Sign.Seal(ctx, tx, "approval_steps", "request_id=$1", newID); err != nil {
+			return nil, "", err
+		}
+	}
+	// this request now holds only the chosen items
+	pEnc2, err := crypto.Field(dek, fieldCtx(p.Org, id, "payload_enc"), keepRaw)
+	if err != nil {
+		return nil, "", err
+	}
+	if _, err := tx.Exec(ctx, `update hub.approval_requests set payload_enc=$2, updated_at=now(), `+integrity.Bump+` where id=$1`, id, pEnc2); err != nil {
+		return nil, "", err
+	}
+	if err := e.A.Sign.Seal(ctx, tx, "approval_requests", "id=$1", id); err != nil {
+		return nil, "", err
+	}
+	e.notifyLater(p.Org, newID, ref(seq), "Pending")
+	return keepRaw, ref(seq), nil
 }

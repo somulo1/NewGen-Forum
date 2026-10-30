@@ -1,7 +1,28 @@
+import * as rolesW from '~/logic/server/widgets/roles.js';
 // renderVals step: widgetSettings. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildWidgetSettings(ctx) {
   const { O, catalog, chip, chipS, flowItem, forums, genericRights, groupDefs, groupRightOf, has, rKey, rightOf, rightsDef, s, toggleGroupRight, toggleRight, typeName, viaGroups, visibleRoles } = ctx;
   // ---- Widget settings ----
+  const mk = s.rightsMarks || {};   // rights marked (roles and user groups), sent together as one approval per role or group
+  const marks = Object.entries(mk);
+  const markBar = { show: marks.length > 0, count: marks.length, busy: !!s.rightsSending,
+    label: marks.length + (marks.length === 1 ? ' right marked' : ' rights marked'),
+    clear: () => this.setState({ rightsMarks: {} }),
+    send: () => {
+      if (!this.srv || !marks.length || s.rightsSending) return;
+      const byTarget = new Map();
+      marks.forEach(([k, v]) => { const t = v.group ? 'g:' + v.group : 'r:' + v.role; if (!byTarget.has(t)) byTarget.set(t, []); byTarget.get(t).push([k, v]); });
+      this.setState({ rightsSending: true });
+      Promise.all([...byTarget.entries()].map(([t, list]) => {
+        const changes = list.map(([, v]) => ({ module: v.mod, right: v.right, allowed: v.allowed }));
+        return (t.startsWith('g:') ? rolesW.setGroupRightsBatch(this, this.srv, t.slice(2), changes) : rolesW.setRightsBatch(this, this.srv, t.slice(2), changes)).then((r) => ({ r, list }));
+      })).then((done) => {
+        const pend = {};
+        done.forEach(({ r, list }) => { if (r === 'pending') list.forEach(([k, v]) => { pend[k] = v.allowed; }); });
+        this.setState((st) => ({ rightsSending: false, rightsMarks: {}, pendingRights: { ...st.pendingRights, ...pend } }));
+        this.notify('Sent ' + marks.length + (marks.length === 1 ? ' right' : ' rights') + ' for approval (' + done.length + (done.length === 1 ? ' approval' : ' approvals: one per role or group') + ').', '#FFB86B');
+      }).catch((e) => { this.setState({ rightsSending: false }); this.notify((e && e.message) || 'That did not go through.', '#FF9B8A'); });
+    } };
   const sid = s.settingsFor;
   const special = ['tickets', 'announcements', 'awards', 'secureshare', 'sessions', 'branches', 'sectors'];
   let sw = { t: {} };
@@ -15,12 +36,12 @@ export function buildWidgetSettings(ctx) {
     sw = { ...catalog[sid], baseTitle: catalog[sid].title, t: { [sid]: true }, genericOnly: special.indexOf(sid) === -1,
       rightNames: rn.map((x) => ({ name: x })),
       // a role's cell also says when a user group it is in gives the right (so a ticked group explains why a role can act)
-      matrix: visibleRoles.map((r) => ({ role: r.name, cells: rn.map((x) => { const via = viaGroups(r.id, wmod, x).map((g) => g.name); return { label: r.name + ': ' + x, on: rightOf(r.id, wmod, x), locked: !!r.locked, pending: s.pendingRights[rKey(r.id, wmod, x)] !== undefined, via: via.length && !rightOf(r.id, wmod, x) && !r.locked ? 'via ' + via.join(', ') : '', toggle: () => toggleRight(r.id, wmod, x) }; }) })),
+      matrix: visibleRoles.map((r) => ({ role: r.name, cells: rn.map((x) => { const via = viaGroups(r.id, wmod, x).map((g) => g.name); return { label: r.name + ': ' + x, on: mk[rKey(r.id, wmod, x)] ? mk[rKey(r.id, wmod, x)].allowed : rightOf(r.id, wmod, x), locked: !!r.locked, pending: s.pendingRights[rKey(r.id, wmod, x)] !== undefined || !!mk[rKey(r.id, wmod, x)], via: via.length && !rightOf(r.id, wmod, x) && !r.locked ? 'via ' + via.join(', ') : '', toggle: () => toggleRight(r.id, wmod, x) }; }) })),
       // user groups: a right ticked for a group is held by every role in it
-      groupMatrix: groupDefs.map((g) => ({ group: g.name, roles: g.roles.map((id) => (visibleRoles.find((r) => r.id === id) || {}).name).filter(Boolean).join(', ') || 'No roles yet', cells: rn.map((x) => ({ label: g.name + ' (user group): ' + x, on: groupRightOf(g.id, wmod, x), locked: false, pending: s.pendingRights['g:' + rKey(g.id, wmod, x)] !== undefined, toggle: () => toggleGroupRight(g.id, wmod, x) })) })),
+      groupMatrix: groupDefs.map((g) => ({ group: g.name, roles: g.roles.map((id) => (visibleRoles.find((r) => r.id === id) || {}).name).filter(Boolean).join(', ') || 'No roles yet', cells: rn.map((x) => ({ label: g.name + ' (user group): ' + x, on: mk['g:' + rKey(g.id, wmod, x)] ? mk['g:' + rKey(g.id, wmod, x)].allowed : groupRightOf(g.id, wmod, x), locked: false, pending: s.pendingRights['g:' + rKey(g.id, wmod, x)] !== undefined || !!mk['g:' + rKey(g.id, wmod, x)], toggle: () => toggleGroupRight(g.id, wmod, x) })) })),
       hasGroups: groupDefs.length > 0,
       flows: wflows, noFlows: wflows.length === 0,
-      title: cfg.title, orgOn: isOn, orgOnLabel: isOn ? 'Switched on for the organization' : 'Switched off: nobody in the organization has this widget', toggleOrgOn: () => this.setState((st) => ({ wcfg: { ...st.wcfg, [sid]: Object.assign({ title: catalog[sid].title, see: 'Everyone', manage: 'Admins' }, st.wcfg[sid] || {}, { enabled: !isOn }) } })), see: cfg.see, manage: cfg.manage, setTitle: setCfg('title'), setSee: setCfg('see'), setManage: setCfg('manage') };
+      markBar, title: cfg.title, orgOn: isOn, orgOnLabel: isOn ? 'Switched on for the organization' : 'Switched off: nobody in the organization has this widget', toggleOrgOn: () => this.setState((st) => ({ wcfg: { ...st.wcfg, [sid]: Object.assign({ title: catalog[sid].title, see: 'Everyone', manage: 'Admins' }, st.wcfg[sid] || {}, { enabled: !isOn }) } })), see: cfg.see, manage: cfg.manage, setTitle: setCfg('title'), setSee: setCfg('see'), setManage: setCfg('manage') };
     // Visibility (groups) and management (roles)
     const setW = (patch) => this.setState((st) => ({ wcfg: { ...st.wcfg, [sid]: Object.assign({ title: catalog[sid].title, see: 'Everyone', groups: [], managers: [] }, st.wcfg[sid] || {}, typeof patch === 'function' ? patch(Object.assign({ groups: [], managers: [] }, st.wcfg[sid] || {})) : patch) } }));
     const groups = cfg.groups || [];

@@ -1,4 +1,4 @@
-import { widgetGate } from '~/logic/widgetAccess.js';
+import { widgetGate, switchedOn } from '~/logic/widgetAccess.js';
 import * as rolesW from '~/logic/server/widgets/roles.js';
 // renderVals step: access. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildAccess(ctx) {
@@ -33,7 +33,12 @@ export function buildAccess(ctx) {
   has.comms = has.memos || has.newsletter || has.announcements || has.jobposts;
   ['tickets', 'projects', 'files', 'secureshare', 'sessions', 'awards', 'notes'].forEach((k) => { has[k] = W.indexOf(k) !== -1; });
   const optionalMods = ['calendar', 'memos', 'newsletter', 'announcements', 'jobposts', 'departments', 'sectors', 'branches', 'units', 'performance', 'tickets', 'projects', 'files', 'secureshare', 'sessions', 'awards', 'chat'];
-  const modEnabled = (m) => optionalMods.indexOf(m) === -1 || (m === 'jobposts' ? has.jobposts : m === 'performance' ? has.structure : ['departments', 'sectors', 'branches', 'units'].indexOf(m) !== -1 ? has[m] : W.indexOf(m) !== -1);
+  // Rights can only be given for what the organization has switched on. A page that is not a widget (wall, forums, people, roles,
+  // security, settings, the home page and its widget settings) always has its rights, so the first administrator can start giving
+  // them. A widget counts when the ORGANIZATION switched it on, whoever can see it; structure levels count once the organization
+  // has one. Without the server, the sample's own widget list decides.
+  const orgOn = (id) => (this.srv ? switchedOn(s.wcfg, id) : s.widgets.indexOf(id) !== -1);
+  const modEnabled = (m) => optionalMods.indexOf(m) === -1 || (m === 'jobposts' ? (orgOn('jobposts') || orgOn('memos') || orgOn('newsletter') || orgOn('announcements')) : m === 'performance' ? has.structure : ['departments', 'sectors', 'branches', 'units'].indexOf(m) !== -1 ? has[m] : orgOn(m));
   const modInfo = Object.fromEntries(catalog.map((m) => [m.key, [m.label, m.tint]]));
   const genericRights = ['View'];
   // the roles of the organization, as made on the Roles page (the count and the "needs" level come from the server)
@@ -81,6 +86,15 @@ export function buildAccess(ctx) {
     const label = roleName + ' · ' + (modInfo[mod] ? modInfo[mod][0] : mod) + ' · ' + right + (nv ? ' (allow)' : ' (remove)');
     if (this.srv) {
       if (s.pendingRights[k] !== undefined) return;
+      // Rights changes that need approval are marked first and sent together as ONE approval (Roles > Rights: "Send for approval").
+      if (f && f.levels > 0) {
+        this.setState((st) => {
+          const marks = { ...(st.rightsMarks || {}) };
+          if (marks[k]) delete marks[k]; else marks[k] = { role, mod, right, allowed: nv };
+          return { rightsMarks: marks };
+        });
+        return;
+      }
       rolesW.setRight(this, this.srv, role, mod, right, nv)
         .then((r) => this.notify(r === 'applied' ? 'Rights updated: ' + label + '. Logged for review.' : 'Sent for approval: Change rights: ' + label + '.', r === 'applied' ? '#B8F36B' : '#FFB86B'))
         .catch((e) => this.notify(e.message || 'Could not change the right.', '#FF9B8A'));
@@ -102,6 +116,16 @@ export function buildAccess(ctx) {
     const k = 'g:' + rKey(gid, mod, right);
     if (s.pendingRights[k] !== undefined) return;
     const nv = !groupRightOf(gid, mod, right);
+    const fg = flowById('f8');
+    if (fg && fg.levels > 0) {
+      // marked first, then sent together as ONE approval ("Send for approval" in the widget settings)
+      this.setState((st) => {
+        const marks = { ...(st.rightsMarks || {}) };
+        if (marks[k]) delete marks[k]; else marks[k] = { group: gid, mod, right, allowed: nv };
+        return { rightsMarks: marks };
+      });
+      return;
+    }
     const label = ((groupDefs.find((g) => g.id === gid) || {}).name || 'Group') + ' · ' + (modInfo[mod] ? modInfo[mod][0] : mod) + ' · ' + right + (nv ? ' (allow)' : ' (remove)');
     rolesW.setGroupRight(this, this.srv, gid, mod, right, nv)
       .then((r) => this.notify(r === 'applied' ? 'Rights updated: ' + label + '. Logged for review.' : 'Sent for approval: Change rights of user group: ' + label + '.', r === 'applied' ? '#B8F36B' : '#FFB86B'))
