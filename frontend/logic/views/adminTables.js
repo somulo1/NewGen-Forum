@@ -105,7 +105,10 @@ export function buildAdminTables(ctx) {
   const KIND_LABEL = { view: 'See / open', create: 'Create / send', edit: 'Edit / update', delete: 'Delete', export: 'Export', approve: 'Approve', manage: 'Manage', other: 'Other' };
   const kindOptions = ((s.catalog && s.catalog.kinds) || Object.keys(KIND_LABEL)).map((k) => ({ v: k, l: KIND_LABEL[k] || k }));
   const rightsRows = [];
-  Object.keys(rightsDef).filter(modEnabled).forEach((m) => rightsDef[m].forEach((x) => {
+  // Only the widgets this organization has switched on; the table shows the rights of the one picked here.
+  const rightsMods = Object.keys(rightsDef).filter((m) => modEnabled(m) && rightsDef[m].length);
+  const rightsMod = rightsMods.includes(s.rightsMod) ? s.rightsMod : (rightsMods[0] || '');
+  rightsMods.filter((m) => m === rightsMod).forEach((m) => rightsDef[m].forEach((x) => {
     const pend = s.pendingRights[rKey(roleCur.id, m, x)] !== undefined;
     const mk = (s.rightsMarks || {})[rKey(roleCur.id, m, x)];   // marked, not sent yet
     const meta = (rightMeta[m] || {})[x] || {};
@@ -129,7 +132,7 @@ export function buildAdminTables(ctx) {
         })
         .catch((e) => { this.setState({ rightsSending: false }); fail(e); });
     } };
-  const rightsTable = { id: 'rights-' + roleCur.id, pageSize: 12, minWidth: '680px', emptyText: 'The rights catalog is empty.',
+  const rightsTable = { widget: { value: rightsMod, options: rightsMods.map((m) => ({ v: m, l: modInfo[m][0] + ' (' + rightsDef[m].length + ')' })), pick: (e) => this.setState({ rightsMod: e.target.value }) }, id: 'rights-' + roleCur.id + '-' + rightsMod, pageSize: 12, minWidth: '680px', emptyText: 'The rights catalog is empty.',
     cols: [{ label: 'Page', filter: 'select' }, { label: 'Right', filter: 'text' }, { label: 'Kind', filter: 'select' }, { label: roleCur.name + ' can', align: 'center' }, { label: '', align: 'right' }], rows: rightsRows };
   const rightsHint = 'Setting rights for ' + roleCur.name + '. Tick a box to let this role do that. ' + (f8 && f8.levels > 0 ? 'Changes need approval (' + (f8.levels === 1 ? 'direct' : f8.levels + ' levels') + '): tick the rights to change, then press Send for approval. They go as one approval and show as pending until approved. ' : '') + (roleCur.locked ? 'The owner role can always do everything.' : '');
   const meName = srv ? srv.me.name : '';
