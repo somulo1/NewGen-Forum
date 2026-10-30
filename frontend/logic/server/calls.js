@@ -313,12 +313,6 @@ export async function start(logic, srv, { kind, context, ref }) {
   const ctx = context === 'dm' ? 'dm' : context === 'forum' ? 'forum' : 'meeting';
   const entry = await srv.request('POST', '/calls', { kind, context: ctx, ...(conversation ? { conversation } : {}) });
   await connectRoom(logic, srv, entry, { ringback: ctx === 'dm' });
-  // a private call to someone who is not signed in: say so at once, so you can hang up instead of waiting for an answer
-  if (ctx === 'dm' && entry.online === false) {
-    const who = (logic.state.call && logic.state.call.ref) || 'They';
-    setCall(logic, { offline: true });
-    logic.notify(who + ' is offline right now. The call is ringing, but they will only see it as a missed call when they sign in. Hang up if you do not want to wait.', '#FFB86B');
-  }
 }
 
 export async function join(logic, srv, callId) {

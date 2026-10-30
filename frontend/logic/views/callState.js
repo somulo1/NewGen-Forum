@@ -64,7 +64,7 @@ export function buildCallState(ctx) {
       onFind: (e) => this.setState({ callFind: e.target.value }),
       muteAll: () => this.callCtl('mute_all'), lockRoom: () => this.callCtl(s.callLocked ? 'unlock' : 'lock'), lockLabel: s.callLocked ? 'Unlock room' : 'Lock room',
       endForAll: () => this.callCtl('end'),
-      modeLabel: (s.call.context === 'dm' ? 'Private ' : s.call.context === 'forum' ? 'Forum ' : '') + (isVideo ? (s.call.context ? 'video call' : 'Video meeting') : (s.call.context ? 'voice call' : 'Voice call')) + (s.call.offline ? ' · they are offline' : ''),
+      modeLabel: (s.call.context === 'dm' ? 'Private ' : s.call.context === 'forum' ? 'Forum ' : '') + (isVideo ? (s.call.context ? 'video call' : 'Video meeting') : (s.call.context ? 'voice call' : 'Voice call')),
       rec: s.rec, sharing: s.sharing && isVideo, notSharing: !(s.sharing && isVideo), tiles,
       panelOpen: !!s.callPanel, showChat: s.callPanel === 'chat', showPeople: s.callPanel === 'people',
       panelTitle: s.callPanel === 'people' ? 'People (' + (big ? s.call.total || all.length : all.length) + ')' : 'Meeting chat',
