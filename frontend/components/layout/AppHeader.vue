@@ -37,7 +37,7 @@
 <div style="display: flex; align-items: center; gap: 8px; padding: 6px 10px 8px"><span style="flex: 1; font-weight: 600; font-size: 14px">Notifications</span><template v-if="!noNotifs"><button type="button" @click="markNotifsRead" style="border: 0; background: transparent; color: #B8F36B; cursor: pointer; font-size: 12px; font-weight: 600">Mark all read</button><button type="button" @click="clearNotifs" style="border: 0; background: transparent; color: var(--k-FF9B8A,#FF9B8A); cursor: pointer; font-size: 12px; font-weight: 600">Clear all</button></template></div>
 <template v-if="noNotifs"><div style="padding: 16px 10px; color: var(--k-9DB0A6,#9DB0A6); font-size: 13px">You're all caught up.</div></template>
 <template v-for="(n, n__i) in notifs" :key="n__i">
-<button role="menuitem" @click="n.open" style="display: flex; gap: 10px; width: 100%; text-align: left; padding: 10px; border: 0; border-radius: 10px; background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer">
+<button role="menuitem" @click="n.open" :style="`display: flex; gap: 10px; width: 100%; text-align: left; padding: 10px; border: 0; border-bottom: ${n__i < notifs.length - 1 ? '1px solid var(--k-2A3832,#2A3832)' : '0'}; border-radius: 0; background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer`">
 <span :style="`width: 8px; height: 8px; margin-top: 6px; flex: none; border-radius: 50%; background: ${n.color}`"></span>
 <span style="display: flex; flex-direction: column; gap: 2px"><span :style="`font-size: 13px; line-height: 1.4; font-weight: ${n.unread ? 700 : 400}`">{{ n.text }}</span><span style="font-size: 11px; color: var(--k-9DB0A6,#9DB0A6)">{{ n.time }}</span></span>
 </button>
