@@ -75,6 +75,7 @@ export default {
   },
   beforeUnmount() { this.flush(); },
   methods: {
+    focus() { const t = this.$refs.editor; if (t) t.focus(); },
     // who can be tagged: the given list, or everyone already in Hub (except you)
     pool() {
       if (Array.isArray(this.mentions)) return this.mentions;
