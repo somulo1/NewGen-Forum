@@ -4,6 +4,7 @@ import { when } from './tickets.js';
 import * as comms from './comms.js';
 import * as awards from './awards.js';
 import * as projects from './projects.js';
+import * as rolesW from './roles.js';
 
 export const name = 'approvals';
 
@@ -29,14 +30,14 @@ export async function decide(logic, srv, rq, approve, comment = '') {
   if (rq.kind === 'comm') await comms.load(logic, srv);
   if (rq.kind === 'award') await awards.load(logic, srv);
   if (rq.kind === 'project') await projects.load(logic, srv);
-  if (rq.kind === 'rights' || rq.kind === 'personEdit') { const r = await import('./roles.js'); await r.load(logic, srv); }
+  if (rq.kind === 'rights' || rq.kind === 'personEdit') { await rolesW.load(logic, srv); }
 }
 
 // Decides some parts of one request made of several (rights marked together); with no parts given, the whole request.
 export async function decideItems(logic, srv, rq, approve, comment = '', items = []) {
   await srv.request('POST', `/approvals/${rq.uid}/${approve ? 'approve' : 'reject'}`, { comment, ...(items.length ? { items } : {}) });
   await load(logic, srv);
-  const r = await import('./roles.js'); await r.load(logic, srv);
+  await rolesW.load(logic, srv);
 }
 
 // Decides several requests at once (the same decision and comment for each), then reloads once. Returns the ones that did not go through.
@@ -50,7 +51,7 @@ export async function decideMany(logic, srv, rqs, approve, comment = '') {
     } catch (e) { failed.push({ id: rq.id, message: (e && e.message) || 'That did not go through.' }); }
   }
   await load(logic, srv);
-  if (touchedRights) { const r = await import('./roles.js'); await r.load(logic, srv); }
+  if (touchedRights) { await rolesW.load(logic, srv); }
   return failed;
 }
 
