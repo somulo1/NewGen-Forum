@@ -27,6 +27,13 @@
 <template v-if="canSecurity"><button @click="go.security" :style="nav.security"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"></path><path d="M9 12l2 2 4-4"></path></svg><span style="flex: 1">Security &amp; logs</span><template v-if="hasOpenAlerts"><span style="min-width: 20px; height: 20px; padding: 0 6px; box-sizing: border-box; border-radius: 10px; background: #FF9B8A; color: #0F1714; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center">{{ openAlertCount }}</span></template></button></template>
 <template v-if="canRoles"><button @click="go.roles" :style="nav.roles"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></svg>Roles &amp; rights</button></template>
 
+<template v-if="myUnits.length || canSettings">
+<button data-keep="1" @click="toggleOrg" :aria-expanded="orgOpen" style="margin: 16px 4px 4px 2px; display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: var(--k-9DB0A6,#9DB0A6); cursor: pointer; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" :style="orgChevron"><path d="M6 9l6 6 6-6"></path></svg>Organization</button>
+<template v-if="orgOpen">
+<template v-for="(mu, mu__i) in myUnits" :key="mu__i"><button @click="mu.open" :style="mu.style"><span :style="`width: 30px; height: 30px; flex: none; border-radius: 9px; background: var(--k-22302A,#22302A); color: ${mu.color}; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 10px`">{{ mu.short }}</span><span style="flex: 1; min-width: 0; display: flex; flex-direction: column; text-align: left"><span style="font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ mu.name }}</span><span style="font-size: 11px; color: var(--k-9DB0A6,#9DB0A6)">My {{ mu.typeLower }}</span></span></button></template>
+<template v-if="canSettings"><button @click="go.settings" :style="nav.settings"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path></svg>Settings</button></template>
+</template>
+</template>
 <template v-if="has.chat">
 <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px; margin: 16px 4px 6px 2px">
 <button data-keep="1" @click="toggleDms" :aria-expanded="dmsOpen" style="flex: 1; display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: var(--k-9DB0A6,#9DB0A6); cursor: pointer; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" :style="dmsChevron"><path d="M6 9l6 6 6-6"></path></svg>Messages<span style="margin-left: auto; padding: 1px 7px; border-radius: 9px; background: var(--k-22302A,#22302A); color: var(--k-C9D6CF,#C9D6CF); font-size: 11px; letter-spacing: 0">{{ dmUnreadLabel }}</span></button>
@@ -39,23 +46,23 @@
 </div>
 </template>
 <template v-if="dmsOpen">
-<template v-for="(dl, dl__i) in dmList" :key="dl__i">
-<button @click="dl.open" :style="dl.style">
+<div v-if="confirming && confirming.kind === 'private chat'" role="alertdialog" aria-label="Delete" style="margin: 0 4px 8px; padding: 12px; border-radius: 12px; background: var(--k-3A2420,#3A2420); border: 1px solid var(--k-5A3A33,#5A3A33); display: flex; flex-direction: column; gap: 8px">
+<span style="font-size: 13px; line-height: 1.45; color: #FFD3CA">Delete the {{ confirming.kind }} <strong>{{ confirming.name }}</strong>? Its history is erased from your account for good. Other people keep theirs. If someone writes again, it comes back holding only what is written from then on.</span>
+<span v-if="confirming.err" role="alert" style="font-size: 12px; color: #FF9B8A">{{ confirming.err }}</span>
+<div style="display: flex; gap: 8px"><button data-keep="1" type="button" :disabled="confirming.busy" @click="doDelete" style="flex: 1; height: 34px; border-radius: 17px; border: 0; background: #FF9B8A; color: #0F1714; font-weight: 600; cursor: pointer">{{ confirming.busy ? 'Deleting…' : 'Delete' }}</button><button data-keep="1" type="button" @click="confirming = null" style="flex: 1; height: 34px; border-radius: 17px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer">Keep</button></div>
+</div>
+<div class="nav-scroll" :style="listStyle(dmList.length, 54)">
+<template v-for="(dl, dl__i) in dmList" :key="dl.key || dl__i">
+<button class="nav-row" type="button" title="Press and hold to delete" @click="rowClick($event, dl)" @pointerdown="pressStart(dl)" @pointerup="pressEnd" @pointerleave="pressEnd" @pointercancel="pressEnd" @contextmenu.prevent="ask(dl)" @keydown.delete="ask(dl)" :style="dl.style">
 <span style="position: relative; width: 32px; height: 32px; flex: none"><UserAvatar :name="dl.name" :initials="dl.initials" :color="dl.color" :size="32" :font-size="11"/><span :style="`position: absolute; right: -1px; bottom: -1px; width: 10px; height: 10px; border-radius: 50%; background: ${dl.dot}; border: 2px solid var(--k-121B17,#121B17)`"></span></span>
 <span style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ dl.name }}</span><span style="font-size: 11px; color: var(--k-9DB0A6,#9DB0A6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ dl.last }}</span></span>
 <template v-if="dl.hasUnread"><span style="min-width: 20px; height: 20px; padding: 0 6px; box-sizing: border-box; border-radius: 10px; background: #C9B6FF; color: #0F1714; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center">{{ dl.unread }}</span></template>
 </button>
 </template>
+</div>
 </template>
 </template>
 
-<template v-if="myUnits.length || canSettings">
-<button data-keep="1" @click="toggleOrg" :aria-expanded="orgOpen" style="margin: 16px 4px 4px 2px; display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: var(--k-9DB0A6,#9DB0A6); cursor: pointer; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" :style="orgChevron"><path d="M6 9l6 6 6-6"></path></svg>Organization</button>
-<template v-if="orgOpen">
-<template v-for="(mu, mu__i) in myUnits" :key="mu__i"><button @click="mu.open" :style="mu.style"><span :style="`width: 30px; height: 30px; flex: none; border-radius: 9px; background: var(--k-22302A,#22302A); color: ${mu.color}; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 10px`">{{ mu.short }}</span><span style="flex: 1; min-width: 0; display: flex; flex-direction: column; text-align: left"><span style="font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ mu.name }}</span><span style="font-size: 11px; color: var(--k-9DB0A6,#9DB0A6)">My {{ mu.typeLower }}</span></span></button></template>
-<template v-if="canSettings"><button @click="go.settings" :style="nav.settings"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path></svg>Settings</button></template>
-</template>
-</template>
 <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px; margin: 16px 4px 6px 2px">
 <button data-keep="1" @click="toggleForums" :aria-expanded="forumsOpen" style="flex: 1; display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: var(--k-9DB0A6,#9DB0A6); cursor: pointer; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" :style="forumsChevron"><path d="M6 9l6 6 6-6"></path></svg>Forums<span style="margin-left: auto; padding: 1px 7px; border-radius: 9px; background: var(--k-22302A,#22302A); color: var(--k-C9D6CF,#C9D6CF); font-size: 11px; letter-spacing: 0">{{ forumCount }}</span></button>
 <button aria-label="Create a forum" data-keep="1" @click="toggleCreate" style="width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg></button>
@@ -74,13 +81,20 @@
 </template>
 
 <template v-if="forumsOpen">
-<template v-for="(f, f__i) in forums" :key="f__i">
-<button @click="f.open" :style="f.rowStyle">
+<div v-if="confirming && confirming.kind === 'forum'" role="alertdialog" aria-label="Delete" style="margin: 0 4px 8px; padding: 12px; border-radius: 12px; background: var(--k-3A2420,#3A2420); border: 1px solid var(--k-5A3A33,#5A3A33); display: flex; flex-direction: column; gap: 8px">
+<span style="font-size: 13px; line-height: 1.45; color: #FFD3CA">Delete the {{ confirming.kind }} <strong>{{ confirming.name }}</strong>? Its history is erased from your account for good. Other people keep theirs. If someone writes again, it comes back holding only what is written from then on.</span>
+<span v-if="confirming.err" role="alert" style="font-size: 12px; color: #FF9B8A">{{ confirming.err }}</span>
+<div style="display: flex; gap: 8px"><button data-keep="1" type="button" :disabled="confirming.busy" @click="doDelete" style="flex: 1; height: 34px; border-radius: 17px; border: 0; background: #FF9B8A; color: #0F1714; font-weight: 600; cursor: pointer">{{ confirming.busy ? 'Deleting…' : 'Delete' }}</button><button data-keep="1" type="button" @click="confirming = null" style="flex: 1; height: 34px; border-radius: 17px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer">Keep</button></div>
+</div>
+<div class="nav-scroll" :style="listStyle(forums.length, 48)">
+<template v-for="(f, f__i) in forums" :key="f.key || f__i">
+<button class="nav-row" type="button" title="Press and hold to delete" @click="rowClick($event, f)" @pointerdown="pressStart(f)" @pointerup="pressEnd" @pointerleave="pressEnd" @pointercancel="pressEnd" @contextmenu.prevent="ask(f)" @keydown.delete="ask(f)" :style="f.rowStyle">
 <span :style="`width: 30px; height: 30px; flex: none; border-radius: 9px; background: ${f.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 12px`">{{ f.initials }}</span>
 <span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ f.name }}</span>
 <template v-if="f.hasUnread"><span style="min-width: 20px; height: 20px; padding: 0 6px; box-sizing: border-box; border-radius: 10px; background: #B8F36B; color: #0F1714; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center">{{ f.unread }}</span></template>
 </button>
 </template>
+</div>
 </template>
 
 </template>
@@ -104,7 +118,27 @@ import { hubBindings } from '~/composables/useHub';
 
 export default {
   name: 'SideNav',
-  methods: { signOut() { useAuth().signOut(); } },
+  data() { return { confirming: null, timer: 0, held: false }; },
+  methods: {
+    signOut() { useAuth().signOut(); },
+    // more than five chats or forums: the list scrolls inside the sidebar instead of pushing everything under the profile bar
+    listStyle(n, row) { return n > 5 ? `max-height: ${row * 5}px; overflow-y: auto; overscroll-behavior: contain; padding-right: 2px` : ''; },
+    // press and hold (or right-click, or the Delete key) asks to delete; a normal click opens
+    pressStart(item) { this.held = false; clearTimeout(this.timer); this.timer = setTimeout(() => { this.held = true; this.ask(item); }, 600); },
+    pressEnd() { clearTimeout(this.timer); },
+    rowClick(e, item) { if (this.held) { this.held = false; e.preventDefault(); e.stopPropagation(); return; } item.open(); },
+    ask(item) { clearTimeout(this.timer); if (item && item.remove) this.confirming = { kind: item.kindLabel, name: item.name, remove: item.remove, busy: false, err: '' }; },
+    async doDelete() {
+      const c = this.confirming; if (!c || c.busy) return;
+      c.busy = true; c.err = '';
+      try { await c.remove(); this.confirming = null; } catch (e) { c.busy = false; c.err = (e && e.message) || 'Could not delete it.'; }
+    }
+  },
   ...hubBindings(["pickerPeople","forumPicked","pickForumMember","unpickForumMember","canSettings","navSearch","canRoles","canSecurity","canSeeAdmin","createOpen","forumForm","onForumName","onForumMembers","createForumNow","dmList","dmMatches","dmUnreadLabel","dmq","dmsChevron","dmsOpen","forumCount","forums","forumsChevron","forumsOpen","go","has","hasOpenAlerts","hasPendingApprovals","me","myUnits","nav","navClass","navClick","newDmOpen","onDmq","openAlertCount","orgChevron","orgOpen","pendingApprovals","ticketDeskOk","toggleCreate","toggleDms","toggleForums","toggleNewDm","toggleOrg"])
 };
 </script>
+
+<style>
+.nav-row { -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; }
+.nav-scroll { scrollbar-width: thin; scrollbar-color: var(--k-3F524A,#3F524A) transparent; }
+</style>
