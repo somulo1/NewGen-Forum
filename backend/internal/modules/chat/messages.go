@@ -145,12 +145,13 @@ func (s *Service) History(ctx context.Context, p *tenant.Principal, conv uuid.UU
 		if err := tx.QueryRow(ctx, `select first_epoch from hub.conversation_members where conversation_id=$1 and account_id=$2`, conv, p.Account).Scan(&first); err != nil {
 			return err
 		}
+		cleared := s.clearedAt(ctx, tx, conv, p.Account)
 		q := `select m.id, m.sender_account, m.sender_person, m.sender_device, coalesce(pe.first_name || ' ' || pe.last_name, ''), m.epoch, m.ciphertext, m.content_type, m.reply_to, m.created_at, m.deleted_at is not null, m.ver, m.mac, hub.canon(m)
 			from hub.messages m left join hub.people pe on pe.id = m.sender_person
-			where m.org_id=$1 and m.conversation_id=$2 and m.epoch >= $3`
-		args := []any{p.Org, conv, first}
+			where m.org_id=$1 and m.conversation_id=$2 and m.epoch >= $3 and m.created_at > $4::timestamptz`
+		args := []any{p.Org, conv, first, cleared}
 		if before != nil {
-			q += ` and m.id < $4`
+			q += ` and m.id < $5`
 			args = append(args, *before)
 		}
 		rs, err := tx.Query(ctx, q+` order by m.id desc limit `+itoa(limit), args...)
@@ -228,10 +229,10 @@ func (s *Service) Changes(ctx context.Context, p *tenant.Principal, conv uuid.UU
 		rs, err := tx.Query(ctx, `
 			with changed as (
 				select m.id, coalesce(m.deleted_at, m.created_at) as at
-				  from hub.messages m where m.org_id=$1 and m.conversation_id=$2 and m.created_at >= $3 and m.epoch >= $4
+				  from hub.messages m where m.org_id=$1 and m.conversation_id=$2 and m.created_at >= $3 and m.epoch >= $4 and m.created_at > $6::timestamptz
 				union
 				select m.id, m.deleted_at as at
-				  from hub.messages m where m.org_id=$1 and m.conversation_id=$2 and m.deleted_at >= $3 and m.epoch >= $4
+				  from hub.messages m where m.org_id=$1 and m.conversation_id=$2 and m.deleted_at >= $3 and m.epoch >= $4 and m.created_at > $6::timestamptz
 			), ranked as (
 				select id, max(at) as at from changed group by id
 			)
@@ -240,7 +241,7 @@ func (s *Service) Changes(ctx context.Context, p *tenant.Principal, conv uuid.UU
 			  left join hub.people pe on pe.id = m.sender_person
 			 where (r.at, r.id) > ($3::timestamptz, $5::uuid)
 			 order by r.at, r.id
-			 limit `+itoa(limit+1), p.Org, conv, since, first, afterID)
+			 limit `+itoa(limit+1), p.Org, conv, since, first, afterID, s.clearedAt(ctx, tx, conv, p.Account))
 		if err != nil {
 			return err
 		}

@@ -339,6 +339,30 @@ func (s *Service) Private(r chi.Router) {
 		httpx.JSON(w, 201, m)
 		return nil
 	}))
+	r.Get("/conversations/cleared", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
+		p, err := tenant.MustOrg(r.Context())
+		if err != nil {
+			return err
+		}
+		ids, err := s.Cleared(r.Context(), p)
+		if err != nil {
+			return err
+		}
+		httpx.JSON(w, 200, map[string]any{"ids": ids})
+		return nil
+	}))
+	// Delete a private chat or forum for me only (see Clear).
+	r.Post("/conversations/{id}/clear", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
+		p, err := tenant.MustOrg(r.Context())
+		if err != nil {
+			return err
+		}
+		id, err := cid(r)
+		if err != nil {
+			return err
+		}
+		return s.clearRoutes(w, r, p, id)
+	}))
 	r.Get("/conversations/{id}/messages", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
 		p, err := tenant.MustOrg(r.Context())
 		if err != nil {
