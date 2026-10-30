@@ -1,7 +1,7 @@
 import * as profileW from '~/logic/server/widgets/profile.js';
 // Values and handlers the templates read through hubBindings: access.
 export function valsAccess(ctx) {
-  const { addSkill, aw, awardStrip, awardsOn, cal, can, dir, ev, f8, flowsAll, has, me, openAlerts, openEv, pendingCount, po, psn, requestsShown, roleList, roleNames, roleSel, roleTab, s, sec, secTab, segS, set, setPf, td, tt } = ctx;
+  const { apGroups, addSkill, aw, awardStrip, awardsOn, cal, can, dir, ev, f8, flowsAll, has, me, openAlerts, openEv, pendingCount, po, psn, requestsShown, roleList, roleNames, roleSel, roleTab, s, sec, secTab, segS, set, setPf, td, tt } = ctx;
   return {
     canSecurity: can('security', 'View alerts') || can('security', 'View logs'),
     canRoles: can('roles', 'View roles'), canSettings: can('settings', 'View settings'),
@@ -21,7 +21,7 @@ export function valsAccess(ctx) {
     roleList, roleSel, roleTab, flowsAll,
     rightsNeedApproval: !!(f8 && f8.levels > 0), rightsFlowLabel: f8 ? (f8.levels === 1 ? 'direct approval by ' + f8.approvers[0] : f8.levels + ' levels: ' + f8.approvers.slice(0, f8.levels).join(' → ')) : '',
     assignRole: () => this.notify('Role assigned. The change was logged.', '#B8F36B'),
-    requests: requestsShown, noRequests: requestsShown.length === 0,
+    requests: requestsShown, noRequests: requestsShown.length === 0 && apGroups.length === 0, apGroups,
     pendingApprovals: String(pendingCount), hasPendingApprovals: pendingCount > 0,
     apTab: { waiting: segS(s.apTab === 'waiting'), all: segS(s.apTab === 'all'), waitingGo: set({ apTab: 'waiting' }), allGo: set({ apTab: 'all' }) },
     me, profileBack: () => this.setState({ section: 'people' }),

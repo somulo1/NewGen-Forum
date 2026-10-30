@@ -32,6 +32,21 @@ export async function decide(logic, srv, rq, approve, comment = '') {
   if (rq.kind === 'rights' || rq.kind === 'personEdit') { const r = await import('./roles.js'); await r.load(logic, srv); }
 }
 
+// Decides several requests at once (the same decision and comment for each), then reloads once. Returns the ones that did not go through.
+export async function decideMany(logic, srv, rqs, approve, comment = '') {
+  const failed = [];
+  let touchedRights = false;
+  for (const rq of rqs) {
+    try {
+      await srv.request('POST', `/approvals/${rq.uid}/${approve ? 'approve' : 'reject'}`, { comment });
+      if (rq.kind === 'rights' || rq.kind === 'rights.person' || rq.kind === 'personEdit') touchedRights = true;
+    } catch (e) { failed.push({ id: rq.id, message: (e && e.message) || 'That did not go through.' }); }
+  }
+  await load(logic, srv);
+  if (touchedRights) { const r = await import('./roles.js'); await r.load(logic, srv); }
+  return failed;
+}
+
 // Roles & rights > Approval flows edits state.flows in place; save each changed flow.
 function watchFlows(logic, srv) {
   let timer = null;
