@@ -315,6 +315,8 @@ export async function load(logic, srv) {
   srv.forumLocalId = new Map(built.map((b) => [b.forum.sid, b.forum.id]));
   srv.forumConv = Object.fromEntries(built.map((b) => [b.forum.id, b.forum.sid]));   // used when a memo or announcement is sent to a forum
   logic.setState({ forumsLive: built.map((b) => b.forum) });
+  // forums I deleted from my list: still listened to, so one that gets a new message comes back
+  try { const { ids } = await ask(srv, 'GET', '/conversations/cleared'); const shown = new Set(built.map((b) => b.forum.sid)); srv.clearedForums = new Set(ids.filter((id) => !shown.has(id) && !(srv.clearedDms && srv.clearedDms.has(id)))); } catch (e) { srv.clearedForums = srv.clearedForums || new Set(); }
   built.forEach((b) => loadFiles(logic, srv, b.todo));
   watch(logic, srv);   // subscribe before presence so no message is missed while it loads
   loadPresence(logic, srv).catch(() => {});
@@ -560,6 +562,8 @@ function watch(logic, srv) {
     };
     const forumOf = (ev) => (ev.channel && srv.forumLocalId ? srv.forumLocalId.get(String(ev.channel).split(':').pop()) : null);
     rt.on('message.new', (ev) => {
+      const gone = String(ev.channel || '').split(':').pop();
+      if (srv.clearedForums && srv.clearedForums.has(gone)) { srv.clearedForums.delete(gone); load(logic, srv).catch(() => {}); try { alertTone(); } catch (e) { /* sound is optional */ } return; }
       const f = forumOf(ev);
       if (!f) return;
       const m = ev.data || {};
@@ -584,4 +588,16 @@ function watch(logic, srv) {
     rt.on('open', () => { pool((logic.state.forumsLive || []).map((f) => f.id), 3, (id) => reloadForum(logic, srv, id).catch(() => {})); });
   }
   (logic.state.forumsLive || []).forEach((f) => rt.sub(f.sid));
+  (srv.clearedForums ? [...srv.clearedForums] : []).forEach((sid) => rt.sub(sid));
+}
+
+// Deletes a forum from my list: my copy of its history is erased for good (on the server too), and the forum stays out of my
+// list until someone writes in it again, when it returns holding only what is written from then on.
+export async function clear(logic, srv, local) {
+  const sid = serverId(srv, local);
+  if (!sid) return;
+  await ask(srv, 'POST', `/conversations/${sid}/clear`);
+  (srv.clearedForums || (srv.clearedForums = new Set())).add(sid);
+  held(srv).delete(sid);
+  logic.setState((st) => ({ forumsLive: (st.forumsLive || []).filter((f) => f.id !== local), ...(st.panelKind === 'forum' && st.forum === local ? { mode: 'closed' } : {}) }));
 }

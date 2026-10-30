@@ -77,6 +77,8 @@ function rowOf(srv, c, msgs) {
 
 export async function load(logic, srv) {
   const { conversations } = await ask(srv, 'GET', '/conversations?kind=dm&limit=200');
+  // chats I deleted from my list: still listened to, so one that gets a new message comes back
+  try { const { ids } = await ask(srv, 'GET', '/conversations/cleared'); const shown = new Set(conversations.map((c) => c.id)); srv.clearedDms = new Set(ids.filter((id) => !shown.has(id) && !(srv.clearedForums && srv.clearedForums.has(id)))); } catch (e) { srv.clearedDms = srv.clearedDms || new Set(); }
   const prev = new Map((logic.state.dms || []).map((d) => [d.id, d]));
   // a chat whose history fails keeps what was shown before instead of going empty
   const dms = await pool(conversations, 4, async (c) => {
@@ -95,6 +97,7 @@ const isOpen = (st, id) => st.panelKind === 'dm' && st.dmId === id && st.mode !=
 function live(logic, srv) {
   const rt = srv.rt || (srv.rt = connectRealtime(srv));
   logic.state.dms.forEach((d) => rt.sub(d.id));
+  (srv.clearedDms ? [...srv.clearedDms] : []).forEach((id) => rt.sub(id));
   if (srv.dmLive) return;
   srv.dmLive = true;
   // someone opened a new chat with me
@@ -114,6 +117,7 @@ function live(logic, srv) {
   });
   rt.on('message.new', async (ev) => {
     const m = ev.data || {};
+    if (srv.clearedDms && srv.clearedDms.has(m.conversation)) { srv.clearedDms.delete(m.conversation); load(logic, srv).catch(() => {}); return; }
     const dm = logic.state.dms.find((d) => d.id === m.conversation);
     if (!dm || dm.msgs.some((x) => x.id === m.id)) return;
     const msg = await toMsg(srv, m);
@@ -238,4 +242,13 @@ export async function loadOlder(logic, srv, dmId) {
     logic.setState((st) => ({ dms: st.dms.map((x) => (x.id === dmId ? { ...x, loadingOlder: false } : x)) }));
     throw e;
   }
+}
+
+// Deletes a private chat from my list: my copy of it is erased for good (on the server too), and it stays out of my list until
+// the other person writes again, when it returns holding only what is written from then on.
+export async function clear(logic, srv, dmId) {
+  if (String(dmId).startsWith('dm-')) { logic.setState((st) => ({ dms: st.dms.filter((d) => d.id !== dmId) })); return; }   // never written to: nothing on the server
+  await ask(srv, 'POST', `/conversations/${dmId}/clear`);
+  (srv.clearedDms || (srv.clearedDms = new Set())).add(dmId);
+  logic.setState((st) => ({ dms: st.dms.filter((d) => d.id !== dmId), ...(st.panelKind === 'dm' && st.dmId === dmId ? { mode: 'closed' } : {}) }));
 }

@@ -20,6 +20,7 @@ export function buildForums(ctx) {
       ...f,
       unread,
       hasUnread: unread > 0,
+      key: f.id, kindLabel: 'forum', remove: () => (f.live ? forumsW.clear(this, this.srv, f.id) : Promise.reject(new Error('This forum is not connected to the server.'))),
       open: () => { this.setState((st) => ({ forumRead: { ...st.forumRead, [f.id]: true }, forum: f.id, panelKind: 'forum', mode: openMode, menu: false, tab: 'discussions', invite: false })); if (f.live) forumsW.markRead(this, this.srv, f.id); },
       rowStyle: 'display:flex;align-items:center;gap:10px;width:100%;min-height:44px;padding:4px 10px;border:0;border-radius:10px;cursor:pointer;text-align:left;font-size:14px;color:var(--k-E8EFEA,#E8EFEA);background:' + (active ? 'var(--k-22302A,#22302A)' : 'transparent'),
       chipStyle: 'flex:none;width:36px;height:36px;border-radius:10px;cursor:pointer;font-family:Space Grotesk,sans-serif;font-weight:700;font-size:12px;color:#0F1714;background:' + f.color + ';border:2px solid ' + (f.id === cur.id ? '#E8EFEA' : 'transparent') + ';opacity:' + (f.id === cur.id ? '1' : '0.65'),
