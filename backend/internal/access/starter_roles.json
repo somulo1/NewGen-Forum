@@ -36,13 +36,6 @@
    "scope": "Their own work"
   },
   {
-   "id": "guest",
-   "name": "Guest",
-   "desc": "People from outside. View only.",
-   "count": 5,
-   "scope": "Invited spaces only"
-  },
-  {
    "id": "sector",
    "name": "Sector manager",
    "desc": "Runs a sector and every branch in it.",
@@ -595,39 +588,6 @@
    "jobposts": [
     "Read"
    ]
-  },
-  "guest": {
-   "home": [],
-   "announcements": [
-    "View"
-   ],
-   "wall": [
-    "View"
-   ],
-   "forums": [
-    "View"
-   ],
-   "tickets": [],
-   "projects": [],
-   "files": [],
-   "secureshare": [],
-   "sessions": [
-    "Join"
-   ],
-   "awards": [],
-   "people": [],
-   "security": [],
-   "roles": [],
-   "settings": [],
-   "calendar": [],
-   "memos": [],
-   "newsletter": [],
-   "departments": [],
-   "sectors": [],
-   "branches": [],
-   "units": [],
-   "performance": [],
-   "chat": []
   },
   "sector": {
    "home": [

@@ -65,7 +65,38 @@ export function useHubShell() {
   };
 
   let guard = null;
+  // The session lives in the browser's storage, shared by every tab. When another tab signs someone else in (or out), this tab must
+  // not go on showing, or acting as, the person it started with.
+  const onStorage = (e) => {
+    if (e.key !== 'hub-session') return;
+    const mine = logic.srv && logic.srv.session && logic.srv.session.account;
+    let now = null;
+    try { now = e.newValue ? JSON.parse(e.newValue).account : null; } catch (x) { /* unreadable: treat as signed out */ }
+    if (mine && now !== mine) window.location.reload();
+  };
+  // Coming back to this tab after a while: ask the server who this is and what they may do now, instead of trusting what was loaded
+  // earlier. A different person (or a signed-out session) reloads the page; a changed role or rights refresh in place.
+  let hiddenAt = 0, checking = false;
+  const onVisible = async () => {
+    if (document.visibilityState === 'hidden') { hiddenAt = Date.now(); return; }
+    if (!logic.srv || checking || !hiddenAt || Date.now() - hiddenAt < 30000) return;
+    checking = true;
+    try {
+      const me = await logic.srv.request('GET', '/me');
+      if (me.account !== logic.srv.session.account || me.person !== logic.srv.me.person) { window.location.reload(); return; }
+      const now = JSON.stringify([me.role, me.rights]);
+      if (now !== logic.srv.meSeen) {
+        logic.srv.meSeen = now;
+        await Promise.all([import('~/logic/server/widgets/profile.js').then((m) => m.load(logic, logic.srv)), import('~/logic/server/widgets/roles.js').then((m) => m.load(logic, logic.srv))]);
+        logic.forceUpdate();
+      }
+    } catch (err) {
+      if (err && (err.status === 401 || err.status === 403)) window.location.reload();
+    } finally { checking = false; }
+  };
   onMounted(() => {
+    window.addEventListener('storage', onStorage);
+    document.addEventListener('visibilitychange', onVisible);
     const be = useBackend();
     const session = be.session();
     if (session && session.org) startServerSync(logic, be.request, session, be.bytes).catch((e) => { logic._accessPending = false; logic.forceUpdate(); console.error('Could not connect to the server:', e); });
@@ -78,6 +109,8 @@ export function useHubShell() {
   watch(vals, () => { if (logic.componentDidUpdate) logic.componentDidUpdate(); }, { flush: 'post' });
   onBeforeUnmount(() => {
     if (guard) guard();
+    window.removeEventListener('storage', onStorage);
+    document.removeEventListener('visibilitychange', onVisible);
     document.removeEventListener('click', openInAppSecureShare, true);
     if (logic.componentWillUnmount) logic.componentWillUnmount();
   });

@@ -37,8 +37,8 @@ func member(ctx context.Context, a *app.App, cfg *config.Config, slug, name, ema
 	}
 	email = strings.ToLower(strings.TrimSpace(email))
 	name = strings.TrimSpace(name)
-	if email == "" || password == "" || name == "" {
-		return errors.New("member needs -name, -email and -password")
+	if email == "" || password == "" || name == "" || roleKey == "" {
+		return errors.New("member needs -name, -email, -password and -roles <role key>: everyone has a role")
 	}
 	first, last := name, "-"
 	if i := strings.LastIndex(name, " "); i > 0 {

@@ -49,7 +49,12 @@ async function openDevice(request, session) {
 }
 
 export async function startServerSync(logic, request, session, bytes) {
-  if (logic.srv) return logic.srv;
+  // The app in memory belongs to one account. If the session now belongs to another (someone signed in here, or in another tab of
+  // this browser), nothing of the first may be shown or used: start again with a clean page.
+  if (logic.srv) {
+    if (logic.srv.session && session && logic.srv.session.account !== session.account && typeof window !== 'undefined') window.location.reload();
+    return logic.srv;
+  }
   const { device, deviceId } = await openDevice(request, session);
   keyBackup.finish(request, session.account, device).catch(() => {});   // the account's keys are kept safe on the server for the next browser
   const me = await request('GET', '/me');

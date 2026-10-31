@@ -2,7 +2,7 @@
 <template><template v-if="show.home">
 <div class="hub-home" style="width: 100%; display: flex; flex-direction: column; gap: 18px">
 <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end">
-<div style="flex: 1 1 300px"><h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; letter-spacing: -0.02em">Good afternoon, Sam</h1><p style="margin: 4px 0 0; color: var(--k-9DB0A6,#9DB0A6)">Your home page. Add, remove and arrange widgets to suit your organization.</p></div>
+<div style="flex: 1 1 300px"><h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; letter-spacing: -0.02em">{{ greeting }}</h1><p style="margin: 4px 0 0; color: var(--k-9DB0A6,#9DB0A6)">Your home page. Add, remove and arrange widgets to suit your organization.</p></div>
 <template v-if="canCustomize">
 <button @click="toggleCustomize" :style="customizeBtnStyle">{{ customizeLabel }}</button>
 <button v-if="canWidgetsPage" @click="openGallery" style="height: 40px; padding: 0 18px; border-radius: 20px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>Add widget</button>
@@ -329,6 +329,6 @@ import { hubBindings } from '~/composables/useHub';
 
 export default {
   name: 'HomeSection',
-  ...hubBindings(["noteWidget","awardStrip","awardsOn","canCustomize","canWidgetsPage","customizeBtnStyle","customizeLabel","customizing","loadingHome","noWidgets","openAward","openGallery","secureShare","show","toggleCustomize","toggleNewDm","widgets"])
+  ...hubBindings(["greeting","noteWidget","awardStrip","awardsOn","canCustomize","canWidgetsPage","customizeBtnStyle","customizeLabel","customizing","loadingHome","noWidgets","openAward","openGallery","secureShare","show","toggleCustomize","toggleNewDm","widgets"])
 };
 </script>

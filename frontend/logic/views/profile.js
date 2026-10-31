@@ -15,7 +15,8 @@ export function buildProfile(ctx) {
   const setPf = (patch) => this.setState((st) => ({ profile: Object.assign({}, st.profile, patch) }));
   // status and cover save straight away; text fields save with "Save" in edit mode
   const saveNow = (patch) => { setPf(patch); if (this.srv && !s.profileEdit) profileW.save(this, this.srv).catch((e) => this.notify(e.message || 'Could not save.', '#FF9B8A')); };
-  const mi = s.meInfo || { name: 'Samwel Okoth Omulo', initials: 'S', color: '#C2185B', email: '', title: '', dept: '', branch: '', role: '', joined: '' };
+  // your own details; before they have loaded, only blanks, never another person's name
+  const mi = s.meInfo || { name: this.srv ? this.srv.me.name : '', initials: this.srv ? (this.srv.me.name || '').split(/\s+/).filter(Boolean).map((x) => x[0]).join('').slice(0, 2).toUpperCase() : '', color: '#C2185B', email: '', title: '', dept: '', branch: '', role: '', joined: '' };
   const joinedLabel = mi.joined ? fmtDay(mi.joined) : '';
   // The organization's time zone (Settings > Regional); the profile shows the time there and its offset from GMT.
   const orgTz = (s.orgProfile && s.orgProfile.timezone) || 'Africa/Nairobi';

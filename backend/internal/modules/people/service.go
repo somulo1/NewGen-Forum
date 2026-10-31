@@ -259,8 +259,11 @@ func decodeCursor(c string) (f, l string, id uuid.UUID, ok bool) {
 func (s *Service) Get(ctx context.Context, p *tenant.Principal, id uuid.UUID) (*Person, error) {
 	var out *Person
 	err := s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
-		if err := authz.Require(ctx, tx, p.Person, "people", "View directory"); err != nil {
-			return err
+		// anyone may read their own record; others need the right to see the directory
+		if id != p.Person {
+			if err := authz.Require(ctx, tx, p.Person, "people", "View directory"); err != nil {
+				return err
+			}
 		}
 		x, err := scanPerson(tx.QueryRow(ctx, personSelect+" where p.id=$1 and p.status <> 'deleted'", id))
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -444,7 +447,12 @@ func (s *Service) Onboard(ctx context.Context, p *tenant.Principal, list []NewPe
 			if role == "" {
 				role = defaultKey
 			}
-			var rid uuid.UUID // the nil id means no role
+			// Everyone in an organization has a role, and the role is what gives them rights: there are no people without one.
+			if role == "" {
+				out[i].Status, out[i].Error = "rejected", "Choose a role for this person (or set a default role on the Roles page)."
+				continue
+			}
+			var rid uuid.UUID
 			if role != "" {
 				ref, ok := roleByKey[role]
 				if !ok || ref.locked {

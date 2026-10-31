@@ -5,16 +5,21 @@ export const name = 'profile';
 const FIELDS = ['status', 'cover', 'photo', 'phone', 'bio', 'skills'];
 
 export async function load(logic, srv) {
-  const [me, row] = await Promise.all([srv.request('GET', '/me'), srv.request('GET', '/people/' + srv.me.person)]);
+  // Who you are comes from your own account first. The directory row adds your title, department and email; if it cannot be read, you
+  // still see your own name and details, never anyone else's.
+  const me = await srv.request('GET', '/me');
+  const row = await srv.request('GET', '/people/' + srv.me.person).catch(() => null);
   srv.me = { ...srv.me, ...me };
+  const nm = (row && row.name) || me.name || srv.me.name || '';
+  const ini = (row && row.initials) || nm.split(/\s+/).filter(Boolean).map((x) => x[0]).join('').slice(0, 2).toUpperCase();
   const pf = me.profile || {};
   const profile = { status: pf.status || 'Available', cover: pf.cover || '#1F3A2B', photo: pf.photo || '', phone: pf.phone || '', bio: pf.bio || '', skills: pf.skills || [] };
   srv.profileSaved = profile;
   logic.setState({
     profile,
     meInfo: {
-      name: row.name, initials: row.initials, color: row.color || '#C2185B', email: row.email || '', title: row.title || '', dept: row.department ? row.department.name : '',
-      branch: row.branch ? row.branch.name : '', unit: row.unit ? row.unit.name : '', role: row.role_name || '', joined: row.joined_on || '', reportsTo: row.reports_to || null
+      name: nm, initials: ini, color: (row && row.color) || '#C2185B', email: (row && row.email) || '', title: (row && row.title) || '', dept: row && row.department ? row.department.name : '',
+      branch: row && row.branch ? row.branch.name : '', unit: row && row.unit ? row.unit.name : '', role: (row && row.role_name) || me.role_name || '', joined: (row && row.joined_on) || '', reportsTo: (row && row.reports_to) || null
     }
   });
 }
