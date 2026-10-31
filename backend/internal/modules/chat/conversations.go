@@ -443,7 +443,7 @@ const convSelect = `
 	       coalesce(c.audience,''), c.audience_ref, coalesce(me.role,''), coalesce(me.first_epoch,0), st.last_message, st.last_at,
 	       (select count(*) from hub.conversation_members x where x.conversation_id = c.id and x.left_at is null),
 	       case when me.account_id is null then 0 else (select count(*) from (select 1 from hub.messages mm where mm.org_id = c.org_id and mm.conversation_id = c.id and mm.sender_account <> $1
-	            and mm.deleted_at is null and mm.created_at > coalesce(cl.cleared_at, '-infinity'::timestamptz) and mm.id > coalesce(rc.last_read, '00000000-0000-0000-0000-000000000000'::uuid) limit 100) z) end
+	            and mm.deleted_at is null and mm.created_at > greatest(coalesce(cl.cleared_at, '-infinity'::timestamptz), case when c.kind='forum' then me.joined_at else '-infinity'::timestamptz end) and mm.id > coalesce(rc.last_read, '00000000-0000-0000-0000-000000000000'::uuid) limit 100) z) end
 	from hub.conversations c
 	left join hub.conversation_members me on me.conversation_id = c.id and me.account_id = $1 and me.left_at is null
 	left join hub.conversation_stats st on st.conversation_id = c.id
