@@ -1,4 +1,5 @@
 import * as calendarW from '~/logic/server/widgets/calendar.js';
+import { clockNow, stateOf, canJoin as joinable, untilNextChange } from '~/logic/schedule.js';
 // renderVals step: calendar. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildCalendar(ctx) {
   const { C, chip, corePeople, dowOf, fmtDay, has, isoAdd, personOf, s, set, todayISO } = ctx;
@@ -26,10 +27,15 @@ export function buildCalendar(ctx) {
   // Past items are crossed out. Upcoming ones can be closed, but only by the person who set them.
   const ME = this.srv ? this.srv.me.name : 'Samwel Okoth Omulo';   // who the signed-in person is, as events name their organizer
   const nowHM = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Nairobi', hour12: false });
+  const cn = clockNow();
   const isPast = (e, iso) => iso < todayISO || (iso === todayISO && !!(e.end || e.start) && (e.end || e.start) < nowHM);
   const isClosed = (e, iso) => (e.closedDates || []).indexOf(iso) !== -1;
   const ended = (e, iso) => isPast(e, iso) || isClosed(e, iso);
   const isMine = (e) => e.type !== 'Deadline' && (e.by === ME || e.by === 'Sam');
+  // where a meeting or standup stands on a day: 'upcoming', 'soon' (joining is open), 'live', 'ended'; closed ones are ended
+  const stateAt = (e, iso) => (isClosed(e, iso) ? 'ended' : stateOf(e, iso, cn));
+  // one redraw at the next moment any of today's sessions opens, starts or ends (no polling)
+  if (this.armSchedule) this.armSchedule(untilNextChange(s.events.filter((e) => (e.type === 'Meeting' || e.type === 'Standup') && occurs(e, cn.iso) && !isClosed(e, cn.iso)), cn));
   const joinEvent = (e) => this.startCall(e.type === 'Standup' ? 'voice' : 'video', e.title, e.title.split(' ').map((x) => x[0]).join('').slice(0, 2).toUpperCase(), typeColor[e.type], e.people, null, e.container || null, e.by && e.by !== ME && e.by !== 'Sam' ? 'in' : 'out');
   const cal = {
     monthLabel: new Date(firstISO + 'T12:00:00+03:00').toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'Africa/Nairobi' }),
@@ -61,7 +67,7 @@ export function buildCalendar(ctx) {
       sub: [e.project, e.forum ? e.forum + ' forum' : '', e.repeat && e.repeat !== 'None' ? 'Repeats ' + e.repeat.toLowerCase() : '', e.notes || '', e.visibility ? 'Visible to: ' + e.visibility.toLowerCase() : '', e.remind && e.remind !== 'None' ? 'Reminder: ' + e.remind.toLowerCase() : ''].filter(Boolean).join(' · '),
       hasSub: !!(e.project || e.forum || (e.repeat && e.repeat !== 'None') || e.notes || e.visibility),
       people: e.people.slice(0, 6).map(personOf), hasPeople: e.people.length > 0, peopleLabel: e.people.length + (e.people.length === 1 ? ' person' : ' people'),
-      canJoin: (e.type === 'Meeting' || e.type === 'Standup') && s.calSel === todayISO && !ended(e, s.calSel), join: () => joinEvent(e),
+      canJoin: (e.type === 'Meeting' || e.type === 'Standup') && s.calSel === todayISO && joinable(stateAt(e, s.calSel)), isLive: (e.type === 'Meeting' || e.type === 'Standup') && s.calSel === todayISO && stateAt(e, s.calSel) === 'live', join: () => joinEvent(e),
       canClose: isMine(e) && !ended(e, s.calSel), closeLabel: e.type === 'Task' ? 'Mark done' : 'Close',
       closeIt: () => { calendarW.update(this, this.srv, e, { closedDates: (e.closedDates || []).concat([s.calSel]) }).catch((x) => this.notify(x.message, '#FF9B8A')); this.notify('"' + e.title + '" ' + (e.type === 'Task' ? 'marked done.' : 'closed.'), '#7CC4FF'); },
       canRemove: isMine(e) && !ended(e, s.calSel), removeLabel: 'Cancel',
@@ -112,7 +118,7 @@ export function buildCalendar(ctx) {
       C.t(e.start + '–' + e.end, { nowrap: true, mono: true }), C.t(e.repeat === 'None' ? 'Once' : e.repeat),
       { kind: 'avatars', list: e.people.slice(0, 5).map(personOf), sub: e.people.length + (e.people.length === 1 ? ' person' : ' people'), fv: '' },
       C.t(e.by === ME || e.by === 'Sam' ? 'You' : e.by, { fv: e.by === ME || e.by === 'Sam' ? 'You' : e.by }),
-      C.a([{ label: 'Join', kind: 'primary', run: () => joinEvent(e) }, { label: 'Cancel', kind: 'danger', run: () => { calendarW.remove(this, this.srv, e).catch((x) => this.notify(x.message, '#FF9B8A')); this.notify('"' + e.title + '" cancelled. Participants were told.', '#7CC4FF'); } }])
+      C.a((occurs(e, cn.iso) && joinable(stateAt(e, cn.iso)) ? [{ label: stateAt(e, cn.iso) === 'live' ? 'Join · Live' : 'Join', kind: 'primary', run: () => joinEvent(e) }] : []).concat([{ label: 'Cancel', kind: 'danger', run: () => { calendarW.remove(this, this.srv, e).catch((x) => this.notify(x.message, '#FF9B8A')); this.notify('"' + e.title + '" cancelled. Participants were told.', '#7CC4FF'); } }]))
     ] })) };
   // The Home page's "Meetings & standups": the real meetings and standups on this person's calendar for the next 7 days
   // (a repeating one shows once, at its next time), live while it is on.
@@ -124,16 +130,18 @@ export function buildCalendar(ctx) {
     meetingEvents.forEach((e) => {
       if (seen.has(e.id) || !occurs(e, iso) || isClosed(e, iso) || (k === 0 && isPast(e, iso))) return;
       seen.add(e.id);
-      const live = k === 0 && !!e.start && e.start <= nowHM && (!e.end || nowHM < e.end);
+      const st = k === 0 ? stateAt(e, iso) : 'later';
+      const live = st === 'live';
+      const open = joinable(st);
       const day = k === 0 ? 'Today' : k === 1 ? 'Tomorrow' : fmtDay(iso).split(' ').slice(0, 2).join(' ');
       const mine = isMine(e);
       const going = !!s.rsvp[e.id];
       const pill = (on) => 'flex:none;height:30px;padding:0 12px;border-radius:15px;cursor:pointer;font-size:12px;font-weight:600;' + (on ? 'border:0;background:var(--k-2C3D34,#2C3D34);color:var(--k-B8F36B,#B8F36B)' : 'border:1px solid var(--k-2A3832,#2A3832);background:transparent;color:var(--k-E8EFEA,#E8EFEA)');
       sessions.push({ id: e.id, iso, start: e.start || '', title: e.title, type: e.type, color: typeColor[e.type], initials: e.title.split(' ').map((x) => x[0]).join('').slice(0, 2).toUpperCase(),
-        when: (live ? 'Live now' + (e.end ? ' · until ' + e.end : '') : day + ' ' + e.start) + (e.repeat && e.repeat !== 'None' ? ' · ' + (repeatName[e.repeat] || e.repeat.toLowerCase()) : '') + (e.forum ? ' · ' + e.forum : ''),
-        live, btn: live ? 'Join now' : mine || !this.srv || !e.container ? '' : going ? 'Going' : 'RSVP',
-        btnStyle: live ? 'flex:none;height:30px;padding:0 14px;border-radius:15px;border:0;background:#B8F36B;color:#0F1714;cursor:pointer;font-size:12px;font-weight:700' : pill(going),
-        join: live ? () => joinEvent(e) : () => calendarW.toggleRsvp(this, this.srv, e).catch((x) => this.notify(x.message || 'Could not save your answer.', '#FF9B8A')) });
+        when: (live ? 'Live now' + (e.end ? ' · until ' + e.end : '') : st === 'soon' ? 'Starts ' + e.start + ' · open to join' : day + ' ' + e.start) + (e.repeat && e.repeat !== 'None' ? ' · ' + (repeatName[e.repeat] || e.repeat.toLowerCase()) : '') + (e.forum ? ' · ' + e.forum : ''),
+        live, btn: open ? 'Join now' : mine || !this.srv || !e.container ? '' : going ? 'Going' : 'RSVP',
+        btnStyle: open ? 'flex:none;height:30px;padding:0 14px;border-radius:15px;border:0;background:#B8F36B;color:#0F1714;cursor:pointer;font-size:12px;font-weight:700' : pill(going),
+        join: open ? () => joinEvent(e) : () => calendarW.toggleRsvp(this, this.srv, e).catch((x) => this.notify(x.message || 'Could not save your answer.', '#FF9B8A')) });
     });
   }
   sessions.sort((a, b) => (a.live === b.live ? (a.iso + a.start).localeCompare(b.iso + b.start) : a.live ? -1 : 1));

@@ -38,6 +38,7 @@ type Config struct {
 
 	CallsURLs   []string // base URLs of the calls microservice instances (a room is pinned to one by hashing its id)
 	CallsSecret []byte   // shared secret used to mint call-room tokens
+	ScheduleTZ  string   // time zone the calendar's clock times (a meeting at 09:00) are set in (HUB_SCHEDULE_TZ, default Africa/Nairobi)
 	RedisOff    bool     // HUB_REDIS=off: no Redis server; an in-memory one inside this process is used (one instance only)
 	TurnURLs    []string // TURN relay servers (turn:host:3478?transport=udp, turns:host:443?transport=tcp) so calls work across networks
 	TurnUser    string   // a fixed TURN username and password (HUB_TURN_USER/HUB_TURN_PASS), or
@@ -111,6 +112,10 @@ func Load() (*Config, error) {
 		if len(missing) > 0 {
 			return nil, fmt.Errorf("required in production but not set: %s", strings.Join(missing, ", "))
 		}
+	}
+	c.ScheduleTZ = strings.TrimSpace(os.Getenv("HUB_SCHEDULE_TZ"))
+	if c.ScheduleTZ == "" {
+		c.ScheduleTZ = "Africa/Nairobi"
 	}
 	c.RedisOff = strings.EqualFold(strings.TrimSpace(os.Getenv("HUB_REDIS")), "off")
 	// HUB_REDIS_ADDR may be host:port or the URL a provider shows (redis://[user:password@]host:port, rediss:// for TLS)

@@ -101,11 +101,17 @@ func (m *Module) Start(ctx context.Context, p *tenant.Principal, in StartIn) (*E
 	if right[0] == "" {
 		return nil, httpx.Bad("Unknown kind of call.")
 	}
+	if id, ok := m.runningRoom(ctx, p, in.Conversation, in.Context); ok {
+		return m.Join(ctx, p, id)
+	}
 	var out *Entry
 	var invited []uuid.UUID
 	var accts []uuid.UUID
 	err := m.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
 		if err := authz.Require(ctx, tx, p.Person, right[0], right[1]); err != nil {
+			return err
+		}
+		if err := m.checkOpen(ctx, tx, in.Context, in.Conversation, time.Now()); err != nil {
 			return err
 		}
 		if in.Conversation != nil {
@@ -208,6 +214,9 @@ func (m *Module) Join(ctx context.Context, p *tenant.Principal, id uuid.UUID) (*
 		}
 		if c.Status == "ended" || c.Status == "missed" || c.Status == "declined" {
 			return httpx.Err(410, "call_over", "This call has ended.")
+		}
+		if err := m.checkOpen(ctx, tx, c.Context, c.Conversation, time.Now()); err != nil {
+			return err
 		}
 		var ok bool
 		if err := tx.QueryRow(ctx, `select exists (select 1 from hub.call_participants where call_id=$1 and person_id=$2)

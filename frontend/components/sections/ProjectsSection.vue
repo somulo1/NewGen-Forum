@@ -95,7 +95,7 @@
 </div>
 <template v-if="has.sessions">
 <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center">
-<template v-if="pj.standup.isLive"><span style="font-size: 12px; font-weight: 600; color: var(--k-FF9B8A,#FF9B8A)">● LIVE · {{ pj.standup.label }}</span><button @click="pj.standup.join" style="height: 40px; padding: 0 18px; border-radius: 20px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">Join standup</button></template>
+<template v-if="pj.standup.isLive"><span style="font-size: 12px; font-weight: 600; color: var(--k-FF9B8A,#FF9B8A)">● LIVE · {{ pj.standup.label }}</span></template><template v-if="pj.standup.canJoin"><button @click="pj.standup.join" style="height: 40px; padding: 0 18px; border-radius: 20px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">Join standup</button></template>
 <template v-if="pj.standup.isUpcoming"><span style="height: 40px; padding: 0 14px; border-radius: 20px; border: 1px solid var(--k-2A3832,#2A3832); display: flex; align-items: center; font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">Standup · {{ pj.standup.label }}</span><button @click="pj.standup.cancel" style="height: 40px; padding: 0 14px; border-radius: 20px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer">Cancel</button></template>
 <template v-if="pj.standup.isNone"><button @click="pj.standup.openForm" style="height: 40px; padding: 0 18px; border-radius: 20px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); font-weight: 600; cursor: pointer">Schedule standup</button></template>
 </div>

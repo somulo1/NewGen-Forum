@@ -1,4 +1,5 @@
 import * as calendarW from '~/logic/server/widgets/calendar.js';
+import { clockNow, stateOf, canJoin } from '~/logic/schedule.js';
 // renderVals step: projectStandup. A project standup is a calendar event for the whole team.
 // Before it starts the project shows the time; from the start time until it ends the button becomes "Join standup".
 export function buildProjectStandup(ctx) {
@@ -11,12 +12,13 @@ export function buildProjectStandup(ctx) {
     const iso = isoAdd(todayISO, k);
     next = mine.filter((e) => occurs(e, iso) && !(k === 0 && e.end <= nowHM)).sort((a, b) => a.start.localeCompare(b.start)).map((e) => ({ e, iso }))[0] || null;
   }
-  const live = !!next && next.iso === todayISO && next.e.start <= nowHM;
+  const st = next ? stateOf(next.e, next.iso, clockNow()) : 'none';
+  const live = st === 'live';   // on now, in the time set for it; joining opens 5 minutes before
   const addMinutes = (hm, n) => { const t = Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3, 5)) + n; return String(Math.floor(t / 60) % 24).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0'); };
   const f = s.standupForm;
   const setF = (k) => (e) => { const v = e.target.value; this.setState((st) => ({ standupForm: { ...st.standupForm, [k]: v, err: '' } })); };
   pj.standup = {
-    state: live ? 'live' : next ? 'upcoming' : 'none', isLive: live, isUpcoming: !!next && !live, isNone: !next,
+    state: live ? 'live' : next ? 'upcoming' : 'none', isLive: live, canJoin: canJoin(st), isUpcoming: !!next && !live, isNone: !next,
     label: next ? (next.iso === todayISO ? 'Today' : fmtDay(next.iso)) + ' · ' + next.e.start + (next.e.repeat && next.e.repeat !== 'None' ? ' · repeats ' + next.e.repeat.toLowerCase() : '') : '',
     join: () => next && joinEvent(next.e),
     cancel: () => { if (!next) return; calendarW.remove(this, this.srv, next.e).catch((e) => this.notify(e.message, '#FF9B8A')); this.notify('Standup cancelled. The team was told.', '#7CC4FF'); },
