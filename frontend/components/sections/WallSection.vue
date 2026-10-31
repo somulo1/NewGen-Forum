@@ -9,9 +9,12 @@
 <template v-if="hl"><div class="wall-backdrop" @click="hl = false"></div></template></div>
 
 <div style="display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px">
-<button @click="momentForm.toggle" :aria-expanded="momentForm.open" style="flex: none; width: 112px; height: 180px; border-radius: 14px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-16201C,#16201C); color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 8px; padding: 14px 8px; box-sizing: border-box">
-<span style="width: 40px; height: 40px; border-radius: 50%; background: #B8F36B; color: #0F1714; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg></span>
+<button @click="momentForm.toggle" :aria-expanded="momentForm.open" aria-label="Add a moment" style="flex: none; width: 112px; height: 180px; border-radius: 14px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-16201C,#16201C); color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; display: flex; flex-direction: column; align-items: stretch; padding: 0; overflow: hidden; box-sizing: border-box">
+<span aria-hidden="true" style="flex: 0 0 50%; position: relative; display: flex; align-items: center; justify-content: center; background: #C2185B; color: #fff; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 30px; overflow: hidden"><img v-if="me.hasPhoto" :src="me.photo" alt="" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover"><template v-else>{{ meAv.initials }}</template></span>
+<span style="flex: 1; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 6px; padding: 0 8px 12px">
+<span style="position: absolute; top: -17px; left: 50%; transform: translateX(-50%); width: 34px; height: 34px; border-radius: 50%; background: #B8F36B; color: #0F1714; border: 3px solid var(--k-16201C,#16201C); display: flex; align-items: center; justify-content: center; box-sizing: border-box"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg></span>
 <span style="font-size: 13px; font-weight: 600">Add a moment</span>
+</span>
 </button>
 <template v-for="m in moments" :key="m.key">
 <button @click="m.open" :aria-label="`View moment: ${m.caption}`" :style="`position: relative; flex: none; width: 112px; height: 180px; padding: 0; border-radius: 14px; border: 0; overflow: hidden; background: ${m.bg}; color: #fff; cursor: pointer; text-align: left; box-sizing: border-box`">
@@ -236,7 +239,7 @@ export default {
     pickMomentFile(e) { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) this.momentFile = f; },
     wish() { this.wishBirthday(); this.$nextTick(() => this.$refs.composer && this.$refs.composer.focus()); }
   },
-  ...hubBindings(["onActivityClick","meAv","wallBirthdays","pickEmojiWall","addMoment","momentForm","momentView","wpollView","openEventFromWall","wallAudience","wallAudiences","onAudience","wishBirthday","onlineList","trending","wallFilter","noTrending","addHashtag","canPostWall","cannotPostWall","draft","hasWFiles","moments","onDraftValue","onPost","onWallFiles","people","postBtnStyle","posts","show","wfiles"])
+  ...hubBindings(["onActivityClick","me","meAv","wallBirthdays","pickEmojiWall","addMoment","momentForm","momentView","wpollView","openEventFromWall","wallAudience","wallAudiences","onAudience","wishBirthday","onlineList","trending","wallFilter","noTrending","addHashtag","canPostWall","cannotPostWall","draft","hasWFiles","moments","onDraftValue","onPost","onWallFiles","people","postBtnStyle","posts","show","wfiles"])
 };
 </script>
 
