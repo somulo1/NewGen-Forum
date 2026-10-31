@@ -76,3 +76,6 @@ input:not([type=checkbox]):not([type=radio]):not([type=range]):focus,textarea:fo
 main h1{font-size:22px !important}
 }
 @media (prefers-reduced-motion: reduce){.hub-nav{transition:none !important}}
+
+/* Phones only (tablets keep the side panel): hide what would put a chat beside the page */
+@media (max-width: 640px){.hub-ph{display:none !important}}

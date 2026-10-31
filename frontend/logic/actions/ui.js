@@ -1,11 +1,18 @@
 import { chime } from '~/logic/tones.js';
 // HubLogic actions: ui. Mixed into HubLogic.prototype, so `this` is the HubLogic instance.
 export const uiActions = {
-  componentDidMount() { if (this.isMobileViewport() && this.state.mode === 'docked') this.setState({ mode: 'min' }); this.scrollChat(); this._tick = setInterval(() => this.forceUpdate(), 15000); this.startPollTimer(); },
+  componentDidMount() {
+    if (this.isMobileViewport() && this.state.mode === 'docked') this.setState({ mode: 'min' });
+    // turning a tablet into a phone-sized window (or a rotation) must not leave a chat docked or full screen
+    this._onResize = () => { if (this.isPhoneViewport() && ['docked', 'full'].includes(this.state.mode)) this.setState({ mode: 'page' }); };
+    if (typeof window !== 'undefined') window.addEventListener('resize', this._onResize); this.scrollChat(); this._tick = setInterval(() => this.forceUpdate(), 15000); this.startPollTimer(); },
 
   isMobileViewport() { return typeof window !== 'undefined' && window.innerWidth <= 900; },
+  // A phone: the screen is too small for a side panel. A chat is a page that fills the space between the top bar and the tab bar,
+  // and is never docked beside the page or full screen. Tablets (iPads and up) may still dock it.
+  isPhoneViewport() { return typeof window !== 'undefined' && window.innerWidth <= 640; },
 
-  componentWillUnmount() { clearInterval(this._tick); clearInterval(this._ct); clearInterval(this._pollT); clearTimeout(this._toastT); clearTimeout(this._incT); },
+  componentWillUnmount() { if (typeof window !== 'undefined' && this._onResize) window.removeEventListener('resize', this._onResize); clearInterval(this._tick); clearInterval(this._ct); clearInterval(this._pollT); clearTimeout(this._toastT); clearTimeout(this._incT); },
 
   // Widest the docked chat panel may be. On the Community wall it stops before it would push the wall's
   // right-hand cards out: wall column (460) + gap (24) + cards (250), the page padding, the sidebar and the panel's margin.
