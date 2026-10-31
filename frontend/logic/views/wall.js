@@ -43,11 +43,14 @@ export function buildWall(ctx) {
       },
       replies: buildComments(p, c.replies || [], here) };
   });
+  // Every option always shows how many voted for it and what share that is, so everyone can follow the poll before and after voting.
   const userPollOf = (p) => (p.pollData ? (() => {
       const my = s.pollVotes[p.id];
       const tot = p.pollData.opts.reduce((n, o) => n + o.votes, 0) + (my ? 1 : 0);
-      return { tot, list: p.pollData.opts.map((o) => { const v = o.votes + (my === o.id ? 1 : 0); return { label: o.label + (my === o.id ? '  ✓' : ''), pct: my ? Math.round((v / tot) * 100) + '%' : '', vote: () => { if (my) { this.notify('You have already voted on this poll. Your first vote is final.', '#FFB86B'); return; } this.setState((st) => ({ pollVotes: { ...st.pollVotes, [p.id]: o.id } })); wallW.vote(this, this.srv, p.id, o.id).catch((e) => this.notify(e.message || 'That did not work.', '#FF9B8A')); },
-        style: 'display:flex;align-items:center;min-height:44px;padding:0 14px;border-radius:10px;cursor:pointer;font-size:14px;color:var(--k-E8EFEA,#E8EFEA);text-align:left;border:1px solid ' + (my === o.id ? '#B8F36B' : '#2A3832') + ';background:var(--k-121B17,#121B17)' }; }) };
+      return { tot, list: p.pollData.opts.map((o) => { const v = o.votes + (my === o.id ? 1 : 0); const pc = tot ? Math.round((v / tot) * 100) : 0;
+        return { label: o.label + (my === o.id ? '  ✓' : ''), count: v, pct: pc + '%',
+          vote: () => { if (my) { this.notify('You have already voted on this poll. Your first vote is final.', '#FFB86B'); return; } this.setState((st) => ({ pollVotes: { ...st.pollVotes, [p.id]: o.id } })); wallW.vote(this, this.srv, p.id, o.id).catch((e) => this.notify(e.message || 'That did not work.', '#FF9B8A')); },
+          style: 'display:flex;align-items:center;gap:10px;min-height:44px;padding:0 14px;border-radius:10px;cursor:' + (my ? 'default' : 'pointer') + ';font-size:14px;color:var(--k-E8EFEA,#E8EFEA);text-align:left;border:1px solid ' + (my === o.id ? '#B8F36B' : '#2A3832') + ';background:linear-gradient(90deg,' + (my === o.id ? 'rgba(184,243,107,0.28)' : 'var(--k-2C3D34,#2C3D34)') + ' ' + pc + '%,var(--k-121B17,#121B17) ' + pc + '%);transition:background .5s ease' }; }) };
   })() : null);
   const posts = s.posts.filter((p) => !s.hiddenPosts[p.id] && tagHit(p)).map((p) => {
     const liked = !!s.liked[p.id];
@@ -70,7 +73,7 @@ export function buildWall(ctx) {
       hasPoll: !!p.hasPoll || !!userPoll,
       hasPhoto: !!p.photoBg,
       poll: userPoll ? userPoll.list : poll,
-      pollNote: userPoll ? (s.pollVotes[p.id] ? userPoll.tot + ' votes · thanks for voting' : 'Tap an option to vote') : s.vote ? total + ' votes · thanks for voting' : 'Tap an option to vote · closes Friday',
+      pollNote: userPoll ? (userPoll.tot + (userPoll.tot === 1 ? ' vote' : ' votes') + (s.pollVotes[p.id] ? ' · thanks for voting' : ' · tap an option to vote')) : s.vote ? total + ' votes · thanks for voting' : 'Tap an option to vote · closes Friday',
       likes: p.likes + (liked ? 1 : 0),
       commentsOpen: !!s.commentsOpen[p.id],
       replyingAny: !!s.replyFor && s.replyFor.indexOf(p.id + ':') === 0,
@@ -131,7 +134,7 @@ export function buildWall(ctx) {
   // One place that knows a post's poll, so the wall and a forum the post was shared to always show the same votes.
   const pollInfo = (p) => {
     const u = userPollOf(p);
-    if (u) return { list: u.list, note: s.pollVotes[p.id] ? u.tot + ' votes · thanks for voting' : 'Tap an option to vote', isPoll: true };
+    if (u) return { list: u.list, note: u.tot + (u.tot === 1 ? ' vote' : ' votes') + (s.pollVotes[p.id] ? ' · thanks for voting' : ' · tap an option to vote'), isPoll: true };
     if (p.hasPoll) return { list: poll, note: s.vote ? total + ' votes · thanks for voting' : 'Tap an option to vote · closes Friday', isPoll: true };
     return { list: [], note: '', isPoll: false };
   };

@@ -107,7 +107,7 @@
 <template v-if="p.hasPoll">
 <div style="display: flex; flex-direction: column; gap: 8px; padding: 0 16px 12px">
 <template v-for="(o, o__i) in p.poll" :key="o__i">
-<button @click="o.vote" :style="o.style"><span>{{ o.label }}</span><span style="margin-left: auto; font-weight: 600">{{ o.pct }}</span></button>
+<button @click="o.vote" :style="o.style"><span>{{ o.label }}</span><span style="margin-left: auto; font-weight: 600; white-space: nowrap"><template v-if="o.count != null"><span style="font-weight: 400; color: var(--k-C9D6CF,#C9D6CF)">{{ o.count }} · </span></template>{{ o.pct }}</span></button>
 </template>
 <span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">{{ p.pollNote }}</span>
 </div>
