@@ -11,7 +11,7 @@
 <label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Project name<input type="text" :value="projectForm.name" @input="projectForm.onName" placeholder="e.g. Customer self-service portal" style="height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px"></label>
 <label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Goal<textarea rows="3" :value="projectForm.goal" @input="projectForm.onGoal" placeholder="What outcome should this project deliver?" style="padding: 10px 12px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px; line-height: 1.45; resize: vertical"></textarea></label>
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px">
-<label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Project owner<select :value="projectForm.owner" @change="projectForm.onOwner" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px"><template v-for="(o, o__i) in projectForm.owners" :key="o__i"><option :value="o.v">{{ o.l }}</option></template></select></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Project manager<select :value="projectForm.owner" @change="projectForm.onOwner" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px"><template v-for="(o, o__i) in projectForm.owners" :key="o__i"><option :value="o.v">{{ o.l }}</option></template></select></label>
 <label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Estimated budget<input type="number" min="0" :value="projectForm.budget" @input="projectForm.onBudget" placeholder="Optional" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px"></label>
 </div>
 <div style="display: flex; flex-direction: column; gap: 8px">
@@ -32,7 +32,7 @@
 </label>
 <span v-if="!projectForm.teamResults.length" style="display: block; padding: 12px; color: var(--k-9DB0A6,#9DB0A6); font-size: 13px">No people match that search.</span>
 </div>
-<span style="font-size: 11px; color: var(--k-9DB0A6,#9DB0A6)">Select multiple people. The project owner is always included.</span>
+<span style="font-size: 11px; color: var(--k-9DB0A6,#9DB0A6)">Select multiple people. The project manager is always included.</span>
 </div>
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px">
 <label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Start date<input type="date" :value="projectForm.start" @input="projectForm.onStart" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px"></label>
@@ -46,11 +46,6 @@
 <template v-for="(ps, ps__i) in projStats" :key="ps__i">
 <div style="padding: 14px 16px; border-radius: 14px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 2px"><span :style="`font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 700; color: ${ps.color}`">{{ ps.n }}</span><span style="font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">{{ ps.label }}</span></div>
 </template>
-</div>
-<div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 12px 16px; border-radius: 14px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C)">
-<span style="width: 34px; height: 34px; border-radius: 9px; background: var(--k-22302A,#22302A); color: var(--k-E8EFEA,#E8EFEA); display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 16px">#</span>
-<div style="flex: 1 1 260px; display: flex; flex-direction: column"><strong style="font-size: 14px">Slack · connected</strong><span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Each project posts task moves, overdue reminders and milestones to its own Slack channel.</span></div>
-<span style="padding: 4px 10px; border-radius: 12px; background: var(--k-26361A,#26361A); color: var(--k-B8F36B,#B8F36B); font-size: 12px; font-weight: 600">Active</span>
 </div>
 <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px">
 <template v-for="(pr, pr__i) in projects" :key="pr__i">
@@ -74,7 +69,7 @@
 <div style="display: flex">
 <template v-for="(tm, tm__i) in pr.team" :key="tm__i"><UserAvatar :name="tm.name" :initials="tm.initials" :color="tm.color" :size="30" :font-size="10" border="2px solid #16201C" style="margin-right: -8px"/></template>
 </div>
-<span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6); margin-left: 8px">{{ pr.teamSize }} people · {{ pr.sync }}</span>
+<span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6); margin-left: 8px">{{ pr.teamSize }} people</span>
 <button @click="pr.open" style="margin-left: auto; height: 38px; padding: 0 18px; border-radius: 19px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">View</button>
 </div>
 </article>
@@ -91,7 +86,7 @@
 <span :style="`width: 60px; height: 60px; flex: none; border-radius: 16px; background: ${pj.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 20px`">{{ pj.initials }}</span>
 <div style="flex: 1 1 280px; min-width: 0; display: flex; flex-direction: column; gap: 4px">
 <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center"><h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 26px; letter-spacing: -0.02em">{{ pj.name }}</h1><span :style="pj.statusStyle">{{ pj.status }}</span></div>
-<span style="font-size: 13px; color: var(--k-9DB0A6,#9DB0A6)">{{ pj.code }} · Led by {{ pj.owner }} · {{ pj.startLabel }} → {{ pj.dueLabel }}</span>
+<span style="font-size: 13px; color: var(--k-9DB0A6,#9DB0A6)">{{ pj.code }} · Project manager: {{ pj.owner }} · {{ pj.startLabel }} → {{ pj.dueLabel }}</span>
 </div>
 <template v-if="has.sessions">
 <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center">
@@ -133,7 +128,7 @@
 
 <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start">
 <div style="flex: 999 1 560px; min-width: 0; padding: 18px; border-radius: 18px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 14px">
-<div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center"><strong style="flex: 1; font-size: 15px">Task board</strong>
+<div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center"><div style="flex: 1; display: flex; flex-direction: column; gap: 2px"><strong style="font-size: 15px">Task board · {{ pj.boardTitle }}</strong><span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">{{ pj.boardNote }}</span></div>
 <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Sprint<select :value="pj.sprintValue" @change="pj.setSprint" aria-label="Filter tasks by sprint" style="height: 38px; max-width: 260px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 13px"><template v-for="(sp, sp__i) in pj.sprintOpts" :key="sp__i"><option :value="sp.v">{{ sp.l }}</option></template></select></label>
 <template v-if="pj.canNewTask"><button @click="pj.openTaskForm" style="height: 38px; padding: 0 18px; border-radius: 19px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer; font-size: 14px">New task</button></template>
 </div>

@@ -47,7 +47,7 @@ export function valsPanels(ctx) {
     })(),
     dmList: s.dms.map((d) => { const pr = dmPerson(d.with); const last = d.msgs[d.msgs.length - 1]; const on = isDM && d.id === s.dmId && s.mode !== 'closed';
       return { key: d.id, name: d.with, kindLabel: 'private chat', remove: () => (this.srv ? dmsW.clear(this, this.srv, d.id) : Promise.resolve(this.setState((x) => ({ dms: x.dms.filter((y) => y.id !== d.id) })))), initials: pr.initials, color: pr.color, dot: dmStatusCol[pr.status] || '#B8F36B', unread: d.unread, hasUnread: d.unread > 0,
-        last: last ? (last.from === 'me' ? 'You: ' : '') + (last.text || (last.file ? 'Sent a file' : '')) : 'Say hello', open: () => this.openDm(d.with),
+        typing: !!(s.typing && s.typing[d.id] && s.typing[d.id].length), last: (s.typing && s.typing[d.id] && s.typing[d.id].length) ? 'typing…' : last ? (last.from === 'me' ? 'You: ' : '') + (last.text || (last.file ? 'Sent a file' : '')) : 'Say hello', open: () => this.openDm(d.with),
         style: 'display:flex;align-items:center;gap:10px;width:100%;min-height:50px;padding:4px 10px;border:0;border-radius:10px;cursor:pointer;text-align:left;font-family:inherit;color:var(--k-E8EFEA,#E8EFEA);background:' + (on ? 'var(--k-22302A,#22302A)' : 'transparent') }; }),
     dmsOpen: s.dmsOpen, toggleDms: () => this.setState((x) => ({ dmsOpen: !x.dmsOpen })),
     dmsChevron: 'transition:transform 0.2s;transform:rotate(' + (s.dmsOpen ? '0' : '-90') + 'deg)',

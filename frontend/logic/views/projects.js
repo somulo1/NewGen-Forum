@@ -1,5 +1,5 @@
 import * as projectsW from '~/logic/server/widgets/projects.js';
-import { addDaysIso, defaultTaskDue, milestoneTimeline, nextSprintName, normalizeProject, sprintDefaults, sprintTimeline, taskContext, todayIso as isoToday, validateMilestone, validateSprint, validateTask } from '~/logic/projects.js';
+import { addDaysIso, boardTasks, defaultTaskDue, mayEditTask, mayMoveTask, milestoneTimeline, nextSprintName, normalizeProject, sprintDefaults, sprintTimeline, taskContext, todayIso as isoToday, validateMilestone, validateSprint, validateTask } from '~/logic/projects.js';
 
 // renderVals step: projects. Project > milestone > sprint > task. Progress is always calculated from the tasks.
 export function buildProjects(ctx) {
@@ -23,6 +23,7 @@ export function buildProjects(ctx) {
   };
   const tBadge = (c) => 'display:inline-block;padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700;background:' + c + '22;color:' + c;
   const canMoveT = can('projects', 'Move tasks');
+  const me = this.srv ? this.srv.me.name : 'Samwel Okoth Omulo';   // who is signed in: the project manager and a task's owners are known by name
   const today = isoToday(nowMs);
   const canMs = can('projects', 'Manage milestones');
   const canEditT = can('projects', 'Edit tasks');
@@ -132,16 +133,20 @@ export function buildProjects(ctx) {
       statusStyle: badge(c.sc), progress: c.progress, doneCount: c.done, taskCount: c.total,
       barStyle: 'height:100%;width:' + Math.max(3, c.progress) + '%;background:' + c.sc + ';border-radius:3px',
       daysLeft, startLabel: longDate(cur_p.start), dueLabel: longDate(cur_p.due),
-      msCount: tl.length, msDone: tl.filter((m) => m.closed).length, spCount: spl.length,
+      msCount: tl.length, msDone: tl.filter((m) => m.status === 'done').length, spCount: spl.length,
       canMilestones: canMs, tab: s.projTab, isMsTab: s.projTab === 'milestones', isSpTab: s.projTab === 'sprints',
       goMs: set({ projTab: 'milestones' }), goSp: set({ projTab: 'sprints' }),
       addMilestone: () => this.setState({ msDialog: { mode: 'new', pid: pid, lockProject: true, name: '', date: '', desc: '', err: '' } }),
       addSprint: () => openSprint(''),
-      sprintOpts: [{ v: 'all', l: 'All sprints' }].concat(spl.map((sp) => ({ v: sp.id, l: sp.name + ' · ' + shortDate(sp.start) + ' – ' + shortDate(sp.end) + (sp.status === 'current' ? ' (current)' : '') }))),
+      sprintOpts: [{ v: 'all', l: 'All open work' }].concat(spl.map((sp) => ({ v: sp.id, l: sp.name + ' · ' + shortDate(sp.start) + ' – ' + shortDate(sp.end) + (sp.status === 'current' ? ' (current)' : '') }))),
       sprintValue: sprintSel, setSprint: (e) => this.setState({ sprintFilter: e.target.value }),
+      boardTitle: sprintSel === 'all' ? 'All open work' : (spl.find((sp) => sp.id === sprintSel) || { name: 'Sprint' }).name,
+      boardNote: sprintSel === 'all' ? 'No sprint is chosen, so the board shows every task that is not closed yet. Pick a sprint in the Sprints tab to see only its tasks.' : 'Showing the tasks of this sprint. Clear the choice in the Sprints tab to see all open work.',
+      boardAll: sprintSel === 'all', showAll: () => this.setState({ sprintFilter: 'all' }),
+      manager: cur_p.owner, iAmManager: cur_p.owner === me,
       canNewTask: canEditT, openTaskForm: () => openTaskForm(''),
       columns: colNames.map(([name, color], ci) => {
-        const tasks = cur_p.tasks.map((t, ti) => ({ t, ti })).filter((x) => x.t.col === ci && (sprintSel === 'all' || x.t.sprint === sprintSel)).map(({ t, ti }) => {
+        const tasks = boardTasks(cur_p, sprintSel, tl.filter((m) => m.status === 'done').map((m) => m.id)).filter((x) => x.t.col === ci).map(({ t, ti }) => {
           const inf = taskInfo(t);
           const tcx = taskContext(cur_p, t);
           return {
@@ -149,11 +154,11 @@ export function buildProjects(ctx) {
             title: t.title, primary: t.primary, secondary: t.secondary, initials: ini(t.primary), color: pColor[t.primary] || '#9DB0A6',
             hasSecondary: !!t.secondary, secInitials: t.secondary ? ini(t.secondary) : '', secColor: pColor[t.secondary] || '#9DB0A6',
             dueLabel: inf.label, dueStyle: tBadge(inf.color),
-            hasLinks: t.links.length > 0, linkLabel: t.links.length + ' linked',
+            hasLinks: has.tickets && (t.tickets || []).length > 0, linkLabel: (t.tickets || []).length + ' ticket' + ((t.tickets || []).length === 1 ? '' : 's'),
             cardStyle: 'padding:10px;border-radius:10px;background:var(--k-1D2A25,#1D2A25);border:1px solid ' + (inf.overdue ? '#FF9B8A' : '#2A3832') + ';display:flex;flex-direction:column;gap:8px',
             open: () => openTask(ti),
-            canMove: canMoveT && ci < 3, moveLabel: ci < 3 ? 'Move to ' + colNames[ci + 1][0] : '', move: () => this.askTaskMove(pid, ti, 1),
-            canBack: canMoveT && ci > 0, backLabel: ci > 0 ? 'Move back to ' + colNames[ci - 1][0] : '', back: () => this.askTaskMove(pid, ti, -1)
+            canMove: canMoveT && mayMoveTask(cur_p, t, 1, me), moveLabel: ci < 3 ? 'Move to ' + colNames[ci + 1][0] : '', move: () => this.askTaskMove(pid, ti, 1),
+            canBack: canMoveT && mayMoveTask(cur_p, t, -1, me), backLabel: ci > 0 ? 'Move back to ' + colNames[ci - 1][0] : '', back: () => this.askTaskMove(pid, ti, -1)
           };
         });
         return { name, color, tasks, count: tasks.length };
@@ -268,24 +273,47 @@ export function buildProjects(ctx) {
     const extraRem = s.taskReminders[rk] || [];
     const tcx = taskContext(tp, tt);
     const spT = sprintTimeline(tp, today).filter((sp) => !sp.milestoneClosed || sp.id === tt.sprint);
+    // Only the people the task is assigned to edit it: Edit opens the fields, Save writes them all at once, Cancel drops them.
+    const mayEdit = mayEditTask(tt, me);
+    const ed = mayEdit && s.taskEdit && s.taskEdit.pid === tp.id && s.taskEdit.ti === to.ti ? s.taskEdit : null;
+    const setE = (k) => (e) => { const v = e.target.value; this.setState((st) => ({ taskEdit: { ...st.taskEdit, [k]: v, err: '' } })); };
+    const draftSprint = ed ? tp.sprints.find((x) => x.id === ed.sprint) : null;
+    const tcxView = ed && draftSprint ? { sprint: draftSprint, milestone: tp.milestones.find((m) => m.id === draftSprint.milestone) || null } : taskContext(tp, tt);
+    const ticketOf = (ref) => s.tickets.find((x) => x.id === ref);
+    const tickets = (ed ? ed.tickets : tt.tickets || []);
+    // tickets this person is assigned to (or handles) that are not linked yet
+    const myTickets = s.tickets.filter((x) => (x.assignees || []).indexOf(me) !== -1 || x.handler === me).filter((x) => tickets.indexOf(x.id) === -1);
     td = {
       project: tp.name, pcolor: tp.color, pinitials: initialsOf(tp.name),
-      title: tt.title, desc: tt.desc || 'No description yet.',
-      canEdit: canEditT, objective: tt.objective, setObjective: (e) => { const v = e.target.value.trim(); updT((x) => ({ ...x, objective: v })); },
-      sprintId: tt.sprint, sprintOpts: spT.map((sp) => ({ v: sp.id, l: sp.name + ' · ' + sp.milestoneName + ' · ' + shortDate(sp.start) + ' – ' + shortDate(sp.end) })),
+      title: ed ? ed.title : tt.title, desc: ed ? ed.desc : tt.desc || 'No description yet.',
+      canEditTask: mayEdit, editing: !!ed, hasEditErr: !!(ed && ed.err), editErr: ed ? ed.err : '',
+      startEdit: () => this.setState({ taskEdit: { pid: tp.id, ti: to.ti, title: tt.title, desc: tt.desc || '', objective: tt.objective || '', sprint: tt.sprint, due: tt.due, secondary: tt.secondary || '', tickets: (tt.tickets || []).slice(), err: '' } }),
+      cancelEdit: () => this.setState({ taskEdit: null }),
+      onTitle: setE('title'), onDesc: setE('desc'),
+      saveEdit: () => {
+        const f = this.state.taskEdit;
+        if (!f) return;
+        const err = validateTask(tp, { title: f.title, objective: f.objective, sprint: f.sprint, due: f.due });
+        if (err) { this.setState({ taskEdit: { ...f, err } }); return; }
+        updT((x) => ({ ...x, title: f.title.trim(), desc: f.desc.trim(), objective: f.objective.trim(), sprint: f.sprint, due: f.due, secondary: f.secondary, tickets: f.tickets }));
+        this.setState((st) => ({ taskEdit: null, projects: st.projects.map((p) => (p.id === tp.id ? { ...p, activity: [{ text: 'You edited "' + f.title.trim() + '"', time: 'Just now' }].concat(p.activity) } : p)) }));
+        this.notify('Task saved.', '#B8F36B');
+      },
+      canEdit: !!ed, objective: ed ? ed.objective : tt.objective, setObjective: setE('objective'),
+      sprintId: ed ? ed.sprint : tt.sprint, sprintOpts: spT.map((sp) => ({ v: sp.id, l: sp.name + ' · ' + sp.milestoneName + ' · ' + shortDate(sp.start) + ' – ' + shortDate(sp.end) })),
       setSprint: (e) => {
         const sp = tp.sprints.find((x) => x.id === e.target.value);
         if (!sp) return;
-        updT((x) => ({ ...x, sprint: sp.id, due: x.due < sp.start ? sp.start : x.due > sp.end ? sp.end : x.due }));
+        this.setState((st) => ({ taskEdit: { ...st.taskEdit, sprint: sp.id, due: st.taskEdit.due < sp.start ? sp.start : st.taskEdit.due > sp.end ? sp.end : st.taskEdit.due, err: '' } }));
       },
-      milestoneName: tcx.milestone ? tcx.milestone.name : 'None', milestoneDue: tcx.milestone ? longDate(tcx.milestone.iso) : '',
-      milestoneState: tcx.milestone ? (tcx.milestone.closed ? 'Reached' : tcx.milestone.iso < today ? 'Late' : 'Open') : '',
-      sprintDates: tcx.sprint ? shortDate(tcx.sprint.start) + ' – ' + shortDate(tcx.sprint.end) : '',
-      dueISO: tt.due, minDue: tcx.sprint ? tcx.sprint.start : tt.start, maxDue: tcx.sprint ? tcx.sprint.end : '',
-      setDue: (e) => { const v = e.target.value; if (v) updT((x) => ({ ...x, due: v })); },
+      milestoneName: tcxView.milestone ? tcxView.milestone.name : 'None', milestoneDue: tcxView.milestone ? longDate(tcxView.milestone.iso) : '',
+      milestoneState: tcxView.milestone ? ((milestoneTimeline(tp, today).find((m) => m.id === tcxView.milestone.id) || {}).status === 'done' ? 'Reached' : tcxView.milestone.iso < today ? 'Late' : 'Open') : '',
+      sprintDates: tcxView.sprint ? shortDate(tcxView.sprint.start) + ' – ' + shortDate(tcxView.sprint.end) : '',
+      dueISO: ed ? ed.due : tt.due, minDue: tcxView.sprint ? tcxView.sprint.start : tt.start, maxDue: tcxView.sprint ? tcxView.sprint.end : '',
+      setDue: (e) => { const v = e.target.value; if (v) this.setState((st) => ({ taskEdit: { ...st.taskEdit, due: v, err: '' } })); },
       col: colNames[tt.col][0], colStyle: 'height:36px;padding:0 14px;border-radius:18px;display:flex;align-items:center;font-size:13px;font-weight:700;background:' + colNames[tt.col][1] + '22;color:' + colNames[tt.col][1],
-      canBack: canMoveT && tt.col > 0, prevCol: tt.col > 0 ? colNames[tt.col - 1][0] : '', back: () => this.askTaskMove(tp.id, to.ti, -1),
-      canFwd: canMoveT && tt.col < 3, nextCol: tt.col < 3 ? colNames[tt.col + 1][0] : '', fwd: () => this.askTaskMove(tp.id, to.ti, 1),
+      canBack: canMoveT && mayMoveTask(tp, tt, -1, me), prevCol: tt.col > 0 ? colNames[tt.col - 1][0] : '', back: () => this.askTaskMove(tp.id, to.ti, -1),
+      canFwd: canMoveT && mayMoveTask(tp, tt, 1, me), nextCol: tt.col < 3 ? colNames[tt.col + 1][0] : '', fwd: () => this.askTaskMove(tp.id, to.ti, 1),
       history: (tt.history || []).slice().reverse().map((h) => ({ line: h.from + ' → ' + h.to, by: h.by, when: new Date(h.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }), comment: h.comment })), hasHistory: (tt.history || []).length > 0,
       moving: !!(s.taskMove && s.taskMove.pid === tp.id && s.taskMove.ti === to.ti),
       moveTitle: s.taskMove ? 'Move to ' + colNames[Math.max(0, Math.min(3, tt.col + s.taskMove.dir))][0] : '', moveBack: !!(s.taskMove && s.taskMove.dir < 0),
@@ -299,15 +327,18 @@ export function buildProjects(ctx) {
       timeBar: 'height:100%;width:' + Math.max(3, tt.col === 3 ? 100 : inf.pct) + '%;background:' + inf.color + ';border-radius:4px',
       timeNote: tt.col === 3 ? 'Finished.' : inf.overdue ? inf.overDays + ' past the due date.' : inf.dd === 0 ? 'Due today.' : inf.dd + ' days left · ' + inf.pct + '% of the time used.',
       primary: tt.primary, pIni: ini(tt.primary), pColor: pColor[tt.primary] || '#9DB0A6',
-      secondary: tt.secondary || '',
+      secondary: ed ? ed.secondary : tt.secondary || '',
       teamOpts: tp.team.filter((n) => n !== tt.primary).map((n) => ({ name: n })),
-      setSecondary: (e) => { const v = e.target.value; updT((x) => ({ ...x, secondary: v })); },
-      links: tt.links.map((li) => ({ li, t: tp.tasks[li] })).filter((x) => x.t).map(({ li, t }) => ({ title: t.title, col: colNames[t.col][0], due: shortDate(t.due),
-        open: () => this.setState({ taskOpen: { pid: tp.id, ti: li } }),
-        unlink: () => updT((x) => ({ ...x, links: x.links.filter((y) => y !== li) })) })),
-      noLinks: tt.links.length === 0,
-      linkOpts: tp.tasks.map((t, i) => ({ i: String(i), title: t.title })).filter((o) => Number(o.i) !== to.ti && tt.links.indexOf(Number(o.i)) === -1),
-      addLink: (e) => { const v = e.target.value; if (v === '') return; updT((x) => ({ ...x, links: x.links.concat([Number(v)]) })); },
+      setSecondary: (e) => { const v = e.target.value; this.setState((st) => ({ taskEdit: { ...st.taskEdit, secondary: v, err: '' } })); },
+      // linked tickets only exist when the organization has the Tickets widget on
+      showTickets: !!has.tickets,
+      tickets: tickets.map((ref) => { const x = ticketOf(ref); return { ref, title: x ? x.title : 'A ticket you cannot see', meta: x ? ref + ' · ' + (x.cat || 'Ticket') : ref, known: !!x,
+        open: () => { if (x) this.setState({ taskOpen: null, taskEdit: null, section: 'tickets', projectOpen: null, ticketOpen: ref, ticketFrom: null, tagOpen: false, tcomment: '' }); },
+        unlink: () => this.setState((st) => ({ taskEdit: { ...st.taskEdit, tickets: st.taskEdit.tickets.filter((y) => y !== ref), err: '' } })) }; }),
+      noTickets: tickets.length === 0,
+      ticketOpts: myTickets.map((x) => ({ v: x.id, l: x.id + ' · ' + x.title })),
+      noMyTickets: myTickets.length === 0,
+      addTicket: (e) => { const v = e.target.value; if (v === '') return; this.setState((st) => ({ taskEdit: { ...st.taskEdit, tickets: st.taskEdit.tickets.concat([v]), err: '' } })); },
       reminders: (inf.overdue ? ['Automatic overdue reminder sent to ' + tt.primary + (tt.secondary ? ' and ' + tt.secondary : '') + ' today'] : inf.soon ? ['Due-soon reminder sent to ' + tt.primary + ' today'] : ['Reminders go out 2 days before the due date and every day once overdue']).concat(extraRem).map((x) => ({ text: x }))
     };
   }

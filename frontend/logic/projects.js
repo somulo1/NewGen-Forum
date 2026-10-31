@@ -87,7 +87,7 @@ export function sprintTimeline(project, today) {
 }
 
 // Milestone progress is the share of finished tasks across its sprints.
-// A milestone is "ready" when it has tasks and all of them are done; it only becomes "done" when someone closes it with a comment.
+// A milestone is "ready" when it has tasks and all of them are done, and then counts as reached without anyone closing it.
 export function milestoneTimeline(project, today) {
   const sprints = sprintTimeline(project, today);
   const sorted = project.milestones.slice().sort(byDate);
@@ -96,9 +96,11 @@ export function milestoneTimeline(project, today) {
     const own = sprints.filter((sp) => sp.milestone === m.id);
     const total = own.reduce((a, sp) => a + sp.total, 0);
     const done = own.reduce((a, sp) => a + sp.done, 0);
+    // A milestone is reached by itself the moment every task in its sprints is done, and is open again as soon as one is not
+    // (a milestone someone closed by hand with a comment stays closed until it is reopened).
     const ready = !m.closed && total > 0 && done === total;
-    const progress = m.closed ? 100 : total ? Math.round((done / total) * 100) : 0;
-    const status = m.closed ? 'done' : m.iso < today ? 'late' : firstOpen && firstOpen.id === m.id ? 'next' : 'upcoming';
+    const progress = m.closed || ready ? 100 : total ? Math.round((done / total) * 100) : 0;
+    const status = m.closed || ready ? 'done' : m.iso < today ? 'late' : firstOpen && firstOpen.id === m.id ? 'next' : 'upcoming';
     return { ...m, sprints: own, total, done, ready, progress, status, openTasks: total - done };
   });
 }
@@ -148,4 +150,28 @@ export function validateTask(project, f) {
   if (!f.due) return 'Pick a due date.';
   if (f.due < sp.start || f.due > sp.end) return 'The due date must fall inside the sprint (' + sp.start + ' to ' + sp.end + ').';
   return '';
+}
+
+// ---- who may do what with a task ----
+// The project manager is the project's owner (a project always has one). The people a task is assigned to (primary and secondary
+// owner) move it between To do, In progress and Review and are the only ones who edit it. Only the project manager moves a task
+// into Done or back out of it (the server enforces the same rules).
+export const isManager = (project, me) => !!project && !!project.owner && project.owner === me;
+export const ownsTask = (task, me) => !!task && !!me && (task.primary === me || task.secondary === me);
+export function mayMoveTask(project, task, dir, me) {
+  const to = task.col + dir;
+  if (to < 0 || to > 3 || dir === 0) return false;
+  if (to === 3 || task.col === 3) return isManager(project, me);
+  return isManager(project, me) || ownsTask(task, me);
+}
+export const mayEditTask = (task, me) => ownsTask(task, me);
+
+// Which tasks the board shows: the ones in the chosen sprint, or, with no sprint chosen, every task that is not yet closed
+// (those in milestones that are already reached are left out).
+export function boardTasks(project, sprintId, reachedMilestones) {
+  return project.tasks.map((t, ti) => ({ t, ti })).filter(({ t }) => {
+    if (sprintId && sprintId !== 'all') return t.sprint === sprintId;
+    const sp = project.sprints.find((x) => x.id === t.sprint);
+    return !(sp && reachedMilestones.indexOf(sp.milestone) !== -1);
+  });
 }
