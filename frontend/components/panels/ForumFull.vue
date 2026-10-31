@@ -53,7 +53,7 @@
 <div style="max-width: 900px; min-height: 100%; box-sizing: border-box; margin: 0 auto; padding: 18px clamp(16px, 3vw, 32px); display: flex; flex-direction: column; gap: 12px">
 <template v-if="olderCount > 0 || moreOlder"><button type="button" @click="showOlder" style="align-self: center; height: 32px; padding: 0 14px; border-radius: 16px; border: 1px solid var(--k-6B7A72,#6B7A72); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; font-size: 12px">{{ olderCount > 0 ? 'Show ' + olderCount + ' earlier ' + (olderCount === 1 ? 'message' : 'messages') : 'Load earlier messages' }}</button></template>
 <template v-for="(u, u__i) in cur.topics" :key="u__i">
-<div style="display: flex; gap: 14px; padding: 16px; border-radius: 14px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); touch-action: pan-y" @pointerdown="u.startHold" @pointermove="u.moveHold" @pointerup="u.stopHold" @pointerleave="u.stopHold" @pointercancel="u.stopHold" @contextmenu="u.openActions">
+<div :class="['ff-msg', u.mine ? 'ff-mine' : 'ff-other']" style="display: flex; gap: 14px; padding: 16px; border-radius: 14px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); touch-action: pan-y" @pointerdown="u.startHold" @pointermove="u.moveHold" @pointerup="u.stopHold" @pointerleave="u.stopHold" @pointercancel="u.stopHold" @contextmenu="u.openActions">
 <UserAvatar :name="u.who" :initials="u.initials" :color="u.color" :size="40"/>
 <div style="flex: 1; display: flex; flex-direction: column; gap: 6px"><div style="display: flex; gap: 8px; align-items: baseline"><strong>{{ u.who }}</strong><span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">{{ u.time }}</span><button type="button" @click.stop="u.openActions($event)" aria-label="Message options" style="margin-left: auto; width: 26px; height: 24px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--k-9DB0A6,#9DB0A6); cursor: pointer">⋯</button></div><template v-if="u.hasReply"><div style="margin: 4px 0 0; padding: 4px 8px; border-left: 3px solid var(--k-B8F36B,#B8F36B); border-radius: 4px; background: rgba(0,0,0,.2); font-size: 12px; color: var(--k-9DB0A6,#9DB0A6); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap"><strong style="color: var(--k-C9D6CF,#C9D6CF)">{{ u.replyWho }}</strong> {{ u.replySnippet }}</div></template><template v-if="u.hasText && !u.hasFile"><p v-html="u.htmlText" style="margin: 0; font-size: 15px; line-height: 1.5; overflow-wrap: anywhere"></p></template><template v-if="u.hasShared"><SharedPostCard :sid="u.sid"/></template>
 <template v-if="u.hasFile"><MediaCollage :files="u.fileList" framed :max-h="380" :row="170"/></template><template v-if="u.hasText && u.hasFile"><p v-html="u.htmlText" style="margin: 6px 0 0; font-size: 15px; line-height: 1.5; overflow-wrap: anywhere"></p></template>
@@ -170,3 +170,12 @@ export default {
   }
 };
 </script>
+
+<style>
+/* On a phone the forum reads like a chat: my messages sit on the right, everyone else's on the left */
+@media (max-width: 700px) {
+  .ff-msg { padding: 12px !important; gap: 10px !important; width: 88%; box-sizing: border-box; }
+  .ff-mine { margin-left: auto; flex-direction: row-reverse; background: var(--k-2C3D34,#2C3D34) !important; border-color: var(--k-3A5446,#3A5446) !important; border-radius: 14px 4px 14px 14px !important; }
+  .ff-other { margin-right: auto; border-radius: 4px 14px 14px 14px !important; }
+}
+</style>

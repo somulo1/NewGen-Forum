@@ -151,3 +151,110 @@ func TestCallLifecycleAcrossTheSeparateService(t *testing.T) {
 		t.Fatalf("Amy's history: %v", in)
 	}
 }
+
+// Hanging up before anyone answers stops every phone that is ringing, at once; a member who leaves does not end it for the rest.
+func TestHangingUpBeforeAnswerStopsTheRingAtOnce(t *testing.T) {
+	e := testkit.New(t)
+	ownerU, slug := e.NewOrg("Olivia Owner")
+	o := e.Owner(ownerU)
+	a := e.Join(ownerU, slug, "Amy", "staff")
+	b := e.Join(ownerU, slug, "Ben", "staff")
+	for _, m := range []*testkit.Member{o, a, b} {
+		m.Register(e)
+	}
+	listen := func(m *testkit.Member) *websocket.Conn {
+		tk := e.MustDo(200, "POST", "/realtime/ticket", nil, m.Access)["ticket"].(string)
+		ws, _, err := websocket.Dial(context.Background(), "ws"+strings.TrimPrefix(e.Srv.URL, "http")+"/v1/realtime?ticket="+tk, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = ws.CloseNow() })
+		return ws
+	}
+	wsA, wsB := listen(a), listen(b)
+	key, _ := e2ee.NewConversationKey()
+
+	// a private call: the caller hangs up while it rings
+	dm := e.MustDo(201, "POST", "/conversations", map[string]any{"kind": "dm", "members": []string{a.Person}, "keys": o.WrapFor(e, key, 1, o.Person, a.Person)}, ownerU.Access)["id"].(string)
+	call := e.MustDo(201, "POST", "/calls", map[string]any{"conversation": dm, "kind": "voice", "context": "dm"}, ownerU.Access)["call"].(map[string]any)["id"].(string)
+	read(t, wsA, "call.incoming")
+	t0 := time.Now()
+	if r := e.MustDo(200, "POST", "/calls/"+call+"/leave", nil, ownerU.Access); r["cancelled"] != true {
+		t.Fatalf("leave: %v", r)
+	}
+	read(t, wsA, "call.ended")
+	if d := time.Since(t0); d > 2*time.Second {
+		t.Fatalf("the ring took %v to stop", d)
+	}
+	if code, _ := e.Do("POST", "/calls/"+call+"/leave", nil, b.Access); code != 404 {
+		t.Fatalf("a stranger left a call: %d", code)
+	}
+
+	// a forum call: members are ringing; one of them leaving does not end it, the caller leaving before anyone answers does
+	fk, _ := e2ee.NewConversationKey()
+	forum := e.MustDo(201, "POST", "/conversations", map[string]any{"kind": "forum", "name": "Team", "members": []string{a.Person, b.Person}, "keys": o.WrapFor(e, fk, 1, o.Person, a.Person, b.Person)}, ownerU.Access)["id"].(string)
+	fc := e.MustDo(201, "POST", "/calls", map[string]any{"conversation": forum, "kind": "voice", "context": "forum"}, ownerU.Access)["call"].(map[string]any)["id"].(string)
+	read(t, wsA, "call.started")
+	read(t, wsB, "call.started")
+	if r := e.MustDo(200, "POST", "/calls/"+fc+"/leave", nil, a.Access); r["cancelled"] != false {
+		t.Fatalf("a member leaving ended the call: %v", r)
+	}
+	t0 = time.Now()
+	if r := e.MustDo(200, "POST", "/calls/"+fc+"/leave", nil, ownerU.Access); r["cancelled"] != true {
+		t.Fatalf("the caller leaving: %v", r)
+	}
+	read(t, wsB, "call.ended")
+	if d := time.Since(t0); d > 2*time.Second {
+		t.Fatalf("the forum ring took %v to stop", d)
+	}
+}
+
+// When one person hangs up and only one is left in a private call, the call ends for the last one too, at once.
+func TestTheLastPersonLeftInACallIsHungUp(t *testing.T) {
+	e := testkit.New(t)
+	svc := httptest.NewServer(callsvc.New(e.A.Cfg.CallsSecret, e.A.Rdb, nil).Handler())
+	defer svc.Close()
+	e.A.Cfg.CallsURLs = []string{svc.URL}
+	ctx, stop := context.WithCancel(context.Background())
+	defer stop()
+	go calls.New(e.A).Consume(ctx)
+
+	ownerU, slug := e.NewOrg("Olivia Owner")
+	o := e.Owner(ownerU)
+	a := e.Join(ownerU, slug, "Amy", "staff")
+	for _, m := range []*testkit.Member{o, a} {
+		m.Register(e)
+	}
+	listen := func(m *testkit.Member) *websocket.Conn {
+		tk := e.MustDo(200, "POST", "/realtime/ticket", nil, m.Access)["ticket"].(string)
+		ws, _, err := websocket.Dial(context.Background(), "ws"+strings.TrimPrefix(e.Srv.URL, "http")+"/v1/realtime?ticket="+tk, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = ws.CloseNow() })
+		return ws
+	}
+	wsO, wsA := listen(o), listen(a)
+	key, _ := e2ee.NewConversationKey()
+	dm := e.MustDo(201, "POST", "/conversations", map[string]any{"kind": "dm", "members": []string{a.Person}, "keys": o.WrapFor(e, key, 1, o.Person, a.Person)}, ownerU.Access)["id"].(string)
+	started := e.MustDo(201, "POST", "/calls", map[string]any{"conversation": dm, "kind": "voice", "context": "dm"}, ownerU.Access)
+	read(t, wsA, "call.incoming")
+	callID := started["call"].(map[string]any)["id"].(string)
+	joined := e.MustDo(200, "POST", "/calls/"+callID+"/join", nil, a.Access)
+	hostRoom, amyRoom := connect(t, started), connect(t, joined)
+	read(t, hostRoom, "welcome")
+	read(t, amyRoom, "welcome")
+	read(t, wsO, "call.answered")
+
+	// Amy hangs up: the call is told to Olivia straight away, so her side hangs up too
+	t0 := time.Now()
+	e.MustDo(200, "POST", "/calls/"+callID+"/leave", nil, a.Access)
+	read(t, wsO, "call.ended")
+	if d := time.Since(t0); d > 2*time.Second {
+		t.Fatalf("the last person was hung up after %v", d)
+	}
+	h := e.MustDo(200, "GET", "/calls/history", nil, ownerU.Access)["calls"].([]any)
+	if len(h) == 0 || h[0].(map[string]any)["status"] != "ended" {
+		t.Fatalf("history: %v", h)
+	}
+}

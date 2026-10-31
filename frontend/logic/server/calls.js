@@ -119,9 +119,11 @@ async function connectRoom(logic, srv, entry, opts = {}) {
     try { await connectSfu(ctx, entry, opts); } catch (e) { leaveRoom(false); throw e; }
     return;
   }
+  if (!logic.state.call) return;   // hung up while the call was still being set up: nothing to ring or open
   if (opts.ringback) startRingback();
   const ctx = entry.call.context || 'meeting';
   media.local = await getMedia(entry.call.kind);
+  if (!logic.state.call) { (media.local ? media.local.getTracks() : []).forEach((t) => t.stop()); media.local = null; stopRingback(); return; }   // hung up while the microphone was being asked for
   if (!media.local || !media.local.getAudioTracks().length) {
     logic.setState({ mic: false });
     logic.notify('No microphone is available to Hub (another app or browser tab may be using it, or it is blocked in the browser settings). You can still hear and see the others; they will see you as muted.', '#FFB86B');
@@ -166,7 +168,8 @@ async function connectRoom(logic, srv, entry, opts = {}) {
       case 'peer-left':
         dropPeer(m.id);
         setCall(logic, { peers: peers().filter((p) => p.id !== m.id) });
-        if (logic.state.call && logic.state.call.context === 'dm' && !peers().filter((p) => p.id !== m.id).length) { logic.notify(((logic.state.call && logic.state.call.title) || 'The other person').replace('Private call with ', '') + ' hung up.', '#7CC4FF'); logic.endCall(); }
+        // nobody else is left (a private or forum call): the call ends for me too, at once
+        if (logic.state.call && (logic.state.call.context === 'dm' || logic.state.call.context === 'forum') && !peers().filter((p) => p.id !== m.id).length) { logic.notify(logic.state.call.context === 'dm' ? ((logic.state.call.title || 'The other person').replace('Private call with ', '') + ' hung up.') : 'Everyone else left, so the call ended.', '#7CC4FF'); logic.endCall(); }
         break;
       case 'offer': {
         const pc = peerConn(logic, m.from);
@@ -248,9 +251,43 @@ export function leaveRoom(sound = true) {
 }
 
 // Mic, camera, screen share and hand follow the app's state; tell the room.
+// Gets one kind of track later, when the person turns the microphone or camera on after joining without it (the browser asks
+// again), and adds it to every connection already open, so the others start hearing or seeing them. Those who already had it are
+// not touched.
+async function ensureTrack(kind) {
+  if (media.local && media.local.getTracks().some((t) => t.kind === kind)) return true;
+  const md = navigator.mediaDevices;
+  if (!md || !md.getUserMedia || !room) return false;
+  let got;
+  try { got = await md.getUserMedia(kind === 'audio' ? { audio: true } : { video: true }); } catch (e) { return false; }
+  const track = got.getTracks()[0];
+  if (!track) return false;
+  if (!media.local) media.local = new MediaStream();
+  media.local.addTrack(track);
+  for (const [peerId, pc] of room.pcs) {
+    const tr = pc.getTransceivers().find((t) => t.receiver && t.receiver.track && t.receiver.track.kind === kind && !t.sender.track);
+    try {
+      if (tr) { tr.direction = 'sendrecv'; await tr.sender.replaceTrack(track); } else pc.addTrack(track, media.local);
+      // a new track needs a fresh offer so the other side knows about it
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      send({ type: 'offer', to: peerId, data: offer });
+    } catch (e) { /* that connection will pick it up when it reconnects */ }
+  }
+  changed();
+  return true;
+}
+
 export async function applyLocal(logic) {
   if (sfuActive()) return applySfu({ logic, media, changed, setCall });
   const s = logic.state;
+  const HOW = ' Allow it in the browser (the lock icon in the address bar), then tap it again.';
+  if (room && s.mic && !(media.local && media.local.getAudioTracks().length)) {
+    if (!(await ensureTrack('audio'))) { logic.setState({ mic: false }); logic.notify('Hub cannot use your microphone, so you are muted. You can still listen.' + HOW, '#FFB86B'); }
+  }
+  if (room && s.cam && room.kind === 'video' && !(media.local && media.local.getVideoTracks().length)) {
+    if (!(await ensureTrack('video'))) { logic.setState({ cam: false }); logic.notify('Hub cannot use your camera, so it is off. The others can still see and hear each other.' + HOW, '#FFB86B'); }
+  }
   if (media.local) {
     media.local.getAudioTracks().forEach((t) => { t.enabled = !!s.mic; });
     media.local.getVideoTracks().forEach((t) => { t.enabled = !!s.cam; });
@@ -309,13 +346,26 @@ async function conversationFor(logic, srv, context, ref) {
 }
 
 export async function start(logic, srv, { kind, context, ref }) {
+  srv.cancelStart = false; srv.startingCall = '';
   const conversation = await conversationFor(logic, srv, context, ref);
   const ctx = context === 'dm' ? 'dm' : context === 'forum' ? 'forum' : 'meeting';
   const entry = await srv.request('POST', '/calls', { kind, context: ctx, ...(conversation ? { conversation } : {}) });
+  srv.startingCall = entry.call.id;
+  // hung up before the call even existed on the server: tell it now, so nobody is left ringing
+  if (srv.cancelStart || !logic.state.call) { srv.cancelStart = false; srv.request('POST', `/calls/${entry.call.id}/leave`, {}).catch(() => {}); return; }
   await connectRoom(logic, srv, entry, { ringback: ctx === 'dm' });
 }
 
+// The person hung up. The server is told straight away (not after the room notices), so whoever is still being rung stops
+// ringing at once when nobody had answered; if someone has already joined, the call just goes on without them.
+export function hangUp(srv, call) {
+  const id = (call && call.callId) || srv.startingCall;
+  if (id) srv.request('POST', `/calls/${id}/leave`, {}).catch(() => {});
+  else srv.cancelStart = true;   // the request that creates the call is still running: start() tells the server when it returns
+}
+
 export async function join(logic, srv, callId) {
+  srv.cancelStart = false; srv.startingCall = '';
   const entry = await srv.request('POST', `/calls/${callId}/join`, {});
   await connectRoom(logic, srv, entry);
 }
@@ -358,6 +408,9 @@ export function listen(logic, srv) {
     srv.doneCalls.add(d.call);
     const inc = logic.state.incoming;
     if (inc && inc.callId === d.call) { clearTimeout(srv.ringT); stopRing(); logic.setState({ incoming: null }); logic.notify('Missed a call from ' + (inc.name || 'a colleague') + '.', '#FFB86B'); }
+    // the server ended the call I am in (everyone else left): hang up here too
+    const cur = logic.state.call;
+    if (cur && cur.callId === d.call) { logic.notify(cur.context === 'dm' ? 'The call ended.' : 'Everyone else left, so the call ended.', '#7CC4FF'); logic.endCall(); }
   });
   rt.on('call.declined', (ev) => {
     const d = ev.data || {};
