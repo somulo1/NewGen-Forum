@@ -9,6 +9,7 @@ import (
 	"hub/internal/app"
 	"hub/internal/modules/approvals"
 	"hub/internal/modules/calls"
+	"hub/internal/modules/chat"
 	"hub/internal/modules/files"
 	"hub/internal/modules/security"
 	"hub/internal/modules/settings"
@@ -22,6 +23,15 @@ func RunWorker(ctx context.Context, a *app.App) {
 	go calls.New(a).Consume(ctx)
 	ts := tickets.New(a)
 	fs := files.New(a, approvals.New(a))
+	cs := chat.New(a)
+	cs.Purge = func(ctx context.Context) { _, _, _ = fs.PurgeDue(ctx, 500) }
+	// Moments last 24 hours; at 00:02 (Nairobi time) every day those past it are erased for good, with their pictures and videos.
+	// A node that was down at that minute runs it as soon as it is back (the lists already leave expired moments out meanwhile).
+	nairobi, err := time.LoadLocation("Africa/Nairobi")
+	if err != nil {
+		nairobi = time.FixedZone("EAT", 3*3600)
+	}
+	lastSweep := ""
 	security.New(a) // audit entries written here raise their security alerts
 	auditURL := os.Getenv("HUB_AUDIT_URL")
 	if auditURL == "" {
@@ -62,6 +72,15 @@ func RunWorker(ctx context.Context, a *app.App) {
 			return
 		case <-t.C:
 			ticks++
+			if now := time.Now().In(nairobi); lastSweep != now.Format("2006-01-02") && (now.Hour() > 0 || now.Minute() >= 2) {
+				lastSweep = now.Format("2006-01-02")
+				if n, err := cs.ExpireMoments(ctx); err != nil {
+					slog.Error("expired moments", "err", err)
+					lastSweep = ""
+				} else if n > 0 {
+					slog.Info("expired moments erased", "count", n)
+				}
+			}
 			// uploads that were started and never finished, once an hour
 			if ticks%60 == 1 {
 				if n, err := fs.SweepUploads(ctx); err != nil {

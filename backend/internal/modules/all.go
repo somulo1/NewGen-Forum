@@ -2,6 +2,8 @@
 package modules
 
 import (
+	"context"
+
 	"hub/internal/app"
 	"hub/internal/modules/approvals"
 	"hub/internal/modules/auth"
@@ -25,6 +27,9 @@ import (
 
 func All(a *app.App, au *auth.Service) []server.Module {
 	ap := approvals.New(a)
+	fs := files.New(a, ap)
+	ch := chat.New(a)
+	ch.Purge = func(ctx context.Context) { _, _, _ = fs.PurgeDue(ctx, 200) } // a deleted post's files leave storage at once
 	return []server.Module{
 		org.New(a, au),
 		ap,
@@ -32,12 +37,12 @@ func All(a *app.App, au *auth.Service) []server.Module {
 		roles.New(a, ap),
 		live.New(a),
 		keys.New(a),
-		chat.New(a),
+		ch,
 		calls.New(a),
 		tickets.New(a),
 		projects.New(a, ap),
 		comms.New(a, ap),
-		files.New(a, ap),
+		fs,
 		security.New(a),
 		settings.New(a),
 		notify.New(a),
