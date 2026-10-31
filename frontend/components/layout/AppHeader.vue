@@ -48,7 +48,7 @@
 <div ref="acct" style="position: relative; flex: none">
 <button aria-label="Account menu" aria-haspopup="menu" :aria-expanded="acctOpen" @click.stop="acctOpen = !acctOpen" :style="`position: relative; width: 40px; height: 40px; padding: 0; border-radius: 50%; border: 2px solid ${me.statusColor}; background: #C2185B; color: #fff; font-weight: 600; font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; overflow: hidden`">
 <template v-if="me.hasPhoto"><img :src="me.photo" alt="" style="width: 100%; height: 100%; object-fit: cover"></template>
-<template v-if="me.noPhoto">S</template>
+<template v-if="me.noPhoto">{{ me.initials }}</template>
 </button>
 <template v-if="acctOpen"><div role="menu" aria-label="Account" style="position: absolute; top: 48px; right: 0; z-index: 60; width: 200px; padding: 6px; border-radius: 12px; background: var(--k-1D2A25,#1D2A25); border: 1px solid var(--k-34453D,#34453D); box-shadow: 0 14px 30px rgba(0,0,0,0.45); display: flex; flex-direction: column; gap: 2px">
 <button role="menuitem" @click="openProfile" style="display: flex; align-items: center; gap: 10px; min-height: 42px; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; font-size: 14px; text-align: left">My profile</button>

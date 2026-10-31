@@ -15,7 +15,7 @@ export function valsWall(ctx) {
   const mi = s.meInfo || {};
   const meAv = { name: mi.name || '', initials: mi.initials || ((mi.name || '').split(' ').map((x) => x[0]).join('').slice(0, 2).toUpperCase()), color: mi.color || '#C2185B', first: (mi.name || '').split(' ')[0] };
   return {
-    meAv, sharedViews, settingsPage, orgName, orgLogo, notesPage, noteWidget,
+    meAv, greeting: 'Good ' + (new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 17 ? 'afternoon' : 'evening') + (meAv.first ? ', ' + meAv.first : ''), sharedViews, settingsPage, orgName, orgLogo, notesPage, noteWidget,
     onlineList: people.map((p) => ({ ...p, open: () => openPersonName(p.name) })),
     trending: tags.map((tg) => ({ tag: tg, count: counts.get(tg.toLowerCase()).n, on: (s.wallTag || '').toLowerCase() === tg.toLowerCase(), pick: () => set({ wallTag: (s.wallTag || '').toLowerCase() === tg.toLowerCase() ? '' : tg }) })),
     noTrending: tags.length === 0,

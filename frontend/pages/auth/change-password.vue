@@ -37,6 +37,6 @@ const label = 'display: flex; flex-direction: column; gap: 6px; font-size: 13px;
     <ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; font-size: 12px"><li v-for="r in rules" :key="r[0]" :style="`color: ${r[1] ? '#2B7A12' : 'var(--k-8A988F,#8A988F)'}`">{{ r[1] ? '\u2713' : '\u25CB' }} {{ r[0] }}</li></ul>
     <span v-if="err" role="alert" style="color: #C0392B; font-size: 13px">{{ err }}</span>
     <button type="submit" :disabled="busy" style="height: 46px; border-radius: 23px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 700; font-size: 15px; cursor: pointer">{{ busy ? 'Saving…' : 'Save new password' }}</button>
-    <button type="button" @click="be.logout().then(() => navigateTo('/login'))" style="border: 0; background: transparent; color: var(--k-55645C,#55645C); cursor: pointer; font-size: 13px">Sign out</button>
+    <button type="button" @click="be.logout().then(() => window.location.assign('/login'))" style="border: 0; background: transparent; color: var(--k-55645C,#55645C); cursor: pointer; font-size: 13px">Sign out</button>
   </form>
 </template>

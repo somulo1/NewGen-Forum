@@ -102,7 +102,7 @@
 <button @click="go.profile" :style="nav.profileCard">
 <span style="position: relative; width: 38px; height: 38px; flex: none; border-radius: 50%; background: #C2185B; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 600; overflow: hidden">
 <template v-if="me.hasPhoto"><img :src="me.photo" alt="" style="width: 100%; height: 100%; object-fit: cover"></template>
-<template v-if="me.noPhoto">S</template>
+<template v-if="me.noPhoto">{{ me.initials }}</template>
 </span>
 <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; text-align: left"><strong style="font-size: 13px">My profile</strong><span :style="`font-size: 11px; color: ${me.statusColor}`">● {{ me.status }}</span></span>
 </button>

@@ -24,7 +24,8 @@ const submit = async () => {
   try {
     await useBackend().signup(name.value, e, password.value, qs.value.map((q, i) => ({ question: q, answer: ans.value[i] })));
     await useAuth().signIn(e, password.value);
-    await navigateTo('/');
+    window.location.assign('/');
+    return;
   } catch (x) {
     err.value = x instanceof Error ? x.message : 'Could not create your account.';
   } finally {

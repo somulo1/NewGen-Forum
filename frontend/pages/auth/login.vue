@@ -20,7 +20,9 @@ const submit = async () => {
   try {
     await useAuth().signIn(email.value, password.value);
     const next = typeof route.query.next === 'string' && route.query.next.startsWith('/') ? route.query.next : '/';
-    await navigateTo(next);
+    // a full page load, so nothing of whoever used this page before is left in memory
+    window.location.assign(next);
+    return;
   } catch (e) {
     err.value = e instanceof Error ? e.message : 'Could not sign in.';
   } finally {
