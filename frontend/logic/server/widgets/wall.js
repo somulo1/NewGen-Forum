@@ -2,6 +2,7 @@
 // organization's wall conversation, sealed for its audience; reactions, comments and votes point at what they answer
 // (reply_to), so counts come from real people. Photos and videos are encrypted attachments of the wall.
 import * as mentions from '../mentions.js';
+import { connectRealtime } from '../realtime.js';
 import * as files from '../files.js';
 import { newConversationKey, wrap, b64, unb64 } from '../e2ee.js';
 
@@ -34,11 +35,27 @@ async function render(logic, srv, all) {
   build(logic, srv, opened.filter((x) => x.pl).sort((a, b) => (a.m.id < b.m.id ? -1 : 1)));
 }
 
+// The wall follows the live connection: a vote, like, comment or new post made by anyone shows up within a moment, so poll
+// percentages and counts move while the page is open.
+function watchLive(logic, srv) {
+  const rt = srv.rt || (srv.rt = connectRealtime(srv));
+  rt.sub(srv.wallId);
+  if (srv.wallWatching) return;
+  srv.wallWatching = true;
+  let timer = 0;
+  const refresh = () => { clearTimeout(timer); timer = setTimeout(() => load(logic, srv).catch(() => {}), 400); };
+  const mine = (ev) => String(ev.channel || '').split(':').pop() === srv.wallId;
+  rt.on('message.new', (ev) => { if (mine(ev) && (ev.data || {}).sender_account !== srv.me.account) refresh(); });
+  rt.on('message.deleted', (ev) => { if (mine(ev)) refresh(); });
+  rt.on('open', () => refresh());
+}
+
 export async function load(logic, srv) {
   const { conversations } = await srv.request('GET', '/conversations?kind=wall&limit=200');
   const wall = conversations.find((c) => c.audience === 'org') || conversations[0];
   if (!wall) { logic.setState({ posts: [], moments: [] }); return; }
   srv.wallId = wall.id;
+  watchLive(logic, srv);
   const all = srv.wallAll && srv.wallAllId === wall.id ? srv.wallAll : new Map();   // messages held from earlier loads
   srv.wallAll = all; srv.wallAllId = wall.id;
   const first = await page(srv, wall.id, '');
