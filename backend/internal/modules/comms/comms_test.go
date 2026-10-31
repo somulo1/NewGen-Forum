@@ -167,3 +167,30 @@ func TestJobPostInsightsCountReadsLikesAndRepliesForAllowedPeopleOnly(t *testing
 		t.Fatalf("insights: %v", places)
 	}
 }
+
+// An announcement sent to a forum lands in that forum: its members find it in the forum's messages.
+func TestAnnouncementSentToAForumReachesItsMembers(t *testing.T) {
+	e := testkit.New(t)
+	ownerU, slug := e.NewOrg("Olivia Owner")
+	org := e.OrgID(slug)
+	o := e.Owner(ownerU)
+	staff := e.Join(ownerU, slug, "Sam", "staff")
+	for _, m := range []*testkit.Member{o, staff} {
+		m.Register(e)
+	}
+	e.MustDo(204, "PUT", "/approvals/flows/f10", map[string]any{"levels": 0}, ownerU.Access)
+	key, _ := e2ee.NewConversationKey()
+	forum := e.MustDo(201, "POST", "/conversations", map[string]any{"kind": "forum", "name": "Kubwa", "members": []string{staff.Person}, "keys": o.WrapFor(e, key, 1, o.Person, staff.Person)}, ownerU.Access)["id"].(string)
+	id := uuid.Must(uuid.NewV7()).String()
+	res := e.MustDo(201, "POST", "/comms", map[string]any{"type": "Announcement", "conversation": forum, "message": id, "epoch": 1, "device": o.DevID, "envelope": o.Seal(org, forum, id, 1, key, `{"title":"Holiday"}`)}, ownerU.Access)
+	if res["approval"] != nil {
+		t.Fatalf("it should be published at once: %v", res)
+	}
+	found := false
+	for _, m := range e.MustDo(200, "GET", "/conversations/"+forum+"/messages?limit=50", nil, staff.Access)["messages"].([]any) {
+		found = found || (m.(map[string]any)["id"] == id && m.(map[string]any)["type"] == "announcement")
+	}
+	if !found {
+		t.Fatal("the forum's member cannot find the announcement in the forum")
+	}
+}

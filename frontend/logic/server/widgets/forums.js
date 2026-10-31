@@ -133,6 +133,9 @@ function sharedOf(sh, todo) {
   return { ...sh, snap: { ...sh.snap, media: sh.snap.media.filter((f) => f.fileId || !/^blob:/.test(f.url || '')).map((f) => { if (!f.fileId) return f; todo.push(f); return { ...f, url: '', ref: f }; }) } };
 }
 
+// what Communications posts into a forum, by message type
+const COMM = { memo: 'Memo', announcement: 'Announcement', post: 'Post' };
+
 // Turns the sealed messages of one forum (newest first) into the chat items the panels show (newest first).
 function toItems(srv, opened) {
   const byId = new Map(opened.map((x) => [x.m.id, x]));
@@ -141,7 +144,9 @@ function toItems(srv, opened) {
   const nameOf = (m) => (m.sender_account === srv.me.account ? 'Sam' : m.sender_name);
   const snippet = (pl) => { const t = (pl && (pl.text || (pl.file && pl.file[0] && pl.file[0].name))) || ''; return t.length > 90 ? t.slice(0, 90) + '…' : t; };
   const todo = [];
-  const items = opened.filter((x) => x.m.type === 'text').map(({ m, pl }) => {
+  const items = opened.filter((x) => x.m.type === 'text' || COMM[x.m.type]).map(({ m, pl: raw }) => {
+    // a memo, announcement, newsletter or job post sent to this forum from Communications reads as one message here
+    const pl = COMM[m.type] ? { text: '**' + (raw.type || COMM[m.type]) + ': ' + (raw.title || '') + '**' + (raw.summary ? '\n' + raw.summary : '') + (raw.body ? '\n\n' + raw.body : ''), file: raw.files || [] } : raw;
     const mine = m.sender_account === srv.me.account;
     const parent = m.reply_to ? byId.get(m.reply_to) : null;
     const file = (pl.file || []).map((f) => { const it = { name: f.name, meta: f.meta || '', isImg: !!f.isImg, isVideo: !!f.isVideo, url: '', fileId: f.fileId, ref: f }; todo.push(f); return it; });
@@ -149,7 +154,7 @@ function toItems(srv, opened) {
     return {
       id: m.id, mid: m.id, noteShare: pl.note || null, who: nameOf(m), ...(mine ? { initials: ME.initials, color: ME.color } : lookOf(srv, m.sender_person, m.sender_name)),
       time: ago(m.created_at), at: m.created_at, text: pl.text || '', file: file.length ? file : undefined, shared: sharedOf(pl.shared, todo),
-      replyTo: parent && parent.m.type === 'text' ? { who: parent.m.sender_account === srv.me.account ? 'You' : parent.m.sender_name, snippet: snippet(parent.pl) } : null, replies: children.get(m.id) || 0
+      replyTo: parent && (parent.m.type === 'text' || COMM[parent.m.type]) ? { who: parent.m.sender_account === srv.me.account ? 'You' : parent.m.sender_name, snippet: snippet(parent.pl) } : null, replies: children.get(m.id) || 0
     };
   });
   return { items, todo };
@@ -180,7 +185,7 @@ function toPolls(srv, local, opened, members) {
 // What this device holds of each forum, by server id: the conversation, its rules, every message read so far (by id) and
 // the catch-up marker. A reload asks the server only for what changed after the marker.
 const held = (srv) => srv.forumHeld || (srv.forumHeld = new Map());
-const WANTED = ['text', 'poll', 'vote', 'poll_lock'];
+const WANTED = ['text', 'poll', 'vote', 'poll_lock', 'memo', 'announcement', 'post'];
 const SYNC_PAGES = 5;   // more changed than this since the last look: re-read the history instead
 
 // A message never changes once sent, so each is decrypted once and remembered (only ones that opened).
@@ -398,7 +403,7 @@ async function reloadOnce(logic, srv, local, { meta, incoming = [], gone = new S
   const open = logic.state.forum === local && logic.state.panelKind === 'forum' && !['closed', 'min'].includes(logic.state.mode);
   const prev = liveForum(logic, local);
   // without fresh details, the unread count moves by the new messages from others
-  const others = (fresh || []).filter((m) => m.type === 'text' && m.sender_account !== srv.me.account).length;
+  const others = (fresh || []).filter((m) => (m.type === 'text' || COMM[m.type]) && m.sender_account !== srv.me.account).length;
   const unread = open ? 0 : meta || !prev ? forum.unread : prev.unread + others;
   if (!meta) h.detail = { ...h.detail, unread };
   const on = srv.online || new Set();
