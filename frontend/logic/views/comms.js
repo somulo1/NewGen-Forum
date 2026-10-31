@@ -30,7 +30,7 @@ export function buildComms(ctx) {
   // =============== Communications ===============
   const commTypes = [has.announcements && 'Announcement', has.memos && 'Memo', has.newsletter && 'Newsletter', has.jobposts && 'Job post'].filter(Boolean);
   const commColor = { Announcement: '#B8F36B', Memo: '#FFD66B', Newsletter: '#F49AC1', 'Job post': '#7CC4FF' };
-  const openCm = (type) => this.setState({ cmOpen: true, cmd: { type: type, title: '', summary: '', body: '', fields: {}, files: [], wall: type !== 'Memo', forum: '', sel: {} } });
+  const openCm = (type) => this.setState({ cmOpen: true, cmd: { type: type, title: '', summary: '', body: '', fields: {}, files: [], wall: type !== 'Memo', forum: '', forumSel: {}, sel: {} } });
   const cmS = s.cmd;
   const setCm = (patch) => this.setState((x) => ({ cmd: Object.assign({}, x.cmd, patch) }));
   const f1 = flowById('f1');
@@ -48,6 +48,9 @@ export function buildComms(ctx) {
   const cmNeedsApproval = ruleNeeds || (cmS.type === 'Announcement' && f1 && f1.levels > 0);
   const cm = {
     heading: 'New ' + cmS.type.toLowerCase(), title: cmS.title, body: cmS.body, wall: cmS.wall && wallAllowed, forum: cmS.forum, wallAllowed: wallAllowed,
+    // any number of forums can receive it: tick each one
+    forumList: forums.map((f) => { const on = !!(cmS.forumSel || {})[f.id]; return { id: f.id, name: f.name, on, style: chip(on), toggle: () => setCm({ forumSel: { ...(this.state.cmd.forumSel || {}), [f.id]: !on } }) }; }),
+    forumCount: forums.filter((f) => (cmS.forumSel || {})[f.id]).length,
     types: commTypes.map((t) => ({ label: t, pick: () => setCm({ type: t }), style: chip(cmS.type === t) })),
     typeHelp: { Announcement: 'News for everyone it reaches. Staff mark it read.', Memo: 'An internal note, often asking for action.', Newsletter: 'A regular issue with news and updates.', 'Job post': 'An open role people can apply for.' }[cmS.type] || '',
     titleLabel: cmS.type === 'Job post' ? 'Job title' : 'Title', summary: cmS.summary || '', setSummary: (e) => setCm({ summary: e.target.value }),
@@ -84,11 +87,11 @@ export function buildComms(ctx) {
       if (!c.title.trim()) { this.notify('Add a title first.', '#FFB86B'); return; }
       if (ruleObj && !ruleObj.on) { this.notify(c.type + 's are switched off for your ' + typeName[ruleLevel].toLowerCase() + '.', '#FF9B8A'); return; }
       if (!senderOk) { this.notify('Only the ' + roleNameOf(ruleObj.sender) + ' role can send ' + c.type.toLowerCase() + 's here.', '#FF9B8A'); return; }
-      const fo = forums.find((f) => f.id === c.forum);
+      const fos = forums.filter((f) => (c.forumSel || {})[f.id] || f.id === c.forum);
       const sel = Object.keys(c.sel).filter((k) => c.sel[k]);
-      if (!(c.wall && wallAllowed) && !fo && !sel.length) { this.notify('Choose at least one place to send it.', '#FFB86B'); return; }
+      if (!(c.wall && wallAllowed) && !fos.length && !sel.length) { this.notify('Choose at least one place to send it.', '#FFB86B'); return; }
       this.setState({ cmOpen: false });
-      commsW.publish(this, this.srv, { type: c.type, title: c.title.trim(), summary: (c.summary || '').trim(), body: c.body.trim(), fields: Object.fromEntries(Object.entries(c.fields || {}).filter(([, v]) => String(v).trim())), files: c.files || [], wall: c.wall && wallAllowed, forum: fo ? { id: this.srv.forumConv && this.srv.forumConv[fo.id], name: fo.name } : null, sel: c.sel })
+      commsW.publish(this, this.srv, { type: c.type, title: c.title.trim(), summary: (c.summary || '').trim(), body: c.body.trim(), fields: Object.fromEntries(Object.entries(c.fields || {}).filter(([, v]) => String(v).trim())), files: c.files || [], wall: c.wall && wallAllowed, forums: fos.map((fo) => ({ id: this.srv.forumConv && this.srv.forumConv[fo.id], name: fo.name })), sel: c.sel })
         .then((r) => this.notify(r.pending ? c.type + ' sent for approval.' : c.type + ' published.', r.pending ? '#FFB86B' : '#B8F36B'))
         .catch((e) => this.notify(e.message || 'Could not send it.', '#FF9B8A'));
     }
@@ -119,7 +122,7 @@ export function buildComms(ctx) {
     fields: (FORMS[oc.type] || []).filter((f) => (oc.fields || {})[f.key]).map((f) => ({ label: f.label, value: f.kind === 'date' ? fmtDay(oc.fields[f.key]) : oc.fields[f.key] })),
     files: (oc.files || []).map((f) => ({ name: f.name, meta: f.meta || '', open: () => commsW.openFile(this.srv, f).catch((e) => this.notify(e.message || 'Could not open it.', '#FF9B8A')) })),
     hasFiles: (oc.files || []).length > 0,
-    canInsights: canInsights(oc.type) && oc.status === 'Published', isRead: s.commView !== 'insights', isInsights: s.commView === 'insights',
+    canInsights: canInsights(oc.type) && oc.status === 'Published', showStats: canInsights(oc.type), isRead: s.commView !== 'insights', isInsights: s.commView === 'insights',
     showRead: () => this.setState({ commView: 'read' }), showInsights: () => { this.setState({ commView: 'insights' }); loadInsights(oc); },
     from: oc.by === 'Samwel Okoth Omulo' ? 'You' : oc.by, byDept: oc.byDept, hasDept: !!oc.byDept, dateLabel: fmtDay(oc.date), readPct: oc.read + '%',
     ins: s.commIns || { loading: false, places: [], err: '' }, hasPlaces: !!(s.commIns && s.commIns.places.length),

@@ -80,26 +80,36 @@ export async function openFile(srv, f) {
 export async function publish(logic, srv, c) {
   const targets = [];
   const to = [];
-  if (c.wall) { targets.push({ conv: () => audienceWall(srv, 'org', null, 'Community wall') }); to.push('Community wall'); }
-  if (c.forum && c.forum.id) { targets.push({ conv: async () => c.forum.id }); to.push(c.forum.name + ' forum'); }
+  if (c.wall) { targets.push({ name: 'the Community wall', conv: () => audienceWall(srv, 'org', null, 'Community wall') }); to.push('Community wall'); }
+  for (const fo of c.forums || (c.forum ? [c.forum] : [])) {
+    if (!fo.id) throw new Error('The forum "' + fo.name + '" is not connected to the server yet. Reload the page and try again.');
+    targets.push({ name: 'the ' + fo.name + ' forum', conv: async () => fo.id }); to.push(fo.name + ' forum');
+  }
   Object.keys(c.sel || {}).filter((k) => c.sel[k]).forEach((k) => {
     const [level, nm] = [k.slice(0, k.indexOf(':')), k.slice(k.indexOf(':') + 1)];
     const ref = srv.structure[level] && srv.structure[level].get(nm);
-    if (ref) { targets.push({ conv: () => audienceWall(srv, AUDIENCE[level], ref, nm + ' wall') }); to.push(nm); }
+    if (ref) { targets.push({ name: nm, conv: () => audienceWall(srv, AUDIENCE[level], ref, nm + ' wall') }); to.push(nm); }
   });
   for (const f of c.files || []) { const bad = fileProblem(srv, f); if (bad) throw new Error(bad); }
   let pending = 0;
   const batch = newId();
+  const failed = [];
+  let sent = 0;
+  // every place is tried on its own: one that refuses (a forum whose rules stop you posting, say) never stops the others
   for (const t of targets) {
-    const conv = await t.conv();
-    // each place holds its own copy of the files, encrypted for that audience
-    const refs = [];
-    for (const f of c.files || []) { const u = await files.upload(srv, conv, f); refs.push({ fileId: u.fileId, name: u.name, meta: u.meta, type: u.type, isImg: u.isImg, key: u.key }); }
-    const sealed = await srv.vault.seal(conv, { title: c.title, summary: c.summary || '', body: c.body, fields: c.fields || {}, files: refs, to, type: c.type, from: srv.me.name }, newId());
-    const details = srv.emailDetails === false ? undefined : { title: c.title, summary: c.summary || '', body: c.body || '', fields: Object.entries(c.fields || {}).map(([k, v]) => [labelOf(c.type, k), String(v)]), files: (c.files || []).map((f) => f.name) };
-    const res = await srv.request('POST', '/comms', { type: c.type, batch, details, conversation: conv, message: sealed.id, epoch: sealed.epoch, device: sealed.device, envelope: sealed.envelope });
-    if (res.approval) pending++;
+    try {
+      const conv = await t.conv();
+      // each place holds its own copy of the files, encrypted for that audience
+      const refs = [];
+      for (const f of c.files || []) { const u = await files.upload(srv, conv, f); refs.push({ fileId: u.fileId, name: u.name, meta: u.meta, type: u.type, isImg: u.isImg, key: u.key }); }
+      const sealed = await srv.vault.seal(conv, { title: c.title, summary: c.summary || '', body: c.body, fields: c.fields || {}, files: refs, to, type: c.type, from: srv.me.name }, newId());
+      const details = srv.emailDetails === false ? undefined : { title: c.title, summary: c.summary || '', body: c.body || '', fields: Object.entries(c.fields || {}).map(([k, v]) => [labelOf(c.type, k), String(v)]), files: (c.files || []).map((f) => f.name) };
+      const res = await srv.request('POST', '/comms', { type: c.type, batch, details, conversation: conv, message: sealed.id, epoch: sealed.epoch, device: sealed.device, envelope: sealed.envelope });
+      sent++;
+      if (res.approval) pending++;
+    } catch (e) { failed.push({ place: t.name, why: (e && e.message) || 'it did not go through' }); }
   }
   await load(logic, srv);
-  return { sent: targets.length, pending };
+  if (failed.length) throw new Error((sent ? 'Sent to ' + sent + ' place' + (sent === 1 ? '' : 's') + ', but not to ' : 'Not sent to ') + failed.map((f) => f.place + ' (' + f.why + ')').join('; ') + '.');
+  return { sent, pending };
 }

@@ -26,7 +26,8 @@
 <strong style="font-size: 13px">Where should it go?</strong>
 <div style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 16px">
 <template v-if="cm.wallAllowed"><label style="display: flex; gap: 10px; align-items: center; font-size: 14px; cursor: pointer"><input type="checkbox" :checked="cm.wall" @change="cm.toggleWall">Community wall</label></template>
-<label style="flex: 1 1 220px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">A forum<select :value="cm.forum" @change="cm.setForum" style="height: 36px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-16201C,#16201C); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px"><option value="">No forum</option><template v-for="(f, f__i) in forums" :key="f__i"><option :value="f.id">{{ f.name }}</option></template></select></label>
+<div v-if="cm.forumList.length" style="flex: 1 1 100%; display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)"><span>Forums <span style="color: var(--k-9DB0A6,#9DB0A6)">· tick every forum that should get it{{ cm.forumCount ? ' (' + cm.forumCount + ' chosen)' : '' }}</span></span>
+<div style="display: flex; flex-wrap: wrap; gap: 6px"><template v-for="f in cm.forumList" :key="f.id"><button type="button" :aria-pressed="f.on" @click="f.toggle" :style="f.style">{{ f.on ? '✓ ' : '' }}{{ f.name }}</button></template></div></div>
 </div>
 <template v-if="cm.hasRuleNote"><span style="font-size: 12px; color: var(--k-C9D6CF,#C9D6CF); line-height: 1.5; padding: 8px 10px; border-radius: 8px; background: var(--k-16201C,#16201C)">{{ cm.ruleNote }}</span></template>
 <template v-for="(gr, gr__i) in cm.groups" :key="gr__i">
