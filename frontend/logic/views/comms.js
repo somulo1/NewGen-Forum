@@ -92,7 +92,7 @@ export function buildComms(ctx) {
       if (!(c.wall && wallAllowed) && !fos.length && !sel.length) { this.notify('Choose at least one place to send it.', '#FFB86B'); return; }
       this.setState({ cmOpen: false });
       commsW.publish(this, this.srv, { type: c.type, title: c.title.trim(), summary: (c.summary || '').trim(), body: c.body.trim(), fields: Object.fromEntries(Object.entries(c.fields || {}).filter(([, v]) => String(v).trim())), files: c.files || [], wall: c.wall && wallAllowed, forums: fos.map((fo) => ({ id: this.srv.forumConv && this.srv.forumConv[fo.id], name: fo.name })), sel: c.sel })
-        .then((r) => this.notify(r.pending ? c.type + ' sent for approval.' : c.type + ' published.', r.pending ? '#FFB86B' : '#B8F36B'))
+        .then((r) => this.notify(!r.pending ? c.type + ' published to ' + r.sent + (r.sent === 1 ? ' place.' : ' places.') : r.pending >= r.sent ? c.type + ' sent for approval. It reaches ' + (r.sent === 1 ? 'its place' : 'all ' + r.sent + ' places') + ' once approved.' : c.type + ' published to ' + (r.sent - r.pending) + ' of ' + r.sent + ' places. The other ' + r.pending + ' wait for approval.', r.pending ? '#FFB86B' : '#B8F36B'))
         .catch((e) => this.notify(e.message || 'Could not send it.', '#FF9B8A'));
     }
   };
