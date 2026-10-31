@@ -1,6 +1,6 @@
 <!-- A wall post shared into a forum, shown as it was posted. Polls keep voting here; other reactions stay on the wall. -->
 <template>
-<div v-if="v" role="group" :aria-label="`Shared post by ${v.author}`" style="margin-top: 6px; padding: 10px; border-radius: 12px; background: var(--k-121B17,#121B17); border: 1px solid var(--k-2A3832,#2A3832); display: flex; flex-direction: column; gap: 8px; min-width: 0">
+<div v-if="v" role="group" :aria-label="`Shared post by ${v.author}`" style="margin-top: 6px; box-sizing: border-box; width: 100%; max-width: 100%; padding: 10px; border-radius: 12px; background: var(--k-121B17,#121B17); border: 1px solid var(--k-2A3832,#2A3832); display: flex; flex-direction: column; gap: 8px; min-width: 0">
 <div style="display: flex; align-items: center; gap: 8px; min-width: 0"><UserAvatar :name="v.author" :initials="v.initials" :color="v.color" :size="28" :font-size="11"/><span style="flex: 1; min-width: 0; display: flex; flex-direction: column"><strong style="font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ v.author }}</strong><span style="font-size: 11px; color: var(--k-9DB0A6,#9DB0A6)">Shared from the Community wall · {{ v.meta }}</span></span></div>
 <p v-if="v.text" style="margin: 0; font-size: 14px; line-height: 1.5; white-space: pre-line; overflow-wrap: anywhere">{{ v.text }}</p>
 <MediaCollage v-if="v.hasMedia" :files="v.media" framed :max-h="300" :row="130"/>
