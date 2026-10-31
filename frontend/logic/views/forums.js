@@ -40,15 +40,41 @@ export function buildForums(ctx) {
   const addedSource = s.added[cur.id] || [];
   const addedHere = addedSource.map((message) => norm(message, 'forum-' + cur.id + '-added-' + fingerprint(message)));
   const baseMsgs = cur.updates.map((message, index) => norm(message, 'forum-' + cur.id + '-sample-' + index));
-  const messageActions = (message, key, deleteForEveryone) => ({
+  const messageActions = (message, key, deleteForEveryone, replyWith) => ({
     messageKey: key,
     menuOpen: s.messageMenu === key,
     startHold: (event) => {
       if (event.pointerType === 'mouse' && event.button !== 0) return;
       clearTimeout(this._messageHoldTimer);
       this._messageHoldTimer = setTimeout(() => this.setState({ messageMenu: key }), 550);
+      this._swipe = { x: event.clientX, y: event.clientY, el: event.currentTarget, id: event.pointerId, on: false, dx: 0 };
     },
-    stopHold: () => clearTimeout(this._messageHoldTimer),
+    // Drag a message to the right to reply to it (like a phone chat): it follows the finger, and letting go past the mark replies.
+    moveHold: (event) => {
+      const w = this._swipe;
+      if (!w || w.id !== event.pointerId) return;
+      const dx = event.clientX - w.x, dy = event.clientY - w.y;
+      if (!w.on) {
+        if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { this._swipe = null; clearTimeout(this._messageHoldTimer); return; }   // scrolling
+        if (dx > 14 && dx > Math.abs(dy) * 1.5) {
+          w.on = true; clearTimeout(this._messageHoldTimer);
+          try { w.el.setPointerCapture(w.id); } catch (e) { /* not capturable */ }
+          w.el.style.transition = 'none'; w.el.style.userSelect = 'none';
+          try { window.getSelection().removeAllRanges(); } catch (e) { /* nothing selected */ }
+        } else return;
+      }
+      w.dx = Math.max(0, Math.min(dx, 96));
+      w.el.style.transform = 'translateX(' + w.dx + 'px)';
+      w.el.style.opacity = w.dx >= 64 ? '0.8' : '1';
+    },
+    stopHold: (event) => {
+      clearTimeout(this._messageHoldTimer);
+      const w = this._swipe;
+      this._swipe = null;
+      if (!w || !w.on) return;
+      w.el.style.transition = 'transform .18s ease, opacity .18s ease'; w.el.style.transform = ''; w.el.style.opacity = ''; w.el.style.userSelect = '';
+      if (w.dx >= 64 && event && event.type === 'pointerup' && typeof (replyWith || message.reply) === 'function') (replyWith || message.reply)();
+    },
     openActions: (event) => { event.preventDefault(); this.setState({ messageMenu: key }); },
     closeActions: () => this.setState({ messageMenu: null }),
     deleteForMe: () => this.setState((st) => ({ hiddenChatMessages: { ...st.hiddenChatMessages, [key]: true }, messageMenu: null })),
@@ -113,7 +139,7 @@ export function buildForums(ctx) {
         } else {
           this.setState((st) => ({ removedChatMessages: { ...st.removedChatMessages, [key]: true } }));
         }
-      } : null);
+      } : null, replyFn(who, m));
       return {
         id: key, who, initials: pp.initials, color: pp.color, time: m.time, text: m.text || '', htmlText: richTextHtml(m.text),
         hasText: !!m.text, hasFile: !!m.file, fileList: [].concat(m.file || []), ...quote(m), reply: replyFn(who, m),

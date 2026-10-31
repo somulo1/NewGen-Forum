@@ -88,6 +88,9 @@ export class HubLogic extends DCLogic {
       } else if (patch.section !== undefined && patch.profileOf === undefined) {
         patch.profileOf = null;
       }
+      // on a phone a chat is always a page between the top bar and the tab bar (never full screen over them)
+      if (patch.mode === 'full' && this.isMobileViewport()) patch.mode = 'page';
+      if (patch.mode === 'docked' && this.isPhoneViewport() && ['dm', 'forum'].includes(patch.panelKind || this.state.panelKind)) patch.mode = 'page';
       if (patch.section !== undefined && patch.section !== this.state.section &&
           this.isMobileViewport() && ['dm', 'forum'].includes(this.state.panelKind) &&
           !['closed', 'min'].includes(this.state.mode)) {
