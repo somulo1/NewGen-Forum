@@ -1,6 +1,7 @@
 package tickets_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -193,5 +194,61 @@ func TestOwnTicketsAndEscalationScope(t *testing.T) {
 	sec := raise(staff, "sector", sector)
 	if c := act(sec, map[string]any{"do": "escalate", "to_type": "sector", "to_ref": sector}); c != 400 {
 		t.Fatalf("sector into own sector: %d", c)
+	}
+}
+
+// A ticket's subject, description and comments are kept by the server (encrypted at rest, not end to end): its participants
+// read them, others with the View right see only the facts, and the text never goes out on the organization-wide channel.
+func TestTicketTextIsServerReadableForParticipants(t *testing.T) {
+	e := testkit.New(t)
+	ownerU, slug := e.NewOrg("Olivia Owner")
+	o := e.Owner(ownerU)
+	it := e.Join(ownerU, slug, "Ian", "it")
+	raiser := e.Join(ownerU, slug, "Faith", "staff")
+	for _, m := range []*testkit.Member{o, it, raiser} {
+		m.Register(e)
+	}
+	key, _ := e2ee.NewConversationKey()
+	conv := e.MustDo(201, "POST", "/conversations", map[string]any{"kind": "ticket", "members": []string{it.Person}, "keys": raiser.WrapFor(e, key, 1, raiser.Person, it.Person)}, raiser.Access)["id"].(string)
+	e.MustDo(201, "POST", "/tickets", map[string]any{"conversation": conv, "category": "Hardware", "title": "Printer jammed", "description": "Third floor printer"}, raiser.Access)
+	e.MustDo(201, "POST", "/tickets/"+conv+"/comments", map[string]any{"text": "On my way"}, it.Access)
+	if code, _ := e.Do("POST", "/tickets/"+conv+"/comments", map[string]any{"text": "nosy"}, ownerU.Access); code != 403 {
+		t.Fatalf("a non-participant commented: %d", code)
+	}
+	if code, _ := e.Do("POST", "/tickets/"+conv+"/comments", map[string]any{"text": "  "}, raiser.Access); code != 400 {
+		t.Fatalf("empty comment: %d", code)
+	}
+
+	got := e.MustDo(200, "GET", "/tickets/"+conv, nil, raiser.Access)
+	if got["title"] != "Printer jammed" || got["description"] != "Third floor printer" {
+		t.Fatalf("text: %v", got)
+	}
+	cs := got["comments"].([]any)
+	if len(cs) != 1 || cs[0].(map[string]any)["text"] != "On my way" || cs[0].(map[string]any)["person"] != it.Person {
+		t.Fatalf("comments: %v", cs)
+	}
+	// the owner may view tickets but is not on this one: facts only
+	other := e.MustDo(200, "GET", "/tickets/"+conv, nil, ownerU.Access)
+	if other["title"] != nil || other["comments"] != nil || other["participant"] != false {
+		t.Fatalf("non-participant saw the text: %v", other)
+	}
+	for _, row := range e.MustDo(200, "GET", "/tickets", nil, ownerU.Access)["tickets"].([]any) {
+		if r := row.(map[string]any); r["id"] == conv && r["title"] != nil {
+			t.Fatalf("list leaked the subject: %v", r)
+		}
+	}
+	listed := false
+	for _, row := range e.MustDo(200, "GET", "/tickets", nil, it.Access)["tickets"].([]any) {
+		if r := row.(map[string]any); r["id"] == conv && r["title"] == "Printer jammed" {
+			listed = true
+		}
+	}
+	if !listed {
+		t.Fatal("a participant's list is missing the subject")
+	}
+	// stored encrypted, not in clear
+	var raw []byte
+	if err := e.A.DB.Pool.QueryRow(t.Context(), `select body_enc from hub.ticket_comments limit 1`).Scan(&raw); err == nil && strings.Contains(string(raw), "On my way") {
+		t.Fatal("comment stored in clear")
 	}
 }

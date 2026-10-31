@@ -5,6 +5,7 @@
 import { newConversationKey, wrap, newId, b64, unb64 } from '../e2ee.js';
 import * as files from '../files.js';
 import { connectRealtime } from '../realtime.js';
+import { changedSince, markOf, pause } from '../catchup.js';
 import { messageTone, alertTone } from '~/logic/tones.js';
 
 export const name = 'forums';
@@ -309,6 +310,7 @@ function loadFiles(logic, srv, todo) {
 
 export async function load(logic, srv) {
   const { conversations } = await ask(srv, 'GET', '/conversations?kind=forum&limit=200');
+  srv.forumMark = markOf(conversations);
   const prev = new Map((logic.state.forumsLive || []).map((f) => [f.sid, f]));
   // a forum that fails to load keeps what was shown before (or is left out until the next reload) instead of failing them all
   const built = (await pool(conversations, 8, (c) => fetchForum(srv, c).catch((e) => {
@@ -326,6 +328,16 @@ export async function load(logic, srv) {
   watch(logic, srv);   // subscribe before presence so no message is missed while it loads
   loadPresence(logic, srv).catch(() => {});
   await files.settle(media);   // the first pictures and files of the chats are in before the forums count as loaded
+}
+
+// After a reconnect: one request says which forums changed; only those are read again (a forum I do not hold yet reloads the list).
+async function catchUpAfterReconnect(logic, srv) {
+  await pause();
+  const held = new Map((logic.state.forumsLive || []).map((f) => [f.sid, f.id]));
+  const r = await changedSince(srv, 'forum', srv.forumMark);
+  srv.forumMark = r.mark;
+  if (r.all.some((sid) => !held.has(sid) && !(srv.clearedForums && srv.clearedForums.has(sid)))) { await load(logic, srv); return; }
+  await pool(r.changed.filter((sid) => held.has(sid)).map((sid) => held.get(sid)), 3, (id) => reloadForum(logic, srv, id).catch(() => {}));
 }
 
 // Fetches the next older page of a forum's history ("Show earlier"). Returns how many messages came.
@@ -601,7 +613,7 @@ function watch(logic, srv) {
       applyOnline(logic, srv);
     });
     // after a reconnect, catch up on what was missed: a few forums at a time, not all at once
-    rt.on('open', () => { pool((logic.state.forumsLive || []).map((f) => f.id), 3, (id) => reloadForum(logic, srv, id).catch(() => {})); });
+    rt.on('open', () => { catchUpAfterReconnect(logic, srv).catch(() => {}); });
   }
   (logic.state.forumsLive || []).forEach((f) => rt.sub(f.sid));
   (srv.clearedForums ? [...srv.clearedForums] : []).forEach((sid) => rt.sub(sid));

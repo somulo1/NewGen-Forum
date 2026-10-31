@@ -101,3 +101,44 @@ func TestDeletedPostsAndExpiredMomentsLeaveNoFilesBehind(t *testing.T) {
 		t.Fatal("the moment's file is still there after the sweep")
 	}
 }
+
+// A device that was offline decides what to catch up on from changed_at: it must move for a message, a like and a removal.
+func TestConversationChangedAtMovesForEveryKindOfChange(t *testing.T) {
+	e := testkit.New(t)
+	ownerU, slug := e.NewOrg("Olivia Owner")
+	org := e.OrgID(slug)
+	o := e.Owner(ownerU)
+	o.Register(e)
+	key, _ := e2ee.NewConversationKey()
+	conv := e.MustDo(201, "POST", "/conversations", map[string]any{"kind": "forum", "name": "Team", "members": []string{o.Person}, "keys": o.WrapFor(e, key, 1, o.Person)}, ownerU.Access)["id"].(string)
+	changed := func() string {
+		t.Helper()
+		v, _ := e.MustDo(200, "GET", "/conversations/"+conv, nil, o.Access)["changed_at"].(string)
+		if v == "" {
+			t.Fatal("changed_at is missing")
+		}
+		return v
+	}
+	last := changed()
+	step := func(what string) {
+		t.Helper()
+		now := changed()
+		if now <= last {
+			t.Fatalf("changed_at did not move for %s: %s -> %s", what, last, now)
+		}
+		last = now
+	}
+	send := func(typ string, replyTo any) string {
+		id := uuid.Must(uuid.NewV7()).String()
+		e.MustDo(201, "POST", "/conversations/"+conv+"/messages", map[string]any{"id": id, "type": typ, "reply_to": replyTo, "epoch": 1, "device": o.DevID, "envelope": o.Seal(org, conv, id, 1, key, "x")}, o.Access)
+		return id
+	}
+	msg := send("text", nil)
+	step("a message")
+	like := send("reaction", msg)
+	step("a like")
+	e.MustDo(204, "DELETE", "/conversations/"+conv+"/messages/"+like, nil, o.Access)
+	step("a removed like")
+	e.MustDo(204, "DELETE", "/conversations/"+conv+"/messages/"+msg, nil, o.Access)
+	step("a removed message")
+}

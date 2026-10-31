@@ -108,6 +108,12 @@ func (s *Service) eraseAround(ctx context.Context, tx pgx.Tx, org uuid.UUID, ids
 	return err
 }
 
+// touchChanged marks a conversation as changed now, so devices that were offline know to catch up on it.
+func touchChanged(ctx context.Context, tx pgx.Tx, org, conv uuid.UUID) error {
+	_, err := tx.Exec(ctx, `update hub.conversation_stats set changed_at=now() where org_id=$1 and conversation_id=$2`, org, conv)
+	return err
+}
+
 // purge erases queued file contents from storage now (when this node can; the worker retries whatever is left).
 func (s *Service) purge(ctx context.Context) {
 	if s.Purge != nil {
@@ -162,6 +168,11 @@ func (s *Service) ExpireMoments(ctx context.Context) (int, error) {
 				}
 				if _, err := tx.Exec(ctx, `update hub.messages set ciphertext='\x00'::bytea, deleted_at=now(), `+integrity.Bump+` where org_id=$1 and id = any($2)`, org, ids); err != nil {
 					return err
+				}
+				for _, m := range batch {
+					if err := touchChanged(ctx, tx, org, m.conv); err != nil {
+						return err
+					}
 				}
 				return s.eraseAround(ctx, tx, org, ids)
 			})

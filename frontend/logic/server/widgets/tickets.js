@@ -1,6 +1,7 @@
-// Tickets: the Tickets widget, My tickets, the Ticket desk and each ticket's page. A ticket is a conversation (its title,
-// description and comments are sealed for the people on it) plus plain operational facts the server acts on (category,
-// priority, step, due time). The clock (TAT) runs on the server; the frontend shows what it reports.
+// Tickets: the Tickets widget, My tickets, the Ticket desk and each ticket's page. A ticket's title, description and comments
+// are kept by the server (encrypted at rest, shown only to the people on it), next to the operational facts it acts on (category,
+// priority, step, due time). Its attachments stay end-to-end encrypted in the ticket's conversation. Tickets raised before
+// that change keep their text sealed in the conversation, and are still opened from there. The clock (TAT) runs on the server.
 import { newConversationKey, wrap, b64, unb64 } from '../e2ee.js';
 import * as files from '../files.js';
 
@@ -31,11 +32,13 @@ async function mapTicket(srv, t) {
   if (t.participant !== false) try { msgs = (await srv.request('GET', `/conversations/${t.id}/messages?limit=100`)).messages; } catch (e) { /* not a participant: the text stays sealed */ }
   const opened = await Promise.all(msgs.map(async (m) => ({ m, pl: await srv.vault.openMessage(m) })));
   opened.sort((a, b) => (a.m.id < b.m.id ? -1 : 1));
-  const first = opened.length ? opened[0].pl : null;
+  const sealedHead = opened.find(({ pl }) => pl && pl.title !== undefined);
+  const first = detail.title ? { title: detail.title, desc: detail.description || '' } : sealedHead ? sealedHead.pl : null;
   const activity = [];
   (detail.events || []).forEach((e) => activity.push({ who: me(srv, e.who), kind: e.kind || 'event', text: e.text, time: when(e.at), at: e.at }));
-  opened.slice(1).forEach(({ m, pl }) => {
-    if (m.deleted || !pl) return;
+  (detail.comments || []).forEach((c) => activity.push({ who: me(srv, c.who), kind: 'comment', text: c.text, time: when(c.at), at: c.at, mid: c.id }));
+  opened.forEach(({ m, pl }) => {
+    if (m.deleted || !pl || pl.title !== undefined) return;
     if (pl.text !== undefined) activity.push({ who: me(srv, m.sender_name), kind: 'comment', text: pl.text, time: when(m.created_at), at: m.created_at, mid: m.id });
     else if (pl.name) activity.push({ who: me(srv, m.sender_name), kind: 'file', text: pl.name, meta: pl.meta || '', isImg: !!pl.isImg, url: '', ref: pl.fileId ? { fileId: pl.fileId, key: pl.key, type: pl.type || '', isImg: !!pl.isImg, isVideo: !!pl.isVideo } : null, time: when(m.created_at), at: m.created_at, mid: m.id });
   });
@@ -45,7 +48,7 @@ async function mapTicket(srv, t) {
   const raiser = srv.dirByUid && srv.dirByUid.get(t.raised_by);
   const names = (t.assignees || []).map((id) => srv.nameOf.get(id)).filter(Boolean);
   return {
-    id: t.ref, uid: t.id, title: first ? first.title : t.category + ' ticket', desc: first ? first.desc || '' : '(sealed: you are not a participant)', cat: t.category, prio: t.priority,
+    id: t.ref, uid: t.id, title: first ? first.title : t.category + ' ticket', desc: first ? first.desc || '' : '(hidden: you are not a participant)', cat: t.category, prio: t.priority,
     step: t.step, hold: !!t.hold, late: !!t.late, raisedBy: me(srv, t.raised_by_name), assignees: names, handler: t.handler_name || '', handlerSince: t.handler_since ? when(t.handler_since) : '',
     created: when(t.created_at), elapsed: detail.elapsed_hours || 0, tatH: t.tat_hours, sync: t.sync || 'Not synced', activity, dept: toType === 'departments' ? toName : (raiser ? raiser.dept : ''), fromDept: raiser ? raiser.dept : '',
     createdAt: t.created_at.slice(0, 10), escalated: !!t.escalated, to: toType === 'desk' ? { type: 'desk', name: 'Ticket desk' } : { type: toType, name: toName }, dueAt: t.due_at || '', unsealed: !first
@@ -99,7 +102,7 @@ export async function reload(logic, srv, uid) {
 
 export async function act(logic, srv, t, body) {
   // an email about this action may say what the ticket is about (never the files); the server writes it into the email and does not keep it
-  const readable = t.title && t.desc && !/^\(sealed/.test(t.desc);
+  const readable = t.title && t.desc && !t.unsealed;
   const details = srv.emailDetails !== false && readable ? { title: t.title, description: t.desc, files: (t.activity || []).filter((x) => x.kind === 'file').length } : undefined;
   await srv.request('POST', `/tickets/${t.uid}/act`, details ? { ...body, details } : body);
   return reload(logic, srv, t.uid);
@@ -109,8 +112,7 @@ export const hold = (logic, srv, t) => act(logic, srv, t, { do: 'hold' });
 export const resume = (logic, srv, t) => act(logic, srv, t, { do: 'resume' });
 
 export async function comment(logic, srv, t, text) {
-  const sealed = await srv.vault.seal(t.uid, { text });
-  await srv.request('POST', `/conversations/${t.uid}/messages`, { ...sealed, type: 'text' });
+  await srv.request('POST', `/tickets/${t.uid}/comments`, { text });
   return reload(logic, srv, t.uid);
 }
 
@@ -165,15 +167,14 @@ export async function raise(logic, srv, nt, cat, target) {
   const { devices } = await srv.request('POST', '/e2ee/people/devices', { people: [...new Set([srv.me.person, ...members])] });
   const key = newConversationKey();
   const keys = await Promise.all(devices.map(async (d) => ({ epoch: 1, device: d.id, wrapped_key: b64(await wrap(key, unb64(d.identity_key))) })));
+  // the conversation holds the people on the ticket and the key to its attachments
   const conv = await srv.request('POST', '/conversations', { kind: 'ticket', members: members.filter((m) => m !== srv.me.person), keys });
-  const sealed = await srv.vault.seal(conv.id, { title: nt.title, desc: nt.desc || '', category: cat.name });
-  await srv.request('POST', `/conversations/${conv.id}/messages`, { ...sealed, type: 'text' });
   for (const f of (nt.files || []).map((x) => x.file).filter(Boolean)) {
     const up = await files.upload(srv, conv.id, f);
     const fs = await srv.vault.seal(conv.id, { name: up.name, meta: up.meta, type: up.type, isImg: up.isImg, isVideo: up.isVideo, fileId: up.fileId, key: up.key });
     await srv.request('POST', `/conversations/${conv.id}/messages`, { ...fs, type: 'text' });
   }
-  await srv.request('POST', '/tickets', { conversation: conv.id, category: cat.name, priority: cat.prio || nt.prio, to_type: toType, to_ref: toRef,
+  await srv.request('POST', '/tickets', { conversation: conv.id, title: nt.title, description: nt.desc || '', category: cat.name, priority: cat.prio || nt.prio, to_type: toType, to_ref: toRef,
     // emails about this ticket may show these (only sent when the organization allows details in emails; files are never included)
     ...(srv.emailDetails !== false ? { details: { title: nt.title, description: nt.desc || '', files: (nt.files || []).length } } : {}) });
   return reload(logic, srv, conv.id);

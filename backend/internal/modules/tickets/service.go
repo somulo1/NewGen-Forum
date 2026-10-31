@@ -1,5 +1,5 @@
-// Package tickets is the ticket desk: routing, timing (TAT), hand-over and escalation. The subject, description and thread
-// of a ticket are end-to-end encrypted in its conversation; this package handles everything the server must act on.
+// Package tickets is the ticket desk: routing, timing (TAT), hand-over and escalation. The subject, description and comments
+// of a ticket are kept by the server, encrypted at rest (see text.go); its attachments stay end-to-end encrypted in its conversation.
 package tickets
 
 import (
@@ -77,7 +77,10 @@ type Ticket struct {
 	Sync         string      `json:"sync,omitempty"`
 	CreatedAt    time.Time   `json:"created_at"`
 	Events       []Event     `json:"events,omitempty"`
-	Participant  *bool       `json:"participant,omitempty"` // in lists: whether I hold this ticket's key (am in its conversation)
+	Participant  *bool       `json:"participant,omitempty"` // whether I am in this ticket's conversation (may read its text)
+	Title        string      `json:"title,omitempty"`
+	Description  string      `json:"description,omitempty"`
+	Comments     []Comment   `json:"comments,omitempty"`
 	// ElapsedHours is how much of the TAT's running clock has been used (pauses and off-hours excluded); above TATHours means overdue.
 	ElapsedHours float64 `json:"elapsed_hours"`
 	holdSince    *time.Time
@@ -92,6 +95,8 @@ type Event struct {
 
 type CreateIn struct {
 	Conversation uuid.UUID  `json:"conversation"`
+	Title        string     `json:"title"`
+	Description  string     `json:"description"`
 	Category     string     `json:"category"`
 	Priority     string     `json:"priority"`
 	ToType       string     `json:"to_type"`
@@ -148,9 +153,16 @@ func (s *Service) Create(ctx context.Context, p *tenant.Principal, in CreateIn) 
 	if in.ToType != "desk" && in.ToRef == nil {
 		return nil, httpx.Bad("Choose who receives it.")
 	}
+	var err error
+	if in.Title, err = cleanText(in.Title, maxTitle, "The subject"); err != nil {
+		return nil, err
+	}
+	if in.Description, err = cleanText(in.Description, maxDesc, "The description"); err != nil {
+		return nil, err
+	}
 	var out *Ticket
 	var nb notify.Batch
-	err := s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
+	err = s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
 		if err := authz.Require(ctx, tx, p.Person, "tickets", "Raise"); err != nil {
 			return err
 		}
@@ -211,6 +223,11 @@ func (s *Service) Create(ctx context.Context, p *tenant.Principal, in CreateIn) 
 		}
 		if err := s.A.Sign.Seal(ctx, tx, "tickets", "conversation_id=$1", in.Conversation); err != nil {
 			return err
+		}
+		if in.Title != "" {
+			if err := s.saveText(ctx, tx, p.Org, in.Conversation, in.Title, in.Description); err != nil {
+				return err
+			}
 		}
 		if err := s.eventAt(ctx, tx, p.Org, in.Conversation, p, "event", "Raised the ticket", &now); err != nil {
 			return err
@@ -400,11 +417,19 @@ func (s *Service) List(ctx context.Context, p *tenant.Principal, q ListQuery) ([
 			}
 			in[id] = true
 		}
+		var mine []*Ticket
 		for _, t := range out {
 			v := in[t.ID]
 			t.Participant = &v
+			if v {
+				mine = append(mine, t)
+			}
 		}
-		return ms.Err()
+		if err := ms.Err(); err != nil {
+			return err
+		}
+		ms.Close()
+		return s.fillText(ctx, tx, p.Org, mine, false)
 	})
 	return out, err
 }
@@ -416,14 +441,24 @@ func (s *Service) Get(ctx context.Context, p *tenant.Principal, id uuid.UUID) (*
 			return err
 		}
 		var err error
-		t, err = s.get(ctx, tx, p.Org, id)
-		return err
+		if t, err = s.get(ctx, tx, p.Org, id); err != nil {
+			return err
+		}
+		in, err := s.participant(ctx, tx, p, id)
+		if err != nil || !in {
+			t.Participant = &in
+			return err
+		}
+		t.Participant = &in
+		return s.fillText(ctx, tx, p.Org, []*Ticket{t}, true)
 	})
 	return t, err
 }
 
 func (s *Service) changed(ctx context.Context, p *tenant.Principal, t *Ticket) {
-	d, _ := json.Marshal(t)
+	facts := *t // the whole organization hears about changes: never the text
+	facts.Title, facts.Description, facts.Comments = "", "", nil
+	d, _ := json.Marshal(&facts)
 	s.A.Publish(ctx, realtime.Event{Type: "ticket.updated", Channel: realtime.OrgChannel(p.Org), Org: p.Org.String(), Actor: p.Person.String(), Data: d})
 	s.A.Publish(ctx, realtime.Event{Type: "ticket.updated", Channel: realtime.ConvChannel(t.ID), Org: p.Org.String(), Actor: p.Person.String(), Data: d})
 }

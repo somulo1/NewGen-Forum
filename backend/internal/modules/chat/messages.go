@@ -333,6 +333,9 @@ func (s *Service) Delete(ctx context.Context, p *tenant.Principal, conv, id uuid
 		if err := s.A.Sign.Seal(ctx, tx, "messages", "id=$1 and org_id=$2", id, p.Org); err != nil {
 			return err
 		}
+		if err := touchChanged(ctx, tx, p.Org, conv); err != nil {
+			return err
+		}
 		// what hangs on it goes too: comments, likes, and every picture or video it carried (erased from storage, not just hidden)
 		if err := s.eraseAround(ctx, tx, p.Org, []uuid.UUID{id}); err != nil {
 			return err
@@ -428,10 +431,15 @@ func PostMessage(ctx context.Context, tx pgx.Tx, a *app.App, m Posted) error {
 	if err := a.Sign.Seal(ctx, tx, "messages", "id=$1 and org_id=$2", m.ID, m.Org); err != nil {
 		return err
 	}
-	if m.Type != "reaction" && m.Type != "vote" {
-		if _, err := tx.Exec(ctx, `update hub.conversation_stats set last_message=$3, last_at=greatest(coalesce(last_at, 'epoch'::timestamptz), coalesce($4, now())), message_count=message_count+1 where org_id=$1 and conversation_id=$2`, m.Org, m.Conversation, m.ID, m.CreatedAt); err != nil {
-			return err
-		}
+	// changed_at moves for every kind of message (a like or an edit is a change a reconnecting device must catch up on);
+	// the "latest message" fields only for real messages
+	real := m.Type != "reaction" && m.Type != "vote"
+	if _, err := tx.Exec(ctx, `update hub.conversation_stats set changed_at=now(),
+		last_message = case when $5 then $3::uuid else last_message end,
+		last_at = case when $5 then greatest(coalesce(last_at, 'epoch'::timestamptz), coalesce($4, now())) else last_at end,
+		message_count = message_count + case when $5 then 1 else 0 end
+		where org_id=$1 and conversation_id=$2`, m.Org, m.Conversation, m.ID, m.CreatedAt, real); err != nil {
+		return err
 	}
 	return nil
 }

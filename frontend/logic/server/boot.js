@@ -26,9 +26,11 @@ import * as notifications from './widgets/notifications.js';
 import * as orgW from './widgets/org.js';
 import * as settingsW from './widgets/settings.js';
 import * as typing from './typing.js';
+import { createLazy } from './lazy.js';
 
 // chats (forums, dms) come right after the directory they need, so they are not queued behind every other widget
-const WIDGETS = [people, profile, forums, dms, prefs, comms, calendar, tickets, projects, awards, approvals, notifications, wall, roles, security, orgW, notes, folders, settingsW];
+// loaded when a page first needs them (see lazy.js)
+const LAZY = [comms, calendar, tickets, projects, awards, approvals, wall, security, notes, folders];
 
 async function openDevice(request, session) {
   const account = session.account;
@@ -79,7 +81,7 @@ export async function startServerSync(logic, request, session, bytes) {
   rt.on('keys.shared', () => {
     vault.keys.clear();
     clearTimeout(reloadT);
-    reloadT = setTimeout(() => { [wall, forums, dms].forEach((w) => w.load(logic, srv).catch(() => {})); }, 250);
+    reloadT = setTimeout(() => { [wall, forums, dms].filter((w) => logic.loaded.has(w.name)).forEach((w) => w.load(logic, srv).catch(() => {})); }, 250);
   });
   // ...and keep doing it while this tab is open: a colleague added to the wall or a forum after you signed in gets their key from
   // whoever of its members is online, so this must not wait for the next sign-in
@@ -102,25 +104,24 @@ export async function startServerSync(logic, request, session, bytes) {
     console.debug('[hub] ' + (w.name || 'widget') + ' loaded in ' + Math.round(performance.now() - t0) + ' ms');
   };
   await loadOne(people);
-  // the chats start as soon as the directory is in, alongside roles and the organization (they only need the directory)
-  await Promise.all([roles, orgW, prefs].map(loadOne));   // the home layout and the organization's widget settings come before anything is drawn
+  // The chats, notifications and settings (what the sidebar and header show on every page) start as soon as the directory is in, beside
+  // the rights, the profile, the organization and the preferences that decide which pages open. Nothing else is fetched at sign-in:
+  // each page loads its own widgets the first time it opens (see lazy.js), so a person who only reads the wall never downloads the
+  // security logs, and sign-in puts a fraction of the load on the server that fetching all of it did.
+  const shell = Promise.all([forums, dms, notifications, settingsW].map(loadOne));
+  await Promise.all([roles, orgW, prefs, profile].map(loadOne));   // the home layout and the organization's widget settings come before anything is drawn
   logic._accessPending = false;
   logic.forceUpdate();
-  // The rest load side by side (each used to wait for the one before it, one slow round trip after another). Awards and notes
-  // read the forum lists, so they start when the chats are in.
-  const rest = WIDGETS.filter((x) => ![people, roles, orgW, prefs].includes(x));
-  const afterChats = [awards, notes];
-  const chats = Promise.all([forums, dms].map(loadOne));
-  await Promise.all([
-    ...rest.filter((x) => ![forums, dms, ...afterChats].includes(x)).map(loadOne),
-    chats.then(() => Promise.all(afterChats.map(loadOne)))
-  ]);
+  await shell;
+  const lazy = srv.lazy = createLazy(logic, LAZY);
+  // the bell shows overdue tickets and shared notes show in chats, so those two arrive quietly a moment after the first screen
+  lazy.later(['tickets', 'notes']);
   // incoming calls ring live; each chat's Calls tab shows the real history
   callsW.listen(logic, srv);
   callsW.loadHistory(logic, srv).catch(() => {});
   // what a live notification may need to refresh
-  srv.reload.tickets = () => { tickets.load(logic, srv).catch(() => {}); orgW.loadPerformance(logic, srv).catch(() => {}); };
-  srv.reload.approvals = () => Promise.all([approvals.load(logic, srv), comms.load(logic, srv), awards.load(logic, srv)]).catch(() => {});
+  srv.reload.tickets = () => { srv.lazy.refresh(tickets).catch(() => {}); orgW.loadPerformance(logic, srv).catch(() => {}); };
+  srv.reload.approvals = () => Promise.all([approvals, comms, awards].map((w) => srv.lazy.refresh(w))).catch(() => {});   // only what was ever opened
   srv.bootDone = true;
   logic.forceUpdate();
   return srv;

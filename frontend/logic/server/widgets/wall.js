@@ -51,15 +51,49 @@ function watchLive(logic, srv) {
   rt.on('open', () => refresh());
 }
 
+// What changed on the wall since the last look: { fresh: [new messages], gone: Set of removed ids }, or null when reading the newest
+// page again is the better choice (nothing held yet, too much changed, or the server cannot answer catch-up reads).
+// A like, a comment or a new post by a colleague now costs one small request, not a hundred messages.
+async function changes(srv, conv) {
+  let since = srv.wallSince && srv.wallSince.conv === conv ? srv.wallSince.at : '', after = '';
+  if (!since) return null;
+  const fresh = [], gone = new Set();
+  for (let i = 0; i < 5; i++) {
+    const res = await srv.request('GET', `/conversations/${conv}/changes?since=${encodeURIComponent(since)}${after ? '&after=' + after : ''}&limit=200`).catch((e) => {
+      if (e && (e.status === 404 || e.status === 405)) return null;
+      throw e;
+    });
+    if (!res) return null;
+    for (const m of res.messages) if (m.deleted) gone.add(m.id); else fresh.push(m);
+    since = res.next_since; after = res.next_after || '';
+    if (!res.more) { srv.wallSince = { conv, at: since }; return { fresh, gone }; }
+  }
+  return null;
+}
+// the marker after a full read: a little before the newest message, so nothing stored around it is skipped
+const markerAfter = (msgs) => (msgs.length ? new Date(new Date(msgs[0].created_at).getTime() - 120000).toISOString() : '2000-01-01T00:00:00Z');
+
 export async function load(logic, srv) {
-  const { conversations } = await srv.request('GET', '/conversations?kind=wall&limit=200');
-  const wall = conversations.find((c) => c.audience === 'org') || conversations[0];
+  // the wall's id never changes, so after the first look it is not asked for again
+  let wall = srv.wallId && srv.wallAllId === srv.wallId ? { id: srv.wallId } : null;
+  if (!wall) {
+    const { conversations } = await srv.request('GET', '/conversations?kind=wall&limit=200');
+    wall = conversations.find((c) => c.audience === 'org') || conversations[0];
+  }
   if (!wall) { logic.setState({ posts: [], moments: [] }); return; }
   srv.wallId = wall.id;
   watchLive(logic, srv);
   const all = srv.wallAll && srv.wallAllId === wall.id ? srv.wallAll : new Map();   // messages held from earlier loads
   srv.wallAll = all; srv.wallAllId = wall.id;
+  const delta = all.size ? await changes(srv, wall.id).catch(() => null) : null;
+  if (delta) {
+    delta.gone.forEach((id) => all.delete(id));
+    delta.fresh.forEach((m) => all.set(m.id, m));
+    await render(logic, srv, all);   // from what is held (no request): also drops moments that passed their 24 hours
+    return;
+  }
   const first = await page(srv, wall.id, '');
+  srv.wallSince = { conv: wall.id, at: markerAfter(first) };
   first.forEach((m) => all.set(m.id, m));
   await render(logic, srv, all);
   if (first.length < 100 || srv.wallOlderDone === wall.id) return;
