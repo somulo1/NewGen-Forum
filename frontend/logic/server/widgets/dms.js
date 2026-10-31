@@ -50,7 +50,7 @@ async function toMsg(srv, m) {
 
 // Fills in decrypted attachment URLs once they are ready.
 function loadFiles(logic, srv, dmId, msgs) {
-  msgs.forEach((m) => (m.file || []).forEach((f) => files.openUrl(srv, f.ref).then((url) => {
+  return msgs.flatMap((m) => (m.file || []).map((f) => files.openUrl(srv, f.ref).then((url) => {
     logic.setState((st) => ({ dms: st.dms.map((d) => (d.id !== dmId ? d : { ...d, msgs: d.msgs.map((x) => (x.id !== m.id ? x : { ...x, file: x.file.map((y) => (y.ref && y.ref.fileId === f.ref.fileId ? { ...y, url } : y)) })) })) }));
   }).catch(() => {})));
 }
@@ -88,8 +88,9 @@ export async function load(logic, srv) {
   // keep chats only on this screen (not yet written to) and messages still sending
   const local = (logic.state.dms || []).filter((d) => String(d.id).startsWith('dm-') && !dms.some((x) => x.with === d.with));
   logic.setState({ dms: dms.map((d) => ({ ...d, msgs: d.msgs.concat(((prev.get(d.id) || {}).msgs || []).filter((m) => m.pending)) })).concat(local) });
-  dms.forEach((d) => loadFiles(logic, srv, d.id, d.msgs));
+  const media = dms.flatMap((d) => loadFiles(logic, srv, d.id, d.msgs));
   live(logic, srv);
+  await files.settle(media);   // the first pictures and files of the chats are in before the chats count as loaded
 }
 
 const isOpen = (st, id) => st.panelKind === 'dm' && st.dmId === id && st.mode !== 'closed' && st.mode !== 'min';

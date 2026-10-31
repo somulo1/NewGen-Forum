@@ -296,7 +296,7 @@ function applyOnline(logic, srv) {
 }
 
 function loadFiles(logic, srv, todo) {
-  todo.forEach((f) => files.openUrl(srv, f).then((url) => {
+  return todo.map((f) => files.openUrl(srv, f).then((url) => {
     const put = (list) => list.map((x) => (x.fileId === f.fileId ? { ...x, url } : x));
     logic.setState((st) => ({ forumsLive: (st.forumsLive || []).map((fo) => ({ ...fo, updates: fo.updates.map((u) => {
       let n = u;
@@ -322,9 +322,10 @@ export async function load(logic, srv) {
   logic.setState({ forumsLive: built.map((b) => b.forum) });
   // forums I deleted from my list: still listened to, so one that gets a new message comes back
   try { const { ids } = await ask(srv, 'GET', '/conversations/cleared'); const shown = new Set(built.map((b) => b.forum.sid)); srv.clearedForums = new Set(ids.filter((id) => !shown.has(id) && !(srv.clearedDms && srv.clearedDms.has(id)))); } catch (e) { srv.clearedForums = srv.clearedForums || new Set(); }
-  built.forEach((b) => loadFiles(logic, srv, b.todo));
+  const media = built.flatMap((b) => loadFiles(logic, srv, b.todo));
   watch(logic, srv);   // subscribe before presence so no message is missed while it loads
   loadPresence(logic, srv).catch(() => {});
+  await files.settle(media);   // the first pictures and files of the chats are in before the forums count as loaded
 }
 
 // Fetches the next older page of a forum's history ("Show earlier"). Returns how many messages came.

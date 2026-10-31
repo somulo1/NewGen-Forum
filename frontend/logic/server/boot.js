@@ -62,6 +62,7 @@ export async function startServerSync(logic, request, session, bytes) {
   const vault = new Vault(request, { org: session.org.id, account: session.account, person: session.org.person, device, deviceId });
   const srv = { request, bytes, vault, session, me, personOf: new Map(), nameOf: new Map(), reload: {} };
   logic.srv = srv;
+  logic.loaded = new Set();
   vault.onNewDevice = (acct, n) => {
     const who = (logic.dir.find((p) => p.uid === vault.personOfAcct.get(acct)) || {}).name || 'A colleague';
     logic.notify(who + ' now has ' + (n === 1 ? 'a new device' : n + ' new devices') + ' that can read your shared chats. If you did not expect that, compare security codes with them (open their profile card).', '#FFB86B');
@@ -93,9 +94,11 @@ export async function startServerSync(logic, request, session, bytes) {
   });
   // Who may open what (the directory, the roles and rights, the organization's levels) loads first, so pages are decided at
   // once; everything else fills in behind. Until then no page is called "no access".
+  // logic.loaded: which widgets have answered; a page shows grey placeholder blocks until the ones it needs have
   const loadOne = async (w) => {
     const t0 = performance.now();
     try { await w.load(logic, srv); } catch (e) { console.warn('Could not load ' + (w.name || 'a widget') + ':', e); }
+    logic.loaded.add(w.name); logic.forceUpdate();
     console.debug('[hub] ' + (w.name || 'widget') + ' loaded in ' + Math.round(performance.now() - t0) + ' ms');
   };
   await loadOne(people);

@@ -70,8 +70,8 @@ const hm = (v) => { const p = String(v || '0:0').split(':'); return (Number(p[0]
 
 // Attachments are encrypted files: fetch and open each one, then show it on its ticket.
 function showFiles(logic, srv, rows) {
-  rows.forEach((t) => (t.activity || []).filter((a) => a.ref && !a.url).forEach((a) => {
-    files.openUrl(srv, a.ref).then((url) => {
+  return rows.flatMap((t) => (t.activity || []).filter((a) => a.ref && !a.url).map((a) => {
+    return files.openUrl(srv, a.ref).then((url) => {
       logic.setState((st) => ({ tickets: st.tickets.map((x) => (x.uid !== t.uid ? x : { ...x, activity: x.activity.map((y) => (y.mid === a.mid ? { ...y, url } : y)) })) }));
     }).catch(() => { /* the file is gone or sealed for someone else */ });
   }));
@@ -83,7 +83,7 @@ export async function load(logic, srv) {
   const rows = [];
   for (let i = 0; i < tickets.length; i += 10) rows.push(...await Promise.all(tickets.slice(i, i + 10).map((t) => mapTicket(srv, t))));
   logic.setState({ tickets: rows });
-  showFiles(logic, srv, rows);
+  await files.settle(showFiles(logic, srv, rows));   // the attachments of the newest tickets are in before tickets count as loaded
   watchSettings(logic, srv);
 }
 
