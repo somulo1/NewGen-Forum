@@ -61,14 +61,20 @@ func (a *API) deliver(ctx context.Context, to, subject, text, html string) error
 	case "brevo":
 		url = "https://api.brevo.com/v3/smtp/email"
 		headers["api-key"] = a.Key
-		payload = map[string]any{"sender": map[string]string{"name": a.FromName, "email": a.From}, "to": []map[string]string{{"email": to}}, "subject": subject, "textContent": text}
+		payload = map[string]any{"sender": map[string]string{"name": a.FromName, "email": a.From}, "to": []map[string]string{{"email": to}}, "subject": subject, "textContent": text, "headers": map[string]string{"Auto-Submitted": "auto-generated", "Precedence": "bulk", "X-Auto-Response-Suppress": "All"}}
+		if r := strings.TrimSpace(os.Getenv("HUB_MAIL_REPLY_TO")); r != "" {
+			payload["replyTo"] = map[string]string{"email": r}
+		}
 		if html != "" {
 			payload["htmlContent"] = html
 		}
 	case "resend":
 		url = "https://api.resend.com/emails"
 		headers["Authorization"] = "Bearer " + a.Key
-		payload = map[string]any{"from": a.FromName + " <" + a.From + ">", "to": []string{to}, "subject": subject, "text": text}
+		payload = map[string]any{"from": a.FromName + " <" + a.From + ">", "to": []string{to}, "subject": subject, "text": text, "headers": map[string]string{"Auto-Submitted": "auto-generated", "Precedence": "bulk", "X-Auto-Response-Suppress": "All"}}
+		if r := strings.TrimSpace(os.Getenv("HUB_MAIL_REPLY_TO")); r != "" {
+			payload["reply_to"] = r
+		}
 		if html != "" {
 			payload["html"] = html
 		}
