@@ -1,0 +1,103 @@
+package chat_test
+
+import (
+	"bytes"
+	"context"
+	"io"
+	"net/http"
+	"testing"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+
+	"hub/internal/e2ee"
+	"hub/internal/modules/chat"
+	"hub/internal/testkit"
+)
+
+func putBytes(t *testing.T, e *testkit.Env, method, path string, body []byte, token string) (int, []byte) {
+	t.Helper()
+	req, _ := http.NewRequest(method, e.Srv.URL+"/v1"+path, bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("X-Forwarded-For", "10.8."+uuid.NewString()[:2]+".9")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	b, _ := io.ReadAll(res.Body)
+	return res.StatusCode, b
+}
+
+// A deleted post takes its pictures with it at once, and a moment past its 24 hours is erased for good by the sweep, files included.
+func TestDeletedPostsAndExpiredMomentsLeaveNoFilesBehind(t *testing.T) {
+	e := testkit.New(t)
+	ownerU, slug := e.NewOrg("Olivia Owner")
+	org := e.OrgID(slug)
+	o := e.Owner(ownerU)
+	o.Register(e)
+	key, _ := e2ee.NewConversationKey()
+	conv := e.MustDo(201, "POST", "/conversations", map[string]any{"kind": "forum", "name": "Team", "members": []string{o.Person}, "keys": o.WrapFor(e, key, 1, o.Person)}, ownerU.Access)["id"].(string)
+	chats := chat.New(e.A)
+
+	upload := func() string {
+		fid := uuid.Must(uuid.NewV7()).String()
+		e.MustDo(201, "POST", "/folders/"+conv+"/files", map[string]any{"id": fid, "epoch": 1, "device": o.DevID, "envelope": o.Seal(org, conv, fid, 1, key, `{"name":"pic.png"}`)}, o.Access)
+		if code, _ := putBytes(t, e, "PUT", "/files/"+fid+"/content", []byte("sealed picture bytes"), o.Access); code != 200 {
+			t.Fatalf("upload: %d", code)
+		}
+		return fid
+	}
+	send := func(typ, fid string) string {
+		id := uuid.Must(uuid.NewV7()).String()
+		e.MustDo(201, "POST", "/conversations/"+conv+"/messages", map[string]any{"id": id, "type": typ, "epoch": 1, "device": o.DevID, "envelope": o.Seal(org, conv, id, 1, key, "x"), "files": []string{fid}}, o.Access)
+		return id
+	}
+	status := func(fid string) string {
+		var st string
+		_ = e.A.DB.WithOrg(context.Background(), uuid.MustParse(org), func(tx pgx.Tx) error {
+			return tx.QueryRow(context.Background(), `select status from hub.files where id=$1`, fid).Scan(&st)
+		})
+		return st
+	}
+	gone := func(fid string) bool {
+		code, _ := putBytes(t, e, "GET", "/files/"+fid+"/content", nil, o.Access)
+		return code == 404 && status(fid) == "deleted"
+	}
+	// before: the file is there; deleting the post removes it at once (no waiting for the worker)
+	f1 := upload()
+	post := send("post", f1)
+	if code, _ := putBytes(t, e, "GET", "/files/"+f1+"/content", nil, o.Access); code != 200 {
+		t.Fatalf("file unreadable before delete: %d", code)
+	}
+	e.MustDo(204, "DELETE", "/conversations/"+conv+"/messages/"+post, nil, o.Access)
+	if !gone(f1) {
+		t.Fatal("the post's file is still there after the post was deleted")
+	}
+	// a fresh moment stays; one older than 24 hours is hidden, then erased by the sweep
+	f2 := upload()
+	moment := send("moment", f2)
+	if n, err := chats.ExpireMoments(context.Background()); err != nil || status(f2) == "deleted" {
+		t.Fatalf("a fresh moment was erased: n=%d err=%v", n, err)
+	}
+	root, err := pgx.Connect(context.Background(), "postgres://hubadmin@/hub?host=/tmp&port=5433")
+	if err != nil {
+		t.Skip("superuser not reachable: ", err)
+	}
+	defer root.Close(context.Background())
+	_, _ = root.Exec(context.Background(), "set session_replication_role = replica")
+	if _, err := root.Exec(context.Background(), `update hub.messages set created_at = now() - interval '25 hours' where id=$1`, moment); err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range e.MustDo(200, "GET", "/conversations/"+conv+"/messages", nil, o.Access)["messages"].([]any) {
+		if m.(map[string]any)["id"] == moment {
+			t.Fatal("an expired moment is still listed")
+		}
+	}
+	if n, err := chats.ExpireMoments(context.Background()); err != nil || n < 1 {
+		t.Fatalf("sweep: n=%d err=%v", n, err)
+	}
+	if !gone(f2) {
+		t.Fatal("the moment's file is still there after the sweep")
+	}
+}

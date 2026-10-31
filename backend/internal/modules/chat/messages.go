@@ -38,12 +38,13 @@ type Message struct {
 }
 
 type SendIn struct {
-	ID       uuid.UUID  `json:"id"` // chosen by the sender: it is part of what the message is cryptographically bound to
-	Epoch    int        `json:"epoch"`
-	Device   uuid.UUID  `json:"device"`
-	Envelope string     `json:"envelope"`
-	Type     string     `json:"type"`
-	ReplyTo  *uuid.UUID `json:"reply_to"`
+	ID       uuid.UUID   `json:"id"` // chosen by the sender: it is part of what the message is cryptographically bound to
+	Epoch    int         `json:"epoch"`
+	Device   uuid.UUID   `json:"device"`
+	Envelope string      `json:"envelope"`
+	Type     string      `json:"type"`
+	ReplyTo  *uuid.UUID  `json:"reply_to"`
+	Files    []uuid.UUID `json:"files"` // the uploaded files this message carries, so deleting it erases them too
 }
 
 var typeRe = regexp.MustCompile(`^[a-z][a-z_]{1,19}$`)
@@ -109,6 +110,9 @@ func (s *Service) Send(ctx context.Context, p *tenant.Principal, conv uuid.UUID,
 		if err := PostMessage(ctx, tx, s.A, Posted{Org: p.Org, Conversation: conv, ID: in.ID, Account: p.Account, Person: p.Person, Device: in.Device, Epoch: epoch, Envelope: env, Type: in.Type, ReplyTo: in.ReplyTo}); err != nil {
 			return err
 		}
+		if err := linkFiles(ctx, tx, p.Org, in.ID, p.Person, in.Files); err != nil {
+			return err
+		}
 		pid := p.Person
 		out = &Message{ID: in.ID, Conversation: conv, SenderAccount: p.Account, SenderPerson: &pid, SenderDevice: &in.Device, SenderName: p.Name, Epoch: epoch, Envelope: in.Envelope, Type: in.Type, ReplyTo: in.ReplyTo, CreatedAt: time.Now().UTC()}
 		return nil
@@ -148,7 +152,8 @@ func (s *Service) History(ctx context.Context, p *tenant.Principal, conv uuid.UU
 		cleared := s.clearedAt(ctx, tx, conv, p.Account)
 		q := `select m.id, m.sender_account, m.sender_person, m.sender_device, coalesce(pe.first_name || ' ' || pe.last_name, ''), m.epoch, m.ciphertext, m.content_type, m.reply_to, m.created_at, m.deleted_at is not null, m.ver, m.mac, hub.canon(m)
 			from hub.messages m left join hub.people pe on pe.id = m.sender_person
-			where m.org_id=$1 and m.conversation_id=$2 and m.epoch >= $3 and m.created_at > $4::timestamptz`
+			where m.org_id=$1 and m.conversation_id=$2 and m.epoch >= $3 and m.created_at > $4::timestamptz
+			and not (m.content_type='moment' and m.created_at < now() - interval '24 hours')`
 		args := []any{p.Org, conv, first, cleared}
 		if before != nil {
 			q += ` and m.id < $5`
@@ -239,7 +244,7 @@ func (s *Service) Changes(ctx context.Context, p *tenant.Principal, conv uuid.UU
 			select m.id, m.sender_account, m.sender_person, m.sender_device, coalesce(pe.first_name || ' ' || pe.last_name, ''), m.epoch, m.ciphertext, m.content_type, m.reply_to, m.created_at, m.deleted_at is not null, r.at, m.ver, m.mac, hub.canon(m)
 			  from ranked r join hub.messages m on m.org_id=$1 and m.id=r.id
 			  left join hub.people pe on pe.id = m.sender_person
-			 where (r.at, r.id) > ($3::timestamptz, $5::uuid)
+			 where (r.at, r.id) > ($3::timestamptz, $5::uuid) and not (m.content_type='moment' and m.created_at < now() - interval '24 hours')
 			 order by r.at, r.id
 			 limit `+itoa(limit+1), p.Org, conv, since, first, afterID, s.clearedAt(ctx, tx, conv, p.Account))
 		if err != nil {
@@ -328,6 +333,10 @@ func (s *Service) Delete(ctx context.Context, p *tenant.Principal, conv, id uuid
 		if err := s.A.Sign.Seal(ctx, tx, "messages", "id=$1 and org_id=$2", id, p.Org); err != nil {
 			return err
 		}
+		// what hangs on it goes too: comments, likes, and every picture or video it carried (erased from storage, not just hidden)
+		if err := s.eraseAround(ctx, tx, p.Org, []uuid.UUID{id}); err != nil {
+			return err
+		}
 		if sender != p.Account {
 			return s.A.Audit(ctx, tx, p.Org, &p.Person, p.Name, "Removed a message", "Forums", p.IP, map[string]any{"conversation": conv, "message": id})
 		}
@@ -336,6 +345,7 @@ func (s *Service) Delete(ctx context.Context, p *tenant.Principal, conv, id uuid
 	if err != nil {
 		return err
 	}
+	s.purge(ctx)
 	d, _ := json.Marshal(map[string]any{"id": id, "conversation": conv})
 	s.A.Publish(ctx, realtime.Event{Type: "message.deleted", Channel: realtime.ConvChannel(conv), Org: p.Org.String(), Actor: p.Person.String(), Data: d})
 	return nil

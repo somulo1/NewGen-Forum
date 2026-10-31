@@ -25,7 +25,11 @@ import (
 	"hub/internal/tenant"
 )
 
-type Service struct{ A *app.App }
+type Service struct {
+	A *app.App
+	// Purge erases queued file contents from storage (set where the file service exists); nil leaves it to the worker.
+	Purge func(context.Context)
+}
 
 func New(a *app.App) *Service { return &Service{A: a} }
 

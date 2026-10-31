@@ -125,7 +125,7 @@ function build(logic, srv, items) {
       tags: pl.tags || [], poster: pl.poster || undefined
     };
   });
-  const moments = items.filter((x) => x.m.type === 'moment').reverse().map(({ m, pl }) => {
+  const moments = items.filter((x) => x.m.type === 'moment' && Date.now() - new Date(x.m.created_at).getTime() < 24 * 3600 * 1000).reverse().map(({ m, pl }) => {
     const names = (kind) => reacts(m.id, kind).map((x) => { if (x.m.sender_account === me) srv.wallMine[kind + ':' + m.id] = x.m.id; return who(x.m); });
     const media = pl.media ? (pl.media.fileId ? { ...pl.media, url: '' } : pl.media) : undefined;
     if (media && media.fileId) mediaToLoad.push(media);
@@ -168,10 +168,10 @@ export async function ensureWall(srv) {
   return wall.id;
 }
 
-async function send(srv, type, payload, replyTo) {
+async function send(srv, type, payload, replyTo, fileIds) {
   await ensureWall(srv);
   const sealed = await srv.vault.seal(srv.wallId, payload);
-  return srv.request('POST', `/conversations/${srv.wallId}/messages`, { ...sealed, type, ...(replyTo ? { reply_to: replyTo } : {}) });
+  return srv.request('POST', `/conversations/${srv.wallId}/messages`, { ...sealed, type, ...(replyTo ? { reply_to: replyTo } : {}), ...(fileIds && fileIds.length ? { files: fileIds } : {}) });
 }
 const del = (srv, id) => srv.request('DELETE', `/conversations/${srv.wallId}/messages/${id}`);
 
@@ -182,7 +182,7 @@ export async function post(logic, srv, p) {
   await ensureWall(srv);
   const media = [];
   media.push(...await Promise.all((p.files || []).map((f) => files.upload(srv, srv.wallId, f))));   // all at once
-  await send(srv, 'post', { text: p.text, department: p.audience && p.audience !== 'Everyone' ? p.audience : (logic.state.meInfo || {}).dept || '', postBg: p.postBg || undefined, media: media.map(({ fileId, name, meta, type, isImg, isVideo, key }) => ({ fileId, name, meta, type, isImg, isVideo, key })), poll: p.poll ? p.poll.map((label, i) => ({ id: 'o' + i, label })) : undefined, tags: p.tags || undefined, poster: p.poster || undefined });
+  await send(srv, 'post', { text: p.text, department: p.audience && p.audience !== 'Everyone' ? p.audience : (logic.state.meInfo || {}).dept || '', postBg: p.postBg || undefined, media: media.map(({ fileId, name, meta, type, isImg, isVideo, key }) => ({ fileId, name, meta, type, isImg, isVideo, key })), poll: p.poll ? p.poll.map((label, i) => ({ id: 'o' + i, label })) : undefined, tags: p.tags || undefined, poster: p.poster || undefined }, undefined, media.map((f) => f.fileId));
   if (p.text && p.text.indexOf('@') !== -1) mentions.tell(srv, 'wall', '', mentions.names(srv, p.text).filter((d) => !(p.tags || []).includes(d.name)));
   if ((p.tags || []).length) mentions.tell(srv, 'wall', '', (p.tags || []).map((n) => [...srv.dirByUid.values()].find((d) => d.name === n)).filter(Boolean));
   await load(logic, srv);
@@ -235,6 +235,6 @@ export async function shared(logic, srv, postId, where) {
 export async function addMoment(logic, srv, m) {
   let media;
   if (m.file) { const f = await files.upload(srv, srv.wallId, m.file); media = { fileId: f.fileId, name: f.name, type: f.type, isImg: f.isImg, isVideo: f.isVideo, key: f.key }; }
-  await send(srv, 'moment', { caption: m.caption, bg: m.bg, media });
+  await send(srv, 'moment', { caption: m.caption, bg: m.bg, media }, undefined, media ? [media.fileId] : []);
   await load(logic, srv);
 }
