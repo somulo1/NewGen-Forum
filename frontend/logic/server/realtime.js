@@ -47,7 +47,7 @@ export function connectRealtime(srv) {
   };
   rt.sub = (conv) => { if (rt.convs.has(conv)) return; rt.convs.add(conv); send({ op: 'sub', conv }); };
   rt.unsub = (conv) => { rt.convs.delete(conv); send({ op: 'unsub', conv }); };
-  rt.typing = (conv) => send({ op: 'typing', conv });
+  rt.typing = (conv, on = true) => send(on ? { op: 'typing', conv } : { op: 'typing', conv, on: false });
   rt.close = () => { rt.closed = true; clearTimeout(rt.timer); clearInterval(rt.ping); if (rt.ws) rt.ws.close(); };
   open();
   return rt;
