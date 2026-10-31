@@ -264,8 +264,8 @@ func TestEncryptedForumLifecycle(t *testing.T) {
 	// Cy is added: gets the current key only, and cannot see the history from before
 	e.MustDo(200, "POST", "/conversations/"+cid+"/members", map[string]any{"device": o.devID, "people": []string{c.person}, "keys": wrapFor(t, e, o, key2, 2, cid, c.person)}, owner.Access)
 	ch := e.MustDo(200, "GET", "/conversations/"+cid+"/messages", nil, c.Access)["messages"].([]any)
-	if len(ch) != 1 {
-		t.Fatalf("new member sees %d messages, want only the 1 after joining", len(ch))
+	if len(ch) != 0 {
+		t.Fatalf("new member sees %d messages sent before they joined, want none", len(ch))
 	}
 	if c.readKey(t, e, cid, 1) != nil {
 		t.Fatal("new member received the old key")

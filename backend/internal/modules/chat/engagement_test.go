@@ -97,7 +97,7 @@ func TestLikesAndVotesAreOnePerPersonAndTamperProof(t *testing.T) {
 	}
 	defer root.Close(context.Background())
 	_, _ = root.Exec(context.Background(), "set session_replication_role = replica")
-	if _, err := root.Exec(context.Background(), `update hub.messages set created_at = created_at - interval '1 day' where id=$1`, like); err != nil {
+	if _, err := root.Exec(context.Background(), `update hub.messages set created_at = created_at + interval '1 minute' where id=$1`, like); err != nil {
 		t.Skip("cannot simulate tampering: ", err)
 	}
 	// the like is hidden from everyone reading the conversation...
