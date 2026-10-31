@@ -8,6 +8,7 @@
 <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px">
 <span :style="`padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 700; background: ${commView.typeColor}22; color: ${commView.typeColor}`">{{ commView.type }}</span>
 <span :style="`padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 700; background: ${commView.statusColor}22; color: ${commView.statusColor}`">{{ commView.status }}</span>
+<button v-if="commView.canRepost" type="button" :disabled="commView.reposting" @click="commView.repost" style="margin-left: auto; height: 34px; padding: 0 16px; border-radius: 17px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer; font-size: 13px">{{ commView.reposting ? 'Reposting…' : '↻ Repost' }}</button>
 <span style="font-family: 'Space Grotesk', sans-serif; font-size: 13px; color: var(--k-9DB0A6,#9DB0A6)">{{ commView.ref }}</span>
 </div>
 <h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 30px; letter-spacing: -0.02em; line-height: 1.2; overflow-wrap: anywhere">{{ commView.title }}</h1>

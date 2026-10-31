@@ -194,3 +194,57 @@ func TestAnnouncementSentToAForumReachesItsMembers(t *testing.T) {
 		t.Fatal("the forum's member cannot find the announcement in the forum")
 	}
 }
+
+// Reposting needs the page's "Repost" right, only a published item can be reposted, and only into places it went to before.
+func TestRepostGoesBackToTheSamePlacesForPeopleWithTheRight(t *testing.T) {
+	e := testkit.New(t)
+	ownerU, slug := e.NewOrg("Olivia Owner")
+	org := e.OrgID(slug)
+	o := e.Owner(ownerU)
+	staff := e.Join(ownerU, slug, "Sam", "staff")
+	for _, m := range []*testkit.Member{o, staff} {
+		m.Register(e)
+	}
+	e.MustDo(204, "PUT", "/approvals/flows/f10", map[string]any{"levels": 0}, ownerU.Access)
+	key, _ := e2ee.NewConversationKey()
+	mk := func(name string) string {
+		return e.MustDo(201, "POST", "/conversations", map[string]any{"kind": "forum", "name": name, "members": []string{staff.Person}, "keys": o.WrapFor(e, key, 1, o.Person, staff.Person)}, ownerU.Access)["id"].(string)
+	}
+	went, other := mk("Kubwa"), mk("Other")
+	send := func(m *testkit.Member, conv string, repostOf string, want int) map[string]any {
+		id := uuid.Must(uuid.NewV7()).String()
+		body := map[string]any{"type": "Job post", "conversation": conv, "message": id, "epoch": 1, "device": m.DevID, "envelope": m.Seal(org, conv, id, 1, key, `{"title":"Driver"}`)}
+		if repostOf != "" {
+			body["repost_of"] = repostOf
+		}
+		return e.MustDo(want, "POST", "/comms", body, m.Access)
+	}
+	orig := send(o, went, "", 201)["comm"].(map[string]any)["id"].(string)
+
+	pl := e.MustDo(200, "GET", "/comms/"+orig+"/places", nil, ownerU.Access)["places"].([]any)
+	if len(pl) != 1 || pl[0].(map[string]any)["conversation"] != went || pl[0].(map[string]any)["member"] != true {
+		t.Fatalf("places: %v", pl)
+	}
+	// nobody without the right can see the places or repost
+	if code, _ := e.Do("GET", "/comms/"+orig+"/places", nil, staff.Access); code != 403 {
+		t.Fatalf("places without the right: %d", code)
+	}
+	id := uuid.Must(uuid.NewV7()).String()
+	if code, _ := e.Do("POST", "/comms", map[string]any{"type": "Job post", "conversation": went, "message": id, "epoch": 1, "device": staff.DevID, "envelope": staff.Seal(org, went, id, 1, key, `{"title":"x"}`), "repost_of": orig}, staff.Access); code != 403 {
+		t.Fatalf("repost without the right: %d", code)
+	}
+	// with the right: back into the place it went to (a second copy); never into another place
+	send(o, went, orig, 201)
+	if code, _ := e.Do("POST", "/comms", map[string]any{"type": "Job post", "conversation": other, "message": uuid.NewString(), "epoch": 1, "device": o.DevID, "envelope": "x", "repost_of": orig}, ownerU.Access); code == 201 {
+		t.Fatalf("reposted into a place it never went to")
+	}
+	n := 0
+	for _, m := range e.MustDo(200, "GET", "/conversations/"+went+"/messages?limit=50", nil, staff.Access)["messages"].([]any) {
+		if m.(map[string]any)["type"] == "post" {
+			n++
+		}
+	}
+	if n != 2 {
+		t.Fatalf("the forum holds %d copies, want 2", n)
+	}
+}
