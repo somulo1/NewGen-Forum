@@ -21,8 +21,17 @@ import (
 // organizations were made before the catalog was stored per organization).
 func (s *Service) ensureCatalog(ctx context.Context, tx pgx.Tx, org uuid.UUID) error {
 	ok, err := access.Installed(ctx, tx)
-	if err != nil || ok {
+	if err != nil {
 		return err
+	}
+	if ok {
+		// rights added to the starting list after an organization was made (the Repost button of published communications)
+		tag, err := tx.Exec(ctx, `insert into hub.rights (org_id, module, name, label, kind, sort, builtin)
+			select $1, m.key, 'Repost', 'Repost', 'create', 90, true from hub.modules m where m.key = any($2) on conflict do nothing`, org, []string{"announcements", "memos", "newsletter", "jobposts"})
+		if err != nil || tag.RowsAffected() == 0 {
+			return err
+		}
+		return s.A.Sign.Seal(ctx, tx, "rights", "org_id=$1 and name='Repost'", org)
 	}
 	return access.Install(ctx, tx, org, func(table, where string, args ...any) error { return s.A.Sign.Seal(ctx, tx, table, where, args...) })
 }

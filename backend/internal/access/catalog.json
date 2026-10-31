@@ -23,6 +23,7 @@
     "See who read",
     "Export",
     "View insights",
+    "Repost",
     "Approve level 1",
     "Approve level 2",
     "Approve level 3"
@@ -224,6 +225,7 @@
     "Send memos",
     "Export",
     "View insights",
+    "Repost",
     "Approve level 1",
     "Approve level 2",
     "Approve level 3"
@@ -237,7 +239,8 @@
     "Read",
     "Publish newsletters",
     "Export",
-    "View insights"
+    "View insights",
+    "Repost"
    ]
   },
   {
@@ -248,6 +251,7 @@
     "Read",
     "Post job posts",
     "View insights",
+    "Repost",
     "Export"
    ]
   },

@@ -98,6 +98,17 @@ export function buildComms(ctx) {
   };
   const commNew = commTypes.map((t, i) => ({ label: 'New ' + t.toLowerCase(), run: () => openCm(t), style: 'height:40px;padding:0 16px;border-radius:20px;font-weight:600;cursor:pointer;' + (i === 0 ? 'border:0;background:#B8F36B;color:#0F1714' : 'border:1px solid var(--k-2A3832,#2A3832);background:transparent;color:var(--k-E8EFEA,#E8EFEA)') }));
   const canInsights = (type) => !!this.srv && can(MODULE_OF[type], 'View insights');
+  // Repost: post a published item again to the places it went to, for people given the page's "Repost" right
+  const canRepost = (c) => !!this.srv && c.status === 'Published' && can(MODULE_OF[c.type], 'Repost');
+  const repostNow = (c) => {
+    if (this._reposting) return;
+    if (typeof window !== 'undefined' && !window.confirm('Repost "' + c.title + '" to ' + ((c.to || []).join(', ') || 'the places it went to') + '? Everyone there gets it again.')) return;
+    this._reposting = true; this.forceUpdate();
+    commsW.repost(this, this.srv, c)
+      .then((r) => this.notify(r.pending >= r.sent ? c.type + ' reposted. It reaches ' + (r.sent === 1 ? 'its place' : 'all ' + r.sent + ' places') + ' once approved.' : c.type + ' reposted to ' + r.sent + (r.sent === 1 ? ' place' : ' places') + (r.skipped ? ' (' + r.skipped + ' you are not a member of were skipped)' : '') + '.', r.pending ? '#FFB86B' : '#B8F36B'))
+      .catch((e) => this.notify((e && e.message) || 'Could not repost it.', '#FF9B8A'))
+      .finally(() => { this._reposting = false; this.forceUpdate(); });
+  };
   const tab = s.commTab && commTypes.includes(s.commTab) ? s.commTab : '';
   const commsTabs = [{ label: 'All', type: '' }].concat(commTypes.map((t) => ({ label: t === 'Job post' ? 'Job posts' : t + 's', type: t }))).map((t) => ({ ...t, count: s.comms.filter((c) => !t.type ? commTypes.includes(c.type) : c.type === t.type).length, on: tab === t.type, pick: () => this.setState({ commTab: t.type }),
     style: 'height:40px;padding:0 16px;border:0;border-bottom:3px solid ' + (tab === t.type ? '#B8F36B' : 'transparent') + ';background:transparent;color:' + (tab === t.type ? 'var(--k-E8EFEA,#E8EFEA)' : 'var(--k-9DB0A6,#9DB0A6)') + ';font-weight:600;font-size:14px;cursor:pointer' }));
@@ -107,7 +118,7 @@ export function buildComms(ctx) {
     cols: [{ label: 'Type', filter: 'select' }, { label: 'Title', filter: 'text' }, { label: 'Sent to', filter: 'text' }, { label: 'From', filter: 'select' }, { label: 'Date', filter: 'date' }, { label: 'Status', filter: 'select' }, { label: '', align: 'right' }],
     rows: commsShown.map((c) => ({ cells: [C.b(c.type, commColor[c.type]), C.t(c.title, { strong: true, sub: c.summary || c.body }), C.t(c.to.length > 2 ? c.to.slice(0, 2).join(', ') + ' +' + (c.to.length - 2) + ' more' : c.to.join(', '), { fv: c.to.join(', ') }), C.t(c.by === 'Samwel Okoth Omulo' ? 'You' : c.by), C.t(fmtDay(c.date), { fv: c.date, nowrap: true }),
       C.b(c.status, c.status === 'Published' ? '#B8F36B' : '#FFB86B'),
-      C.a([{ label: 'View', kind: 'primary', run: () => openComm(c) }].concat(canInsights(c.type) && c.status === 'Published' ? [{ label: 'Insights', run: () => openComm(c) }] : []).concat(c.status === 'Published' ? [] : [{ label: 'See approval', run: () => this.setState({ section: 'approvals' }) }]))] })) };
+      C.a([{ label: 'View', kind: 'primary', run: () => openComm(c) }].concat(canRepost(c) ? [{ label: 'Repost', run: () => repostNow(c) }] : []).concat(canInsights(c.type) && c.status === 'Published' ? [{ label: 'Insights', run: () => openComm(c) }] : []).concat(c.status === 'Published' ? [] : [{ label: 'See approval', run: () => this.setState({ section: 'approvals' }) }]))] })) };
   const loadInsights = (c) => {
     this.setState({ commIns: { loading: true, places: [], err: '' } });
     commsW.insights(this.srv, c).then((places) => this.setState({ commIns: { loading: false, places, err: '' } })).catch((e) => this.setState({ commIns: { loading: false, places: [], err: e.message || 'Could not load.' } }));
@@ -122,7 +133,7 @@ export function buildComms(ctx) {
     fields: (FORMS[oc.type] || []).filter((f) => (oc.fields || {})[f.key]).map((f) => ({ label: f.label, value: f.kind === 'date' ? fmtDay(oc.fields[f.key]) : oc.fields[f.key] })),
     files: (oc.files || []).map((f) => ({ name: f.name, meta: f.meta || '', open: () => commsW.openFile(this.srv, f).catch((e) => this.notify(e.message || 'Could not open it.', '#FF9B8A')) })),
     hasFiles: (oc.files || []).length > 0,
-    canInsights: canInsights(oc.type) && oc.status === 'Published', showStats: canInsights(oc.type), isRead: s.commView !== 'insights', isInsights: s.commView === 'insights',
+    canInsights: canInsights(oc.type) && oc.status === 'Published', showStats: canInsights(oc.type), canRepost: canRepost(oc), repost: () => repostNow(oc), reposting: !!this._reposting, isRead: s.commView !== 'insights', isInsights: s.commView === 'insights',
     showRead: () => this.setState({ commView: 'read' }), showInsights: () => { this.setState({ commView: 'insights' }); loadInsights(oc); },
     from: oc.by === 'Samwel Okoth Omulo' ? 'You' : oc.by, byDept: oc.byDept, hasDept: !!oc.byDept, dateLabel: fmtDay(oc.date), readPct: oc.read + '%',
     ins: s.commIns || { loading: false, places: [], err: '' }, hasPlaces: !!(s.commIns && s.commIns.places.length),

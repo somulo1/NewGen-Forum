@@ -65,6 +65,9 @@ type SendIn struct {
 	Envelope     string    `json:"envelope"`
 	Details      *Details  `json:"details"` // what emails may say about it (written into emails, never stored on its own)
 	Batch        uuid.UUID `json:"batch"`   // optional: the sends made together (one per place) share one
+	// RepostOf is the published communication this one posts again to a place it went to before. It needs the page's "Repost"
+	// right instead of the right to send a new one.
+	RepostOf uuid.UUID `json:"repost_of"`
 }
 
 func (s *Service) Send(ctx context.Context, p *tenant.Principal, in SendIn) (*Comm, *approvals.Request, error) {
@@ -82,7 +85,20 @@ func (s *Service) Send(ctx context.Context, p *tenant.Principal, in SendIn) (*Co
 	var out *Comm
 	var req *approvals.Request
 	err = s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
-		if err := authz.Require(ctx, tx, p.Person, right[0], right[1]); err != nil {
+		if in.RepostOf != uuid.Nil {
+			// posting an item again: its page's Repost right, only for a published item of the same kind, and only into a place it went to
+			if err := authz.Require(ctx, tx, p.Person, right[0], "Repost"); err != nil {
+				return err
+			}
+			var ok bool
+			if err := tx.QueryRow(ctx, `select exists (select 1 from hub.comms o where o.id=$1 and o.status='Published' and o.type=$2
+				and (o.conversation_id=$3 or (o.batch is not null and exists (select 1 from hub.comms b where b.batch=o.batch and b.conversation_id=$3))))`, in.RepostOf, in.Type, in.Conversation).Scan(&ok); err != nil {
+				return err
+			}
+			if !ok {
+				return httpx.Err(409, "not_a_place", "That item was not posted there, so it cannot be reposted there.")
+			}
+		} else if err := authz.Require(ctx, tx, p.Person, right[0], right[1]); err != nil {
 			return err
 		}
 		var kind string
@@ -729,6 +745,18 @@ func (s *Service) Private(r chi.Router) {
 		w.WriteHeader(204)
 		return nil
 	}))
+	r.Get("/comms/{id}/places", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
+		id, err := uuid.Parse(chi.URLParam(r, "id"))
+		if err != nil {
+			return httpx.ErrNotFound
+		}
+		l, err := s.RepostPlaces(r.Context(), p, id)
+		if err != nil {
+			return err
+		}
+		httpx.JSON(w, 200, map[string]any{"places": l})
+		return nil
+	}))
 	r.Get("/comms/{id}/insights", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
 		id, err := uuid.Parse(chi.URLParam(r, "id"))
 		if err != nil {
@@ -802,6 +830,52 @@ func (s *Service) Private(r chi.Router) {
 		httpx.JSON(w, 200, map[string]any{"awards": l, "cycle": cyc})
 		return nil
 	}))
+}
+
+// ---- repost ----
+
+type Place struct {
+	Conversation uuid.UUID `json:"conversation"`
+	Kind         string    `json:"kind"` // wall | forum
+	Name         string    `json:"name"`
+	Member       bool      `json:"member"` // the caller can post there
+}
+
+// RepostPlaces lists where a published communication (and the copies sent with it) went, for someone who may repost it. The
+// names of walls and forums are sealed, so the screen names them; this gives their ids and whether the caller is in them.
+func (s *Service) RepostPlaces(ctx context.Context, p *tenant.Principal, id uuid.UUID) ([]Place, error) {
+	out := []Place{}
+	err := s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
+		var typ, status string
+		var batch *uuid.UUID
+		if err := tx.QueryRow(ctx, `select type, status, batch from hub.comms where id=$1`, id).Scan(&typ, &status, &batch); err != nil {
+			return httpx.ErrNotFound
+		}
+		r := insightRight[typ]
+		if err := authz.Require(ctx, tx, p.Person, r[0], "Repost"); err != nil {
+			return err
+		}
+		if status != "Published" {
+			return httpx.Err(409, "not_published", "Only a published item can be reposted.")
+		}
+		rs, err := tx.Query(ctx, `select distinct on (c.conversation_id) c.conversation_id, cv.kind, case when cv.kind = 'wall' and cv.audience = 'org' then 'Community wall' when cv.kind = 'wall' then initcap(coalesce(cv.audience, '')) || ' wall' else '' end,
+				exists (select 1 from hub.conversation_members m where m.conversation_id = c.conversation_id and m.account_id = $3 and m.left_at is null)
+			from hub.comms c join hub.conversations cv on cv.id = c.conversation_id
+			where (c.id = $1 or ($2::uuid is not null and c.batch = $2)) and c.status = 'Published' order by c.conversation_id`, id, batch, p.Account)
+		if err != nil {
+			return err
+		}
+		defer rs.Close()
+		for rs.Next() {
+			var x Place
+			if err := rs.Scan(&x.Conversation, &x.Kind, &x.Name, &x.Member); err != nil {
+				return err
+			}
+			out = append(out, x)
+		}
+		return rs.Err()
+	})
+	return out, err
 }
 
 // ---- interaction insights ----

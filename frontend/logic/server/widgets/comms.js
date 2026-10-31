@@ -77,6 +77,33 @@ export async function openFile(srv, f) {
 }
 
 // c = { type, title, summary, body, fields, files: [File], wall, forum (server conversation id or ''), sel: { 'departments:Finance': true } }
+// Posts a published item again to the places it went to before. Each place gets a fresh copy sealed for it (with its own copy of
+// the files), and only places the person belongs to can be posted into. It follows the same approval rules as a new item.
+export async function repost(logic, srv, c) {
+  const { places } = await srv.request('GET', `/comms/${c.uid}/places`);
+  const mine = places.filter((p) => p.member);
+  if (!mine.length) throw new Error('You are not a member of any place it went to, so it cannot be reposted by you.');
+  // the files are opened once here and uploaded again for each place
+  const blobs = await Promise.all((c.files || []).map(async (f) => { const b = await (await fetch(await files.openUrl(srv, f))).blob(); return new File([b], f.name, { type: f.type || b.type }); }));
+  const batch = newId();
+  let sent = 0, pending = 0;
+  const failed = [];
+  for (const p of mine) {
+    try {
+      const refs = [];
+      for (const f of blobs) { const u = await files.upload(srv, p.conversation, f); refs.push({ fileId: u.fileId, name: u.name, meta: u.meta, type: u.type, isImg: u.isImg, key: u.key }); }
+      const sealed = await srv.vault.seal(p.conversation, { title: c.title, summary: c.summary || '', body: c.body, fields: c.fields || {}, files: refs, to: c.to || [], type: c.type, from: srv.me.name, reposted: true }, newId());
+      const details = srv.emailDetails === false ? undefined : { title: c.title, summary: c.summary || '', body: c.body || '', fields: Object.entries(c.fields || {}).map(([k, v]) => [labelOf(c.type, k), String(v)]), files: (c.files || []).map((f) => f.name) };
+      const res = await srv.request('POST', '/comms', { type: c.type, batch, details, conversation: p.conversation, message: sealed.id, epoch: sealed.epoch, device: sealed.device, envelope: sealed.envelope, repost_of: c.uid });
+      sent++;
+      if (res.approval) pending++;
+    } catch (e) { failed.push((p.name || (p.kind === 'forum' ? 'a forum' : 'a wall')) + ' (' + ((e && e.message) || 'it did not go through') + ')'); }
+  }
+  await load(logic, srv);
+  if (failed.length) throw new Error((sent ? 'Reposted to ' + sent + ', but not to ' : 'Not reposted to ') + failed.join('; ') + '.');
+  return { sent, pending, skipped: places.length - mine.length };
+}
+
 export async function publish(logic, srv, c) {
   const targets = [];
   const to = [];
