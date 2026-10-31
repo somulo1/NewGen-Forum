@@ -148,6 +148,9 @@ export async function connectSfu(ctx, entry, opts = {}) {
   room.on(E.ParticipantDisconnected, (p) => {
     for (const key of [p.identity]) { S.vids.delete(key); media.tracks.delete(key); }
     re(); refreshRoster(ctx);
+    // nobody else is left (a private or forum call): the call ends for me too, at once
+    const cx = ctx.callContext();
+    if ((cx === 'dm' || cx === 'forum') && room.remoteParticipants.size === 0 && logic.state.call) { logic.notify(cx === 'dm' ? 'The call ended.' : 'Everyone else left, so the call ended.', '#7CC4FF'); logic.endCall(); }
   });
   room.on(E.ActiveSpeakersChanged, re);
   room.on(E.TrackMuted, (pub, p) => { if (p.isLocal) syncLocalState(ctx); re(); });
@@ -258,14 +261,23 @@ export async function applySfu(ctx) {
     sendHand(ctx);
     return;
   }
-  try {
-    if (!!s.mic !== lp.isMicrophoneEnabled) await lp.setMicrophoneEnabled(!!s.mic);
-    if (video && !!s.cam !== lp.isCameraEnabled) await lp.setCameraEnabled(!!s.cam);
-    if (video && !!s.sharing !== lp.isScreenShareEnabled) await lp.setScreenShareEnabled(!!s.sharing, { audio: true });
-  } catch (e) {
-    if (video && s.cam) ctx.logic.setState({ cam: false });
-    if (s.sharing) ctx.logic.setState({ sharing: false });
-    if (!lp.isMicrophoneEnabled && s.mic) ctx.logic.notify('Hub cannot use your microphone. Check the browser permission; you can still listen.', '#FFB86B');
+  // Microphone, camera and screen are each tried on their own: one the browser refuses never blocks the others, and never keeps
+  // the person out of the call. Turning one on later asks the browser again, so the person can allow it then.
+  const HOW = ' Allow it in the browser (the lock icon in the address bar), then tap it again.';
+  if (!!s.mic !== lp.isMicrophoneEnabled) {
+    try { await lp.setMicrophoneEnabled(!!s.mic); } catch (e) {
+      ctx.logic.setState({ mic: false });
+      ctx.logic.notify('Hub cannot use your microphone, so you are muted. You can still listen.' + HOW, '#FFB86B');
+    }
+  }
+  if (video && !!s.cam !== lp.isCameraEnabled) {
+    try { await lp.setCameraEnabled(!!s.cam); } catch (e) {
+      ctx.logic.setState({ cam: false });
+      ctx.logic.notify('Hub cannot use your camera, so it is off. People can still see and hear the others.' + HOW, '#FFB86B');
+    }
+  }
+  if (video && !!s.sharing !== lp.isScreenShareEnabled) {
+    try { await lp.setScreenShareEnabled(!!s.sharing, { audio: true }); } catch (e) { ctx.logic.setState({ sharing: false }); }
   }
   const cam = [...lp.videoTrackPublications.values()].find((p) => p.source === 'camera');
   const scr = [...lp.videoTrackPublications.values()].find((p) => p.source === 'screen_share');

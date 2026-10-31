@@ -282,6 +282,70 @@ const sel = `select c.id, c.kind, c.context, c.conversation_id, c.host, h.first_
 	coalesce(extract(epoch from (coalesce(c.ended_at, now()) - c.answered_at))::int, 0)
 	from hub.calls c join hub.people h on h.id = c.host`
 
+// Leave is the caller hanging up (or anyone leaving). If the person who started the call leaves before anyone has answered, the
+// call is over at once: it is marked missed and everyone still being rung is told on the spot, so their phones stop ringing
+// without waiting for the room to notice. If someone has already joined, the call goes on without the caller.
+func (m *Module) Leave(ctx context.Context, p *tenant.Principal, id uuid.UUID) (cancelled bool, err error) {
+	var ended bool
+	err = m.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
+		var host uuid.UUID
+		var status string
+		var answered *time.Time
+		if err := tx.QueryRow(ctx, `select host, status, answered_at from hub.calls where id=$1 for update`, id).Scan(&host, &status, &answered); err != nil {
+			return httpx.ErrNotFound
+		}
+		var member bool
+		if err := tx.QueryRow(ctx, `select exists (select 1 from hub.call_participants where call_id=$1 and person_id=$2)`, id, p.Person).Scan(&member); err != nil || !member {
+			return httpx.ErrNotFound
+		}
+		if _, err := tx.Exec(ctx, `update hub.call_participants set left_at=coalesce(left_at, now()) where call_id=$1 and person_id=$2`, id, p.Person); err != nil {
+			return err
+		}
+		if alone, err := m.endIfAlone(ctx, tx, id); err != nil || alone {
+			ended = alone
+			return err
+		}
+		if host != p.Person || answered != nil || (status != "ringing" && status != "active") {
+			return nil
+		}
+		tag, err := tx.Exec(ctx, `update hub.calls set status='missed', ended_at=now(), `+integrity.Bump+` where id=$1 and status in ('ringing','active') and answered_at is null`, id)
+		if err != nil {
+			return err
+		}
+		if tag.RowsAffected() == 1 {
+			cancelled = true
+			return m.A.Sign.Seal(ctx, tx, "calls", "id=$1", id)
+		}
+		return nil
+	})
+	if err == nil && (cancelled || ended) {
+		go m.tell(p.Org, id, "call.ended", p.Person)
+	}
+	return cancelled, err
+}
+
+// endIfAlone ends an answered private or forum call once only one person is left in it: nobody is there to talk to, so the call is
+// over for them too, and its connection and media are released instead of running on for no one. It returns true when it ended it.
+func (m *Module) endIfAlone(ctx context.Context, tx pgx.Tx, id uuid.UUID) (bool, error) {
+	var kind, status string
+	var answered *time.Time
+	if err := tx.QueryRow(ctx, `select context, status, answered_at from hub.calls where id=$1 for update`, id).Scan(&kind, &status, &answered); err != nil {
+		return false, nil
+	}
+	if (kind != "dm" && kind != "forum") || status != "active" || answered == nil {
+		return false, nil
+	}
+	var n int
+	if err := tx.QueryRow(ctx, `select count(*) from hub.call_participants where call_id=$1 and joined_at is not null and left_at is null`, id).Scan(&n); err != nil || n != 1 {
+		return false, err
+	}
+	tag, err := tx.Exec(ctx, `update hub.calls set status='ended', ended_at=now(), `+integrity.Bump+` where id=$1 and status='active'`, id)
+	if err != nil || tag.RowsAffected() != 1 {
+		return false, err
+	}
+	return true, m.A.Sign.Seal(ctx, tx, "calls", "id=$1", id)
+}
+
 func scan(r pgx.Row) (*Call, error) {
 	c := &Call{}
 	err := r.Scan(&c.ID, &c.Kind, &c.Context, &c.Conversation, &c.Host, &c.HostName, &c.Status, &c.StartedAt, &c.AnsweredAt, &c.EndedAt, &c.Duration)
@@ -395,7 +459,14 @@ func (m *Module) Consume(ctx context.Context) {
 				}
 				return err
 			case "left":
-				_, err := tx.Exec(ctx, `update hub.call_participants set left_at=$3 where call_id=$1 and person_id=$2`, call, person, e.At)
+				if _, err := tx.Exec(ctx, `update hub.call_participants set left_at=$3 where call_id=$1 and person_id=$2`, call, person, e.At); err != nil {
+					return err
+				}
+				// only one person left in a private or forum call: it ends for them too
+				alone, err := m.endIfAlone(ctx, tx, call)
+				if alone {
+					defer m.tell(org, call, "call.ended", person)
+				}
 				return err
 			case "ended":
 				tag, err := tx.Exec(ctx, `update hub.calls set status = case when answered_at is null then 'missed' else 'ended' end, ended_at=coalesce(ended_at,$2), `+integrity.Bump+` where id=$1 and status in ('ringing','active')`, call, e.At)
@@ -472,6 +543,18 @@ func (m *Module) Private(r chi.Router) {
 			return err
 		}
 		httpx.JSON(w, 200, e)
+		return nil
+	}))
+	r.Post("/calls/{id}/leave", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
+		id, err := uuid.Parse(chi.URLParam(r, "id"))
+		if err != nil {
+			return httpx.ErrNotFound
+		}
+		cancelled, err := m.Leave(r.Context(), p, id)
+		if err != nil {
+			return err
+		}
+		httpx.JSON(w, 200, map[string]any{"cancelled": cancelled})
 		return nil
 	}))
 	r.Post("/calls/{id}/decline", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
