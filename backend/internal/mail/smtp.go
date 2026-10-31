@@ -126,7 +126,7 @@ func (s *SMTP) message(to, subject, text, htmlBody string) string {
 		dom = s.From[i+1:]
 	}
 	h := "From: " + from + "\r\nTo: " + to + "\r\nSubject: " + mime.QEncoding.Encode("utf-8", subject) + "\r\nDate: " + time.Now().Format(time.RFC1123Z) +
-		"\r\nMessage-ID: <" + hex.EncodeToString(id) + "@" + dom + ">\r\nMIME-Version: 1.0\r\nAuto-Submitted: auto-generated\r\n"
+		"\r\nMessage-ID: <" + hex.EncodeToString(id) + "@" + dom + ">\r\nMIME-Version: 1.0\r\nAuto-Submitted: auto-generated\r\nPrecedence: bulk\r\nX-Auto-Response-Suppress: All\r\n" + replyToHeader()
 	enc := func(v string) string {
 		b := base64.StdEncoding.EncodeToString([]byte(v))
 		var out strings.Builder
@@ -144,4 +144,16 @@ func (s *SMTP) message(to, subject, text, htmlBody string) string {
 		"--" + bd + "\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: base64\r\n\r\n" + enc(text) +
 		"--" + bd + "\r\nContent-Type: text/html; charset=utf-8\r\nContent-Transfer-Encoding: base64\r\n\r\n" + enc(htmlBody) +
 		"--" + bd + "--\r\n"
+}
+
+// replyToHeader makes "Reply" go to a no-reply address when HUB_MAIL_REPLY_TO is set (for example noreply@your-domain). The
+// address should be one that refuses or discards mail, so a reply bounces instead of reaching anyone. Mail clients cannot be
+// stopped from showing a Reply button, but a reply to a mailbox that does not exist never arrives.
+func replyToHeader() string {
+	if a := strings.TrimSpace(os.Getenv("HUB_MAIL_REPLY_TO")); a != "" {
+		if p, err := mail.ParseAddress(a); err == nil {
+			return "Reply-To: " + p.String() + "\r\n"
+		}
+	}
+	return ""
 }
