@@ -128,6 +128,7 @@
 
 <template v-if="ftab.discussions">
 <div style="flex: none; border-top: 1px solid var(--k-24322C,#24322C); background: var(--k-0F1714,#0F1714)">
+<div v-if="cur.typingText" role="status" aria-live="polite" style="max-width: 900px; margin: 0 auto; padding: 6px clamp(16px, 3vw, 32px) 0; font-size: 12px; color: var(--k-7CC4FF,#7CC4FF); font-style: italic">{{ cur.typingText }}</div>
 <template v-if="replyBar.active"><div style="max-width: 900px; margin: 0 auto; padding: 8px clamp(16px, 3vw, 32px) 0"><div style="display: flex; align-items: center; gap: 8px; margin: 0 0 6px; padding: 6px 10px; border-left: 3px solid var(--k-B8F36B,#B8F36B); border-radius: 6px; background: var(--k-16201C,#16201C); font-size: 12px; color: var(--k-9DB0A6,#9DB0A6); min-width: 0"><span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">Replying to <strong style="color: var(--k-E8EFEA,#E8EFEA)">{{ replyBar.who }}</strong>: {{ replyBar.snippet }}</span><button type="button" aria-label="Cancel reply" @click="replyBar.cancel" style="width: 24px; height: 24px; border: 0; border-radius: 12px; background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer">✕</button></div></div></template>
 <ChatAttachBar/>
 <div style="max-width: 900px; margin: 0 auto; position: relative; padding: 12px clamp(16px, 3vw, 32px); display: grid; grid-template-columns: max-content minmax(0, 1fr) 42px; grid-template-rows: auto auto; gap: 6px; align-items: stretch">

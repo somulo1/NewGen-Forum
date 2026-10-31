@@ -25,6 +25,7 @@ import * as approvals from './widgets/approvals.js';
 import * as notifications from './widgets/notifications.js';
 import * as orgW from './widgets/org.js';
 import * as settingsW from './widgets/settings.js';
+import * as typing from './typing.js';
 
 // chats (forums, dms) come right after the directory they need, so they are not queued behind every other widget
 const WIDGETS = [people, profile, forums, dms, prefs, comms, calendar, tickets, projects, awards, approvals, notifications, wall, roles, security, orgW, notes, folders, settingsW];
@@ -69,6 +70,7 @@ export async function startServerSync(logic, request, session, bytes) {
   // Keys move in real time, like a chat app: when this device cannot open something yet, the colleagues who hold the key are told
   // straight away and one of them hands it over within a second or two; the moment it arrives the screens open what was waiting.
   const rt = srv.rt || (srv.rt = connectRealtime(srv));
+  typing.watch(logic, srv);
   let asked = false;
   rt.on('open', () => { if (asked) return; asked = true; srv.request('POST', '/e2ee/keys/request', {}).catch(() => {}); });
   rt.on('keys.requested', () => { setTimeout(() => vault.custody().catch(() => {}), Math.random() * 300); });

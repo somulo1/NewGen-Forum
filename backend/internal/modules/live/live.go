@@ -109,6 +109,7 @@ func (m *Module) announce(ctx context.Context, t ticket, online bool) {
 type frame struct {
 	Op   string    `json:"op"`
 	Conv uuid.UUID `json:"conv"`
+	On   *bool     `json:"on,omitempty"` // typing: false says they stopped (absent means they are typing)
 	Data any       `json:"data,omitempty"`
 }
 
@@ -139,7 +140,7 @@ func (m *Module) onFrame(ctx context.Context, c *realtime.Conn, t ticket, pk, co
 		if !m.A.Hub.Subscribed(c, realtime.ConvChannel(f.Conv)) {
 			return
 		}
-		d, _ := json.Marshal(map[string]any{"person": t.Person, "name": t.Name})
+		d, _ := json.Marshal(map[string]any{"person": t.Person, "name": t.Name, "on": f.On == nil || *f.On})
 		m.A.Publish(ctx, realtime.Event{Type: "typing", Channel: realtime.ConvChannel(f.Conv), Org: t.Org.String(), Actor: t.Person.String(), Data: d})
 	}
 }

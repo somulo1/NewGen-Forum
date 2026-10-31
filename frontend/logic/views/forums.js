@@ -2,6 +2,8 @@ import * as dmsW from '~/logic/server/widgets/dms.js';
 import { richTextHtml, mentionLinker } from '~/logic/richText.js';
 import { noteText, notesConnected, isMine, permLabel } from '~/logic/noteText.js';
 import * as forumsW from '~/logic/server/widgets/forums.js';
+// "Amy is typing…", "Amy and Ben are typing…", "3 people are typing…"
+const typingLine = (names) => (!names || !names.length ? '' : names.length === 1 ? names[0] + ' is typing…' : names.length === 2 ? names[0] + ' and ' + names[1] + ' are typing…' : names.length + ' people are typing…');
 // renderVals step: forums. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildForums(ctx) {
   const { s } = ctx;
@@ -90,7 +92,7 @@ export function buildForums(ctx) {
     const actions = messageActions(message, key, canDeleteForEveryone ? () => (source.mid ? forumsW.remove(this, this.srv, cur.id, source.mid).catch((e) => this.notify(e.message || 'Could not delete the message.', '#FF9B8A')) : this.setState((st) => ({ added: { ...st.added, [cur.id]: (st.added[cur.id] || []).filter((item) => item !== source) } }))) : null);
     return { ...fStyle(message), ...actions };
   }).filter((message) => !s.hiddenChatMessages[message.messageKey]);
-  const forumView = { ...cur, chat: forumMessages, topics: forumMessages, subline: cur.online + ' online · live updates', dotColor: '#B8F36B' };
+  const forumView = { ...cur, chat: forumMessages, topics: forumMessages, subline: typingLine(s.typing && s.typing[cur.id]) || (cur.online + ' online · live updates'), typingText: typingLine(s.typing && s.typing[cur.id]), dotColor: '#B8F36B' };
   // Private messages (share the forum panel)
   const dmStatusCol = { 'Available': '#B8F36B', 'In a meeting': '#FFB86B', 'Focusing': '#7CC4FF', 'Away': '#9DB0A6' };
   const dmPerson = (n) => this.dir.find((d) => d.name === n) || { name: n, initials: n.split(' ').map((x) => x[0]).join(''), color: '#C9B6FF', status: 'Available', title: '' };
@@ -149,7 +151,7 @@ export function buildForums(ctx) {
         ...actions
       };
     }).filter((message) => !s.hiddenChatMessages[message.messageKey] && !s.removedChatMessages[message.messageKey]);
-    dmView = { id: curDm.id, name: curDm.with, initials: pr.initials, color: pr.color, online: '', about: pr.title, subline: (pr.status || 'Available') + ' · private chat', dotColor: dmStatusCol[pr.status] || '#B8F36B', title: pr.title,
+    dmView = { id: curDm.id, name: curDm.with, initials: pr.initials, color: pr.color, online: '', about: pr.title, subline: typingLine(s.typing && s.typing[curDm.id]) || ((pr.status || 'Available') + ' · private chat'), typingText: typingLine(s.typing && s.typing[curDm.id]), dotColor: dmStatusCol[pr.status] || '#B8F36B', title: pr.title,
       chat: dmMessages, topics: [] };
   }
   const curView = isDM ? dmView : forumView;

@@ -1,5 +1,6 @@
 import { DCLogic } from '~/utils/dcLogic.js';
 import { stopRing, stopRingback } from '~/logic/tones.js';
+import * as typingW from '~/logic/server/typing.js';
 import { coreState } from '~/logic/state/core.js';
 import { awardsState } from '~/logic/state/awards.js';
 import { calendarState } from '~/logic/state/calendar.js';
@@ -100,6 +101,8 @@ export class HubLogic extends DCLogic {
     // files added to a chat message belong to that chat: switching chats drops them
     if (patch && typeof patch === 'object' && !('cfiles' in patch) && ('forum' in patch || 'dmId' in patch || 'panelKind' in patch) && (this.state.cfiles || []).length) patch = { ...patch, cfiles: [] };
     super.setState(patch, done);
+    // the other side is told when I start or stop typing (the draft changed, or I switched chats)
+    if (this.srv && patch && typeof patch === 'object' && ('fdraft' in patch || 'forum' in patch || 'dmId' in patch || 'panelKind' in patch || 'mode' in patch)) { try { typingW.signal(this, this.srv, this.state.fdraft); } catch (e) { /* typing is a courtesy */ } }
     if (patch && typeof patch === 'object' && 'theme' in patch) { try { localStorage.setItem('hub-theme', patch.theme === 'light' ? 'light' : 'dark'); } catch (e) { /* not kept */ } }
     // A ringtone only plays while a call is incoming and not yet answered; a ringback only until the call connects.
     if (patch && ('incoming' in patch || 'call' in patch)) {
