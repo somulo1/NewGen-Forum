@@ -278,6 +278,23 @@ func (m *Module) Decline(ctx context.Context, p *tenant.Principal, id uuid.UUID)
 	return err
 }
 
+// DeleteFromLog removes entries from the caller's own call history for good. Only calls the caller was part of, and only ones that
+// are over; the other people keep their copies.
+func (m *Module) DeleteFromLog(ctx context.Context, p *tenant.Principal, ids []uuid.UUID) (int, error) {
+	if len(ids) == 0 || len(ids) > 500 {
+		return 0, httpx.Bad("Choose between 1 and 500 calls.")
+	}
+	n := 0
+	err := m.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
+		tag, err := tx.Exec(ctx, `insert into hub.call_log_deletes (org_id, person_id, call_id)
+			select $1, $2, c.id from hub.calls c where c.id = any($3) and c.status in ('ended','missed','declined')
+			  and exists (select 1 from hub.call_participants cp where cp.call_id = c.id and cp.person_id = $2) on conflict do nothing`, p.Org, p.Person, ids)
+		n = int(tag.RowsAffected())
+		return err
+	})
+	return n, err
+}
+
 const sel = `select c.id, c.kind, c.context, c.conversation_id, c.host, h.first_name || ' ' || h.last_name, c.status, c.started_at, c.answered_at, c.ended_at,
 	coalesce(extract(epoch from (coalesce(c.ended_at, now()) - c.answered_at))::int, 0)
 	from hub.calls c join hub.people h on h.id = c.host`
@@ -368,7 +385,8 @@ func (m *Module) History(ctx context.Context, p *tenant.Principal, limit int, be
 	out := []*Call{}
 	err := m.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
 		args := []any{p.Person}
-		q := sel + ` where exists (select 1 from hub.call_participants cp where cp.call_id = c.id and cp.person_id = $1)`
+		q := sel + ` where exists (select 1 from hub.call_participants cp where cp.call_id = c.id and cp.person_id = $1)
+			and not exists (select 1 from hub.call_log_deletes d where d.call_id = c.id and d.person_id = $1)`
 		if before != nil {
 			args = append(args, *before)
 			q += ` and c.started_at < $2`
@@ -566,6 +584,21 @@ func (m *Module) Private(r chi.Router) {
 			return err
 		}
 		w.WriteHeader(204)
+		return nil
+	}))
+	// {"ids": [...]}: remove calls from my own history for good
+	r.Post("/calls/history/delete", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
+		var in struct {
+			IDs []uuid.UUID `json:"ids"`
+		}
+		if err := httpx.Decode(r, &in, 64<<10); err != nil {
+			return err
+		}
+		n, err := m.DeleteFromLog(r.Context(), p, in.IDs)
+		if err != nil {
+			return err
+		}
+		httpx.JSON(w, 200, map[string]any{"deleted": n})
 		return nil
 	}))
 	r.Get("/calls/history", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {

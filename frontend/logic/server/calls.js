@@ -418,6 +418,14 @@ export function listen(logic, srv) {
   });
 }
 
+// Deletes calls from my own history for good (the other people on them keep theirs).
+export async function deleteFromLog(logic, srv, ids) {
+  const real = ids.filter((id) => /^[0-9a-f]{8}-/.test(String(id)));
+  if (real.length) await srv.request('POST', '/calls/history/delete', { ids: real });
+  const gone = new Set(ids);
+  logic.setState((st) => ({ callLog: st.callLog.filter((e) => !gone.has(e.id)) }));
+}
+
 // The Calls tab in each chat: real history from the server.
 export async function loadHistory(logic, srv) {
   const { calls } = await srv.request('GET', '/calls/history?limit=200');

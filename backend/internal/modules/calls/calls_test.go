@@ -190,6 +190,28 @@ func TestHangingUpBeforeAnswerStopsTheRingAtOnce(t *testing.T) {
 		t.Fatalf("a stranger left a call: %d", code)
 	}
 
+	// deleting a call from my history is for good, and only mine: Amy still has hers
+	has := func(m *testkit.Member) bool {
+		for _, c := range e.MustDo(200, "GET", "/calls/history", nil, m.Access)["calls"].([]any) {
+			if c.(map[string]any)["id"] == call {
+				return true
+			}
+		}
+		return false
+	}
+	if !has(o) || !has(a) {
+		t.Fatalf("the finished call is missing from a history: %v %v", has(o), has(a))
+	}
+	if r := e.MustDo(200, "POST", "/calls/history/delete", map[string]any{"ids": []string{call}}, ownerU.Access); r["deleted"].(float64) != 1 {
+		t.Fatalf("delete: %v", r)
+	}
+	if has(o) || !has(a) {
+		t.Fatalf("after deleting: mine %v, Amy's %v", has(o), has(a))
+	}
+	if r := e.MustDo(200, "POST", "/calls/history/delete", map[string]any{"ids": []string{call}}, b.Access); r["deleted"].(float64) != 0 {
+		t.Fatalf("a stranger deleted from a history: %v", r)
+	}
+
 	// a forum call: members are ringing; one of them leaving does not end it, the caller leaving before anyone answers does
 	fk, _ := e2ee.NewConversationKey()
 	forum := e.MustDo(201, "POST", "/conversations", map[string]any{"kind": "forum", "name": "Team", "members": []string{a.Person, b.Person}, "keys": o.WrapFor(e, fk, 1, o.Person, a.Person, b.Person)}, ownerU.Access)["id"].(string)

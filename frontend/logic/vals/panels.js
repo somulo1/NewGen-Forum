@@ -1,5 +1,6 @@
 import * as forumsW from '~/logic/server/widgets/forums.js';
 import * as dmsW from '~/logic/server/widgets/dms.js';
+import * as callsW from '~/logic/server/calls.js';
 // Values and handlers the templates read through hubBindings: panels.
 export function valsPanels(ctx) {
   const { chatCtl, chatGate, dmPerson, dmPriv, dmStatusCol, forums, incomingView, isDM, panelStyle, pollView, s, set } = ctx;
@@ -17,8 +18,10 @@ export function valsPanels(ctx) {
       const color = { out: '#B8F36B', in: '#7CC4FF', missed: '#FF5C5C', missedIn: '#FF5C5C', missedOut: '#FFB86B', declined: '#FFB86B', blocked: '#C9B6FF' };
       const icon = { out: 'out', in: 'in', missed: 'missedIn', missedIn: 'missedIn', missedOut: 'missedOut', declined: 'declined', blocked: 'blocked' };
       const rows = s.callLog.filter(mine).sort((a, b) => b.at - a.at).map((e) => ({ id: e.id, title: (label[e.dir] || 'Call') + ' ' + (e.kind === 'video' ? 'video call' : 'voice call'), color: color[e.dir] || '#9DB0A6', icon: icon[e.dir] || 'out',
-        sub: fmtWhen(e.at) + (e.dur ? ' · ' + fmtDur(e.dur) : ''), isVideo: e.kind === 'video' }));
-      return { rows, empty: rows.length === 0, who: isDM ? (curDm ? curDm.with : '') : (cur ? cur.name : ''),
+        sub: fmtWhen(e.at) + (e.dur ? ' · ' + fmtDur(e.dur) : ''), isVideo: e.kind === 'video',
+        remove: () => (this.srv ? callsW.deleteFromLog(this, this.srv, [e.id]) : Promise.resolve(this.setState((x) => ({ callLog: x.callLog.filter((y) => y.id !== e.id) })))) }));
+      const clearAll = () => (this.srv ? callsW.deleteFromLog(this, this.srv, rows.map((r) => r.id)) : Promise.resolve(this.setState((x) => ({ callLog: x.callLog.filter((y) => !mine(y)) }))));
+      return { rows, empty: rows.length === 0, clearAll, who: isDM ? (curDm ? curDm.with : '') : (cur ? cur.name : ''),
         callVoice: isDM && curDm ? () => this.startDmCall('voice', curDm.with, dmView.initials, dmView.color) : () => this.startCall('voice', cur.name, cur.initials, cur.color, [], 'forum', cur.id),
         callVideo: isDM && curDm ? () => this.startDmCall('video', curDm.with, dmView.initials, dmView.color) : () => this.startCall('video', cur.name, cur.initials, cur.color, [], 'forum', cur.id) };
     })(),
