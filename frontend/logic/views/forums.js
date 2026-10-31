@@ -83,8 +83,8 @@ export function buildForums(ctx) {
     deleteForEveryone: deleteForEveryone ? () => { deleteForEveryone(); this.setState({ messageMenu: null }); } : null
   });
   const fStyle = (m) => (m.who === 'Sam' || m.who === 'You'
-    ? { ...m, who: 'You', mine: true, rowStyle: 'display:flex;gap:10px;flex-direction:row-reverse', bubbleStyle: 'max-width:78%;min-width:0;padding:10px 14px;border-radius:14px 4px 14px 14px;background:var(--k-2C3D34,#2C3D34)' }
-    : { ...m, mine: false, rowStyle: 'display:flex;gap:10px', bubbleStyle: 'flex:1;min-width:0;padding:10px 12px;border-radius:4px 12px 12px 12px;background:var(--k-1A2520,#1A2520)' });
+    ? { ...m, who: 'You', mine: true, rowStyle: 'display:flex;gap:10px;flex-direction:row-reverse', bubbleStyle: 'max-width:78%;min-width:0;padding:7px 12px;border-radius:14px 4px 14px 14px;background:var(--k-2C3D34,#2C3D34)' }
+    : { ...m, mine: false, rowStyle: 'display:flex;gap:10px', bubbleStyle: 'flex:1;min-width:0;padding:7px 12px;border-radius:4px 12px 12px 12px;background:var(--k-1A2520,#1A2520)' });
   const forumMessages = baseMsgs.slice().reverse().concat(addedHere).map((message) => {
     const key = 'forum:' + cur.id + ':' + message.id;
     const source = message.source;
@@ -147,7 +147,7 @@ export function buildForums(ctx) {
         hasText: !!m.text, hasFile: !!m.file, fileList: [].concat(m.file || []), ...quote(m), reply: replyFn(who, m),
         replies: 0, mine, secureShare: sharesById[m.secureShareId] || null, hasSecureShare: !!sharesById[m.secureShareId],
         rowStyle: 'display:flex;gap:10px;' + (mine ? 'flex-direction:row-reverse' : ''),
-        bubbleStyle: 'max-width:78%;min-width:0;padding:10px 14px;border-radius:' + (mine ? '14px 4px 14px 14px;background:var(--k-2C3D34,#2C3D34)' : '4px 14px 14px 14px;background:var(--k-1A2520,#1A2520)'),
+        bubbleStyle: 'max-width:78%;min-width:0;padding:7px 12px;border-radius:' + (mine ? '14px 4px 14px 14px;background:var(--k-2C3D34,#2C3D34)' : '4px 14px 14px 14px;background:var(--k-1A2520,#1A2520)'),
         ...actions
       };
     }).filter((message) => !s.hiddenChatMessages[message.messageKey] && !s.removedChatMessages[message.messageKey]);

@@ -58,7 +58,7 @@
 <div v-if="!isDM && isPanelPolls" style="flex: 1; min-height: 0; overflow-y: auto; padding: 14px 14px 14px 20px"><ForumPolls /></div>
 <div v-if="isPanelCalls" style="flex: 1; min-height: 0; overflow-y: auto; padding: 14px 14px 14px 20px"><CallHistory /></div>
 <template v-if="isPanelChat || (isDM && !isPanelCalls)">
-<div :ref="chatRef" @click="onActivityClick" style="flex: 1; min-height: 0; overflow-y: auto; padding: 14px 14px 14px 20px; display: flex; flex-direction: column; gap: 12px">
+<div :ref="chatRef" @click="onActivityClick" style="flex: 1; min-height: 0; overflow-y: auto; padding: 14px 14px 14px 20px; display: flex; flex-direction: column; gap: 5px">
 <span style="align-self: center; font-size: 11px; color: var(--k-9DB0A6,#9DB0A6); padding: 4px 10px; border-radius: 10px; background: var(--k-1A2520,#1A2520)">Today</span>
 <template v-if="olderCount > 0 || moreOlder"><button type="button" @click="showOlder" style="align-self: center; height: 32px; padding: 0 14px; border-radius: 16px; border: 1px solid var(--k-6B7A72,#6B7A72); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; font-size: 12px">{{ olderCount > 0 ? 'Show ' + olderCount + ' earlier ' + (olderCount === 1 ? 'message' : 'messages') : 'Load earlier messages' }}</button></template>
 <template v-for="(u, u__i) in cur.chat" :key="u__i">
