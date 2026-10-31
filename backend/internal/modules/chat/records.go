@@ -36,7 +36,7 @@ var collections = map[string]collection{
 	"note":      {kinds: []string{"note", "sharednote"}, authorOwn: true, meta: map[string]string{"book": "uuid", "pinned": "bool"}},
 	"notebook":  {kinds: []string{"note"}, authorOwn: true},
 	"draft":     {kinds: []string{"note"}, authorOwn: true}, // the unsaved text in the Home page's "My notes" box
-	"task":      {kinds: []string{"project"}, create: [2]string{"projects", "Edit tasks"}, edit: [2]string{"projects", "Move tasks"}, authorOwn: true, own: [2]string{"projects", "Edit own tasks"}, meta: map[string]string{"column": "enum:backlog,todo,doing,review,done", "due": "date", "assignee": "uuid", "sprint": "str", "priority": "enum:low,medium,high"}},
+	"task":      {kinds: []string{"project"}, create: [2]string{"projects", "Edit tasks"}, edit: [2]string{"projects", "Move tasks"}, authorOwn: true, own: [2]string{"projects", "Edit own tasks"}, meta: map[string]string{"column": "enum:backlog,todo,doing,review,done", "due": "date", "assignee": "uuid", "secondary": "uuid", "sprint": "str", "priority": "enum:low,medium,high"}},
 	"milestone": {kinds: []string{"project"}, create: [2]string{"projects", "Manage milestones"}, edit: [2]string{"projects", "Manage milestones"}, meta: map[string]string{"due": "date", "closed": "bool"}},
 	"sprint":    {kinds: []string{"project"}, create: [2]string{"projects", "Manage milestones"}, edit: [2]string{"projects", "Manage milestones"}, meta: map[string]string{"start": "date", "end": "date", "milestone": "uuid"}},
 	"risk":      {kinds: []string{"project"}, create: [2]string{"projects", "Manage team"}, edit: [2]string{"projects", "Manage team"}, meta: map[string]string{"level": "enum:Low,Medium,High"}},
@@ -226,7 +226,8 @@ func (s *Service) SaveRecord(ctx context.Context, p *tenant.Principal, container
 		} else {
 			var author uuid.UUID
 			var coll string
-			err := tx.QueryRow(ctx, `select author_account, collection from hub.records where org_id=$1 and id=$2 and container_id=$3 and deleted_at is null for update`, p.Org, in.ID, container).Scan(&author, &coll)
+			var oldMeta []byte
+			err := tx.QueryRow(ctx, `select author_account, collection, meta from hub.records where org_id=$1 and id=$2 and container_id=$3 and deleted_at is null for update`, p.Org, in.ID, container).Scan(&author, &coll, &oldMeta)
 			if errors.Is(err, pgx.ErrNoRows) || err == nil && coll != in.Collection {
 				return httpx.ErrNotFound
 			}
@@ -235,6 +236,11 @@ func (s *Service) SaveRecord(ctx context.Context, p *tenant.Principal, container
 			}
 			if err := mayChange(ctx, tx, p, col, author, container); err != nil {
 				return err
+			}
+			if coll == "task" {
+				if err := taskRules(ctx, tx, p, container, oldMeta, in.Meta); err != nil {
+					return err
+				}
 			}
 			if _, err := tx.Exec(ctx, `update hub.records set ciphertext=$3, meta=$4, epoch=$5, author_device=$6, updated_at=now(), `+integrity.Bump+` where org_id=$1 and id=$2`, p.Org, in.ID, env, meta, epoch, in.Device); err != nil {
 				return err
@@ -377,3 +383,42 @@ func (s *Service) Calendar(ctx context.Context, p *tenant.Principal, from, to st
 }
 
 func mustDate(s string) time.Time { t, _ := time.Parse("2006-01-02", s); return t }
+
+// taskRules decides who may change a project task, on top of the right to edit tasks:
+//   - only the project manager moves a task into Done or back out of it (Review <-> Done);
+//   - the task's primary or secondary owner moves it between To do, In progress and Review (the project manager may too);
+//   - only the primary or secondary owner edits the task itself (a save that leaves its column as it is).
+//
+// Who the owners are is read from the task as it was stored, never from what is being sent. A task nobody was assigned to
+// (older data) is left to the general rights.
+func taskRules(ctx context.Context, tx pgx.Tx, p *tenant.Principal, container uuid.UUID, oldMeta []byte, next map[string]any) error {
+	var old map[string]any
+	_ = json.Unmarshal(oldMeta, &old)
+	str := func(m map[string]any, k string) string { v, _ := m[k].(string); return v }
+	var manager uuid.UUID
+	if err := tx.QueryRow(ctx, `select owner from hub.projects where conversation_id=$1`, container).Scan(&manager); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return err
+	}
+	isManager := manager != uuid.Nil && manager == p.Person
+	me := p.Person.String()
+	isOwner := str(old, "assignee") == me || str(old, "secondary") == me
+	from, to := str(old, "column"), str(next, "column")
+	switch {
+	case from != to && (from == "done" || to == "done"):
+		if !isManager {
+			return httpx.Err(403, "manager_only", "Only the project manager can move a task to Done or back from Done.")
+		}
+	case from != to:
+		if !isManager && !isOwner {
+			return httpx.Err(403, "owners_only", "Only the people the task is assigned to, or the project manager, can move it.")
+		}
+	default:
+		if str(old, "assignee") == "" && str(old, "secondary") == "" {
+			return nil
+		}
+		if !isOwner {
+			return httpx.Err(403, "owners_only", "Only the people the task is assigned to can edit it.")
+		}
+	}
+	return nil
+}

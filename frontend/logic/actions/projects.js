@@ -1,14 +1,24 @@
-import { milestoneTimeline, todayIso as isoToday } from '~/logic/projects.js';
+import { mayMoveTask, milestoneTimeline, todayIso as isoToday } from '~/logic/projects.js';
 // HubLogic actions: projects. Mixed into HubLogic.prototype, so `this` is the HubLogic instance.
 export const projectsActions = {
   // Changing a task's status always needs a comment saying why (and, going back, what is still missing). This opens the task
   // with the comment box; confirmTaskMove() moves it once the comment is written.
   askTaskMove(pid, ti, dir) {
+    if (!this.canMoveTask(pid, ti, dir)) return;
     this.setState({ taskOpen: { pid, ti }, taskMove: { pid, ti, dir, comment: '', err: '' } });
+  },
+  // The project manager moves tasks into and out of Done; the people a task is assigned to move it between the other columns.
+  canMoveTask(pid, ti, dir) {
+    const p = this.state.projects.find((x) => x.id === pid);
+    const t = p && p.tasks[ti];
+    const me = this.srv ? this.srv.me.name : 'Samwel Okoth Omulo';
+    if (t && mayMoveTask(p, t, dir, me)) return true;
+    this.notify(t && (t.col === 3 || t.col + dir === 3) ? 'Only the project manager (' + ((p && p.owner) || 'nobody yet') + ') can move a task to Done or back from Done.' : 'Only the people this task is assigned to, or the project manager, can move it.', '#FFB86B');
+    return false;
   },
   confirmTaskMove() {
     const m = this.state.taskMove;
-    if (!m) return;
+    if (!m || !this.canMoveTask(m.pid, m.ti, m.dir)) { this.setState({ taskMove: null }); return; }
     const comment = (m.comment || '').trim();
     if (comment.length < 8) { this.setState({ taskMove: { ...m, err: 'Add a comment of at least a few words. It stays with the task.' } }); return; }
     this.moveTask(m.pid, m.ti, m.dir, comment);
@@ -23,7 +33,7 @@ export const projectsActions = {
     this.moveTaskRaw(pid, ti, dir, names, comment);
     const proj = this.state.projects.find((p) => p.id === pid);
     milestoneTimeline(proj, today).filter((m) => m.ready && before.indexOf(m.id) === -1)
-      .forEach((m) => this.notify('Milestone "' + m.name + '" in ' + proj.name + ' has all its tasks done. Close it with a comment.', '#B8F36B'));
+      .forEach((m) => this.notify('Milestone "' + m.name + '" in ' + proj.name + ' is reached: all its tasks are done.', '#B8F36B'));
   },
 
   moveTaskRaw(pid, ti, dir, names, comment) {

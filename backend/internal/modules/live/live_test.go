@@ -10,6 +10,7 @@ import (
 
 	"github.com/coder/websocket"
 
+	"hub/internal/e2ee"
 	"hub/internal/testkit"
 )
 
@@ -99,5 +100,52 @@ func TestRealtimeDeliversAndGuards(t *testing.T) {
 	_ = co.Write(ctx, websocket.MessageText, []byte(`{"op":"sub","conv":"01a154f7-1480-75de-9077-b2acb71da8d7"}`))
 	if m := next(t, co, "error"); m["code"] != "forbidden" {
 		t.Fatalf("expected forbidden: %v", m)
+	}
+}
+
+// "Amy is typing…": a typing frame from one member reaches the other members of that conversation (and only them), and a
+// "stopped" frame says so.
+func TestTypingReachesTheOtherMembers(t *testing.T) {
+	e := testkit.New(t)
+	ownerU, slug := e.NewOrg("Olivia Owner")
+	o := e.Owner(ownerU)
+	amy := e.Join(ownerU, slug, "Amy", "staff")
+	out := e.Join(ownerU, slug, "Outsider", "staff")
+	for _, m := range []*testkit.Member{o, amy, out} {
+		m.Register(e)
+	}
+	key, _ := e2ee.NewConversationKey()
+	conv := e.MustDo(201, "POST", "/conversations", map[string]any{"kind": "forum", "name": "Team", "members": []string{amy.Person}, "keys": o.WrapFor(e, key, 1, o.Person, amy.Person)}, ownerU.Access)["id"].(string)
+	cOlivia, cAmy, cOut := dial(t, e, ownerU.Access), dial(t, e, amy.Access), dial(t, e, out.Access)
+	ctx := context.Background()
+	for _, c := range []*websocket.Conn{cOlivia, cAmy} {
+		_ = c.Write(ctx, websocket.MessageText, []byte(`{"op":"sub","conv":"`+conv+`"}`))
+		next(t, c, "subscribed")
+	}
+	_ = cOut.Write(ctx, websocket.MessageText, []byte(`{"op":"sub","conv":"`+conv+`"}`))
+	next(t, cOut, "error")
+
+	_ = cAmy.Write(ctx, websocket.MessageText, []byte(`{"op":"typing","conv":"`+conv+`"}`))
+	ev := next(t, cOlivia, "typing")
+	d := ev["data"].(map[string]any)
+	if d["person"] != amy.Person || d["on"] != true || !strings.Contains(d["name"].(string), "Amy") {
+		t.Fatalf("typing event: %v", ev)
+	}
+	_ = cAmy.Write(ctx, websocket.MessageText, []byte(`{"op":"typing","conv":"`+conv+`","on":false}`))
+	if d := next(t, cOlivia, "typing")["data"].(map[string]any); d["on"] != false {
+		t.Fatalf("stopped event: %v", d)
+	}
+	// someone outside it cannot make the others see them typing
+	_ = cOut.Write(ctx, websocket.MessageText, []byte(`{"op":"typing","conv":"`+conv+`"}`))
+	rctx, cancel := context.WithTimeout(ctx, 700*time.Millisecond)
+	defer cancel()
+	for {
+		_, b, err := cOlivia.Read(rctx)
+		if err != nil {
+			break
+		}
+		if strings.Contains(string(b), `"typing"`) {
+			t.Fatalf("an outsider's typing was delivered: %s", b)
+		}
 	}
 }
