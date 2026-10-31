@@ -10,6 +10,11 @@ export const uiActions = {
   isMobileViewport() { return typeof window !== 'undefined' && window.innerWidth <= 900; },
   // A phone: the screen is too small for a side panel. A chat is a page that fills the space between the top bar and the tab bar,
   // and is never docked beside the page or full screen. Tablets (iPads and up) may still dock it.
+  // Redraws once, when the next meeting or standup opens, starts or ends (nothing runs in between).
+  armSchedule(ms) {
+    clearTimeout(this._schedT);
+    if (ms > 0) this._schedT = setTimeout(() => this.forceUpdate(), Math.min(ms, 2147483000));
+  },
   isPhoneViewport() { return typeof window !== 'undefined' && window.innerWidth <= 640; },
 
   componentWillUnmount() { if (typeof window !== 'undefined' && this._onResize) window.removeEventListener('resize', this._onResize); clearInterval(this._tick); clearInterval(this._ct); clearInterval(this._pollT); clearTimeout(this._toastT); clearTimeout(this._incT); },
