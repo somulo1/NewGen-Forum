@@ -108,13 +108,16 @@ function build(logic, srv, items) {
     const votes = onePer(kids(m.id, 'vote')).filter((v) => (pl.poll || []).some((o) => o.id === v.pl.option));
     const myVote = votes.find((x) => x.m.sender_account === me);
     if (myVote) { pollVotes[m.id] = myVote.pl.option; srv.wallMine['vote:' + m.id] = myVote.m.id; }
-    const media = (pl.media || []).map((f) => { const it = { id: f.fileId, name: f.name, meta: f.meta || '', isImg: !!f.isImg, isVideo: !!f.isVideo, url: '', ref: f }; mediaToLoad.push(f); return it; });
+    // a newsletter or job post sent from Communications is stored as a "post" message, but carries a title and body, not text
+    const fromComms = m.type !== 'post' || (pl.title !== undefined && pl.text === undefined);
+    const media = (pl.media || pl.files || []).map((f) => { const it = { id: f.fileId, name: f.name, meta: f.meta || '', isImg: !!f.isImg, isVideo: !!f.isVideo, url: '', ref: f }; mediaToLoad.push(f); return it; });
     const p = person(m);
-    const isComm = m.type !== 'post';
+    const isComm = fromComms;
+    const commLabel = pl.type || (m.type === 'memo' ? 'Memo' : 'Announcement');
     return {
       id: m.id, author: who(m), ...look(m), mine: m.sender_account === me,
-      meta: (isComm ? (m.type === 'memo' ? 'Memo' : 'Announcement') : (pl.department || (p ? p.dept : '') || 'Everyone')) + ' · ' + ago(m.created_at),
-      text: isComm ? (pl.title || '') + (pl.body ? '\n' + pl.body : '') : (pl.text || ''), postBg: pl.postBg || undefined,
+      meta: (isComm ? commLabel : (pl.department || (p ? p.dept : '') || 'Everyone')) + ' · ' + ago(m.created_at),
+      text: isComm ? (pl.title || '') + (pl.summary ? '\n' + pl.summary : '') + (pl.body ? '\n' + pl.body : '') : (pl.text || ''), postBg: pl.postBg || undefined,
       likes: likes.length - (mineLike ? 1 : 0), extra: 0, shares: kids(m.id, 'share').length,
       photoLabel: pl.photo ? pl.photo.label : undefined, photoBg: pl.photo ? pl.photo.bg : undefined,
       comments: comments(m.id), media,
