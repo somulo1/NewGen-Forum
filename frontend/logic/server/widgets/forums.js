@@ -579,6 +579,16 @@ function watch(logic, srv) {
       const onScreen = st.forum === f && st.panelKind === 'forum' && !['closed', 'min'].includes(st.mode);
       try { (onScreen ? messageTone : alertTone)(); } catch (e) { /* sound is optional */ }
     });
+    // a memo, announcement or job post was published into a forum (it is saved by the server, not sent as a chat message, so no
+    // "new message" arrives): catch the forum up now, with its unread count, and make the usual sound
+    rt.on('comm.published', (ev) => {
+      const f = forumOf(ev);
+      if (!f) return;
+      later(f, true);
+      const st = logic.state;
+      const onScreen = st.forum === f && st.panelKind === 'forum' && !['closed', 'min'].includes(st.mode);
+      try { (onScreen ? messageTone : alertTone)(); } catch (e) { /* sound is optional */ }
+    });
     rt.on('message.deleted', (ev) => { const f = forumOf(ev); const d = ev.data || {}; if (f && d.id) reloadForum(logic, srv, f, { meta: false, gone: [d.id] }).catch(() => {}); else if (f) later(f, false); });
     ['member.added', 'member.removed', 'member.joined'].forEach((t) => rt.on(t, (ev) => { const f = forumOf(ev); if (f) later(f); }));
     rt.on('conversation.new', () => { load(logic, srv).catch(() => {}); });

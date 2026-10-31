@@ -47,6 +47,7 @@ function watchLive(logic, srv) {
   const mine = (ev) => String(ev.channel || '').split(':').pop() === srv.wallId;
   rt.on('message.new', (ev) => { if (mine(ev) && (ev.data || {}).sender_account !== srv.me.account) refresh(); });
   rt.on('message.deleted', (ev) => { if (mine(ev)) refresh(); });
+  rt.on('comm.published', (ev) => { if (mine(ev)) refresh(); });
   rt.on('open', () => refresh());
 }
 
