@@ -59,15 +59,14 @@ func (m *Module) Private(r chi.Router) {
 			if _, err := uuid.Parse(id); err != nil {
 				continue
 			}
-			n, _ := m.A.Rdb.Exists(r.Context(), presenceKey(p.Org, id)).Result()
-			out[id] = n > 0
+			out[id] = realtime.Online(r.Context(), m.A.Rdb, presenceKey(p.Org, id))
 		}
 		httpx.JSON(w, 200, map[string]any{"online": out})
 		return nil
 	}))
 }
 
-func presenceKey(org uuid.UUID, person string) string { return "pres:" + org.String() + ":" + person }
+func presenceKey(org uuid.UUID, person string) string { return realtime.PresenceKey(org, person) }
 
 func (m *Module) Public(r chi.Router) {
 	r.Get("/realtime", func(w http.ResponseWriter, r *http.Request) {
@@ -90,10 +89,15 @@ func (m *Module) Public(r chi.Router) {
 		channels := []string{realtime.OrgChannel(t.Org), realtime.AcctChannel(t.Account)}
 		ctx := r.Context()
 		pk := presenceKey(t.Org, t.Person.String())
-		m.A.Rdb.Set(ctx, pk, 1, 70*time.Second)
+		conn := uuid.NewString()
+		realtime.Touch(ctx, m.A.Rdb, pk, conn)
 		m.announce(ctx, t, true)
-		defer func() { m.A.Rdb.Del(context.Background(), pk); m.announce(context.Background(), t, false) }()
-		_ = m.A.Hub.Serve(ctx, up, t.Account, t.Org, channels, func(c *realtime.Conn, data []byte) { m.onFrame(ctx, c, t, pk, data) })
+		defer func() {
+			if realtime.Leave(context.Background(), m.A.Rdb, pk, conn) {
+				m.announce(context.Background(), t, false)
+			}
+		}()
+		_ = m.A.Hub.Serve(ctx, up, t.Account, t.Org, channels, func(c *realtime.Conn, data []byte) { m.onFrame(ctx, c, t, pk, conn, data) })
 	})
 }
 
@@ -108,14 +112,14 @@ type frame struct {
 	Data any       `json:"data,omitempty"`
 }
 
-func (m *Module) onFrame(ctx context.Context, c *realtime.Conn, t ticket, pk string, data []byte) {
+func (m *Module) onFrame(ctx context.Context, c *realtime.Conn, t ticket, pk, conn string, data []byte) {
 	var f frame
 	if json.Unmarshal(data, &f) != nil {
 		return
 	}
 	switch f.Op {
 	case "ping":
-		m.A.Rdb.Expire(ctx, pk, 70*time.Second)
+		realtime.Touch(ctx, m.A.Rdb, pk, conn)
 		c.Send(map[string]any{"type": "pong"})
 	case "sub":
 		if m.A.Hub.Count(c) >= maxChannelsPerConn {

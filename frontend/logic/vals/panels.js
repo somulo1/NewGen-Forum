@@ -13,9 +13,10 @@ export function valsPanels(ctx) {
       const mine = (e) => (isDM ? e.ctx === 'dm' && curDm && e.ref === curDm.with : e.ctx === 'forum' && cur && e.ref === cur.id);
       const fmtDur = (n) => (n >= 3600 ? Math.floor(n / 3600) + ' h ' + Math.round((n % 3600) / 60) + ' min' : n >= 60 ? Math.floor(n / 60) + ' min ' + (n % 60) + ' s' : n + ' s');
       const fmtWhen = (t) => { const d = new Date(t), now = new Date(); const day = d.toDateString() === now.toDateString() ? 'Today' : d.toDateString() === new Date(now - 86400000).toDateString() ? 'Yesterday' : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }); return day + ' · ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); };
-      const label = { out: 'Outgoing', in: 'Incoming', missed: 'Missed', declined: 'Declined', blocked: 'Blocked' };
-      const color = { out: '#B8F36B', in: '#7CC4FF', missed: '#FF5C5C', declined: '#FFB86B', blocked: '#C9B6FF' };
-      const rows = s.callLog.filter(mine).sort((a, b) => b.at - a.at).map((e) => ({ id: e.id, title: (label[e.dir] || 'Call') + ' ' + (e.kind === 'video' ? 'video call' : 'voice call'), color: color[e.dir] || '#9DB0A6', arrow: e.dir === 'in' ? '↙' : e.dir === 'out' ? '↗' : e.dir === 'blocked' ? '⦸' : '✕',
+      const label = { out: 'Outgoing', in: 'Incoming', missed: 'Missed', missedIn: 'Missed', missedOut: 'Not answered', declined: 'Declined', blocked: 'Blocked' };
+      const color = { out: '#B8F36B', in: '#7CC4FF', missed: '#FF5C5C', missedIn: '#FF5C5C', missedOut: '#FFB86B', declined: '#FFB86B', blocked: '#C9B6FF' };
+      const icon = { out: 'out', in: 'in', missed: 'missedIn', missedIn: 'missedIn', missedOut: 'missedOut', declined: 'declined', blocked: 'blocked' };
+      const rows = s.callLog.filter(mine).sort((a, b) => b.at - a.at).map((e) => ({ id: e.id, title: (label[e.dir] || 'Call') + ' ' + (e.kind === 'video' ? 'video call' : 'voice call'), color: color[e.dir] || '#9DB0A6', icon: icon[e.dir] || 'out',
         sub: fmtWhen(e.at) + (e.dur ? ' · ' + fmtDur(e.dur) : ''), isVideo: e.kind === 'video' }));
       return { rows, empty: rows.length === 0, who: isDM ? (curDm ? curDm.with : '') : (cur ? cur.name : ''),
         callVoice: isDM && curDm ? () => this.startDmCall('voice', curDm.with, dmView.initials, dmView.color) : () => this.startCall('voice', cur.name, cur.initials, cur.color, [], 'forum', cur.id),

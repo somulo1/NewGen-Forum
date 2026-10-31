@@ -2,13 +2,13 @@ package calls
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	"hub/internal/httpx"
+	"hub/internal/realtime"
 	"hub/internal/tenant"
 )
 
@@ -55,8 +55,7 @@ func (m *Module) checkReachable(ctx context.Context, tx pgx.Tx, p *tenant.Princi
 			name = "That person"
 		}
 		// online means their app holds a live connection to Hub (it refreshes this marker every 25 seconds)
-		n, _ := m.A.Rdb.Exists(ctx, fmt.Sprintf("pres:%s:%s", p.Org, id)).Result()
-		if n == 0 {
+		if !realtime.Online(ctx, m.A.Rdb, realtime.PresenceKey(p.Org, id.String())) {
 			return httpx.Err(409, "callee_offline", name+" is offline right now. Try again when they are online.")
 		}
 		if b[id] {

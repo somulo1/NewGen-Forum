@@ -373,6 +373,6 @@ export async function loadHistory(logic, srv) {
     if (c.context === 'dm') return (c.people || []).find((n) => n !== srv.me.name) || c.host_name;
     return c.conversation || '';
   };
-  const dir = (c) => (c.status === 'missed' ? 'missed' : c.status === 'declined' ? 'declined' : c.direction || 'out');
+  const dir = (c) => (c.status === 'missed' ? (c.direction === 'out' ? 'missedOut' : 'missedIn') : c.status === 'declined' ? 'declined' : c.direction || 'out');
   logic.setState({ callLog: calls.map((c) => ({ id: c.id, ctx: c.context === 'meeting' || c.context === 'standup' ? 'meeting' : c.context, ref: localOf(c), kind: c.kind, dir: dir(c), at: new Date(c.started_at).getTime(), dur: c.duration_seconds || 0 })) });
 }
