@@ -32,7 +32,7 @@ func (s *Service) Private(r chi.Router) {
 	}
 	r.Post("/tickets", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
 		var in CreateIn
-		if err := httpx.Decode(r, &in, 8<<10); err != nil {
+		if err := httpx.Decode(r, &in, 96<<10); err != nil {
 			return err
 		}
 		t, err := s.Create(r.Context(), p, in)
@@ -140,6 +140,24 @@ func (s *Service) Private(r chi.Router) {
 			return err
 		}
 		httpx.JSON(w, 200, t)
+		return nil
+	}))
+	r.Post("/tickets/{id}/comments", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
+		tid, err := id(r)
+		if err != nil {
+			return err
+		}
+		var in struct {
+			Text string `json:"text"`
+		}
+		if err := httpx.Decode(r, &in, 32<<10); err != nil {
+			return err
+		}
+		c, err := s.AddComment(r.Context(), p, tid, in.Text)
+		if err != nil {
+			return err
+		}
+		httpx.JSON(w, 201, c)
 		return nil
 	}))
 	r.Post("/tickets/{id}/act", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {

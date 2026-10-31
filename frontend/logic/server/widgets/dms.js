@@ -3,6 +3,7 @@
 // socket. A message for the chat you are looking at plays a soft pop; one for a closed chat plays the brighter alert.
 import { newConversationKey, wrap, b64, unb64 } from '../e2ee.js';
 import { connectRealtime } from '../realtime.js';
+import { changedSince, markOf, pause } from '../catchup.js';
 import * as files from '../files.js';
 import { messageTone, alertTone } from '../../tones.js';
 
@@ -77,6 +78,7 @@ function rowOf(srv, c, msgs) {
 
 export async function load(logic, srv) {
   const { conversations } = await ask(srv, 'GET', '/conversations?kind=dm&limit=200');
+  srv.dmMark = markOf(conversations);
   // chats I deleted from my list: still listened to, so one that gets a new message comes back
   try { const { ids } = await ask(srv, 'GET', '/conversations/cleared'); const shown = new Set(conversations.map((c) => c.id)); srv.clearedDms = new Set(ids.filter((id) => !shown.has(id) && !(srv.clearedForums && srv.clearedForums.has(id)))); } catch (e) { srv.clearedDms = srv.clearedDms || new Set(); }
   const prev = new Map((logic.state.dms || []).map((d) => [d.id, d]));
@@ -134,7 +136,7 @@ function live(logic, srv) {
     }
   });
   // after a reconnect, catch up on what was missed: a few chats at a time
-  rt.on('open', () => { pool(logic.state.dms.filter((d) => !String(d.id).startsWith('dm-')).map((d) => d.id), 3, (id) => refresh(logic, srv, id).catch(() => {})); });
+  rt.on('open', () => { catchUpAfterReconnect(logic, srv).catch(() => {}); });
   rt.on('message.deleted', (ev) => {
     const d = ev.data || {};
     logic.setState((st) => ({ dms: st.dms.map((x) => (x.id !== d.conversation ? x : { ...x, msgs: x.msgs.filter((y) => y.id !== d.message && y.id !== d.id) })) }));
@@ -183,6 +185,16 @@ export async function markRead(logic, srv, dmId) {
   const last = dm.msgs[dm.msgs.length - 1];
   if (!last.mid) return;
   await srv.request('POST', `/conversations/${dmId}/read`, { message: last.mid }).catch(() => {});
+}
+
+// After a reconnect: one request says which chats changed; only those are read again (a new chat I do not hold yet reloads the list).
+async function catchUpAfterReconnect(logic, srv) {
+  await pause();
+  const held = new Set(logic.state.dms.filter((d) => !String(d.id).startsWith('dm-')).map((d) => d.id));
+  const r = await changedSince(srv, 'dm', srv.dmMark);
+  srv.dmMark = r.mark;
+  if (r.all.some((id) => !held.has(id) && !(srv.clearedDms && srv.clearedDms.has(id)))) { await load(logic, srv); return; }
+  await pool(r.changed.filter((id) => held.has(id)), 3, (id) => refresh(logic, srv, id).catch(() => {}));
 }
 
 // What changed in a chat since its marker: { fresh: [new messages], gone: Set of removed ids }, or null when re-reading

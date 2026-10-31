@@ -1,4 +1,6 @@
 // renderVals step: nav. Receives the names built by earlier steps and returns the ones later steps need.
+import { needsOf } from '../server/lazy.js';
+
 export function buildNav(ctx) {
   const { can, has, s, set } = ctx;
   const navBase ='display:flex;align-items:center;gap:12px;width:100%;min-height:44px;padding:0 12px;border:0;border-radius:10px;cursor:pointer;text-align:left;font-size:14px;';
@@ -26,10 +28,14 @@ export function buildNav(ctx) {
     tabTo[k] = set({ tab: k });
     ftab[k] = on && (k !== 'sessions' || has.sessions);
   });
-  // Until the server has answered with everything the app loads at sign-in, the page is replaced by grey placeholder blocks (the kind
+  // Until the server has answered with everything this page needs, the page is replaced by grey placeholder blocks (the kind
   // fits the page), so nobody sees empty, partial or made-up data. Pages open on real, complete data or on blocks, never in between.
   const KIND = { home: 'home', feed: 'feed', calendar: 'calendar', notes: 'cards', structure: 'cards', orgunit: 'cards', settings: 'form', profile: 'form', widgets: 'cards', projects: 'cards', files: 'cards', share: 'cards', meetings: 'cards', ticketdesk: 'table', orgedit: 'cards' };
-  const ready = this.bootFailed || (this.srv && this.srv.bootDone) || (!pending && !this.srv);
+  // The page asks for the widgets it shows (lazy.js loads each one once, the first time); the blocks stay until they have all answered.
+  const lazy = this.srv && this.srv.lazy;
+  const need = lazy && !denied ? needsOf({ ...s, section: curSec }) : [];
+  if (lazy && this.srv.bootDone) lazy.want(need);
+  const ready = this.bootFailed || (this.srv && this.srv.bootDone && (!lazy || lazy.ready(need))) || (!pending && !this.srv);
   const pageLoading = ready ? '' : (KIND[s.section] || 'table');
   return { denied, pageLoading, curSec, ftab, go, nav, show, tab, tabTo, ticketDeskOk };
 }
