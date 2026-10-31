@@ -99,7 +99,7 @@ export function useHubShell() {
     document.addEventListener('visibilitychange', onVisible);
     const be = useBackend();
     const session = be.session();
-    if (session && session.org) startServerSync(logic, be.request, session, be.bytes).catch((e) => { logic._accessPending = false; logic.forceUpdate(); console.error('Could not connect to the server:', e); });
+    if (session && session.org) startServerSync(logic, be.request, session, be.bytes).catch((e) => { logic._accessPending = false; logic.bootFailed = true; logic.forceUpdate(); console.error('Could not connect to the server:', e); });
     if (session && session.org) {
       guard = startSessionGuard({ logic, be, goLogin: (why) => { window.location.assign('/login' + (why ? '?why=' + encodeURIComponent(why) : '')); } });
     }

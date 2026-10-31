@@ -2,7 +2,8 @@
 <template><template v-if="show.orgunit && !ou.name">
 <div style="padding: 40px 20px; border-radius: 16px; border: 1px dashed var(--k-3F524A,#3F524A); text-align: center; color: var(--k-9DB0A6,#9DB0A6)">You do not have access to this dashboard. Ask an admin to give your role the "View dashboard" right.</div>
 </template>
-<template v-if="show.orgunit && ou.name && ou.hasDetail">
+<template v-if="show.orgunit && ou.name && ou.loading"><PageSkeleton kind="cards" /></template>
+<template v-if="show.orgunit && ou.name && !ou.loading && ou.hasDetail">
 <div style="display: flex; flex-direction: column; gap: 20px; width: 100%; min-width: 0">
 <button @click="ou.detail.back" style="align-self: flex-start; height: 38px; padding: 0 16px; border-radius: 19px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; font-size: 14px">{{ ou.detail.backLabel }}</button>
 <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px">
@@ -42,7 +43,7 @@
 </div>
 </div>
 </template>
-<template v-if="show.orgunit && ou.name && !ou.hasDetail">
+<template v-if="show.orgunit && ou.name && !ou.loading && !ou.hasDetail">
 <div style="width: 100%; display: flex; flex-direction: column; gap: 16px">
 <button @click="go.home" style="align-self: flex-start; height: 38px; padding: 0 14px; border-radius: 19px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer">‹ Home</button>
 <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: center; padding: 20px; border-radius: 20px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C)">

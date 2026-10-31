@@ -42,6 +42,10 @@ const safeType = (t) => (SAFE_TYPES.test(String(t || '').toLowerCase().split(';'
 const urls = new Map();
 const opening = new Map();
 // Downloads and decrypts an attachment; returns an object URL (cached for the session; one download per file at a time).
+// Waits for the first few of a page's pictures and files to be ready, but never more than a few seconds: a page counts as loaded when
+// what is on its first screen is in, and the rest fills in behind.
+export const settle = (promises, n = 12, ms = 6000) => Promise.race([Promise.all(promises.slice(0, n)), new Promise((r) => setTimeout(r, ms))]);
+
 export async function openUrl(srv, ref) {
   if (urls.has(ref.fileId)) return urls.get(ref.fileId);
   if (!opening.has(ref.fileId)) opening.set(ref.fileId, fetchUrl(srv, ref).catch(async (e) => { await new Promise((r) => setTimeout(r, 1500)); try { return await fetchUrl(srv, ref); } catch (e2) { console.warn('Could not open attachment ' + ref.fileId + ':', e2); throw e2; } }).finally(() => opening.delete(ref.fileId)));

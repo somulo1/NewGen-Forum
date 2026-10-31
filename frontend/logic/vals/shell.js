@@ -2,7 +2,7 @@ import * as callsW from '~/logic/server/calls.js';
 import * as notificationsW from '~/logic/server/widgets/notifications.js';
 // Values and handlers the templates read through hubBindings: shell.
 export function valsShell(ctx) {
-  const { denied, can, forums, go, myUnits, ticketDeskOk, allNotifs, call, callMiniStyle, cur, curDm, curSec, dmView, has, isDM, restoreCall, s, sendCall, set, showCallMini, showMeetingDock, showMeetingFull, showPanelCall } = ctx;
+  const { denied, pageLoading, can, forums, go, myUnits, ticketDeskOk, allNotifs, call, callMiniStyle, cur, curDm, curSec, dmView, has, isDM, restoreCall, s, sendCall, set, showCallMini, showMeetingDock, showMeetingFull, showPanelCall } = ctx;
   const pages = [['Home', 'home', true], ['Community wall', 'feed', true], ['Meetings & standups', 'meetings', has.sessions], ['Calendar', 'calendar', has.calendar], ['Communications', 'comms', has.comms],
     ['My tickets', 'tickets', has.tickets], ['Ticket desk', 'ticketdesk', ticketDeskOk], ['Projects', 'projects', has.projects], ['Files', 'files', has.files], ['Secure share', 'share', has.secureshare],
     ['People', 'people', true], ['Approvals', 'approvals', true], ['Security & logs', 'security', can('security', 'View alerts') || can('security', 'View logs')], ['Roles & rights', 'roles', can('roles', 'View roles')],
@@ -23,7 +23,7 @@ export function valsShell(ctx) {
   const navSearch = makeSearch('navq', 12);
   const headerSearch = makeSearch('hq', 8);
   return {
-    navSearch, headerSearch, denied,
+    navSearch, headerSearch, denied, pageLoading,
     notifs: allNotifs.filter((n) => !(s.notifGone || []).includes(n.text)).map((n) => ({ ...n, unread: n.read === false || (n.read === undefined && !s.notifSeen) })), noNotifs: allNotifs.filter((n) => !(s.notifGone || []).includes(n.text)).length === 0,
     markNotifsRead: () => { if (this.srv) notificationsW.markAllRead(this.srv, this).catch(() => {}); else this.setState((st) => ({ notifSeen: true, notifs: st.notifs.map((n) => ({ ...n, read: true })) })); },
     clearNotifs: () => { const gone = allNotifs.map((n) => n.text); const local = () => this.setState((st) => ({ notifs: [], notifSeen: true, notifUnread: 0, notifGone: gone })); if (this.srv) notificationsW.clearAll(this.srv, this).then(() => this.setState({ notifGone: gone })).catch(() => {}); else local(); },

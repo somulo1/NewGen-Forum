@@ -114,7 +114,7 @@ export function buildOrg(ctx) {
     const sum = this.srv.perf && this.srv.perf.get(key);
     const parts = (full && full.parts) || (sum && sum.parts) || {};
     const pc = (k) => (parts[k] ? parts[k].pct : 100);
-    const out = { comms: [], reqs: [], tks: [], perf: full ? full.perf : sum ? sum.perf : 100, pc: pc('comms'), pr: pc('requests'), pt: pc('tickets'), loaded: !!full };
+    const out = { comms: [], reqs: [], tks: [], perf: full ? full.perf : sum ? sum.perf : 100, pc: pc('comms'), pr: pc('requests'), pt: pc('tickets'), loaded: !!full || !!(this.srv.ouFailed && this.srv.ouFailed.has(key)) };
     if (!full) return out;
     const titleOfComm = (c) => ((s.comms || []).find((x) => x.id === c.ref) || {}).title || c.type + ' ' + c.ref;
     out.comms = full.comms.map((c) => ({ date: c.date, dir: c.dir, type: c.type, subject: titleOfComm(c), cp: c.cp, status: c.status, ok: c.ok, ref: c.ref, uid: c.id, fromServer: true }));
@@ -219,6 +219,7 @@ export function buildOrg(ctx) {
     const ps = projects.filter((p) => pids.indexOf(p.id) !== -1);
     const mk = (label, pc, detail) => ({ label: label, pct: pc, detail: detail, color: perfColor(pc, tg), bar: 'height:100%;width:' + pc + '%;background:' + perfColor(pc, tg) + ';border-radius:5px', marker: 'position:absolute;top:-3px;left:calc(' + tg + '% - 1px);width:2px;height:16px;background:var(--k-E8EFEA,#E8EFEA);border-radius:1px' });
     ou = {
+      loading: !!this.srv && !D.loaded,   // its dashboard is still being fetched from the server
       name: ouRec.name, type: typeName[t], short: shortOf(ouRec.name), color: typeTint[t], badge: badge(typeTint[t]), path: pathOf(t, ouRec),
       managerRole: mgrRole[t], manager: lead ? lead.name : 'Not set', members: mem.length,
       typePlural: typeName[t] + (t === 'branches' ? 'es' : 's'),

@@ -40,7 +40,7 @@ export function ensure(logic, srv, key, force) {
   srv.request('GET', `/org/units/${idOf(key)}/dashboard`).then((d) => {
     srv.ouData.set(key, d);
     logic.forceUpdate();
-  }).catch(() => { /* no right to open it: the page shows nothing for it */ });
+  }).catch(() => { (srv.ouFailed = srv.ouFailed || new Set()).add(key); logic.forceUpdate(); });   // no right to open it: the page shows nothing for it, not placeholders for ever
 }
 
 export async function setTarget(logic, srv, key, value) {

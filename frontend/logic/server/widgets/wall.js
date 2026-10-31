@@ -32,7 +32,7 @@ async function render(logic, srv, all) {
     if (!open.has(m.id)) open.set(m.id, await srv.vault.openMessage(m));
     return { m, pl: open.get(m.id) };
   }));
-  build(logic, srv, opened.filter((x) => x.pl).sort((a, b) => (a.m.id < b.m.id ? -1 : 1)));
+  return build(logic, srv, opened.filter((x) => x.pl).sort((a, b) => (a.m.id < b.m.id ? -1 : 1)));
 }
 
 // The wall follows the live connection: a vote, like, comment or new post made by anyone shows up within a moment, so poll
@@ -134,13 +134,16 @@ function build(logic, srv, items) {
   srv.applyingWall = true;
   logic.setState({ posts, moments, liked, pollVotes });
   srv.applyingWall = false;
-  // decrypt attachments in the background and drop their URLs in when ready
-  mediaToLoad.forEach((f) => files.openUrl(srv, f).then((url) => {
+  // decrypt attachments and drop their URLs in as they are ready
+  const opening = mediaToLoad.map((f) => files.openUrl(srv, f).then((url) => {
     logic.setState((st) => ({
       posts: st.posts.map((p) => (p.media && p.media.some((x) => x.id === f.fileId) ? { ...p, media: p.media.map((x) => (x.id === f.fileId ? { ...x, url } : x)) } : p)),
       moments: st.moments.map((x) => (x.media && x.media.fileId === f.fileId ? { ...x, media: { ...x.media, url } } : x))
     }));
   }).catch(() => {}));
+  // The wall counts as loaded when the pictures and videos of the newest posts are in too (the rest, or a slow one after a few
+  // seconds, carry on behind), so the page opens complete instead of filling in while you look at it.
+  return Promise.race([Promise.all(opening.slice(0, 12)), new Promise((r) => setTimeout(r, 6000))]);
 }
 
 // A new organization has no wall until someone first posts: the first post makes it, sealing its key for every person in the

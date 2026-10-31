@@ -26,5 +26,10 @@ export function buildNav(ctx) {
     tabTo[k] = set({ tab: k });
     ftab[k] = on && (k !== 'sessions' || has.sessions);
   });
-  return { denied, curSec, ftab, go, nav, show, tab, tabTo, ticketDeskOk };
+  // Until the server has answered with everything the app loads at sign-in, the page is replaced by grey placeholder blocks (the kind
+  // fits the page), so nobody sees empty, partial or made-up data. Pages open on real, complete data or on blocks, never in between.
+  const KIND = { home: 'home', feed: 'feed', calendar: 'calendar', notes: 'cards', structure: 'cards', orgunit: 'cards', settings: 'form', profile: 'form', widgets: 'cards', projects: 'cards', files: 'cards', share: 'cards', meetings: 'cards', ticketdesk: 'table', orgedit: 'cards' };
+  const ready = this.bootFailed || (this.srv && this.srv.bootDone) || (!pending && !this.srv);
+  const pageLoading = ready ? '' : (KIND[s.section] || 'table');
+  return { denied, pageLoading, curSec, ftab, go, nav, show, tab, tabTo, ticketDeskOk };
 }
