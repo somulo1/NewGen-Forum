@@ -142,3 +142,39 @@ func TestConversationChangedAtMovesForEveryKindOfChange(t *testing.T) {
 	e.MustDo(204, "DELETE", "/conversations/"+conv+"/messages/"+msg, nil, o.Access)
 	step("a removed message")
 }
+
+// Deleting a post erases everything that hangs on it, however deep: comments, replies, likes and votes.
+func TestDeletingAPostErasesItsWholeThread(t *testing.T) {
+	e := testkit.New(t)
+	ownerU, slug := e.NewOrg("Olivia Owner")
+	org := e.OrgID(slug)
+	o := e.Owner(ownerU)
+	o.Register(e)
+	key, _ := e2ee.NewConversationKey()
+	conv := e.MustDo(201, "POST", "/conversations", map[string]any{"kind": "forum", "name": "Team", "members": []string{o.Person}, "keys": o.WrapFor(e, key, 1, o.Person)}, ownerU.Access)["id"].(string)
+	send := func(typ string, replyTo any) string {
+		id := uuid.Must(uuid.NewV7()).String()
+		e.MustDo(201, "POST", "/conversations/"+conv+"/messages", map[string]any{"id": id, "type": typ, "reply_to": replyTo, "epoch": 1, "device": o.DevID, "envelope": o.Seal(org, conv, id, 1, key, "x")}, o.Access)
+		return id
+	}
+	post := send("post", nil)
+	comment := send("comment", post)
+	reply := send("comment", comment)
+	send("reaction", reply)
+	send("reaction", post)
+	send("vote", post)
+	live := func() int {
+		var n int
+		_ = e.A.DB.WithOrg(context.Background(), uuid.MustParse(org), func(tx pgx.Tx) error {
+			return tx.QueryRow(context.Background(), `select count(*) from hub.messages where conversation_id=$1 and deleted_at is null`, conv).Scan(&n)
+		})
+		return n
+	}
+	if live() != 6 {
+		t.Fatalf("setup: want 6 live messages, got %d", live())
+	}
+	e.MustDo(204, "DELETE", "/conversations/"+conv+"/messages/"+post, nil, o.Access)
+	if n := live(); n != 0 {
+		t.Fatalf("%d messages of the deleted post's thread are still there", n)
+	}
+}
