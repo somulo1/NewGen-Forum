@@ -47,6 +47,7 @@ export function valsAccess(ctx) {
     },
     onBio: (e) => setPf({ bio: e.target.value }),
     onPhone: (e) => setPf({ phone: e.target.value }),
+    onHeadline: (e) => setPf({ headline: String(e.target.value).slice(0, 120) }),
     onNewSkill: (e) => this.setState({ newSkill: e.target.value }),
     newSkillKey: (e) => { if (e.key === 'Enter') addSkill(); },
     addSkill,

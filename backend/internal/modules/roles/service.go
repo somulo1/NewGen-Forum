@@ -333,6 +333,7 @@ type Profile struct {
 	Phone        string   `json:"phone"`
 	Bio          string   `json:"bio"`
 	Skills       []string `json:"skills"`
+	Headline     string   `json:"headline"`
 }
 
 func pctx(org, person uuid.UUID, col string) crypto.Context {
@@ -378,6 +379,7 @@ func (s *Service) Me(ctx context.Context, p *tenant.Principal) (*Me, error) {
 		if b := open("photo_enc", photo); b != nil && ptype != nil {
 			m.Profile.Photo = "data:" + *ptype + ";base64," + base64.StdEncoding.EncodeToString(b)
 		}
+		_ = tx.QueryRow(ctx, `select headline from hub.person_headlines where person_id=$1`, p.Person).Scan(&m.Profile.Headline)
 		all := map[string][]string{}
 		for _, mod := range access.Default().Modules {
 			all[mod.Key] = mod.Rights
@@ -395,6 +397,7 @@ type ProfileEdit struct {
 	Phone        *string   `json:"phone"`
 	Bio          *string   `json:"bio"`
 	Skills       *[]string `json:"skills"`
+	Headline     *string   `json:"headline"` // empty removes it
 }
 
 var availabilities = map[string]bool{"Available": true, "In a meeting": true, "Focusing": true, "Away": true}
@@ -414,6 +417,13 @@ func (s *Service) EditMe(ctx context.Context, p *tenant.Principal, e ProfileEdit
 	}
 	if e.Cover != nil && (len(*e.Cover) != 7 || (*e.Cover)[0] != '#') {
 		return httpx.Bad("Choose a colour like #1F3A2B.")
+	}
+	var headline string
+	if e.Headline != nil {
+		headline = strings.Join(strings.Fields(*e.Headline), " ")
+		if len([]rune(headline)) > 120 {
+			return httpx.Bad("Keep your headline under 120 characters.")
+		}
 	}
 	var skills []string
 	if e.Skills != nil {
@@ -465,6 +475,26 @@ func (s *Service) EditMe(ctx context.Context, p *tenant.Principal, e ProfileEdit
 			}
 			if err := s.A.Sign.Seal(ctx, tx, "people", "id=$1", p.Person); err != nil {
 				return err
+			}
+		}
+		if e.Headline != nil {
+			if headline == "" {
+				if _, err := tx.Exec(ctx, `delete from hub.person_headlines where person_id=$1`, p.Person); err != nil {
+					return err
+				}
+			} else {
+				if _, err := tx.Exec(ctx, `insert into hub.person_headlines (org_id, person_id, headline) values ($1,$2,$3) on conflict do nothing`, p.Org, p.Person, headline); err != nil {
+					return err
+				}
+				if err := s.A.Sign.Seal(ctx, tx, "person_headlines", "person_id=$1", p.Person); err != nil {
+					return err
+				}
+				if _, err := tx.Exec(ctx, `update hub.person_headlines set headline=$2, updated_at=now(), `+integrity.Bump+` where person_id=$1`, p.Person, headline); err != nil {
+					return err
+				}
+				if err := s.A.Sign.Seal(ctx, tx, "person_headlines", "person_id=$1", p.Person); err != nil {
+					return err
+				}
 			}
 		}
 		if e.Cover != nil || e.Photo != nil || e.Bio != nil || e.Skills != nil {
