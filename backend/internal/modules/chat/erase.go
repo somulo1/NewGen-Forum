@@ -38,23 +38,29 @@ func (s *Service) eraseAround(ctx context.Context, tx pgx.Tx, org uuid.UUID, ids
 	if len(ids) == 0 {
 		return nil
 	}
-	rs, err := tx.Query(ctx, `update hub.messages set ciphertext='\x00'::bytea, deleted_at=now(), `+integrity.Bump+`
-		where org_id=$1 and reply_to = any($2) and content_type in ('comment','reaction','edit') and deleted_at is null returning id`, org, ids)
-	if err != nil {
-		return err
-	}
+	// everything that hangs on the message goes with it, however deep: comments, replies to comments, likes, votes, edits
 	all := append([]uuid.UUID{}, ids...)
-	for rs.Next() {
-		var k uuid.UUID
-		if err := rs.Scan(&k); err != nil {
-			rs.Close()
+	frontier := ids
+	for depth := 0; depth < 8 && len(frontier) > 0; depth++ {
+		rs, err := tx.Query(ctx, `update hub.messages set ciphertext='\x00'::bytea, deleted_at=now(), `+integrity.Bump+`
+			where org_id=$1 and reply_to = any($2) and content_type in ('comment','reaction','edit','vote') and deleted_at is null returning id`, org, frontier)
+		if err != nil {
 			return err
 		}
-		all = append(all, k)
-	}
-	rs.Close()
-	if err := rs.Err(); err != nil {
-		return err
+		frontier = nil
+		for rs.Next() {
+			var k uuid.UUID
+			if err := rs.Scan(&k); err != nil {
+				rs.Close()
+				return err
+			}
+			all = append(all, k)
+			frontier = append(frontier, k)
+		}
+		rs.Close()
+		if err := rs.Err(); err != nil {
+			return err
+		}
 	}
 	if err := s.A.Sign.Seal(ctx, tx, "messages", "org_id=$1 and id = any($2)", org, all); err != nil {
 		return err
