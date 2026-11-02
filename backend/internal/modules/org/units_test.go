@@ -12,6 +12,7 @@ func TestStructureLevelsAreOptionalAndRemovable(t *testing.T) {
 	staff := e.Join(ownerU, slug, "Sam", "staff")
 
 	// an organization with only departments, and branches without sectors: nothing forces the levels above
+	e.Levels(ownerU, map[string]string{"department": "", "branch": "", "unit": "branch"})
 	dept := e.MustDo(201, "POST", "/org/units", map[string]any{"kind": "department", "name": "Finance"}, ownerU.Access)["id"].(string)
 	br := e.MustDo(201, "POST", "/org/units", map[string]any{"kind": "branch", "name": "Nairobi"}, ownerU.Access)["id"].(string)
 	un := e.MustDo(201, "POST", "/org/units", map[string]any{"kind": "unit", "name": "Retail Desk", "parent_id": br}, ownerU.Access)["id"].(string)

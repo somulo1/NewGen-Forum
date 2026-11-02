@@ -65,22 +65,18 @@ func (s *Service) SaveUnit(ctx context.Context, p *tenant.Principal, id *uuid.UU
 			return err
 		}
 		if id == nil {
-			allowed, ok := parentKinds[in.Kind]
-			if !ok {
-				return httpx.Bad("Unknown kind of unit.")
+			lv, err := s.levels(ctx, tx, p)
+			if err != nil {
+				return err
 			}
+			pk := ""
 			if in.Parent != nil {
-				var pk string
 				if err := tx.QueryRow(ctx, `select kind from hub.org_units where id=$1`, *in.Parent).Scan(&pk); err != nil {
 					return httpx.Bad("That parent does not exist.")
 				}
-				ok := false
-				for _, k := range allowed {
-					ok = ok || k == pk
-				}
-				if !ok {
-					return httpx.Bad("A " + in.Kind + " cannot sit under a " + pk + ".")
-				}
+			}
+			if err := lv.checkPlace(in.Kind, pk); err != nil {
+				return err
 			}
 			out = Unit{ID: uuidNew(), Kind: in.Kind, Parent: in.Parent, Name: in.Name, Code: in.Code}
 			if _, err := tx.Exec(ctx, `insert into hub.org_units (id, org_id, kind, parent_id, name, code) values ($1,$2,$3,$4,$5,nullif($6,''))`, out.ID, p.Org, out.Kind, out.Parent, out.Name, out.Code); err != nil {

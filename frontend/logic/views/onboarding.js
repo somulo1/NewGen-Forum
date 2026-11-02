@@ -87,7 +87,6 @@ function buildStructureEd(s, can) {
   const se = { ...FRESH_ED, ...(s.structEd || {}) };
   const units = this.srv.unitList || [];
   const byId = new Map(units.map((u) => [u.id, u]));
-  const kindLabel = (k) => (KINDS.find((x) => x.kind === k) || {}).label || k;
   const set = (patch) => this.setState((st) => ({ structEd: { ...FRESH_ED, ...(st.structEd || {}), ...(typeof patch === 'function' ? patch({ ...FRESH_ED, ...(st.structEd || {}) }) : patch) } }));
   // one change at a time; the result (or the server's reason) is shown at the top of the page
   const run = (fn, after, ok) => {
@@ -95,11 +94,18 @@ function buildStructureEd(s, can) {
     set({ busy: true, err: '', ok: '' });
     return fn().then(() => set({ busy: false, ok: ok || '', ...(after || {}) })).catch((e) => set({ busy: false, err: (e && e.message) || 'That did not work.' }));
   };
+  // The organization's own levels: only the ones it switched on can be made here, each under the one it chose, with its names.
+  const cfg = (this.srv.levels && this.srv.levels.levels) || [];
+  const cfgOf = (k) => cfg.find((l) => l.kind === k) || { kind: k, enabled: false, parent: '' };
+  const kindLabel = (k) => cfgOf(k).label || (KINDS.find((x) => x.kind === k) || {}).label || k;
+  const KS = KINDS.filter((K) => cfgOf(K.kind).enabled).map((K) => ({ ...K, label: cfgOf(K.kind).label || K.label, plural: cfgOf(K.kind).plural || K.plural }));
   const have = (k) => units.filter((u) => u.kind === k);
-  const parentChoices = (kind, self) => PARENTS[kind].flatMap((k) => have(k).filter((u) => u.id !== self).map((u) => ({ id: u.id, label: kindLabel(k) + ' · ' + u.name })));
-  const parentOpts = parentChoices(se.kind);
+  const parentKind = (kind) => cfgOf(kind).parent || '';
+  const parentChoices = (kind, self) => (parentKind(kind) ? have(parentKind(kind)).filter((u) => u.id !== self).map((u) => ({ id: u.id, label: kindLabel(parentKind(kind)) + ' · ' + u.name })) : []);
+  const curKind = KS.some((K) => K.kind === se.kind) ? se.kind : ((KS[0] || {}).kind || '');
+  const parentOpts = parentChoices(curKind);
   const parent = parentOpts.some((o) => o.id === se.parent) ? se.parent : '';
-  const levels = KINDS.map((K) => {
+  const levels = KS.map((K) => {
     const list = have(K.kind).sort((a, b) => a.name.localeCompare(b.name));
     const sel = (se.sel[K.kind] || []).filter((id) => list.some((u) => u.id === id));
     const rows = list.map((u) => {
@@ -117,7 +123,18 @@ function buildStructureEd(s, can) {
         confirming: se.del === u.id, askRemove: () => set({ del: u.id, err: '', ok: '' }), keep: () => set({ del: null }),
         remove: () => run(() => orgW.removeUnit(this, this.srv, u.id), { del: null }, u.name + ' was removed.'),
         // moving: only to a level this kind may sit under
-        canMove: PARENTS[K.kind].length > 0, moveOpts, moveTo, moved,
+        canMove: !!parentKind(K.kind), moveOpts, moveTo, moved,
+        // adding people: tick them from the directory; they are placed here and in every part above it
+        adding: se.addTo === u.id, openAdd: () => set({ addTo: u.id, addSel: {}, addQ: '', err: '', ok: '' }), closeAdd: () => set({ addTo: null }),
+        addQ: se.addTo === u.id ? se.addQ || '' : '', onAddQ: (e) => { const v = e.target.value; set({ addQ: v }); },
+        addList: se.addTo === u.id ? this.dir.filter((p) => p.uid && p[K.field] !== u.name && (!(se.addQ || '').trim() || p.name.toLowerCase().includes(se.addQ.trim().toLowerCase()))).slice(0, 60)
+          .map((p) => ({ uid: p.uid, name: p.name, sub: [p.title, p.dept, p.loc].filter(Boolean).join(' · '), on: !!(se.addSel || {})[p.uid], toggle: () => set((cur) => ({ addSel: { ...(cur.addSel || {}), [p.uid]: !(cur.addSel || {})[p.uid] } })) })) : [],
+        addCount: Object.values(se.addSel || {}).filter(Boolean).length,
+        doAdd: () => {
+          const ids = Object.keys(se.addSel || {}).filter((k) => se.addSel[k]);
+          if (!ids.length) { set({ err: 'Tick the people to add.' }); return; }
+          run(() => orgW.addPeople(this, this.srv, u.id, ids).then((failed) => { if (failed.length) throw new Error(failed.length + ' could not be added: ' + failed[0]); }), { addTo: null, addSel: {} }, ids.length + (ids.length === 1 ? ' person was' : ' people were') + ' added to ' + u.name + '.');
+        },
         onMove: (e) => { const v = e.target.value; set((cur) => ({ move: { ...cur.move, [u.id]: v }, err: '', ok: '' })); },
         doMove: () => {
           const dest = moveTo ? byId.get(moveTo) : null;
@@ -147,18 +164,31 @@ function buildStructureEd(s, can) {
       merge: () => run(() => orgW.mergeUnits(this, this.srv, into, others.map((x) => x.id)), { sel: { ...se.sel, [K.kind]: [] }, mergeAsk: null }, others.map((x) => x.name).join(', ') + ' merged into ' + (target ? target.name : '') + '.')
     };
   });
-  const K = KINDS.find((x) => x.kind === se.kind) || KINDS[0];
+  const K = KS.find((x) => x.kind === curKind) || KS[0] || KINDS[0];
   const name = se.name.trim();
+  const tab = KS.some((x) => x.kind === se.tab) ? se.tab : curKind;
+  const needParent = !!parentKind(curKind);
+  // the levels panel: which levels the organization uses, what it calls them and which sits under which
+  const draft = se.lvDraft || KINDS.map((x) => { const c = cfgOf(x.kind); return { kind: x.kind, enabled: !!c.enabled, label: c.label || x.label, plural: c.plural || x.plural, parent: c.parent || '' }; });
+  const setDraft = (kind, patch) => set((cur) => ({ lvDraft: (cur.lvDraft || draft).map((l) => (l.kind === kind ? { ...l, ...patch } : l)), err: '', ok: '' }));
+  const levelsPanel = {
+    open: !!se.lvOpen || !cfg.some((l) => l.enabled), toggle: () => set({ lvOpen: !se.lvOpen, lvDraft: null }),
+    rows: draft.map((l) => ({ ...l, onEnabled: (e) => setDraft(l.kind, { enabled: e.target.checked }), onLabel: (e) => setDraft(l.kind, { label: e.target.value }), onPlural: (e) => setDraft(l.kind, { plural: e.target.value }),
+      onParent: (e) => setDraft(l.kind, { parent: e.target.value }),
+      parentOpts: [{ v: '', l: 'The organization itself' }].concat(draft.filter((x) => x.kind !== l.kind && x.enabled).map((x) => ({ v: x.kind, l: x.label }))) })),
+    dirty: !!se.lvDraft,
+    save: () => run(() => orgW.saveLevels(this, this.srv, draft), { lvDraft: null, lvOpen: false }, 'Your organization\'s levels were saved.')
+  };
   return {
     canEdit, open: true, openIt, close: () => this.setState({ section: 'people', structEd: null }), busy: se.busy,
-    err: se.err, hasErr: !!se.err, ok: se.ok, hasOk: !!se.ok && !se.err,
-    levels, tabs: levels.map((l) => ({ kind: l.kind, label: l.plural, count: l.count, on: l.kind === se.tab, pick: () => set({ tab: l.kind, mergeAsk: null, err: '', ok: '' }) })), cur: levels.find((l) => l.kind === se.tab) || levels[0],
-    summary: levels.filter((l) => l.count).map((l) => l.count + ' ' + (l.count === 1 ? l.label.toLowerCase() : l.plural.toLowerCase())).join(' · ') || 'No structure yet. Everyone works at one level.',
-    kinds: KINDS.map((x) => ({ kind: x.kind, label: x.label })), kind: se.kind, onKind: (e) => set({ kind: e.target.value, parent: '', err: '' }),
-    kindBlurb: K.blurb, name: se.name, onName: (e) => set({ name: e.target.value, err: '' }),
-    parentOpts, hasParents: PARENTS[se.kind].length > 0, parent, onParent: (e) => set({ parent: e.target.value }),
-    canAdd: !!name && !se.busy,
-    add: () => { if (!name) { set({ err: 'Enter a name.' }); return; } run(() => orgW.addUnit(this, this.srv, { kind: se.kind, name, parent }), { name: '' }, K.label + ' ' + name + ' was added.'); },
+    err: se.err, hasErr: !!se.err, ok: se.ok, hasOk: !!se.ok && !se.err, levelsPanel, noLevels: KS.length === 0,
+    levels, tabs: levels.map((l) => ({ kind: l.kind, label: l.plural, count: l.count, on: l.kind === tab, pick: () => set({ tab: l.kind, mergeAsk: null, err: '', ok: '' }) })), cur: levels.find((l) => l.kind === tab) || levels[0],
+    summary: levels.filter((l) => l.count).map((l) => l.count + ' ' + (l.count === 1 ? l.label.toLowerCase() : l.plural.toLowerCase())).join(' · ') || (KS.length ? 'Nothing added yet.' : 'Choose the levels your organization uses to start.'),
+    kinds: KS.map((x) => ({ kind: x.kind, label: x.label })), kind: curKind, onKind: (e) => set({ kind: e.target.value, parent: '', err: '' }),
+    kindBlurb: needParent ? 'Each ' + K.label.toLowerCase() + ' sits under a ' + kindLabel(parentKind(curKind)).toLowerCase() + '.' : 'Each ' + K.label.toLowerCase() + ' sits directly under the organization.', name: se.name, onName: (e) => set({ name: e.target.value, err: '' }),
+    parentOpts, hasParents: needParent, parentLabel: needParent ? kindLabel(parentKind(curKind)) : '', parent, onParent: (e) => set({ parent: e.target.value }),
+    canAdd: !!name && !se.busy && (!needParent || !!parent) && KS.length > 0,
+    add: () => { if (!name) { set({ err: 'Enter a name.' }); return; } if (needParent && !parent) { set({ err: 'Choose the ' + kindLabel(parentKind(curKind)).toLowerCase() + ' it sits under.' }); return; } run(() => orgW.addUnit(this, this.srv, { kind: curKind, name, parent }), { name: '' }, K.label + ' ' + name + ' was added.'); },
     note: 'Add, rename, move and merge the parts of your organization. Moving or merging re-places everyone inside straight away. A level only appears in Hub once it has at least one entry.'
   };
 }

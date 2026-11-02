@@ -19,7 +19,30 @@ export async function load(logic, srv) {
   const targets = {};
   units.forEach((u) => { if (u.target) targets[keyOf(u.kind, u.id)] = u.target; });
   logic.setState({ targets });
-  await loadPerformance(logic, srv);
+  await Promise.all([loadPerformance(logic, srv), loadLevels(logic, srv)]);
+}
+
+// The structure levels this organization uses: which of sector, branch, unit and department, their names, and which sits under which.
+export async function loadLevels(logic, srv) {
+  try { srv.levels = await srv.request('GET', '/org/levels'); } catch (e) { srv.levels = srv.levels || { levels: [], set: false }; }
+  logic.forceUpdate();
+}
+export async function saveLevels(logic, srv, levels) {
+  srv.levels = await srv.request('PUT', '/org/levels', { levels });
+  logic.forceUpdate();
+}
+// Places people in a part of the organization: the part itself and every part above it, so their record stays consistent.
+export async function addPeople(logic, srv, unitId, personIds) {
+  const units = srv.unitList || [];
+  const byId = new Map(units.map((u) => [u.id, u]));
+  const body = {};
+  for (let u = byId.get(unitId); u; u = byId.get(u.parent_id)) body[u.kind + '_id'] = u.id;
+  const failed = [];
+  for (const pid of personIds) {
+    try { await srv.request('PATCH', '/people/' + pid, body); } catch (e) { failed.push((e && e.message) || 'That did not go through.'); }
+  }
+  const pw = await import('./people.js'); await pw.load(logic, srv);
+  return failed;
 }
 
 // One short summary per unit this person may open: the percentages on the org page, the cards and the widgets.

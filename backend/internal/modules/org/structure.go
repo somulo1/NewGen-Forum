@@ -41,6 +41,13 @@ func (s *Service) MoveUnit(ctx context.Context, p *tenant.Principal, id uuid.UUI
 			return httpx.ErrNotFound
 		}
 		dest := "the top level"
+		if parent == nil {
+			if lv, err := s.levels(ctx, tx, p); err != nil {
+				return err
+			} else if err := lv.checkPlace(kind, ""); err != nil {
+				return err
+			}
+		}
 		if parent != nil {
 			if *parent == id {
 				return httpx.Bad("A " + kind + " cannot sit under itself.")
@@ -49,8 +56,10 @@ func (s *Service) MoveUnit(ctx context.Context, p *tenant.Principal, id uuid.UUI
 			if err := tx.QueryRow(ctx, `select kind, name from hub.org_units where id=$1`, *parent).Scan(&pk, &pn); err != nil {
 				return httpx.Bad("That parent does not exist.")
 			}
-			if !allowedParent(kind, pk) {
-				return httpx.Bad("A " + kind + " cannot sit under a " + pk + ".")
+			if lv, err := s.levels(ctx, tx, p); err != nil {
+				return err
+			} else if err := lv.checkPlace(kind, pk); err != nil {
+				return err
 			}
 			// kinds only nest downwards (sector > branch > unit > department), but check anyway: no loops
 			var loop bool

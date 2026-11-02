@@ -15,6 +15,7 @@ func TestUnitDashboardIsBuiltFromRealRecords(t *testing.T) {
 	org := e.OrgID(slug)
 	o := e.Owner(ownerU)
 	e.MustDo(204, "PUT", "/approvals/flows/f11", map[string]any{"levels": 0}, ownerU.Access)
+	e.Levels(ownerU, map[string]string{"department": ""})
 	dept := e.MustDo(201, "POST", "/org/units", map[string]any{"kind": "department", "name": "Finance"}, ownerU.Access)["id"].(string)
 	amy := e.Join(ownerU, slug, "Amy", "hod")
 	bob := e.Join(ownerU, slug, "Bob", "staff")

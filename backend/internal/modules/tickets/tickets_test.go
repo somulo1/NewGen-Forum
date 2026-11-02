@@ -128,12 +128,14 @@ func TestOwnTicketsAndEscalationScope(t *testing.T) {
 	o := e.Owner(ownerU)
 	e.MustDo(204, "PUT", "/approvals/flows/f11", map[string]any{"levels": 0}, ownerU.Access)
 	add := func(kind, name, parent string) string {
+
 		body := map[string]any{"kind": kind, "name": name}
 		if parent != "" {
 			body["parent_id"] = parent
 		}
 		return e.MustDo(201, "POST", "/org/units", body, ownerU.Access)["id"].(string)
 	}
+	e.Levels(ownerU, map[string]string{"sector": "", "branch": "sector", "unit": "branch"})
 	sector := add("sector", "Central", "")
 	branch := add("branch", "Nairobi", sector)
 	other := add("branch", "Kisumu", sector)

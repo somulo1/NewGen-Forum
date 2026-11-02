@@ -23,6 +23,7 @@ func TestCreateOrgBuildsEverythingAndSealsIt(t *testing.T) {
 		t.Fatalf("duplicate slug: %d", code)
 	}
 	// structure: add a sector, a branch under it, a unit; invalid nesting is refused
+	e.Levels(u, map[string]string{"sector": "", "branch": "sector"})
 	sec := e.MustDo(201, "POST", "/org/units", map[string]any{"kind": "sector", "name": "Retail"}, u.Access)
 	br := e.MustDo(201, "POST", "/org/units", map[string]any{"kind": "branch", "name": "Nairobi", "parent_id": sec["id"]}, u.Access)
 	if code, _ := e.Do("POST", "/org/units", map[string]any{"kind": "sector", "name": "Bad", "parent_id": br["id"]}, u.Access); code != 400 {

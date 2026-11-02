@@ -9,6 +9,20 @@
 <div style="display: flex; flex-direction: column; gap: 16px">
 <span style="font-size: 13px; color: var(--k-C9D6CF,#C9D6CF); line-height: 1.5">{{ structureEd.note }}</span>
 
+<section aria-label="Levels your organization uses" style="display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 14px; border: 1px solid var(--k-24322C,#24322C); background: var(--k-121B17,#121B17)">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px"><strong style="flex: 1 1 220px; font-size: 15px">Levels your organization uses</strong><button type="button" @click="structureEd.levelsPanel.toggle" style="height: 34px; padding: 0 14px; border-radius: 17px; border: 1px solid var(--k-6B7A72,#6B7A72); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer">{{ structureEd.levelsPanel.open ? 'Close' : 'Change levels' }}</button></div>
+<template v-if="structureEd.levelsPanel.open">
+<span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6); line-height: 1.5">Switch on only the levels your organization has, name them the way you do, and choose what each one sits under. Renaming never changes the records.</span>
+<template v-for="l in structureEd.levelsPanel.rows" :key="l.kind"><div style="display: grid; grid-template-columns: minmax(130px, auto) repeat(3, minmax(140px, 1fr)); gap: 8px; align-items: center">
+<label style="display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600"><input type="checkbox" :checked="l.enabled" @change="l.onEnabled" style="width: 18px; height: 18px; accent-color: #B8F36B"> {{ l.kind.charAt(0).toUpperCase() + l.kind.slice(1) }}</label>
+<input type="text" :value="l.label" @input="l.onLabel" :disabled="!l.enabled" maxlength="40" :aria-label="`Name for one ${l.kind}`" placeholder="Name (one)" style="height: 36px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-16201C,#16201C); color: var(--k-E8EFEA,#E8EFEA); font-size: 13px">
+<input type="text" :value="l.plural" @input="l.onPlural" :disabled="!l.enabled" maxlength="40" :aria-label="`Name for many ${l.kind}`" placeholder="Name (many)" style="height: 36px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-16201C,#16201C); color: var(--k-E8EFEA,#E8EFEA); font-size: 13px">
+<select :value="l.parent" @change="l.onParent" :disabled="!l.enabled" :aria-label="`What a ${l.kind} sits under`" style="height: 36px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-16201C,#16201C); color: var(--k-E8EFEA,#E8EFEA); font-size: 13px"><template v-for="o in l.parentOpts" :key="o.v"><option :value="o.v">Under {{ o.l }}</option></template></select>
+</div></template>
+<div><button type="button" @click="structureEd.levelsPanel.save" :disabled="structureEd.busy" style="height: 36px; padding: 0 18px; border-radius: 18px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 700; cursor: pointer">Save levels</button></div>
+</template>
+</section>
+<template v-if="!structureEd.noLevels">
 <form novalidate aria-label="Add to the structure" @submit.prevent="structureEd.add" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; padding: 14px; border-radius: 14px; background: var(--k-121B17,#121B17)">
 <label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Add a
 <select :value="structureEd.kind" @change="structureEd.onKind" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-16201C,#16201C); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px"><template v-for="k in structureEd.kinds" :key="k.kind"><option :value="k.kind">{{ k.label }}</option></template></select>
@@ -16,12 +30,13 @@
 <label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Name
 <input type="text" :value="structureEd.name" @input="structureEd.onName" maxlength="80" placeholder="e.g. Nairobi" style="height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-16201C,#16201C); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px"/>
 </label>
-<template v-if="structureEd.hasParents"><label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Sits under (optional)
-<select :value="structureEd.parent" @change="structureEd.onParent" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-16201C,#16201C); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px"><option value="">Top level</option><template v-for="o in structureEd.parentOpts" :key="o.id"><option :value="o.id">{{ o.label }}</option></template></select>
+<template v-if="structureEd.hasParents"><label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Sits under ({{ structureEd.parentLabel }})
+<select :value="structureEd.parent" @change="structureEd.onParent" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-16201C,#16201C); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px"><option value="">Choose…</option><template v-for="o in structureEd.parentOpts" :key="o.id"><option :value="o.id">{{ o.label }}</option></template></select>
 </label></template>
 <div style="display: flex; align-items: flex-end"><button type="submit" :disabled="!structureEd.canAdd" :style="`height: 40px; padding: 0 22px; border-radius: 20px; border: 0; font-weight: 600; cursor: ${structureEd.canAdd ? 'pointer' : 'default'}; ${structureEd.canAdd ? 'background: #B8F36B; color: #0F1714' : 'background: var(--k-2A3832,#2A3832); color: var(--k-9DB0A6,#9DB0A6)'}`">Add</button></div>
 <span style="grid-column: 1 / -1; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">{{ structureEd.kindBlurb }}</span>
 </form>
+</template>
 <template v-if="structureEd.hasOk"><div role="status" style="padding: 10px 14px; border-radius: 12px; background: var(--k-1E3326,#1E3326); color: #B8F36B; font-size: 14px">{{ structureEd.ok }}</div></template>
 <template v-if="structureEd.hasErr"><div role="alert" style="padding: 10px 14px; border-radius: 12px; background: var(--k-3A2420,#3A2420); color: #FFD3CA; font-size: 14px">{{ structureEd.err }}</div></template>
 
@@ -69,10 +84,16 @@
 <td style="padding: 8px 6px; color: var(--k-9DB0A6,#9DB0A6); white-space: nowrap">{{ r.people }}</td>
 <td style="padding: 8px 14px; white-space: nowrap">
 <template v-if="r.confirming"><span style="font-size: 13px; color: var(--k-FFB86B,#FFB86B)">Remove?</span> <button type="button" @click="r.remove" style="height: 34px; padding: 0 14px; border-radius: 17px; border: 0; background: #FF9B8A; color: #0F1714; font-weight: 600; cursor: pointer">Remove</button> <button type="button" @click="r.keep" style="height: 34px; padding: 0 16px; border-radius: 17px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer">Keep</button></template>
-<template v-else><button type="button" @click="r.startEdit" :aria-label="`Rename ${r.name}`" style="height: 34px; padding: 0 16px; border-radius: 17px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer">Rename</button> <button type="button" @click="r.askRemove" :aria-label="`Remove ${r.name}`" style="height: 34px; padding: 0 16px; border-radius: 17px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; color: var(--k-FF9B8A,#FF9B8A)">Remove</button></template>
+<template v-else><button type="button" @click="r.openAdd" :aria-label="`Add people to ${r.name}`" style="height: 34px; padding: 0 16px; border-radius: 17px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">Add people</button> <button type="button" @click="r.startEdit" :aria-label="`Rename ${r.name}`" style="height: 34px; padding: 0 16px; border-radius: 17px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer">Rename</button> <button type="button" @click="r.askRemove" :aria-label="`Remove ${r.name}`" style="height: 34px; padding: 0 16px; border-radius: 17px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; color: var(--k-FF9B8A,#FF9B8A)">Remove</button></template>
 </td>
 </template>
-</tr></template>
+</tr>
+<tr v-if="r.adding"><td colspan="5" style="padding: 10px 14px; background: var(--k-121B17,#121B17)"><div style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center"><strong style="flex: 1 1 200px; font-size: 13px">Add people to {{ r.name }}</strong><input type="search" :value="r.addQ" @input="r.onAddQ" placeholder="Search people…" aria-label="Search people" style="flex: 1 1 200px; max-width: 300px; height: 34px; padding: 0 12px; border-radius: 17px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-16201C,#16201C); color: var(--k-E8EFEA,#E8EFEA)"><button type="button" @click="r.doAdd" :disabled="structureEd.busy || !r.addCount" style="height: 34px; padding: 0 16px; border-radius: 17px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 700; cursor: pointer">Add {{ r.addCount || '' }}</button><button type="button" @click="r.closeAdd" style="height: 34px; padding: 0 14px; border-radius: 17px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer">Cancel</button></div>
+<div style="max-height: 260px; overflow-y: auto; display: flex; flex-direction: column">
+<template v-for="pp in r.addList" :key="pp.uid"><label style="display: flex; align-items: center; gap: 10px; padding: 6px 4px; cursor: pointer; font-size: 13px"><input type="checkbox" :checked="pp.on" @change="pp.toggle" style="width: 16px; height: 16px; accent-color: #B8F36B"><span style="flex: 1; min-width: 0">{{ pp.name }} <span style="color: var(--k-9DB0A6,#9DB0A6)">{{ pp.sub }}</span></span></label></template>
+<span v-if="!r.addList.length" style="font-size: 13px; color: var(--k-9DB0A6,#9DB0A6)">Nobody else to add.</span>
+</div></div></td></tr></template>
 </tbody></table></div>
 </section></template>
 </div>

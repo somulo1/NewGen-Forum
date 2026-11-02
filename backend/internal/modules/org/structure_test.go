@@ -13,6 +13,7 @@ func TestStructureMoveAndMerge(t *testing.T) {
 	ownerU, slug := e.NewOrg("Olivia Owner")
 	o := e.Owner(ownerU)
 	e.MustDo(204, "PUT", "/approvals/flows/f11", map[string]any{"levels": 0}, ownerU.Access)
+	e.Levels(ownerU, map[string]string{"sector": "", "branch": "sector", "unit": "branch"})
 	add := func(kind, name, parent string) string {
 		body := map[string]any{"kind": kind, "name": name}
 		if parent != "" {
