@@ -117,6 +117,10 @@ export async function startServerSync(logic, request, session, bytes) {
   // the bell shows overdue tickets and shared notes show in chats, so those two arrive quietly a moment after the first screen
   lazy.later(['tickets', 'notes']);
   // incoming calls ring live; each chat's Calls tab shows the real history
+  // a dashboard shows new tickets, communications and requests as they happen (its tabs then blink): drop the cached dashboards so the
+  // open one is fetched again
+  const staleDash = () => { if (srv.ouAsked) { srv.ouAsked.clear(); logic.forceUpdate(); } };
+  ['ticket.updated', 'approval.changed', 'notification', 'comm.published'].forEach((t) => { try { srv.rt && srv.rt.on(t, staleDash); } catch (e) { /* no live connection */ } });
   callsW.listen(logic, srv);
   callsW.loadHistory(logic, srv).catch(() => {});
   // what a live notification may need to refresh

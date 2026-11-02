@@ -238,7 +238,8 @@ export function buildOrg(ctx) {
       if (!ready) return false;
       const ids = idsOf[k]();
       const seen = readSeen(k);
-      if (seen === null || ouTab === k) { if (seen === null || ids.some((id) => !seen.has(id))) writeSeen(k, ids); return false; }   // first look, or being looked at now
+      if (ouTab === k) { if (!seen || ids.some((id) => !seen.has(id))) writeSeen(k, ids); return false; }   // being looked at now: all of it is seen
+      if (!seen) return ids.length > 0;   // never opened yet: everything in it is new to this person
       return ids.some((id) => !seen.has(id));
     };
     ou = {
