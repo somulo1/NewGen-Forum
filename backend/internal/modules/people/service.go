@@ -54,6 +54,7 @@ type Person struct {
 	Last         string     `json:"last_name"`
 	Initials     string     `json:"initials"`
 	Title        string     `json:"title"`
+	Headline     string     `json:"headline"` // what the person wrote about themselves on their profile ("Software developer | DevOps")
 	Status       string     `json:"status"`
 	Availability string     `json:"availability"`
 	Color        string     `json:"color"`
@@ -92,8 +93,9 @@ const personSelect = `
 	select p.id, p.first_name, p.last_name, p.title, p.status, p.availability, p.color, coalesce(p.joined_on::text,''), p.account_id is not null,
 	       p.email_enc, p.phone_enc, p.dob_enc, p.gender_enc,
 	       sx.id, sx.name, bx.id, bx.name, ux.id, ux.name, dx.id, dx.name,
-	       coalesce(r.key,''), coalesce(r.name,''), mg.id, mg.first_name || ' ' || mg.last_name
+	       coalesce(r.key,''), coalesce(r.name,''), mg.id, mg.first_name || ' ' || mg.last_name, coalesce(ph.headline,'')
 	from hub.people p
+	left join hub.person_headlines ph on ph.person_id = p.id
 	left join hub.org_units sx on sx.id = p.sector_id left join hub.org_units bx on bx.id = p.branch_id
 	left join hub.org_units ux on ux.id = p.unit_id   left join hub.org_units dx on dx.id = p.department_id
 	left join hub.person_roles pr on pr.person_id = p.id left join hub.roles r on r.id = pr.role_id
@@ -109,7 +111,7 @@ func scanPerson(r pgx.Row) (*scanned, error) {
 	var sid, bid, uid, did, mid *uuid.UUID
 	var sn, bn, un, dn, mn *string
 	err := r.Scan(&x.ID, &x.First, &x.Last, &x.Title, &x.Status, &x.Availability, &x.Color, &x.Joined, &x.HasAccount,
-		&x.emailEnc, &x.phoneEnc, &x.dobEnc, &x.genderEnc, &sid, &sn, &bid, &bn, &uid, &un, &did, &dn, &x.Role, &x.RoleName, &mid, &mn)
+		&x.emailEnc, &x.phoneEnc, &x.dobEnc, &x.genderEnc, &sid, &sn, &bid, &bn, &uid, &un, &did, &dn, &x.Role, &x.RoleName, &mid, &mn, &x.Headline)
 	if err != nil {
 		return nil, err
 	}

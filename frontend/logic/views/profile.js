@@ -49,7 +49,7 @@ export function buildProfile(ctx) {
   const withKind = (arr) => arr.map((a) => ({ ...a, kind: kindOf[a.tag] || 'Activity' }));
   const meOwn = {
     isOther: false, initials: mi.initials, color: mi.color, aboutTitle: 'About me', forumsTitle: 'My forums', reportsTo: myReport.display,
-    name: mi.name, email: mi.email, role: mi.title, dept: mi.dept,
+    name: mi.name, email: mi.email, role: mi.title, dept: mi.dept, headline: pf.headline || '',
     status: curStatus.label, statusColor: curStatus.color, statusNote: curStatus.note, statusMenu: s.statusMenu,
     statuses: statusDefs.map((x) => ({ ...x, pick: () => { this.setState({ statusMenu: false }); saveNow({ status: x.label }); } })),
     photo: pf.photo, hasPhoto: !!pf.photo, noPhoto: !pf.photo,
@@ -107,7 +107,7 @@ export function buildProfile(ctx) {
       .concat(forumActivity(opDir.name));
     meOther = {
       isOther: true, initials: opDir.initials, color: opDir.color, aboutTitle: 'About ' + first, forumsTitle: 'Forums', reportsTo: opReport.display,
-      name: opDir.name, email: (pd && pd.email) || opDir.email || '', role: opDir.title, dept: opDir.dept,
+      name: opDir.name, email: (pd && pd.email) || opDir.email || '', role: opDir.title, dept: opDir.dept, headline: opDir.headline || '',
       status: opStatus.label, statusColor: opStatus.color, statusNote: opStatus.note, statusMenu: false, statuses: [],
       photo: '', hasPhoto: false, noPhoto: true, editing: false, notEditing: true,
       coverStyle: 'position:relative;height:190px;background:' + ((pd && pd.cover) || opDir.color + '40') + ';overflow:hidden', covers: [],

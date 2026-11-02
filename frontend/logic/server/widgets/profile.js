@@ -2,7 +2,7 @@
 // name, title, department, email and join date come from the directory.
 export const name = 'profile';
 
-const FIELDS = ['status', 'cover', 'photo', 'phone', 'bio', 'skills'];
+const FIELDS = ['status', 'cover', 'photo', 'phone', 'bio', 'skills', 'headline'];
 
 export async function load(logic, srv) {
   // Who you are comes from your own account first. The directory row adds your title, department and email; if it cannot be read, you
@@ -13,7 +13,7 @@ export async function load(logic, srv) {
   const nm = (row && row.name) || me.name || srv.me.name || '';
   const ini = (row && row.initials) || nm.split(/\s+/).filter(Boolean).map((x) => x[0]).join('').slice(0, 2).toUpperCase();
   const pf = me.profile || {};
-  const profile = { status: pf.status || 'Available', cover: pf.cover || '#1F3A2B', photo: pf.photo || '', phone: pf.phone || '', bio: pf.bio || '', skills: pf.skills || [] };
+  const profile = { status: pf.status || 'Available', cover: pf.cover || '#1F3A2B', photo: pf.photo || '', phone: pf.phone || '', bio: pf.bio || '', skills: pf.skills || [], headline: pf.headline || '' };
   srv.profileSaved = profile;
   logic.setState({
     profile,

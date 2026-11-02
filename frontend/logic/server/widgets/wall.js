@@ -150,6 +150,7 @@ function build(logic, srv, items) {
     const commLabel = pl.type || (m.type === 'memo' ? 'Memo' : 'Announcement');
     return {
       id: m.id, author: who(m), ...look(m), mine: m.sender_account === me,
+      headline: m.sender_account === me ? ((logic.state.profile || {}).headline || '') : (p ? (p.headline || '') : ''),   // what they wrote about themselves, shown under their name
       meta: (isComm ? commLabel : (pl.department || (p ? p.dept : '') || 'Everyone')) + ' · ' + ago(m.created_at),
       text: isComm ? (pl.title || '') + (pl.summary ? '\n' + pl.summary : '') + (pl.body ? '\n' + pl.body : '') : (pl.text || ''), postBg: pl.postBg || undefined,
       likes: likes.length - (mineLike ? 1 : 0), extra: 0, shares: kids(m.id, 'share').length,

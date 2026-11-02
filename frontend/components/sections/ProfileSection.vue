@@ -20,6 +20,8 @@
 </div>
 <div style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 6px; padding-bottom: 2px">
 <h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; letter-spacing: -0.02em">{{ me.name }}</h1>
+<span v-if="me.headline && !me.editing" style="font-size: 15px; color: var(--k-E8EFEA,#E8EFEA); overflow-wrap: anywhere">{{ me.headline }}</span>
+<template v-if="me.editing && !me.isOther"><label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Professional headline<input type="text" maxlength="120" :value="me.headline" @input="onHeadline" placeholder="e.g. Software developer | DevOps" style="height: 38px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px"><span>Shown under your name on your posts. {{ (me.headline || '').length }}/120</span></label></template>
 <span style="font-size: 14px; color: var(--k-C9D6CF,#C9D6CF)">{{ me.role }} · {{ me.dept }}</span>
 <template v-if="me.isOther"><span style="align-self: flex-start; height: 32px; padding: 0 12px; border-radius: 16px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); display: flex; align-items: center; gap: 8px; font-size: 13px"><span :style="`width: 9px; height: 9px; border-radius: 50%; background: ${me.statusColor}`"></span>{{ me.status }}</span></template>
 <div v-if="!me.isOther" style="position: relative; align-self: flex-start">
@@ -195,7 +197,7 @@ import { hubBindings } from '~/composables/useHub';
 
 export default {
   name: 'ProfileSection',
-  ...hubBindings(["addSkill","copyEmail","cancelProfile","me","newSkillKey","onBio","onNewSkill","onPhone","onPhoto","profileBack","saveProfile","shareProfile","show","startEditProfile","toggleStatusMenu"]),
+  ...hubBindings(["addSkill","copyEmail","cancelProfile","me","newSkillKey","onBio","onHeadline","onNewSkill","onPhone","onPhoto","profileBack","saveProfile","shareProfile","show","startEditProfile","toggleStatusMenu"]),
   data() {
     return { currentPassword: '', newPassword: '', confirmPassword: '', passwordMessage: '', passwordError: false, passwordBusy: false };
   },
