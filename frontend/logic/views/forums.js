@@ -200,5 +200,6 @@ export function buildForums(ctx) {
       (isDM ? dmsW.loadOlder(this, this.srv, curDm.id) : forumsW.loadOlder(this, this.srv, cur.id)).catch((e) => this.notify((e && e.message) || 'Could not load earlier messages.', '#FF9B8A'));
     }
   };
-  return { cur, curShown, olderCount, moreOlder, showOlder, curDm, curView, dmPerson, dmStatusCol, dmView, fileFolders, forums, forumsData, isDM, selectedChatFolder, wfiles };
+  const chatLoading = !isDM && loadingForums;   // the forums have not arrived yet
+  return { chatLoading, cur, curShown, olderCount, moreOlder, showOlder, curDm, curView, dmPerson, dmStatusCol, dmView, fileFolders, forums, forumsData, isDM, selectedChatFolder, wfiles };
 }

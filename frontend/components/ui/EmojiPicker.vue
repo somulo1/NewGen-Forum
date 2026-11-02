@@ -7,7 +7,7 @@
 <template v-for="c in cats" :key="c.id"><button role="tab" type="button" :aria-selected="cat === c.id" :title="c.label" @click="cat = c.id" :style="tabStyle(c.id)">{{ c.icon }}</button></template>
 </div>
 <div style="flex: 1; min-height: 0; overflow-y: auto; min-width: 0">
-<template v-if="!ready"><span style="display: block; padding: 18px; text-align: center; font-size: 13px; color: var(--k-9DB0A6,#9DB0A6)">Loading emoji…</span></template>
+<template v-if="!ready"><div style="padding: 10px"><PageSkeleton kind="lines" bare /></div></template>
 <template v-else>
 <div v-if="shown.length" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(34px, 1fr)); gap: 2px">
 <template v-for="e in shown" :key="e.emoji || e"><button type="button" :title="e.label || ''" :aria-label="e.label || e" @click="pick(e.emoji || e)" style="height: 34px; border: 0; border-radius: 8px; background: transparent; font-size: 21px; line-height: 1; cursor: pointer">{{ e.emoji || e }}</button></template>

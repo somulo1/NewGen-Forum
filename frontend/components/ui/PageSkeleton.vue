@@ -3,7 +3,7 @@
 <template>
 <div class="sk" role="status" aria-busy="true" aria-live="polite" style="width: 100%; display: flex; flex-direction: column; gap: 18px">
 <span class="sk-only">Loading…</span>
-<div style="display: flex; flex-direction: column; gap: 10px"><span class="sk-b" style="width: min(320px, 60%); height: 30px"></span><span class="sk-b" style="width: min(520px, 90%); height: 14px"></span></div>
+<div v-if="!bare" style="display: flex; flex-direction: column; gap: 10px"><span class="sk-b" style="width: min(320px, 60%); height: 30px"></span><span class="sk-b" style="width: min(520px, 90%); height: 14px"></span></div>
 
 <template v-if="kind === 'home'">
 <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px">
@@ -17,6 +17,14 @@
 <div style="display: flex; align-items: center; gap: 12px"><span class="sk-b" style="width: 42px; height: 42px; border-radius: 50%"></span><div style="display: flex; flex-direction: column; gap: 6px"><span class="sk-b" style="width: 160px; height: 14px"></span><span class="sk-b" style="width: 100px; height: 11px"></span></div></div>
 <span class="sk-b" style="width: 100%; height: 12px"></span><span class="sk-b" style="width: 80%; height: 12px"></span><span class="sk-b" style="width: 100%; height: 120px"></span>
 </div>
+</template>
+
+<template v-else-if="kind === 'chat'">
+<div v-for="n in 6" :key="n" :style="`display: flex; gap: 10px; align-items: flex-start; ${n % 2 ? '' : 'flex-direction: row-reverse'}`"><span class="sk-b" style="flex: none; width: 32px; height: 32px; border-radius: 50%"></span><span class="sk-b" :style="`height: ${n % 3 ? 52 : 74}px; width: ${n % 2 ? 68 : 54}%; border-radius: 14px`"></span></div>
+</template>
+
+<template v-else-if="kind === 'lines'">
+<span v-for="n in 6" :key="n" class="sk-b" :style="`height: 14px; width: ${[100, 86, 94, 72, 90, 64][n - 1]}%`"></span>
 </template>
 
 <template v-else-if="kind === 'calendar'">
@@ -46,7 +54,7 @@
 </template>
 
 <script>
-export default { name: 'PageSkeleton', props: { kind: { type: String, default: 'table' } } };
+export default { name: 'PageSkeleton', props: { kind: { type: String, default: 'table' }, bare: Boolean } };
 </script>
 
 <style>
