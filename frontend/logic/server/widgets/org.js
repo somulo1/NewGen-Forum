@@ -57,10 +57,15 @@ export async function loadPerformance(logic, srv) {
 
 // Loads (or refreshes) the dashboard of one unit; safe to call from a render, it asks the server at most once a minute.
 export function ensure(logic, srv, key, force) {
-  const asked = srv.ouAsked.get(key) || 0;
+  // the period the dashboard covers: this month, quarter or year, or the last 30 days
+  const period = logic.state.ouPeriod || '';
+  const tag = key + '|' + period;
+  const asked = srv.ouAsked.get(tag) || 0;
   if (!force && Date.now() - asked < FRESH_MS) return;
-  srv.ouAsked.set(key, Date.now());
-  srv.request('GET', `/org/units/${idOf(key)}/dashboard`).then((d) => {
+  srv.ouAsked.set(tag, Date.now());
+  if (srv.ouPeriodOf && srv.ouPeriodOf.get(key) !== period) srv.ouData.delete(key);   // another period was shown: fetch, do not show the old numbers
+  srv.request('GET', `/org/units/${idOf(key)}/dashboard` + (period ? '?period=' + period : '')).then((d) => {
+    (srv.ouPeriodOf = srv.ouPeriodOf || new Map()).set(key, period);
     srv.ouData.set(key, d);
     logic.forceUpdate();
   }).catch(() => { (srv.ouFailed = srv.ouFailed || new Set()).add(key); logic.forceUpdate(); });   // no right to open it: the page shows nothing for it, not placeholders for ever

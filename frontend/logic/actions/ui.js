@@ -1,4 +1,5 @@
 import { chime } from '~/logic/tones.js';
+import { rings, kindOfToast } from '~/logic/notifTones.js';
 // HubLogic actions: ui. Mixed into HubLogic.prototype, so `this` is the HubLogic instance.
 export const uiActions = {
   componentDidMount() {
@@ -48,7 +49,7 @@ export const uiActions = {
   },
 
   notify(text, color, ticket) {
-    chime();
+    if (rings(this.state.notifTones, kindOfToast(color))) chime();   // each kind of notice rings only if this person wants it (Profile > Notification sounds)
     this.setState((st) => ({ notifs: [{ text: text, color: color || '#B8F36B', time: 'Just now', ticket: ticket || null }].concat(st.notifs), notifSeen: false, toast: text, toastColor: color || '#B8F36B' }));
     clearTimeout(this._toastT);
     this._toastT = setTimeout(() => this.setState({ toast: '' }), 3800);

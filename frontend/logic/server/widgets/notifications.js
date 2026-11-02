@@ -4,6 +4,7 @@
 import { when } from './tickets.js';
 import { connectRealtime } from '../realtime.js';
 import { chime, loadTones } from '../../tones.js';
+import { rings, kindOfNote } from '../../notifTones.js';
 
 export const name = 'notifications';
 
@@ -22,7 +23,7 @@ export async function load(logic, srv) {
     const n = ev.data || {};
     if (logic.state.notifs.some((x) => x.id && x.id === n.id)) return;
     logic.setState((st) => ({ notifs: [toItem(n)].concat(st.notifs), notifSeen: false, notifUnread: (st.notifUnread || 0) + 1 }));
-    chime();
+    if (rings(logic.state.notifTones, kindOfNote(n.kind))) chime();
     // a notification about something on screen: refresh it
     if (n.kind === 'ticket' && srv.reload.tickets) srv.reload.tickets();
     if ((n.kind === 'comm' || n.kind === 'award' || n.kind === 'approval') && srv.reload.approvals) srv.reload.approvals();

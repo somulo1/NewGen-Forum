@@ -81,6 +81,10 @@ type Ticket struct {
 	Title        string      `json:"title,omitempty"`
 	Description  string      `json:"description,omitempty"`
 	Comments     []Comment   `json:"comments,omitempty"`
+	// what the person asking may do with it (single-ticket reads): assign or reassign (head of the receiving department), escalate
+	// (that head, or the person working on it)
+	CanAssign   bool `json:"can_assign"`
+	CanEscalate bool `json:"can_escalate"`
 	// ElapsedHours is how much of the TAT's running clock has been used (pauses and off-hours excluded); above TATHours means overdue.
 	ElapsedHours float64 `json:"elapsed_hours"`
 	holdSince    *time.Time
@@ -444,6 +448,12 @@ func (s *Service) Get(ctx context.Context, p *tenant.Principal, id uuid.UUID) (*
 		if t, err = s.get(ctx, tx, p.Org, id); err != nil {
 			return err
 		}
+		hod, err := isHead(ctx, tx, p.Person, t)
+		if err != nil {
+			return err
+		}
+		t.CanAssign = hod
+		t.CanEscalate = hod || (t.Handler != nil && *t.Handler == p.Person)
 		in, err := s.participant(ctx, tx, p, id)
 		if err != nil || !in {
 			t.Participant = &in
@@ -513,11 +523,25 @@ func (s *Service) Act(ctx context.Context, p *tenant.Principal, id uuid.UUID, a 
 			}
 			return authz.Require(ctx, tx, p.Person, "tickets", right)
 		}
+		// The head of the receiving department (a person placed in the sector, branch, unit or department the ticket is with, who holds
+		// "Assign & hand over") assigns, reassigns and escalates. The person working on it may solve it or escalate it, but not hand it
+		// to someone else. The person who raised it can do neither, unless they are the head of the receiving department. A ticket on
+		// the ticket desk is assigned by anyone holding "Assign & hand over"; a super admin may always act.
+		hod, err := isHead(ctx, tx, p.Person, cur)
+		if err != nil {
+			return err
+		}
+		needHead := func(what string) error {
+			if hod {
+				return nil
+			}
+			return httpx.Err(403, "not_head", "Only the head of the department this ticket is with can "+what+" it.")
+		}
 		set, text := "", ""
 		args := []any{id}
 		switch a.Do {
 		case "assign":
-			if err := need("Assign & hand over"); err != nil {
+			if err := needHead("assign or reassign"); err != nil {
 				return err
 			}
 			if a.Handler == nil {
@@ -599,8 +623,8 @@ func (s *Service) Act(ctx context.Context, p *tenant.Principal, id uuid.UUID, a 
 			}
 			text = "Resumed work"
 		case "escalate":
-			if err := need("Assign & hand over"); err != nil {
-				return err
+			if !isHandler && !hod {
+				return httpx.Err(403, "not_head", "Only the person working on this ticket or the head of the department it is with can escalate it.")
 			}
 			if cur.Escalated && a.ToType == "" {
 				return httpx.Err(409, "already_escalated", "This ticket was already escalated.")
@@ -680,7 +704,7 @@ func (s *Service) Act(ctx context.Context, p *tenant.Principal, id uuid.UUID, a 
 				text += ": " + a.Why
 			}
 		case "priority":
-			if err := need("Assign & hand over"); err != nil {
+			if err := needHead("change the priority of"); err != nil {
 				return err
 			}
 			if a.Priority != "Low" && a.Priority != "Medium" && a.Priority != "High" {
@@ -876,3 +900,25 @@ func (s *Service) SweepAll(ctx context.Context) error {
 
 // LoadConfig returns the organization's ticket timing policy (other modules use its working hours).
 func LoadConfig(ctx context.Context, tx pgx.Tx) (Config, error) { return (&Service{}).config(ctx, tx) }
+
+// isHead says whether a person is the head of the place a ticket is with: placed in that sector, branch, unit or department and
+// holding "Assign & hand over" there. On the ticket desk the right is enough. A super admin (a locked role) always counts.
+func isHead(ctx context.Context, tx pgx.Tx, person uuid.UUID, t *Ticket) (bool, error) {
+	var locked bool
+	if err := tx.QueryRow(ctx, `select coalesce(bool_or(r.locked), false) from hub.person_roles pr join hub.roles r on r.id = pr.role_id where pr.person_id=$1`, person).Scan(&locked); err != nil {
+		return false, err
+	}
+	if locked {
+		return true, nil
+	}
+	can, err := authz.Can(ctx, tx, person, "tickets", "Assign & hand over")
+	if err != nil || !can {
+		return false, err
+	}
+	if t.ToType == "" || t.ToType == "desk" || t.ToRef == nil {
+		return true, nil
+	}
+	var in bool
+	err = tx.QueryRow(ctx, `select coalesce($2 in (sector_id, branch_id, unit_id, department_id), false) from hub.people where id=$1`, person, *t.ToRef).Scan(&in)
+	return in, err
+}

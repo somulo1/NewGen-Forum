@@ -166,7 +166,7 @@ func (s *Service) Private(r chi.Router) {
 			return httpx.ErrNotFound
 		}
 		days, _ := strconv.Atoi(r.URL.Query().Get("days"))
-		d, err := s.Dashboard(r.Context(), p, id, days)
+		d, err := s.Dashboard(r.Context(), p, id, days, r.URL.Query().Get("period"))
 		if err != nil {
 			return err
 		}
@@ -199,7 +199,7 @@ func (s *Service) Private(r chi.Router) {
 		if err != nil {
 			return err
 		}
-		l, err := s.Performance(r.Context(), p)
+		l, err := s.Performance(r.Context(), p, r.URL.Query().Get("period"))
 		if err != nil {
 			return err
 		}

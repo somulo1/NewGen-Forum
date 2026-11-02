@@ -101,7 +101,8 @@ export function buildTickets(ctx) {
       handlerValue: cur_t.handler || '',
       handoverLabel: cur_t.handler ? 'Hand over to' : 'Assign to',
       // handing over or reassigning needs the right; the person who raised it is never offered as the one to work on it
-      canHandover: !this.srv || can('tickets', 'Assign & hand over'),
+      // only the head of the department the ticket is with assigns or reassigns (the server decides; the person working on it does not)
+      canHandover: !this.srv || (cur_t.canAssign === true),
       handoverOpts: (this.dir || []).filter((p) => p.name !== cur_t.raisedBy && !(raisedByMe && p.name === (this.srv && this.srv.me.name)) && (p.status || 'active') === 'active')
         .map((p) => ({ value: this.srv && p.name === this.srv.me.name ? 'Sam' : p.name, label: (this.srv && p.name === this.srv.me.name ? 'Me (' + p.name + ')' : p.name) + (p.dept ? ' · ' + p.dept : '') }))
         .sort((a, b) => a.label.localeCompare(b.label)),
@@ -126,7 +127,9 @@ export function buildTickets(ctx) {
   const tagNames = cur_t ? [...new Set([cur_t.raisedBy, cur_t.handler].concat(cur_t.assignees || []))].filter((n) => n && n !== 'Sam') : [];
   const tagPeople = tagNames.map((n) => ({ name: n, tag: () => this.setState((st) => ({ tcomment: (st.tcomment && !/\s$/.test(st.tcomment) ? st.tcomment + ' ' : st.tcomment) + '@' + n + ' ', tagOpen: false })) }));
   const autoNotifs = [];
-  if (has.tickets) tickets.forEach((t) => {
+  // only for tickets this person raised or is working on now: someone it was handed away from hears nothing more (unless tagged)
+  const meNow = this.srv ? this.srv.me.name : 'Sam';
+  if (has.tickets) tickets.filter((t) => !this.srv || t.raisedBy === 'Sam' || t.handler === meNow || t.handler === 'Sam').forEach((t) => {
     if (t._c.sla === 'Overdue' && ts.notify.overdue) autoNotifs.push({ text: t.id + ' is overdue by ' + fmtH(-t._c.rem) + '. Escalated to ' + ts.escalate + '.', color: '#FF9B8A', time: 'Now', ticket: t.id });
     if (t._c.sla === 'Due soon' && ts.notify.nearing) autoNotifs.push({ text: t.id + ' is due soon: ' + fmtH(t._c.rem) + ' left on its TAT.', color: '#FFB86B', time: 'Now', ticket: t.id });
   });
