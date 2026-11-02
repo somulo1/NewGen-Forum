@@ -6,7 +6,7 @@
 <template v-for="n in momentView.total" :key="n"><span style="flex: 1; height: 3px; border-radius: 2px; background: rgba(255,255,255,0.22); overflow: hidden"><span :style="`display: block; height: 100%; background: #fff; width: ${n - 1 < momentView.index ? 100 : n - 1 === momentView.index ? Math.round(progress * 100) : 0}%`"></span></span></template>
 </div>
 <div style="flex: none; display: flex; align-items: center; gap: 10px; padding: 12px 14px">
-<UserAvatar :name="item.owner" :initials="item.initials" :color="item.color" :size="38"/>
+<UserAvatar :name="item.owner" :uid="item.uid" :self="item.self" :initials="item.initials" :color="item.color" :size="38"/>
 <div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><strong style="font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ item.owner === 'Sam' ? 'Your moment' : item.owner }}</strong><span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">{{ momentView.counter }}</span></div>
 <button type="button" aria-label="Close moment" @click="momentView.close" style="width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer">✕</button>
 </div>

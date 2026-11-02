@@ -22,7 +22,7 @@
 <video v-else-if="m.mediaIsVideo" :src="m.mediaUrl" muted playsinline preload="metadata" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover"></video>
 <span aria-hidden="true" style="position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(0,0,0,.18), rgba(0,0,0,0) 35%, rgba(0,0,0,.7))"></span>
 <span style="position: relative; display: flex; flex-direction: column; justify-content: space-between; height: 100%; padding: 10px; box-sizing: border-box; min-width: 0">
-<span style="display: flex; align-items: center; justify-content: space-between; gap: 4px"><UserAvatar :name="m.owner" :initials="m.initials" :color="m.color" :size="34" :font-size="12" border="3px solid #B8F36B"/><span v-if="m.mediaIsVideo" aria-label="Video" style="font-size: 11px; padding: 2px 6px; border-radius: 8px; background: rgba(0,0,0,.55)">▶</span></span>
+<span style="display: flex; align-items: center; justify-content: space-between; gap: 4px"><UserAvatar :name="m.owner" :uid="m.uid" :self="m.self" :initials="m.initials" :color="m.color" :size="34" :font-size="12" border="3px solid #B8F36B"/><span v-if="m.mediaIsVideo" aria-label="Video" style="font-size: 11px; padding: 2px 6px; border-radius: 8px; background: rgba(0,0,0,.55)">▶</span></span>
 <span style="display: flex; flex-direction: column; gap: 4px; min-width: 0">
 <span style="font-size: 13px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; word-break: break-word; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden">{{ m.caption }}</span>
 <span v-if="m.likeCount + m.loveCount" style="font-size: 11px; opacity: .9; display: flex; align-items: center; gap: 4px"><svg aria-hidden="true" width="11" height="11" viewBox="0 0 24 24" fill="var(--k-FF6B81,#FF6B81)" stroke="var(--k-FF6B81,#FF6B81)" stroke-width="2" stroke-linejoin="round"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"></path></svg>{{ m.likeCount + m.loveCount }}</span>
@@ -45,7 +45,7 @@
 
 <div v-if="!momentForm.open" class="wall-composer" style="padding: 16px; border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 12px">
 <div style="display: flex; gap: 12px; align-items: flex-start">
-<UserAvatar :name="meAv.name" :initials="meAv.initials" :color="meAv.color" :size="42" text-color="#fff" aria-label="Your profile photo"/>
+<UserAvatar :name="meAv.name" :self="true" :initials="meAv.initials" :color="meAv.color" :size="42" text-color="#fff" aria-label="Your profile photo"/>
 <RichTextInput mentions hashtags style="flex: 1; min-width: 0" :model-value="draft" @update:model-value="onDraftValue" :placeholder="`What's on your mind${meAv.first ? ', ' + meAv.first : ''}?`" aria-label="Write a post" :rows="3" :input-style="`color: ${postBg ? 'var(--k-FFFFFF,#FFFFFF)' : 'var(--k-E8EFEA,#E8EFEA)'}; font-size: 15px`"/>
 </div>
 <div v-if="!noTrending" role="group" aria-label="Popular hashtags" style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-left: 54px"><span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Popular:</span><template v-for="tg in trending.slice(0, 5)" :key="tg.tag"><button type="button" @click="addHashtag(tg.tag)" :aria-label="`Add #${tg.tag} to your post`" style="height: 26px; padding: 0 10px; border-radius: 13px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-7CC4FF,#7CC4FF); font-size: 12px; font-weight: 600; cursor: pointer">#{{ tg.tag }}</button></template></div>
@@ -88,7 +88,7 @@
 <template v-for="(p, p__i) in posts" :key="p__i">
 <article class="wall-post" @click="onActivityClick" :style="`margin-top: -12px; border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; overflow: ${p.menuOpen ? 'visible' : 'hidden'}; ${p.menuOpen ? 'position: relative; z-index: 6;' : ''}`">
 <div style="display: flex; gap: 12px; align-items: center; padding: 16px 16px 0">
-<UserAvatar :name="p.author" :initials="p.initials" :color="p.color" :size="42"/>
+<UserAvatar :name="p.author" :uid="p.uid" :self="p.mine" :initials="p.initials" :color="p.color" :size="42"/>
 <div style="flex: 1; display: flex; flex-direction: column"><strong style="font-size: 15px">{{ p.author }}<template v-if="p.saved"> <span style="font-size: 11px; color: var(--k-B8F36B,#B8F36B); font-weight: 500">· Saved</span></template></strong><span v-if="p.headline" style="font-size: 12px; color: var(--k-C9D6CF,#C9D6CF); overflow-wrap: anywhere">{{ p.headline }}</span><span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">{{ p.meta }}</span></div>
 <div style="position: relative"><button aria-label="Post options" aria-haspopup="menu" :aria-expanded="p.menuOpen" @click="p.toggleMenu" style="width: 36px; height: 36px; border-radius: 50%; border: 0; background: transparent; color: var(--k-9DB0A6,#9DB0A6); cursor: pointer; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="19" cy="12" r="1.8"></circle></svg></button>
 <template v-if="p.menuOpen"><div role="menu" aria-label="Post options" style="position: absolute; right: 0; top: 40px; z-index: 5; min-width: 170px; padding: 6px; border-radius: 12px; background: var(--k-1D2A25,#1D2A25); border: 1px solid var(--k-34453D,#34453D); box-shadow: 0 14px 30px rgba(0,0,0,0.45); display: flex; flex-direction: column"><template v-for="(mi, mi__i) in p.menuItems" :key="mi__i"><button role="menuitem" @click="mi.run" :style="`height: 38px; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; text-align: left; cursor: pointer; font-size: 14px; color: ${mi.danger ? 'var(--k-FF9B8A,#FF9B8A)' : 'var(--k-E8EFEA,#E8EFEA)'}`">{{ mi.label }}</button></template></div></template></div>
@@ -149,7 +149,7 @@
 <template v-for="n in p.commentTree" :key="n.key"><CommentNode :node="n"/></template>
 </div>
 <div v-if="!p.replyingAny" style="display: flex; gap: 8px; align-items: center; padding: 8px 16px 14px; border-top: 1px solid var(--k-24322C,#24322C)">
-<UserAvatar :name="meAv.name" :initials="meAv.initials" :color="meAv.color" :size="32" aria-label="Your profile photo"/>
+<UserAvatar :name="meAv.name" :self="true" :initials="meAv.initials" :color="meAv.color" :size="32" aria-label="Your profile photo"/>
 <CommentBox style="flex: 1" placeholder="Write a comment…" @send="p.addComment"/>
 </div>
 </div>
@@ -168,7 +168,7 @@
 <strong style="font-size: 15px">Online now</strong>
 <template v-for="(m, m__i) in onlineList" :key="m__i">
 <button @click="m.open" :aria-label="`View ${m.name}`" style="display: flex; gap: 10px; align-items: center; padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; text-align: left; font-family: inherit">
-<span style="position: relative; width: 34px; height: 34px; flex: none"><UserAvatar :name="m.owner" :initials="m.initials" :color="m.color" :size="34" :font-size="12"/><span style="position: absolute; right: -1px; bottom: -1px; width: 10px; height: 10px; border-radius: 50%; background: #B8F36B; border: 2px solid var(--k-16201C,#16201C)"></span></span>
+<span style="position: relative; width: 34px; height: 34px; flex: none"><UserAvatar :name="m.owner" :uid="m.uid" :self="m.self" :initials="m.initials" :color="m.color" :size="34" :font-size="12"/><span style="position: absolute; right: -1px; bottom: -1px; width: 10px; height: 10px; border-radius: 50%; background: #B8F36B; border: 2px solid var(--k-16201C,#16201C)"></span></span>
 <span style="font-size: 14px">{{ m.name }}</span>
 </button>
 </template>
