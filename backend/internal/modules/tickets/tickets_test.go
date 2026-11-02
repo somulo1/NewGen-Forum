@@ -162,14 +162,14 @@ func TestOwnTicketsAndEscalationScope(t *testing.T) {
 
 	// the owner raised it: they cannot work on it or take it, but may hand it to someone else and close it
 	mine := raise(o, "unit", unit)
-	if c := act(mine, map[string]any{"do": "assign", "handler": o.Person}); c != 400 {
+	if c := act(mine, map[string]any{"do": "assign", "handler": o.Person}); c != 403 {
 		t.Fatalf("raiser assigned to self: %d", c)
 	}
 	if c := act(mine, map[string]any{"do": "step", "step": 2}); c != 403 {
 		t.Fatalf("raiser started work: %d", c)
 	}
-	if c := act(mine, map[string]any{"do": "assign", "handler": staff.Person}); c != 200 {
-		t.Fatalf("hand over: %d", c)
+	if c := act(mine, map[string]any{"do": "assign", "handler": staff.Person}); c != 403 {
+		t.Fatalf("the raiser (not a head of the unit) handed it over: %d", c)
 	}
 	if c := act(mine, map[string]any{"do": "step", "step": 4}); c != 200 {
 		t.Fatalf("raiser closing: %d", c)
@@ -327,5 +327,15 @@ func TestTicketRolesHeadWorkerAndRaiser(t *testing.T) {
 		if p := part(period); p["received"].(float64) != 1 || p["ok"].(float64) != 1 || p["pct"].(float64) != 100 {
 			t.Fatalf("after escalating in time (%q): %v", period, p)
 		}
+	}
+	// a head of department may assign a ticket they raised themselves to their own department
+	hal := e.Join(ownerU, slug, "Hal", "hod")
+	hal.Register(e)
+	e.MustDo(200, "PATCH", "/people/"+hal.Person, map[string]any{"department_id": it}, ownerU.Access)
+	key2, _ := e2ee.NewConversationKey()
+	conv2 := e.MustDo(201, "POST", "/conversations", map[string]any{"kind": "ticket", "members": []string{wes.Person}, "keys": hal.WrapFor(e, key2, 1, hal.Person, wes.Person)}, hal.Access)["id"].(string)
+	e.MustDo(201, "POST", "/tickets", map[string]any{"conversation": conv2, "category": "Hardware", "to_type": "department", "to_ref": it}, hal.Access)
+	if code, _ := e.Do("POST", "/tickets/"+conv2+"/act", map[string]any{"do": "assign", "handler": wes.Person}, hal.Access); code != 200 {
+		t.Fatalf("a head assigning their own ticket in their department: %d", code)
 	}
 }

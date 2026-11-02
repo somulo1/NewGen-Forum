@@ -448,12 +448,12 @@ func (s *Service) Get(ctx context.Context, p *tenant.Principal, id uuid.UUID) (*
 		if t, err = s.get(ctx, tx, p.Org, id); err != nil {
 			return err
 		}
-		hod, err := isHead(ctx, tx, p.Person, t)
+		ok, err := mayAssign(ctx, tx, p.Person, t)
 		if err != nil {
 			return err
 		}
-		t.CanAssign = hod
-		t.CanEscalate = hod || (t.Handler != nil && *t.Handler == p.Person)
+		t.CanAssign = ok
+		t.CanEscalate = ok || (t.Handler != nil && *t.Handler == p.Person)
 		in, err := s.participant(ctx, tx, p, id)
 		if err != nil || !in {
 			t.Participant = &in
@@ -523,19 +523,18 @@ func (s *Service) Act(ctx context.Context, p *tenant.Principal, id uuid.UUID, a 
 			}
 			return authz.Require(ctx, tx, p.Person, "tickets", right)
 		}
-		// The head of the receiving department (a person placed in the sector, branch, unit or department the ticket is with, who holds
-		// "Assign & hand over") assigns, reassigns and escalates. The person working on it may solve it or escalate it, but not hand it
-		// to someone else. The person who raised it can do neither, unless they are the head of the receiving department. A ticket on
-		// the ticket desk is assigned by anyone holding "Assign & hand over"; a super admin may always act.
-		hod, err := isHead(ctx, tx, p.Person, cur)
+		// Who may assign, reassign and escalate: the head of the place the ticket is with (or of a place above it), or someone whose role
+		// holds "Assign & hand over" (Roles & rights). The person who raised it may not, unless they are such a head. The person
+		// working on it may also escalate, but not hand it to someone else.
+		mayAssign, err := mayAssign(ctx, tx, p.Person, cur)
 		if err != nil {
 			return err
 		}
 		needHead := func(what string) error {
-			if hod {
+			if mayAssign {
 				return nil
 			}
-			return httpx.Err(403, "not_head", "Only the head of the department this ticket is with can "+what+" it.")
+			return httpx.Err(403, "not_head", "Only the head of the department this ticket is with, or someone whose role may assign tickets, can "+what+" it.")
 		}
 		set, text := "", ""
 		args := []any{id}
@@ -623,7 +622,7 @@ func (s *Service) Act(ctx context.Context, p *tenant.Principal, id uuid.UUID, a 
 			}
 			text = "Resumed work"
 		case "escalate":
-			if !isHandler && !hod {
+			if !isHandler && !mayAssign {
 				return httpx.Err(403, "not_head", "Only the person working on this ticket or the head of the department it is with can escalate it.")
 			}
 			if cur.Escalated && a.ToType == "" {
@@ -901,24 +900,28 @@ func (s *Service) SweepAll(ctx context.Context) error {
 // LoadConfig returns the organization's ticket timing policy (other modules use its working hours).
 func LoadConfig(ctx context.Context, tx pgx.Tx) (Config, error) { return (&Service{}).config(ctx, tx) }
 
-// isHead says whether a person is the head of the place a ticket is with: placed in that sector, branch, unit or department and
-// holding "Assign & hand over" there. On the ticket desk the right is enough. A super admin (a locked role) always counts.
+// isHead says whether a person heads the place a ticket is with: they hold a role that heads one place ("Each department", "Each
+// sector" ...) and are placed in that place or in one above it (the head of a sector heads its branches too).
 func isHead(ctx context.Context, tx pgx.Tx, person uuid.UUID, t *Ticket) (bool, error) {
-	var locked bool
-	if err := tx.QueryRow(ctx, `select coalesce(bool_or(r.locked), false) from hub.person_roles pr join hub.roles r on r.id = pr.role_id where pr.person_id=$1`, person).Scan(&locked); err != nil {
-		return false, err
+	if t.ToRef == nil || t.ToType == "" || t.ToType == "desk" {
+		return false, nil
 	}
-	if locked {
-		return true, nil
+	var head bool
+	err := tx.QueryRow(ctx, `with recursive up(id, parent_id) as (select id, parent_id from hub.org_units where id=$2
+			union all select u.id, u.parent_id from hub.org_units u join up on u.id = up.parent_id)
+		select exists (select 1 from hub.people pe join hub.person_roles pr on pr.person_id = pe.id join hub.roles r on r.id = pr.role_id
+			where pe.id = $1 and r.scope like 'Each %' and exists (select 1 from up where up.id in (pe.sector_id, pe.branch_id, pe.unit_id, pe.department_id)))`, person, *t.ToRef).Scan(&head)
+	return head, err
+}
+
+// mayAssign: a head of the ticket's place, or (when they did not raise it) someone whose role holds "Assign & hand over".
+func mayAssign(ctx context.Context, tx pgx.Tx, person uuid.UUID, t *Ticket) (bool, error) {
+	head, err := isHead(ctx, tx, person, t)
+	if err != nil || head {
+		return head, err
 	}
-	can, err := authz.Can(ctx, tx, person, "tickets", "Assign & hand over")
-	if err != nil || !can {
-		return false, err
+	if t.RaisedBy == person {
+		return false, nil
 	}
-	if t.ToType == "" || t.ToType == "desk" || t.ToRef == nil {
-		return true, nil
-	}
-	var in bool
-	err = tx.QueryRow(ctx, `select coalesce($2 in (sector_id, branch_id, unit_id, department_id), false) from hub.people where id=$1`, person, *t.ToRef).Scan(&in)
-	return in, err
+	return authz.Can(ctx, tx, person, "tickets", "Assign & hand over")
 }
