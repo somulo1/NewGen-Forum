@@ -52,6 +52,31 @@ func (s *Service) Private(r chi.Router) {
 		httpx.JSON(w, 200, x)
 		return nil
 	}))
+	r.Get("/people/{id}/photo", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
+		p, err := tenant.MustOrg(r.Context())
+		if err != nil {
+			return err
+		}
+		id, err := pid(r)
+		if err != nil {
+			return err
+		}
+		b, typ, err := s.Photo(r.Context(), p, id)
+		if err != nil {
+			return err
+		}
+		switch typ { // only picture types that cannot run script (the upload allows nothing else)
+		case "image/png", "image/jpeg", "image/webp", "image/gif":
+		default:
+			return httpx.ErrNotFound
+		}
+		w.Header().Set("Content-Type", typ)
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("Content-Security-Policy", "default-src 'none'; sandbox")
+		w.Header().Set("Cache-Control", "private, max-age=3600")
+		_, _ = w.Write(b)
+		return nil
+	}))
 	r.Post("/people", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
 		p, err := tenant.MustOrg(r.Context())
 		if err != nil {

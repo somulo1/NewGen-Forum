@@ -68,6 +68,8 @@ type Person struct {
 	ReportsTo    *ReportsTo `json:"reports_to,omitempty"` // single-person reads only
 	Joined       string     `json:"joined_on,omitempty"`
 	HasAccount   bool       `json:"has_account"`
+	HasPhoto     bool       `json:"has_photo"`           // a profile photo is set; the picture itself is at GET /people/{id}/photo
+	PhotoVer     int64      `json:"photo_ver,omitempty"` // changes when the profile changes, so a browser knows to fetch the picture again
 	// personal data, present only when the viewer may see contact details (or it is their own profile)
 	Email  *string `json:"email,omitempty"`
 	Phone  *string `json:"phone,omitempty"`
@@ -93,9 +95,11 @@ const personSelect = `
 	select p.id, p.first_name, p.last_name, p.title, p.status, p.availability, p.color, coalesce(p.joined_on::text,''), p.account_id is not null,
 	       p.email_enc, p.phone_enc, p.dob_enc, p.gender_enc,
 	       sx.id, sx.name, bx.id, bx.name, ux.id, ux.name, dx.id, dx.name,
-	       coalesce(r.key,''), coalesce(r.name,''), mg.id, mg.first_name || ' ' || mg.last_name, coalesce(ph.headline,'')
+	       coalesce(r.key,''), coalesce(r.name,''), mg.id, mg.first_name || ' ' || mg.last_name, coalesce(ph.headline,''),
+	       pp.photo_enc is not null, coalesce(extract(epoch from pp.updated_at)::bigint, 0)
 	from hub.people p
 	left join hub.person_headlines ph on ph.person_id = p.id
+	left join hub.person_profiles pp on pp.person_id = p.id
 	left join hub.org_units sx on sx.id = p.sector_id left join hub.org_units bx on bx.id = p.branch_id
 	left join hub.org_units ux on ux.id = p.unit_id   left join hub.org_units dx on dx.id = p.department_id
 	left join hub.person_roles pr on pr.person_id = p.id left join hub.roles r on r.id = pr.role_id
@@ -111,7 +115,7 @@ func scanPerson(r pgx.Row) (*scanned, error) {
 	var sid, bid, uid, did, mid *uuid.UUID
 	var sn, bn, un, dn, mn *string
 	err := r.Scan(&x.ID, &x.First, &x.Last, &x.Title, &x.Status, &x.Availability, &x.Color, &x.Joined, &x.HasAccount,
-		&x.emailEnc, &x.phoneEnc, &x.dobEnc, &x.genderEnc, &sid, &sn, &bid, &bn, &uid, &un, &did, &dn, &x.Role, &x.RoleName, &mid, &mn, &x.Headline)
+		&x.emailEnc, &x.phoneEnc, &x.dobEnc, &x.genderEnc, &sid, &sn, &bid, &bn, &uid, &un, &did, &dn, &x.Role, &x.RoleName, &mid, &mn, &x.Headline, &x.HasPhoto, &x.PhotoVer)
 	if err != nil {
 		return nil, err
 	}
@@ -996,4 +1000,34 @@ func (s *Service) changeEmail(ctx context.Context, tx pgx.Tx, a approvals.Applie
 		}()
 	}
 	return nil
+}
+
+// Photo returns a person's profile picture (the bytes and their type). Anyone signed in to the organization may fetch it: it is what
+// shows next to a name on a post, a comment or a chat, which they can already see.
+func (s *Service) Photo(ctx context.Context, p *tenant.Principal, id uuid.UUID) ([]byte, string, error) {
+	var out []byte
+	var typ string
+	err := s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
+		var enc []byte
+		var t *string
+		err := tx.QueryRow(ctx, `select pp.photo_enc, pp.photo_type from hub.person_profiles pp join hub.people pe on pe.id = pp.person_id
+			where pp.person_id=$1 and pe.status <> 'deleted'`, id).Scan(&enc, &t)
+		if errors.Is(err, pgx.ErrNoRows) || (err == nil && (len(enc) == 0 || t == nil)) {
+			return httpx.ErrNotFound
+		}
+		if err != nil {
+			return err
+		}
+		dek, _, err := s.A.OrgDEK(ctx, tx, p.Org)
+		if err != nil {
+			return err
+		}
+		b, err := crypto.FieldOpen(dek, profileCtx(p.Org, id, "photo_enc"), enc)
+		if err != nil {
+			return err
+		}
+		out, typ = b, *t
+		return nil
+	})
+	return out, typ, err
 }

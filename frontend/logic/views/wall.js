@@ -32,7 +32,7 @@ export function buildWall(ctx) {
   const buildComments = (p, list, path) => list.map((c, i) => {
     const here = path.concat([i]);
     const key = p.id + ':' + here.join('.');
-    return { key, who: c.who, initials: c.initials, color: c.color, text: c.text, htmlText: linkHashtags(linkMentions(richTextHtml(c.text))), time: c.time || '', depth: path.length, replying: s.replyFor === key,
+    return { key, who: c.who, uid: c.uid || '', self: !!c.mine, initials: c.initials, color: c.color, text: c.text, htmlText: linkHashtags(linkMentions(richTextHtml(c.text))), time: c.time || '', depth: path.length, replying: s.replyFor === key,
       startReply: () => this.setState({ replyFor: key }), cancel: () => this.setState({ replyFor: null }),
       send: (text) => { this.setState({ replyFor: null }); wallW.comment(this, this.srv, c.id || p.id, text).catch((e) => this.notify(e.message || 'That did not work.', '#FF9B8A')); },
       id: c.id || '', likes: c.likes || 0, dislikes: c.dislikes || 0, iLiked: !!c.iLiked, iDisliked: !!c.iDisliked, canReact: !!(this.srv && c.id),
@@ -115,7 +115,7 @@ export function buildWall(ctx) {
       shareTargets: forumsData.map((f) => ({ name: f.name, initials: f.initials, color: f.color, pick: () => {
         const sid = 'sp' + Date.now();
         // The post goes to the forum as it is: text, images and poll. Reactions do not follow it; polls stay one poll.
-        this.addForumMsg(f.id, '', undefined, undefined, { sid, postId: p.id, snap: { author: p.author, initials: p.initials, color: p.color, meta: p.meta, text: p.text || '', media: p.media || [] } });
+        this.addForumMsg(f.id, '', undefined, undefined, { sid, postId: p.id, snap: { author: p.author, uid: p.uid || '', initials: p.initials, color: p.color, meta: p.meta, text: p.text || '', media: p.media || [] } });
         this.setState((st) => ({ shareFor: null, shareNote: { ...st.shareNote, [p.id]: 'Shared to ' + f.name + ' as it is.' } }));
         wallW.shared(this, this.srv, p.id, f.name).catch((e) => this.notify(e.message || 'That did not work.', '#FF9B8A'));
       } })),
@@ -146,7 +146,7 @@ export function buildWall(ctx) {
     const pi = orig ? pollInfo(orig) : { list: [], note: '', isPoll: false };
     // Polls stay one poll with one thread; anything else keeps its own comments in the forum only.
     const own = pi.isPoll && orig ? (orig.comments || []) : (s.sharedComments[sh.sid] || []);
-    sharedViews[sh.sid] = { ...snap, hasMedia: !!(snap.media && snap.media.length), isPoll: pi.isPoll, poll: pi.list, pollNote: pi.note, comments: own.map((c) => ({ who: c.who, initials: c.initials, color: c.color, text: c.text, time: c.time || '' })), hasComments: own.length > 0,
+    sharedViews[sh.sid] = { ...snap, uid: (orig && orig.uid) || snap.uid || '', hasMedia: !!(snap.media && snap.media.length), isPoll: pi.isPoll, poll: pi.list, pollNote: pi.note, comments: own.map((c) => ({ who: c.who, uid: c.uid || '', self: !!c.mine, initials: c.initials, color: c.color, text: c.text, time: c.time || '' })), hasComments: own.length > 0,
       syncNote: pi.isPoll ? 'Votes and comments are shared with the original post.' : 'Reactions stay on the wall. Comments here stay in this forum.',
       addComment: (text) => {
         // saved on the server: a comment on a shared poll is a comment on the wall post; any other comment is a reply in the forum
