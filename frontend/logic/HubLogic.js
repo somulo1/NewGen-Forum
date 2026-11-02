@@ -122,6 +122,8 @@ export class HubLogic extends DCLogic {
 }
 
 HubLogic.prototype.peopleDir = function () { return this.dirSelf ? this.dir.concat([this.dirSelf]) : this.dir; };   // everyone the People page lists, including me
+// one person of the People page by their row id (me included: my row is not in this.dir, which is what the pickers use)
+HubLogic.prototype.personById = function (id) { return this.peopleDir().find((p) => p.id === id); };
 Object.assign(HubLogic.prototype, messagingActions, projectsActions, callsActions, uiActions, forumActions, onboardingActions, peopleAdminActions, ticketCatActions, noteActions);
 
 const VIEW_STEPS = [buildAccess, buildReporting, buildForums, buildNav, buildWall, buildTickets, buildForumExtras, buildProjects, buildPeople, buildOnboarding, buildSecurity, buildRoles, buildTableHelpers, buildProjectTables, buildCalendar, buildProjectStandup, buildOrg, buildCatMgr, buildComms, buildAdminTables, buildNotes, buildReportingTab, buildSettings, buildAwards, buildHomeWidgets, buildProfile, buildWidgetSettings, buildCallState];

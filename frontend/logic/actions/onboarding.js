@@ -27,7 +27,7 @@ export const onboardingActions = {
   },
   // Edit an existing person from the People table, with the same fields the organization uses to onboard.
   openEditPerson(id) {
-    const p = this.dir[id];
+    const p = this.personById(id);
     if (!p) return;
     const parts = (p.name || '').split(' ');
     const first = p.first || parts[0] || '', last = p.last || parts.slice(1).join(' ');
@@ -39,7 +39,7 @@ export const onboardingActions = {
   setOnboardReport(v) { this.setState((st) => ({ onboard: { ...st.onboard, reportDraft: v } })); },
   setOnboardRole(v) { this.setState((st) => ({ onboard: { ...st.onboard, roleDraft: v } })); },
   toggleOnboardRight(key, value) { this.setState((st) => ({ onboard: { ...st.onboard, rightsDraft: { ...st.onboard.rightsDraft, [key]: value } } })); },
-  resetOnboardRights() { this.setState((st) => ({ onboard: { ...st.onboard, rightsDraft: Object.keys({ ...(st.personRights[this.dir[st.onboard.edit].name] || {}) }).reduce((m, k) => { m[k] = null; return m; }, {}) } })); },
+  resetOnboardRights() { this.setState((st) => ({ onboard: { ...st.onboard, rightsDraft: Object.keys({ ...(st.personRights[this.personById(st.onboard.edit).name] || {}) }).reduce((m, k) => { m[k] = null; return m; }, {}) } })); },
   closeOnboard() { this.setState({ onboard: null }); },
   setOnboardTab(tab) { this.setState((st) => ({ onboard: { ...st.onboard, tab, done: null } })); },
 
@@ -70,7 +70,7 @@ export const onboardingActions = {
 
   // Applies an approved (or approval-free) edit of a person: details, role, individual rights and who they report to.
   applyPersonEdit(ch) {
-    const p = this.dir[ch.id];
+    const p = this.personById(ch.id);
     if (!p) return;
     const before = p.name;
     Object.assign(p, ch.details);
@@ -94,14 +94,14 @@ export const onboardingActions = {
     const ob = this.state.onboard;
     if (!ob) return;
     const editing = ob.edit !== undefined && ob.edit !== null;
-    const own = editing ? (this.dir[ob.edit].email || '').toLowerCase() : '';
+    const own = editing ? (this.personById(ob.edit).email || '').toLowerCase() : '';
     const { errors, clean } = validatePerson(ob.f, this.org, hasLevelsFor(this.state, this.srv ? this.org : null), this.takenEmails().filter((e) => e !== own), todayIso(Date.now()));
     // Records created before these details were collected may have gaps; only insist on what was already filled in.
     if (editing) ['sector', 'branch', 'unit', 'department'].forEach((k) => { if (ob.orig[k] && ob.f[k] === ob.orig[k]) delete errors[k]; });
     if (editing) ['dob', 'gender', 'phone', 'email'].forEach((k) => { if (!ob.orig[k] && !String(ob.f[k] || '').trim()) delete errors[k]; });
     if (Object.keys(errors).length) { this.setState({ onboard: { ...ob, errs: errors, done: null } }); return; }
     if (editing) {
-      const p = this.dir[ob.edit];
+      const p = this.personById(ob.edit);
       const details = { name: clean.first + ' ' + clean.last, first: clean.first, last: clean.last, initials: (clean.first[0] + clean.last[0]).toUpperCase(), title: clean.title || p.title, dept: clean.department || p.dept, loc: clean.branch || p.loc, sector: clean.sector, unit: clean.unit, email: clean.email, phone: clean.phone, dob: clean.dob, gender: clean.gender };
       const lines = [];
       [['name', 'Name'], ['title', 'Job title'], ['dept', 'Department'], ['loc', 'Branch'], ['sector', 'Sector'], ['unit', 'Unit'], ['email', 'Email'], ['phone', 'Phone'], ['dob', 'Date of birth'], ['gender', 'Gender']].forEach(([k, l]) => {
