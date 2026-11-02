@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	"encoding/base64"
 	"regexp"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -136,6 +137,20 @@ func (e *Env) MakeOverdue(conv string) {
 	defer root.Close(context.Background())
 	_, _ = root.Exec(context.Background(), "set session_replication_role = replica")
 	if _, err := root.Exec(context.Background(), `update hub.tickets set due_at = now() - interval '1 hour', created_at = now() - interval '5 hours' where conversation_id=$1`, conv); err != nil {
+		e.T.Fatal(err)
+	}
+}
+
+// AgeResolved makes a resolved ticket look resolved the given time ago (for the automatic close).
+func (e *Env) AgeResolved(conv string, ago time.Duration) {
+	e.T.Helper()
+	root, err := pgx.Connect(context.Background(), "postgres://hubadmin@/hub?host=/tmp&port=5433")
+	if err != nil {
+		e.T.Skip("superuser not reachable: ", err)
+	}
+	defer root.Close(context.Background())
+	_, _ = root.Exec(context.Background(), "set session_replication_role = replica")
+	if _, err := root.Exec(context.Background(), `update hub.tickets set solved_at = now() - make_interval(secs => $2) where conversation_id=$1`, conv, ago.Seconds()); err != nil {
 		e.T.Fatal(err)
 	}
 }

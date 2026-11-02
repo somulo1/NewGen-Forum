@@ -86,7 +86,10 @@ type Ticket struct {
 	CanAssign   bool `json:"can_assign"`
 	CanEscalate bool `json:"can_escalate"`
 	// ElapsedHours is how much of the TAT's running clock has been used (pauses and off-hours excluded); above TATHours means overdue.
-	ElapsedHours float64 `json:"elapsed_hours"`
+	ElapsedHours float64    `json:"elapsed_hours"`
+	ClosedAt     *time.Time `json:"closed_at,omitempty"`
+	Rating       *int       `json:"rating,omitempty"` // 1 to 5 stars, given when it was closed
+	AutoClosed   bool       `json:"auto_closed"`
 	holdSince    *time.Time
 }
 
@@ -288,12 +291,12 @@ func (s *Service) pickHandler(ctx context.Context, tx pgx.Tx, c *Category) (*uui
 
 const ticketSelect = `select t.conversation_id, t.ref, t.category, t.priority, t.step, t.hold, t.raised_by, coalesce(rp.first_name || ' ' || rp.last_name,''), t.handler, coalesce(hp.first_name || ' ' || hp.last_name,''),
 	t.handler_since, t.to_type, t.to_ref, t.tat_hours, t.due_at, t.solved_at, t.escalated, t.late, t.sync, t.created_at, t.hold_since,
-	coalesce((select array_agg(person_id) from hub.ticket_assignees a where a.ticket_id = t.conversation_id), '{}')
+	coalesce((select array_agg(person_id) from hub.ticket_assignees a where a.ticket_id = t.conversation_id), '{}'), t.closed_at, t.rating, t.auto_closed
 	from hub.tickets t join hub.people rp on rp.id = t.raised_by left join hub.people hp on hp.id = t.handler`
 
 func scanTicket(r pgx.Row) (*Ticket, error) {
 	t := &Ticket{}
-	err := r.Scan(&t.ID, &t.Ref, &t.Category, &t.Priority, &t.Step, &t.Hold, &t.RaisedBy, &t.RaisedByName, &t.Handler, &t.HandlerName, &t.HandlerSince, &t.ToType, &t.ToRef, &t.TATHours, &t.DueAt, &t.SolvedAt, &t.Escalated, &t.Late, &t.Sync, &t.CreatedAt, &t.holdSince, &t.Assignees)
+	err := r.Scan(&t.ID, &t.Ref, &t.Category, &t.Priority, &t.Step, &t.Hold, &t.RaisedBy, &t.RaisedByName, &t.Handler, &t.HandlerName, &t.HandlerSince, &t.ToType, &t.ToRef, &t.TATHours, &t.DueAt, &t.SolvedAt, &t.Escalated, &t.Late, &t.Sync, &t.CreatedAt, &t.holdSince, &t.Assignees, &t.ClosedAt, &t.Rating, &t.AutoClosed)
 	if t.Assignees == nil {
 		t.Assignees = []uuid.UUID{}
 	}
@@ -488,6 +491,9 @@ type Action struct {
 	Details *Details `json:"details,omitempty"`
 	// Category re-files the ticket under one of the destination's categories; its time limit starts again from now.
 	Category string `json:"category,omitempty"`
+	// Comment: what was done (required to resolve) or a closing remark. Rating: 1 to 5 stars when closing (optional).
+	Comment string `json:"comment,omitempty"`
+	Rating  int    `json:"rating,omitempty"`
 	// At backdates the change (history loading only; not settable over HTTP).
 	At *time.Time `json:"-"`
 }
@@ -535,6 +541,10 @@ func (s *Service) Act(ctx context.Context, p *tenant.Principal, id uuid.UUID, a 
 				return nil
 			}
 			return httpx.Err(403, "not_head", "Only the head of the department this ticket is with, or someone whose role may assign tickets, can "+what+" it.")
+		}
+		// a closed ticket is final: nothing changes it any more (it can only be reopened while resolved and not yet closed)
+		if cur.Step >= 4 {
+			return httpx.Err(409, "ticket_closed", "This ticket is closed. It cannot be reopened or changed.")
 		}
 		set, text := "", ""
 		args := []any{id}
@@ -587,6 +597,35 @@ func (s *Service) Act(ctx context.Context, p *tenant.Principal, id uuid.UUID, a 
 			args = append(args, *a.Step)
 			set = "step=$2::smallint, hold=false, solved_at = case when $2::int >= 3 then coalesce(solved_at, now()) else null end"
 			text = "Moved it to " + stepNames[*a.Step]
+			note := strings.TrimSpace(a.Comment)
+			if len(note) > 2000 {
+				return httpx.Bad("Keep the comment under 2000 characters.")
+			}
+			switch *a.Step {
+			case 3: // resolving needs a word on what was done
+				if note == "" {
+					return httpx.Bad("Write what was done to resolve it.")
+				}
+				if err := s.addComment(ctx, tx, p.Org, id, &p.Person, "Resolved: "+note); err != nil {
+					return err
+				}
+			case 4: // closing: optional stars and remark
+				if a.Rating < 0 || a.Rating > 5 {
+					return httpx.Bad("Rate it from 1 to 5 stars.")
+				}
+				args = append(args, a.Rating)
+				set += fmt.Sprintf(", closed_at=now(), rating=nullif($%d::int, 0)::smallint, auto_closed=false", len(args))
+				if a.Rating > 0 {
+					text += fmt.Sprintf(" (rated %d of 5)", a.Rating)
+				}
+				if note != "" {
+					if err := s.addComment(ctx, tx, p.Org, id, &p.Person, "Closed: "+note); err != nil {
+						return err
+					}
+				}
+			default: // reopened or moved back: it is no longer closed
+				set += ", closed_at=null, rating=null, auto_closed=false"
+			}
 			if *a.Step == 3 && cfg.Notify.Solved {
 				s.mailTicket(ctx, tx, &nb, p.Org, cur.RaisedBy, "resolved", cur, a.Details.clean(), p.Name, "")
 				if err := nb.Add(ctx, tx, p.Org, cur.RaisedBy, "ticket", cur.Ref+" was resolved.", "#B8F36B", cur.Ref); err != nil {
@@ -796,6 +835,9 @@ func (s *Service) Sweep(ctx context.Context, org uuid.UUID) (late, near int, err
 		if err != nil {
 			return err
 		}
+		if err := s.autoClose(ctx, tx, org, &nb); err != nil {
+			return err
+		}
 		rs, err := tx.Query(ctx, `select t.conversation_id, t.ref, t.handler, t.created_at, t.due_at, t.late, t.escalated, t.hold
 			from hub.tickets t where t.step < 3 and t.due_at is not null and (not t.late and t.due_at < now() or (t.due_at - t.created_at) * ($1::numeric / 100) + t.created_at < now() and t.due_at >= now())`, cfg.NearPct)
 		if err != nil {
@@ -924,4 +966,56 @@ func mayAssign(ctx context.Context, tx pgx.Tx, person uuid.UUID, t *Ticket) (boo
 		return false, nil
 	}
 	return authz.Can(ctx, tx, person, "tickets", "Assign & hand over")
+}
+
+// AutoCloseAfter is how long a resolved ticket waits for the person who raised it to close it before Hub closes it.
+const AutoCloseAfter = 30 * time.Minute
+
+// autoClose closes tickets resolved more than AutoCloseAfter ago that nobody closed: rated 5 stars, with a comment from Hub saying so.
+func (s *Service) autoClose(ctx context.Context, tx pgx.Tx, org uuid.UUID, nb *notify.Batch) error {
+	rs, err := tx.Query(ctx, `select conversation_id, ref, raised_by from hub.tickets where step = 3 and solved_at is not null and solved_at < now() - make_interval(secs => $1) for update skip locked`, AutoCloseAfter.Seconds())
+	if err != nil {
+		return err
+	}
+	type due struct {
+		id, raiser uuid.UUID
+		ref        string
+	}
+	var ids []due
+	for rs.Next() {
+		var d due
+		if err := rs.Scan(&d.id, &d.ref, &d.raiser); err != nil {
+			rs.Close()
+			return err
+		}
+		ids = append(ids, d)
+	}
+	rs.Close()
+	if err := rs.Err(); err != nil {
+		return err
+	}
+	mins := int(AutoCloseAfter.Minutes())
+	for _, d := range ids {
+		id := d.id
+		tag, err := tx.Exec(ctx, `update hub.tickets set step=4, closed_at=now(), rating=5, auto_closed=true, updated_at=now(), `+integrity.Bump+` where conversation_id=$1 and step=3`, id)
+		if err != nil {
+			return err
+		}
+		if tag.RowsAffected() == 0 {
+			continue
+		}
+		if err := s.A.Sign.Seal(ctx, tx, "tickets", "conversation_id=$1", id); err != nil {
+			return err
+		}
+		if err := s.addComment(ctx, tx, org, id, nil, fmt.Sprintf("Closed automatically %d minutes after it was resolved, as nobody closed it. Rated 5 stars.", mins)); err != nil {
+			return err
+		}
+		if err := s.event(ctx, tx, org, id, nil, "event", fmt.Sprintf("Closed automatically %d minutes after it was resolved (rated 5 of 5)", mins)); err != nil {
+			return err
+		}
+		if err := nb.Add(ctx, tx, org, d.raiser, "ticket-closed", d.ref+" was closed automatically and rated 5 stars.", "#B8F36B", d.ref); err != nil {
+			return err
+		}
+	}
+	return nil
 }

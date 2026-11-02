@@ -56,6 +56,16 @@ func (s *Service) Private(r chi.Router) {
 		httpx.JSON(w, 200, map[string]any{"tickets": l})
 		return nil
 	}))
+	r.Get("/tickets/feedback", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
+		pg, _ := strconv.Atoi(r.URL.Query().Get("page"))
+		n, _ := strconv.Atoi(r.URL.Query().Get("size"))
+		out, err := s.TicketFeedback(r.Context(), p, pg, n)
+		if err != nil {
+			return err
+		}
+		httpx.JSON(w, 200, out)
+		return nil
+	}))
 	r.Get("/tickets/settings", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
 		c, err := s.Settings(r.Context(), p)
 		if err != nil {

@@ -50,7 +50,7 @@ async function mapTicket(srv, t) {
   return {
     id: t.ref, uid: t.id, title: first ? first.title : t.category + ' ticket', desc: first ? first.desc || '' : '(hidden: you are not a participant)', cat: t.category, prio: t.priority,
     step: t.step, hold: !!t.hold, late: !!t.late, raisedBy: me(srv, t.raised_by_name), assignees: names, handler: t.handler_name || '', handlerSince: t.handler_since ? when(t.handler_since) : '',
-    canAssign: !!detail.can_assign, canEscalate: !!detail.can_escalate, created: when(t.created_at), elapsed: detail.elapsed_hours || 0, tatH: t.tat_hours, sync: t.sync || 'Not synced', activity, dept: toType === 'departments' ? toName : (raiser ? raiser.dept : ''), fromDept: raiser ? raiser.dept : '',
+    rating: t.rating || 0, autoClosed: !!t.auto_closed, closedAt: t.closed_at ? when(t.closed_at) : '', canAssign: !!detail.can_assign, canEscalate: !!detail.can_escalate, created: when(t.created_at), elapsed: detail.elapsed_hours || 0, tatH: t.tat_hours, sync: t.sync || 'Not synced', activity, dept: toType === 'departments' ? toName : (raiser ? raiser.dept : ''), fromDept: raiser ? raiser.dept : '',
     createdAt: t.created_at.slice(0, 10), escalated: !!t.escalated, to: toType === 'desk' ? { type: 'desk', name: 'Ticket desk' } : { type: toType, name: toName }, dueAt: t.due_at || '', unsealed: !first
   };
 }
@@ -107,7 +107,8 @@ export async function act(logic, srv, t, body) {
   await srv.request('POST', `/tickets/${t.uid}/act`, details ? { ...body, details } : body);
   return reload(logic, srv, t.uid);
 }
-export const setStep = (logic, srv, t, step) => act(logic, srv, t, { do: 'step', step });
+// resolving needs a comment on what was done; closing may carry 1 to 5 stars and a remark
+export const setStep = (logic, srv, t, step, extra) => act(logic, srv, t, { do: 'step', step, ...(extra || {}) });
 export const hold = (logic, srv, t) => act(logic, srv, t, { do: 'hold' });
 export const resume = (logic, srv, t) => act(logic, srv, t, { do: 'resume' });
 

@@ -258,5 +258,13 @@
    "403": "You are not the nominator",
    "409": "not_approved: not approved yet; already_posted: that place is already announced"
   }
+ },
+ "GET /v1/comms/{id}/places": {
+  "summary": "Where a communication may be reposted",
+  "access": "anyone who can see the communication",
+  "status": 200,
+  "response": {
+   "places": []
+  }
  }
 }

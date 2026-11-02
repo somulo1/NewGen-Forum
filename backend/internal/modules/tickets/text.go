@@ -2,6 +2,7 @@ package tickets
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -19,11 +20,11 @@ import (
 // key; every value is bound to its table, column and row. Only the ticket's participants (the people in its conversation) see it.
 
 type Comment struct {
-	ID     uuid.UUID `json:"id"`
-	At     time.Time `json:"at"`
-	Person uuid.UUID `json:"person"`
-	Name   string    `json:"who"`
-	Text   string    `json:"text"`
+	ID     uuid.UUID  `json:"id"`
+	At     time.Time  `json:"at"`
+	Person *uuid.UUID `json:"person"` // none: written by Hub itself
+	Name   string     `json:"who"`
+	Text   string     `json:"text"`
 }
 
 const (
@@ -129,6 +130,9 @@ func (s *Service) fillText(ctx context.Context, tx pgx.Tx, org uuid.UUID, list [
 			continue
 		}
 		c.Text = string(b)
+		if c.Person == nil {
+			c.Name = "Hub"
+		}
 		by[tid].Comments = append(by[tid].Comments, c)
 	}
 	return cs.Err()
@@ -145,12 +149,14 @@ func (s *Service) AddComment(ctx context.Context, p *tenant.Principal, ticket uu
 	}
 	var out *Comment
 	err = s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
-		var n int
-		if err := tx.QueryRow(ctx, `select count(*) from hub.tickets where conversation_id=$1`, ticket).Scan(&n); err != nil {
+		var step int
+		if err := tx.QueryRow(ctx, `select step from hub.tickets where conversation_id=$1`, ticket).Scan(&step); errors.Is(err, pgx.ErrNoRows) {
+			return httpx.ErrNotFound
+		} else if err != nil {
 			return err
 		}
-		if n == 0 {
-			return httpx.ErrNotFound
+		if step >= 4 {
+			return httpx.Err(409, "ticket_closed", "This ticket is closed. Comments are turned off.")
 		}
 		if ok, err := s.participant(ctx, tx, p, ticket); err != nil {
 			return err
@@ -166,7 +172,8 @@ func (s *Service) AddComment(ctx context.Context, p *tenant.Principal, ticket uu
 		if err != nil {
 			return err
 		}
-		c := &Comment{ID: id, Person: p.Person, Name: p.Name, Text: text}
+		me := p.Person
+		c := &Comment{ID: id, Person: &me, Name: p.Name, Text: text}
 		if err := tx.QueryRow(ctx, `insert into hub.ticket_comments (org_id, id, ticket_id, author, body_enc) values ($1,$2,$3,$4,$5) returning created_at`, p.Org, id, ticket, p.Person, be).Scan(&c.At); err != nil {
 			return err
 		}
@@ -183,4 +190,21 @@ func (s *Service) AddComment(ctx context.Context, p *tenant.Principal, ticket uu
 		s.changed(ctx, p, t)
 	}
 	return out, nil
+}
+
+// addComment writes a comment inside the caller's transaction. author nil: written by Hub itself (an automatic close).
+func (s *Service) addComment(ctx context.Context, tx pgx.Tx, org, ticket uuid.UUID, author *uuid.UUID, text string) error {
+	dek, _, err := s.A.OrgDEK(ctx, tx, org)
+	if err != nil {
+		return err
+	}
+	id := app.NewID()
+	be, err := crypto.Field(dek, textCtx(org, id, "ticket_comments", "body_enc"), []byte(text))
+	if err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `insert into hub.ticket_comments (org_id, id, ticket_id, author, body_enc) values ($1,$2,$3,$4,$5)`, org, id, ticket, author, be); err != nil {
+		return err
+	}
+	return s.A.Sign.Seal(ctx, tx, "ticket_comments", "id=$1", id)
 }

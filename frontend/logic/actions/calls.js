@@ -71,7 +71,7 @@ export const callsActions = {
   endCall() {
     clearInterval(this._ct);
     const c = this.state.call;
-    if (this.srv) { if (c) callsW.hangUp(this.srv, c); callsW.leaveRoom(); this.setState({ call: null, callMode: 'docked', callOff: {}, sharing: false, hand: false, callFind: '', callLocked: false }); setTimeout(() => callsW.loadHistory(this, this.srv).catch(() => {}), 1500); return; }
+    if (this.srv) { if (c) callsW.hangUp(this.srv, c); callsW.leaveRoom(); this.setState({ call: null, callMode: 'docked', callOff: {}, sharing: false, hand: false, callFind: '', callLocked: false }); setTimeout(() => callsW.loadHistory(this, this.srv).catch(() => {}), 1500); setTimeout(() => { if (this.srv) { this.srv.fbLater = null; callsW.checkFeedback(this, this.srv).catch(() => {}); } }, 2500); return; }
     stopRingback(); hangup();
     if (c && (c.context === 'dm' || c.context === 'forum')) this.logCall({ ctx: c.context, ref: c.ref, kind: c.mode === 'video' ? 'video' : 'voice', dir: c.dir || 'out', at: c.start, dur: Math.round((Date.now() - c.start) / 1000) });
     this.setState({ call: null, callMode: 'docked', callOff: {} });
