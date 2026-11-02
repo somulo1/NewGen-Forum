@@ -13,7 +13,7 @@
 
 <template v-else-if="kind === 'feed'">
 <div style="display: flex; gap: 10px; overflow: hidden"><span v-for="n in 6" :key="n" class="sk-b" style="flex: none; width: 112px; height: 180px; border-radius: 14px"></span></div>
-<div v-for="n in 3" :key="n" class="sk-card" style="display: flex; flex-direction: column; gap: 12px; max-width: 760px">
+<div v-for="n in 3" :key="n" class="sk-card sk-bleed" style="display: flex; flex-direction: column; gap: 12px; max-width: none">
 <div style="display: flex; align-items: center; gap: 12px"><span class="sk-b" style="width: 42px; height: 42px; border-radius: 50%"></span><div style="display: flex; flex-direction: column; gap: 6px"><span class="sk-b" style="width: 160px; height: 14px"></span><span class="sk-b" style="width: 100px; height: 11px"></span></div></div>
 <span class="sk-b" style="width: 100%; height: 12px"></span><span class="sk-b" style="width: 80%; height: 12px"></span><span class="sk-b" style="width: 100%; height: 120px"></span>
 </div>
@@ -38,7 +38,7 @@
 </template>
 
 <template v-else-if="kind === 'form'">
-<div class="sk-card" style="max-width: 760px; display: flex; flex-direction: column; gap: 16px">
+<div class="sk-card" style="max-width: none; display: flex; flex-direction: column; gap: 16px">
 <div v-for="n in 5" :key="n" style="display: flex; flex-direction: column; gap: 8px"><span class="sk-b" style="width: 140px; height: 12px"></span><span class="sk-b" style="width: 100%; height: 40px"></span></div>
 </div>
 </template>
@@ -61,6 +61,8 @@ export default { name: 'PageSkeleton', props: { kind: { type: String, default: '
 .sk-b { display: block; border-radius: 8px; background: linear-gradient(90deg, var(--k-1F2C26,#1F2C26) 0%, var(--k-2A3832,#2A3832) 45%, var(--k-1F2C26,#1F2C26) 90%); background-size: 220% 100%; animation: sk-shimmer 1.4s ease-in-out infinite; }
 .sk-card { padding: 18px; border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); box-sizing: border-box; }
 .sk-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+/* on a phone the wall's placeholder cards run edge to edge, as the real posts do (the page has 14px side padding there) */
+@media (max-width: 900px) { .sk-bleed { max-width: none !important; margin-left: -14px; margin-right: -14px; border-left: 0; border-right: 0; border-radius: 0; } }
 @keyframes sk-shimmer { 0% { background-position: 120% 0; } 100% { background-position: -100% 0; } }
 @media (prefers-reduced-motion: reduce) { .sk-b { animation: none; } }
 </style>
