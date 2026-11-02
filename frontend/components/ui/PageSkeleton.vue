@@ -13,7 +13,7 @@
 
 <template v-else-if="kind === 'feed'">
 <div style="display: flex; gap: 10px; overflow: hidden"><span v-for="n in 6" :key="n" class="sk-b" style="flex: none; width: 112px; height: 180px; border-radius: 14px"></span></div>
-<div v-for="n in 3" :key="n" class="sk-card sk-bleed" style="display: flex; flex-direction: column; gap: 12px; max-width: none">
+<div v-for="n in 3" :key="n" class="sk-card sk-bleed" style="display: flex; flex-direction: column; gap: 12px; max-width: none; margin-top: -14px">
 <div style="display: flex; align-items: center; gap: 12px"><span class="sk-b" style="width: 42px; height: 42px; border-radius: 50%"></span><div style="display: flex; flex-direction: column; gap: 6px"><span class="sk-b" style="width: 160px; height: 14px"></span><span class="sk-b" style="width: 100px; height: 11px"></span></div></div>
 <span class="sk-b" style="width: 100%; height: 12px"></span><span class="sk-b" style="width: 80%; height: 12px"></span><span class="sk-b" style="width: 100%; height: 120px"></span>
 </div>
