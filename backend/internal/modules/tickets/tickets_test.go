@@ -254,3 +254,78 @@ func TestTicketTextIsServerReadableForParticipants(t *testing.T) {
 		t.Fatal("comment stored in clear")
 	}
 }
+
+// The head of the receiving department assigns, reassigns and escalates; the person working on it may escalate but not hand it on;
+// the person who raised it may do neither.
+func TestTicketRolesHeadWorkerAndRaiser(t *testing.T) {
+	e := testkit.New(t)
+	ownerU, slug := e.NewOrg("Olivia Owner")
+	e.MustDo(204, "PUT", "/approvals/flows/f11", map[string]any{"levels": 0}, ownerU.Access)
+	e.MustDo(204, "PUT", "/approvals/flows/f8", map[string]any{"levels": 0}, ownerU.Access)
+	e.Levels(ownerU, map[string]string{"department": ""})
+	it := e.MustDo(201, "POST", "/org/units", map[string]any{"kind": "department", "name": "IT"}, ownerU.Access)["id"].(string)
+	hana := e.Join(ownerU, slug, "Hana", "staff")
+	wes := e.Join(ownerU, slug, "Wes", "staff")
+	rae := e.Join(ownerU, slug, "Rae", "staff")
+	for _, m := range []*testkit.Member{hana, wes, rae} {
+		m.Register(e)
+	}
+	for _, m := range []*testkit.Member{hana, wes} {
+		e.MustDo(200, "PATCH", "/people/"+m.Person, map[string]any{"department_id": it}, ownerU.Access)
+	}
+	e.MustDo(200, "PUT", "/people/"+hana.Person+"/rights", map[string]any{"module": "tickets", "right": "Assign & hand over", "allowed": true}, ownerU.Access)
+	e.MustDo(200, "PUT", "/people/"+rae.Person+"/rights", map[string]any{"module": "tickets", "right": "Assign & hand over", "allowed": true}, ownerU.Access) // the right alone is not enough outside IT
+
+	key, _ := e2ee.NewConversationKey()
+	conv := e.MustDo(201, "POST", "/conversations", map[string]any{"kind": "ticket", "members": []string{hana.Person, wes.Person}, "keys": rae.WrapFor(e, key, 1, rae.Person, hana.Person, wes.Person)}, rae.Access)["id"].(string)
+	e.MustDo(201, "POST", "/tickets", map[string]any{"conversation": conv, "category": "Hardware", "to_type": "department", "to_ref": it}, rae.Access)
+	act := func(who *testkit.Member, body map[string]any) int {
+		code, _ := e.Do("POST", "/tickets/"+conv+"/act", body, who.Access)
+		return code
+	}
+	if c := act(rae, map[string]any{"do": "assign", "handler": wes.Person}); c != 403 {
+		t.Fatalf("the raiser (not head of IT) assigned: %d", c)
+	}
+	if c := act(hana, map[string]any{"do": "assign", "handler": wes.Person}); c != 200 {
+		t.Fatalf("the head of IT assigned: %d", c)
+	}
+	if c := act(wes, map[string]any{"do": "assign", "handler": hana.Person}); c != 403 {
+		t.Fatalf("the worker reassigned: %d", c)
+	}
+	can := func(who *testkit.Member) (bool, bool) {
+		d := e.MustDo(200, "GET", "/tickets/"+conv, nil, who.Access)
+		return d["can_assign"] == true, d["can_escalate"] == true
+	}
+	if a, x := can(wes); a || !x {
+		t.Fatalf("worker should escalate but not assign: assign=%v escalate=%v", a, x)
+	}
+	if a, x := can(hana); !a || !x {
+		t.Fatalf("head should assign and escalate: assign=%v escalate=%v", a, x)
+	}
+	if a, x := can(rae); a || x {
+		t.Fatalf("raiser should do neither: assign=%v escalate=%v", a, x)
+	}
+	if c := act(rae, map[string]any{"do": "escalate"}); c != 403 {
+		t.Fatalf("the raiser escalated: %d", c)
+	}
+	part := func(period string) map[string]any {
+		q := ""
+		if period != "" {
+			q = "?period=" + period
+		}
+		return e.MustDo(200, "GET", "/org/units/"+it+"/dashboard"+q, nil, ownerU.Access)["parts"].(map[string]any)["tickets"].(map[string]any)
+	}
+	// performance: received and still open, not escalated -> not yet counted as done
+	if p := part(""); p["received"].(float64) != 1 || p["ok"].(float64) != 0 {
+		t.Fatalf("before escalating: %v", p)
+	}
+	if c := act(wes, map[string]any{"do": "escalate"}); c != 200 {
+		t.Fatalf("the worker escalated: %d", c)
+	}
+	// escalated in time counts as done in time, for each period that includes the day it was received
+	for _, period := range []string{"", "month", "quarter", "year"} {
+		if p := part(period); p["received"].(float64) != 1 || p["ok"].(float64) != 1 || p["pct"].(float64) != 100 {
+			t.Fatalf("after escalating in time (%q): %v", period, p)
+		}
+	}
+}

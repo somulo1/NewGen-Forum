@@ -91,6 +91,7 @@ type Dashboard struct {
 	Unit     Unit            `json:"unit"`
 	Target   int             `json:"target"`
 	Perf     int             `json:"perf"`
+	Since    string          `json:"since"` // the start of the period it covers
 	Parts    map[string]Part `json:"parts"`
 	Members  int             `json:"members"`
 	Comms    []CommRow       `json:"comms"`
@@ -154,8 +155,10 @@ func (s *Service) SetTarget(ctx context.Context, p *tenant.Principal, id uuid.UU
 
 // Dashboard builds a unit's page from real records over the last `days` days: what it received and sent (memos and
 // announcements, approval requests, tickets), how much of what it received was handled on time, and its projects.
-func (s *Service) Dashboard(ctx context.Context, p *tenant.Principal, id uuid.UUID, days int) (*Dashboard, error) {
-	if days <= 0 || days > 365 {
+// Dashboard builds a unit's dashboard from what it received in a period: period "month", "quarter" or "year" is the current calendar
+// month, quarter or year; otherwise the last `days` days (30 by default).
+func (s *Service) Dashboard(ctx context.Context, p *tenant.Principal, id uuid.UUID, days int, period ...string) (*Dashboard, error) {
+	if days <= 0 || days > 3660 {
 		days = 30
 	}
 	d := &Dashboard{Parts: map[string]Part{}, Comms: []CommRow{}, Requests: []ReqRow{}, Tickets: []TicketRow{}, Projects: []ProjectRow{}}
@@ -180,6 +183,12 @@ func (s *Service) Dashboard(ctx context.Context, p *tenant.Principal, id uuid.UU
 		}
 		um := `(select id from hub.people where ` + col + `=$1 and status <> 'deleted')`
 		since := time.Now().Add(-time.Duration(days) * 24 * time.Hour)
+		if len(period) > 0 {
+			if ps, ok := periodStart(period[0], time.Now()); ok {
+				since = ps
+			}
+		}
+		d.Since = since.UTC().Format(time.RFC3339)
 
 		// ---- memos, announcements, newsletters ----
 		rs, err := tx.Query(ctx, `
@@ -350,6 +359,7 @@ func (s *Service) Dashboard(ctx context.Context, p *tenant.Principal, id uuid.UU
 		// ---- tickets ----
 		rs, err = tx.Query(ctx, `
 			select t.conversation_id, t.ref, t.created_at, t.category, t.priority, t.step, t.late, t.escalated, t.due_at, t.solved_at,
+			  (select min(e.at) from hub.ticket_events e where e.ticket_id = t.conversation_id and e.kind = 'event' and e.text like 'Escalated%'),
 			  (t.to_type = $2 and t.to_ref = $1), coalesce(rdx.name, ''), t.to_type, coalesce(tu.name, '')
 			from hub.tickets t join hub.people rp on rp.id = t.raised_by left join hub.org_units rdx on rdx.id = rp.department_id
 			left join hub.org_units tu on tu.id = t.to_ref
@@ -363,15 +373,19 @@ func (s *Service) Dashboard(ctx context.Context, p *tenant.Principal, id uuid.UU
 			var r TicketRow
 			var created time.Time
 			var late, esc, here bool
-			var due, solved *time.Time
+			var due, solved, escAt *time.Time
 			var rdept, toType, toName string
-			if err := rs.Scan(&r.ID, &r.Ref, &created, &r.Category, &r.Priority, &r.Step, &late, &esc, &due, &solved, &here, &rdept, &toType, &toName); err != nil {
+			if err := rs.Scan(&r.ID, &r.Ref, &created, &r.Category, &r.Priority, &r.Step, &late, &esc, &due, &solved, &escAt, &here, &rdept, &toType, &toName); err != nil {
 				rs.Close()
 				return err
 			}
 			r.Date = created.UTC().Format("2006-01-02")
 			overdue := late || (r.Step < 3 && due != nil && due.Before(time.Now())) || (r.Step >= 3 && due != nil && solved != nil && solved.After(*due))
-			r.OK = !overdue
+			// Performance counts what was received and then resolved in time, or escalated in time (by a person, before its time ran
+			// out; the automatic escalation of an overdue ticket does not count). Anything still open counts against it until then.
+			solvedOnTime := r.Step >= 3 && solved != nil && (due == nil || !solved.After(*due))
+			escOnTime := escAt != nil && (due == nil || !escAt.After(*due))
+			r.OK = solvedOnTime || escOnTime
 			r.Status = stepNames[min(max(r.Step, 0), 4)]
 			if overdue {
 				r.Status = "Overdue"
@@ -380,6 +394,8 @@ func (s *Service) Dashboard(ctx context.Context, p *tenant.Principal, id uuid.UU
 				}
 			} else if r.Step >= 3 {
 				r.Status = "Solved on time"
+			} else if escOnTime {
+				r.Status = "Escalated on time"
 			}
 			switch {
 			case here && esc:
@@ -472,7 +488,7 @@ type UnitPerf struct {
 
 // Performance gives every unit the caller may open a one-line summary (for the org overview cards and widgets). Building
 // it reads each unit's records (capped at 200 units), so callers should cache the answer for a minute or so.
-func (s *Service) Performance(ctx context.Context, p *tenant.Principal) ([]UnitPerf, error) {
+func (s *Service) Performance(ctx context.Context, p *tenant.Principal, period ...string) ([]UnitPerf, error) {
 	units, err := s.Structure(ctx, p)
 	if err != nil {
 		return nil, err
@@ -482,7 +498,7 @@ func (s *Service) Performance(ctx context.Context, p *tenant.Principal) ([]UnitP
 		if i >= 200 {
 			break
 		}
-		d, err := s.Dashboard(ctx, p, u.ID, 30)
+		d, err := s.Dashboard(ctx, p, u.ID, 30, period...)
 		var he *httpx.Error
 		if errors.As(err, &he) && he.Status == 403 {
 			continue
@@ -493,4 +509,18 @@ func (s *Service) Performance(ctx context.Context, p *tenant.Principal) ([]UnitP
 		out = append(out, UnitPerf{ID: u.ID, Kind: u.Kind, Perf: d.Perf, Target: d.Target, Parts: d.Parts})
 	}
 	return out, nil
+}
+
+// periodStart is the first moment of the current calendar month, quarter or year.
+func periodStart(period string, now time.Time) (time.Time, bool) {
+	y, m, _ := now.Date()
+	switch period {
+	case "month":
+		return time.Date(y, m, 1, 0, 0, 0, 0, now.Location()), true
+	case "quarter":
+		return time.Date(y, ((m-1)/3)*3+1, 1, 0, 0, 0, 0, now.Location()), true
+	case "year":
+		return time.Date(y, 1, 1, 0, 0, 0, 0, now.Location()), true
+	}
+	return time.Time{}, false
 }

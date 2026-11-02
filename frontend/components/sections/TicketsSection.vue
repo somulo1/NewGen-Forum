@@ -136,7 +136,7 @@
 <template v-if="esc.canEscalate">
 <div style="padding: 18px; border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-3F2A26,#3F2A26); display: flex; flex-direction: column; gap: 10px">
 <div style="display: flex; align-items: center; gap: 8px"><span style="flex: 1; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--k-FF9B8A,#FF9B8A)">Escalate</span>
-<button @click="esc.toggle" style="height: 32px; padding: 0 12px; border-radius: 16px; border: 1px solid var(--k-5A3A33,#5A3A33); background: transparent; color: #FFD3CA; cursor: pointer; font-size: 13px">{{ esc.btnLabel }}</button></div>
+<button @click="esc.toggle" style="height: 32px; padding: 0 12px; border-radius: 16px; border: 1px solid var(--k-FF9B8A,#FF9B8A); background: transparent; color: var(--k-FF9B8A,#FF9B8A); cursor: pointer; font-size: 13px; font-weight: 600">{{ esc.btnLabel }}</button></div>
 <template v-if="esc.open">
 <span style="font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">1 · Escalate to</span>
 <div style="display: flex; flex-wrap: wrap; gap: 6px"><template v-for="(et, et__i) in esc.types" :key="et__i"><button @click="et.pick" :style="et.style">{{ et.label }}</button></template></div>

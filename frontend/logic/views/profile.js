@@ -1,4 +1,6 @@
 import * as profileW from '~/logic/server/widgets/profile.js';
+import { SOUND_KINDS, chosen } from '~/logic/notifTones.js';
+import { chime } from '~/logic/tones.js';
 // renderVals step: profile. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildProfile(ctx) {
   const { reportOf, fmtDay, forums, has, nav, projects, s, skillsByDept, ts } = ctx;
@@ -140,6 +142,19 @@ export function buildProfile(ctx) {
     const v = this.state.newSkill.trim();
     if (!v) return;
     this.setState((st) => ({ newSkill: '', profile: { ...st.profile, skills: (st.profile.skills || []).indexOf(v) === -1 ? (st.profile.skills || []).concat([v]) : st.profile.skills } }));
+  };
+  // Notification sounds: which notices may chime (the short sound that goes with a notice; calls, meetings and chats are separate)
+  const tp = s.notifTones || {};
+  const setTone = (patch) => this.setState((st) => ({ notifTones: { ...(st.notifTones || {}), ...patch } }));
+  const groupNames = [...new Set(SOUND_KINDS.map((k) => k.group))];
+  me.sounds = {
+    all: tp.all !== false,
+    toggleAll: () => setTone({ all: tp.all === false }),
+    hear: () => chime(),
+    groups: groupNames.map((g) => ({
+      title: g,
+      items: SOUND_KINDS.filter((k) => k.group === g).map((k) => { const on = chosen(tp, k.key); return { key: k.key, label: k.label, hint: k.hint, on, toggle: () => setTone({ [k.key]: !on }) }; })
+    }))
   };
   return { addSkill, me, setPf };
 }

@@ -14,11 +14,11 @@
 <button @click="userActions.activate" style="min-height: 40px; border: 1px solid var(--k-34453D,#34453D); border-radius: 10px; background: var(--k-22302A,#22302A); color: var(--k-E8EFEA,#E8EFEA); cursor: pointer">{{ userActions.active ? 'Deactivate user' : 'Activate user' }}</button>
 <button @click="userActions.toggleBlocked" style="min-height: 40px; border: 1px solid var(--k-34453D,#34453D); border-radius: 10px; background: var(--k-22302A,#22302A); color: var(--k-E8EFEA,#E8EFEA); cursor: pointer">{{ userActions.blocked ? 'Unblock user' : 'Block user' }}</button>
 <button @click="userActions.resetPassword" style="min-height: 40px; border: 1px solid var(--k-34453D,#34453D); border-radius: 10px; background: var(--k-22302A,#22302A); color: var(--k-E8EFEA,#E8EFEA); cursor: pointer">Reset password</button>
-<button @click="confirmUserDelete" style="min-height: 40px; border: 1px solid var(--k-8A4842,#8A4842); border-radius: 10px; background: var(--k-3A211F,#3A211F); color: #FFB8AF; cursor: pointer">Delete user</button>
+<button @click="confirmUserDelete" style="min-height: 40px; border: 1px solid var(--k-FF9B8A,#FF9B8A); border-radius: 10px; background: transparent; color: var(--k-FF9B8A,#FF9B8A); font-weight: 600; cursor: pointer">Delete user</button>
 </div>
 <div v-if="userActions.tempPassword" role="status" style="padding: 12px; border-radius: 12px; border: 1px solid var(--k-536A46,#536A46); background: var(--k-1E2B1A,#1E2B1A); font-size: 13px">
 Temporary password for {{ userActions.name }}:
-<code style="display: block; margin-top: 6px; color: #D7F5B8; overflow-wrap: anywhere">{{ userActions.tempPassword }}</code>
+<code style="display: block; margin-top: 6px; color: var(--k-B8F36B,#B8F36B); font-weight: 600; overflow-wrap: anywhere">{{ userActions.tempPassword }}</code>
 <span style="display: block; margin-top: 6px; color: var(--k-9DB0A6,#9DB0A6)">Share it securely; this password is shown only in this dialog.</span>
 </div>
 <button @click="userActions.close" style="height: 40px; border: 1px solid var(--k-34453D,#34453D); border-radius: 20px; background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer">Done</button>

@@ -2,7 +2,7 @@
 // settings an admin sets for the whole organization (/settings/widgets). Changes are saved by watching the state.
 export const name = 'prefs';
 
-const PERSONAL = ['widgets', 'hiddenWidgets', 'theme', 'hiddenPosts', 'savedPosts', 'dmPrivacy', 'hiddenChatMessages', 'levelsAdded'];
+const PERSONAL = ['widgets', 'hiddenWidgets', 'theme', 'hiddenPosts', 'savedPosts', 'dmPrivacy', 'hiddenChatMessages', 'levelsAdded', 'notifTones'];
 // the settings have a size limit, so only the newest "deleted for me" messages are kept
 const trim = (k, v) => (k === 'hiddenChatMessages' && v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).slice(-150)) : v);
 

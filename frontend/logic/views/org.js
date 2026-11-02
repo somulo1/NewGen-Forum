@@ -72,7 +72,7 @@ export function buildOrg(ctx) {
   const escLabel = (t) => (t === 'desk' ? 'Ticket team' : typeName[t]);
   const escReady = !!(escRec && escCat && escPerson);
   const esc = {
-    open: s.escOpen, btnLabel: s.escOpen ? 'Cancel' : 'Escalate ticket', canEscalate: !!cur_t && cur_t.step < 3,
+    open: s.escOpen, btnLabel: s.escOpen ? 'Cancel' : 'Escalate ticket', canEscalate: !!cur_t && cur_t.step < 3 && (!this.srv || cur_t.canEscalate !== false),
     toggle: () => this.setState((st) => ({ escOpen: !st.escOpen, esc: { type: '', id: '', cat: '', person: '', why: '' } })),
     types: escTypes.map((t) => ({ label: escLabel(t), pick: () => setEsc({ type: t, id: '', cat: '', person: '' }), style: 'height:34px;padding:0 12px;border-radius:17px;cursor:pointer;font-size:13px;' + (t === escType ? 'border:1px solid var(--k-FF9B8A,#FF9B8A);background:var(--k-3A2420,#3A2420);color:#FFD3CA;font-weight:600' : 'border:1px solid var(--k-2A3832,#2A3832);background:var(--k-121B17,#121B17);color:var(--k-C9D6CF,#C9D6CF)') })),
     typeLabel: escLabel(escType), showRec: escType !== 'desk',
@@ -218,7 +218,33 @@ export function buildOrg(ctx) {
     const pids = this.srv ? (real ? real.projects.map((x) => x.id) : []) : t === 'departments' ? (deptProj[ouRec.name] || []) : s.projects.filter((p, i) => (seedOf(ouRec.id) + i) % 2 === 0).map((p) => p.id);
     const ps = projects.filter((p) => pids.indexOf(p.id) !== -1);
     const mk = (label, pc, detail) => ({ label: label, pct: pc, detail: detail, color: perfColor(pc, tg), bar: 'height:100%;width:' + pc + '%;background:' + perfColor(pc, tg) + ';border-radius:5px', marker: 'position:absolute;top:-3px;left:calc(' + tg + '% - 1px);width:2px;height:16px;background:var(--k-E8EFEA,#E8EFEA);border-radius:1px' });
+    // A tab blinks while it holds something this person has not seen yet (a new ticket, communication, request, project or member).
+    // What was seen is kept in this browser per unit and tab; opening the tab marks all of it seen, and the blinking stops.
+    const acct = (this.srv && this.srv.me && this.srv.me.account) || 'local';
+    const idsOf = {
+      comms: () => D.comms.map((c) => String(c.uid || c.ref || c.subject + c.date)),
+      reqs: () => D.reqs.map((q) => String(q.ref || q.id)),
+      tks: () => D.tks.map((x) => String(x.uid || x.id)),
+      projects: () => ps.map((p) => String(p.id)),
+      members: () => mem.map((p) => String(p.uid || p.name)),
+      cats: () => []
+    };
+    const seenKey = (k) => 'hub-seen:' + acct + ':' + key + ':' + k;
+    const readSeen = (k) => { try { const v = localStorage.getItem(seenKey(k)); return v ? new Set(JSON.parse(v)) : null; } catch (e) { return new Set(); } };
+    const writeSeen = (k, ids) => { try { localStorage.setItem(seenKey(k), JSON.stringify(ids.slice(-1000))); } catch (e) { /* not kept: the tab simply does not blink */ } };
+    const ready = !this.srv || !!D.loaded;   // decide only on complete data, never on a half-loaded dashboard
+    const seeTab = (k) => { if (ready) writeSeen(k, idsOf[k]()); };
+    const freshIn = (k) => {
+      if (!ready) return false;
+      const ids = idsOf[k]();
+      const seen = readSeen(k);
+      if (seen === null || ouTab === k) { if (seen === null || ids.some((id) => !seen.has(id))) writeSeen(k, ids); return false; }   // first look, or being looked at now
+      return ids.some((id) => !seen.has(id));
+    };
     ou = {
+      period: s.ouPeriod || '', periodOpts: [['', 'Last 30 days'], ['month', 'This month'], ['quarter', 'This quarter'], ['year', 'This year']].map(([v, l]) => ({ v, l })),
+      onPeriod: (e) => this.setState({ ouPeriod: e.target.value }),
+      perfFormula: 'Performance = (resolved in time + escalated in time) ÷ everything received in the period × 100%',
       loading: !!this.srv && !D.loaded,   // its dashboard is still being fetched from the server
       name: ouRec.name, type: typeName[t], short: shortOf(ouRec.name), color: typeTint[t], badge: badge(typeTint[t]), path: pathOf(t, ouRec),
       managerRole: mgrRole[t], manager: lead ? lead.name : 'Not set', members: mem.length,
@@ -235,7 +261,7 @@ export function buildOrg(ctx) {
       target: tg, setTarget: (e) => { const v = Math.max(50, Math.min(100, Number(e.target.value) || 95)); if (this.srv) { orgW.setTarget(this, this.srv, key, v).catch((err) => this.notify(err.message || 'Could not save the threshold.', '#FF9B8A')); return; } this.setState((x) => ({ targets: { ...x.targets, [key]: v } })); },
       perf: D.perf, perfColor: perfColor(D.perf, tg), perfNote: D.perf >= tg ? 'Target met' : (tg - D.perf) + ' points below target',
       breakdown: [mk('Communications acknowledged on time', D.pc, D.comms.filter((x) => x.dir !== 'Sent').length + ' received'), mk('Business requests resolved on time', D.pr, D.reqs.filter((x) => x.dir !== 'Sent').length + ' received'), mk('Tickets resolved on time', D.pt, D.tks.filter((x) => x.dir !== 'Sent').length + ' received')],
-      tabs: [['comms', 'Communications', D.comms.length], ['reqs', 'Business requests', D.reqs.length], ['tks', 'Tickets', D.tks.length], ['cats', 'Ticket categories', (s.unitCats[t + ':' + ouRec.name] || []).length], ['projects', 'Projects', ps.length], ['members', 'Members', mem.length]].map(([k, l, n]) => ({ label: l, count: n, go: () => this.setState({ ouTab: k, ouItem: null }),
+      tabs: [['comms', 'Communications', D.comms.length], ['reqs', 'Business requests', D.reqs.length], ['tks', 'Tickets', D.tks.length], ['cats', 'Ticket categories', (s.unitCats[t + ':' + ouRec.name] || []).length], ['projects', 'Projects', ps.length], ['members', 'Members', mem.length]].map(([k, l, n]) => ({ label: l, count: n, fresh: freshIn(k), go: () => { seeTab(k); this.setState({ ouTab: k, ouItem: null }); },
         style: 'min-height:44px;padding:0 16px;border:0;background:transparent;cursor:pointer;font-size:14px;white-space:nowrap;font-family:inherit;border-bottom:2px solid ' + (ouTab === k ? '#B8F36B' : 'transparent') + ';color:' + (ouTab === k ? 'var(--k-E8EFEA,#E8EFEA)' : 'var(--k-9DB0A6,#9DB0A6)') + ';font-weight:' + (ouTab === k ? '600' : '500') }))
     };
     // Small performance cards for the top card of the dashboard.
