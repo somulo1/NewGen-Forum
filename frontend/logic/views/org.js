@@ -19,7 +19,7 @@ export function buildOrg(ctx) {
   };
   const recOf = (type, id) => (O[type] || []).find((x) => x.id === id);
   const pathOf = (type, r) => { const out = []; let p = parentFor(type, r); while (p) { const pr = recOf(p[0], p[1]); if (!pr) break; out.unshift(pr.name); p = parentFor(p[0], pr); } return [(s.orgProfile && s.orgProfile.name) || '[YOUR ORGANIZATION]'].concat(out).join(' › '); };
-  const membersOf = (type, name) => this.dir.filter((p) => (type === 'departments' ? p.dept : type === 'branches' ? p.loc : type === 'sectors' ? p.sector : p.unit) === name);
+  const membersOf = (type, name) => this.peopleDir().filter((p) => (type === 'departments' ? p.dept : type === 'branches' ? p.loc : type === 'sectors' ? p.sector : p.unit) === name);
   const shortOf = (n) => n.split(' ').map((x) => x[0]).join('').slice(0, 2).toUpperCase();
   // ---- Ticket escalation ----
   const escSeed = (str) => { let h = 11; for (let i = 0; i < str.length; i++) h = (h * 33 + str.charCodeAt(i)) >>> 0; return h; };
@@ -235,7 +235,7 @@ export function buildOrg(ctx) {
       target: tg, setTarget: (e) => { const v = Math.max(50, Math.min(100, Number(e.target.value) || 95)); if (this.srv) { orgW.setTarget(this, this.srv, key, v).catch((err) => this.notify(err.message || 'Could not save the threshold.', '#FF9B8A')); return; } this.setState((x) => ({ targets: { ...x.targets, [key]: v } })); },
       perf: D.perf, perfColor: perfColor(D.perf, tg), perfNote: D.perf >= tg ? 'Target met' : (tg - D.perf) + ' points below target',
       breakdown: [mk('Communications acknowledged on time', D.pc, D.comms.filter((x) => x.dir !== 'Sent').length + ' received'), mk('Business requests resolved on time', D.pr, D.reqs.filter((x) => x.dir !== 'Sent').length + ' received'), mk('Tickets resolved on time', D.pt, D.tks.filter((x) => x.dir !== 'Sent').length + ' received')],
-      tabs: [['comms', 'Communications', D.comms.length], ['reqs', 'Business requests', D.reqs.length], ['tks', 'Tickets', D.tks.length], ['cats', 'Ticket categories', (s.unitCats[t + ':' + ouRec.name] || []).length], ['projects', 'Projects', ps.length]].map(([k, l, n]) => ({ label: l, count: n, go: () => this.setState({ ouTab: k, ouItem: null }),
+      tabs: [['comms', 'Communications', D.comms.length], ['reqs', 'Business requests', D.reqs.length], ['tks', 'Tickets', D.tks.length], ['cats', 'Ticket categories', (s.unitCats[t + ':' + ouRec.name] || []).length], ['projects', 'Projects', ps.length], ['members', 'Members', mem.length]].map(([k, l, n]) => ({ label: l, count: n, go: () => this.setState({ ouTab: k, ouItem: null }),
         style: 'min-height:44px;padding:0 16px;border:0;background:transparent;cursor:pointer;font-size:14px;white-space:nowrap;font-family:inherit;border-bottom:2px solid ' + (ouTab === k ? '#B8F36B' : 'transparent') + ';color:' + (ouTab === k ? 'var(--k-E8EFEA,#E8EFEA)' : 'var(--k-9DB0A6,#9DB0A6)') + ';font-weight:' + (ouTab === k ? '600' : '500') }))
     };
     // Small performance cards for the top card of the dashboard.
@@ -307,6 +307,9 @@ export function buildOrg(ctx) {
     if (ouTab === 'tks') ouTable = { id: 'ou-t-' + key, pageSize: 10, minWidth: '900px', cols: [{ label: 'Ticket', filter: 'text' }, { label: 'Date', filter: 'date' }, { label: 'Direction', filter: 'select' }, { label: 'Title', filter: 'text' }, { label: 'With', filter: 'select' }, { label: 'Status', filter: 'select' }, { label: '', align: 'right' }],
       rows: D.tks.slice().sort((a, b) => b.date.localeCompare(a.date)).map((c) => ({ tint: c.status === 'Overdue' ? '#FF9B8A' : '', cells: [C.t(c.id, { mono: true }), C.t(fmtDay(c.date), { fv: c.date, nowrap: true }), dirCell(c.dir), C.t(c.title, { strong: true }), C.t(c.cp), C.b(c.status, stC(c.status)),
         C.a([{ label: 'View', kind: 'primary', run: openTicketPage(c) }])] })) };
+    // the people placed in this part (and everyone the part's own record lists), with their profile one click away
+    if (ouTab === 'members') ouTable = { id: 'ou-m-' + key, pageSize: 15, minWidth: '640px', emptyText: 'Nobody is in this ' + typeName[t].toLowerCase() + ' yet. Add people from Organization structure.', cols: [{ label: 'Person', filter: 'text' }, { label: 'Job title', filter: 'text' }, { label: 'Status', filter: 'select' }, { label: '', align: 'right' }],
+      rows: mem.map((p) => ({ cells: [C.p(p.name, { sub: p.email || '', fv: p.name }), C.t(p.title || '—'), C.t(p.status || 'Available'), C.a([{ label: 'Profile', kind: 'primary', run: () => this.setState({ personOpen: p.id }) }])] })) };
     if (ouTab === 'projects') ouTable = { id: 'ou-p-' + key, pageSize: 10, minWidth: '760px', emptyText: 'No projects for this ' + typeName[t].toLowerCase() + ' yet.', cols: [{ label: 'Project', filter: 'text' }, { label: 'Status', filter: 'select' }, { label: 'Progress' }, { label: 'Due', filter: 'date' }, { label: '', align: 'right' }],
       rows: ps.map((p) => ({ cells: [C.t(p.name, { strong: true, sub: 'Led by ' + p.owner }), C.b(p.status, p.statusColor), C.bar(p.progress, p.statusColor), C.t(p.dueLabel, { fv: p.due, nowrap: true }), C.a([{ label: 'View', kind: 'primary', run: p.open }])] })) };
     // ---- Communications and business requests open on a page built like the ticket page ----

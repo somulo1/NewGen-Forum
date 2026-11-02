@@ -110,7 +110,7 @@ function buildStructureEd(s, can) {
     const sel = (se.sel[K.kind] || []).filter((id) => list.some((u) => u.id === id));
     const rows = list.map((u) => {
       const par = byId.get(u.parent_id);
-      const n = this.dir.filter((p) => p[K.field] === u.name).length;
+      const n = this.peopleDir().filter((p) => p[K.field] === u.name).length;
       const editing = se.edit && se.edit.id === u.id;
       const moveOpts = parentChoices(K.kind, u.id);
       const moveTo = se.move[u.id] !== undefined ? se.move[u.id] : (u.parent_id || '');
@@ -127,7 +127,7 @@ function buildStructureEd(s, can) {
         // adding people: tick them from the directory; they are placed here and in every part above it
         adding: se.addTo === u.id, openAdd: () => set({ addTo: u.id, addSel: {}, addQ: '', err: '', ok: '' }), closeAdd: () => set({ addTo: null }),
         addQ: se.addTo === u.id ? se.addQ || '' : '', onAddQ: (e) => { const v = e.target.value; set({ addQ: v }); },
-        addList: se.addTo === u.id ? this.dir.filter((p) => p.uid && p[K.field] !== u.name && (!(se.addQ || '').trim() || p.name.toLowerCase().includes(se.addQ.trim().toLowerCase()))).slice(0, 60)
+        addList: se.addTo === u.id ? this.peopleDir().filter((p) => p.uid && p[K.field] !== u.name && (!(se.addQ || '').trim() || p.name.toLowerCase().includes(se.addQ.trim().toLowerCase()))).slice(0, 60)
           .map((p) => ({ uid: p.uid, name: p.name, sub: [p.title, p.dept, p.loc].filter(Boolean).join(' · '), on: !!(se.addSel || {})[p.uid], toggle: () => set((cur) => ({ addSel: { ...(cur.addSel || {}), [p.uid]: !(cur.addSel || {})[p.uid] } })) })) : [],
         addCount: Object.values(se.addSel || {}).filter(Boolean).length,
         doAdd: () => {
