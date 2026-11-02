@@ -14,8 +14,8 @@ export function buildOnboarding(ctx) {
   const f = ob.f, errs = ob.errs;
   // Role and individual rights, only when editing someone who is already in the directory.
   let access = null;
-  if (ob.edit !== undefined && ob.edit !== null && this.dir[ob.edit]) {
-    const person = this.dir[ob.edit];
+  if (ob.edit !== undefined && ob.edit !== null && this.personById(ob.edit)) {
+    const person = this.personById(ob.edit);
     const canEditRights = can('roles', 'Manage roles & rights');
     const curRole = ob.roleDraft || ridOf(person.name);
     const saved = s.personRights[person.name] || {}, rd = ob.rightsDraft || {};
@@ -40,7 +40,7 @@ export function buildOnboarding(ctx) {
   const good = rowsAll.filter((r) => r.ok).length;
   const bad = rowsAll.length - good;
   const isEdit = ob.edit !== undefined && ob.edit !== null;
-  const onb = { ...base, open: true, isEdit, heading: isEdit ? 'Edit ' + this.dir[ob.edit].name : 'Onboard people', submitLabel: isEdit ? 'Save changes' : 'Onboard person', isOne: ob.tab === 'one', isBulk: ob.tab === 'bulk' && !isEdit, showTabs: !isEdit, close: () => this.closeOnboard(),
+  const onb = { ...base, open: true, isEdit, heading: isEdit ? 'Edit ' + this.personById(ob.edit).name : 'Onboard people', submitLabel: isEdit ? 'Save changes' : 'Onboard person', isOne: ob.tab === 'one', isBulk: ob.tab === 'bulk' && !isEdit, showTabs: !isEdit, close: () => this.closeOnboard(),
     goOne: () => this.setOnboardTab('one'), goBulk: () => this.setOnboardTab('bulk'),
     done: ob.done, hasDone: !!ob.done, doneOne: !!(ob.done && ob.done.one), doneBulk: !!(ob.done && ob.done.count !== undefined),
     fields: MANDATORY.map((m) => ({ key: m.key, label: m.label, type: m.type, isSelect: m.type === 'select', value: f[m.key], err: errs[m.key] || '', hasErr: !!errs[m.key], options: GENDERS,
