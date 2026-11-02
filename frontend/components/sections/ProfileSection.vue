@@ -51,7 +51,6 @@
 <span style="font-size: 12px; color: var(--k-C9D6CF,#C9D6CF)">{{ me.completeTip }}</span>
 </div>
 </section>
-<StorageCard v-if="!me.isOther" />
 
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px">
 <template v-for="(fc, fc__i) in me.facts" :key="fc__i">
@@ -176,16 +175,6 @@
 </div>
 </div>
 </template>
-
-<div style="padding: 18px; border-radius: 18px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 10px">
-<span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--k-9DB0A6,#9DB0A6)">Team</span>
-<div style="display: flex; gap: 10px; align-items: center; padding: 10px; border-radius: 12px; background: var(--k-121B17,#121B17)"><span aria-hidden="true" style="width: 34px; height: 34px; border-radius: 50%; background: #6EE7C8; color: #0F1714; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px">HR</span><div style="display: flex; flex-direction: column"><span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Reports to</span><strong style="font-size: 14px; font-weight: 600">{{ me.reportsTo }}</strong></div></div>
-</div>
-
-<div style="padding: 18px; border-radius: 18px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 10px">
-<span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--k-9DB0A6,#9DB0A6)">{{ me.forumsTitle }}</span>
-<template v-for="(mf, mf__i) in me.forums" :key="mf__i"><button @click="mf.open" style="display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 4px 8px; border: 0; border-radius: 10px; background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; text-align: left"><span :style="`width: 28px; height: 28px; border-radius: 8px; background: ${mf.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 10px`">{{ mf.initials }}</span><span style="flex: 1; font-size: 14px">{{ mf.name }}</span><span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">{{ mf.myRole }}</span></button></template>
-</div>
 </aside>
 </div>
 </div>
