@@ -84,6 +84,16 @@ func (s *Service) Send(ctx context.Context, p *tenant.Principal, conv uuid.UUID,
 				return err
 			}
 		}
+		if kind == "ticket" {
+			// a closed ticket's conversation is final: nothing more is said or attached
+			var closed bool
+			if err := tx.QueryRow(ctx, `select exists (select 1 from hub.tickets where conversation_id=$1 and step >= 4)`, conv).Scan(&closed); err != nil {
+				return err
+			}
+			if closed {
+				return httpx.Err(409, "ticket_closed", "This ticket is closed. Its conversation is read-only.")
+			}
+		}
 		if kind == "forum" && in.Type != "reaction" {
 			if err := mayPost(ctx, tx, conv, p.Person); err != nil {
 				return err

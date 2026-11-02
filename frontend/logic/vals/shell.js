@@ -64,6 +64,13 @@ export function valsShell(ctx) {
     voiceCall: isDM ? () => this.startDmCall('voice', curDm.with, dmView.initials, dmView.color) : () => this.startCall('voice', cur.name, cur.initials, cur.color, [], 'forum', cur.id),
     videoCall: isDM ? () => this.startDmCall('video', curDm.with, dmView.initials, dmView.color) : () => this.startCall('video', cur.name, cur.initials, cur.color, [], 'forum', cur.id),
     endCall: () => this.endCall(),
+    callFb: s.callFb && {
+      ...s.callFb,
+      starList: [1, 2, 3, 4, 5].map((n) => ({ n, on: n <= s.callFb.stars, label: n + (n === 1 ? ' star' : ' stars'), pick: () => this.setState((st) => ({ callFb: st.callFb && { ...st.callFb, stars: n, err: '' } })) })),
+      onRemark: (e) => { const v = e.target.value; this.setState((st) => ({ callFb: st.callFb && { ...st.callFb, remark: v } })); },
+      send: () => this.srv && callsW.sendFeedback(this, this.srv),
+      later: () => this.srv ? callsW.feedbackLater(this, this.srv) : this.setState({ callFb: null })
+    },
     showMeetingFull, showMeetingDock, showPanelCall, showCallMini, callMiniStyle, restoreCall,
     callToFull: set({ callMode: 'full' }), callToDock: set({ callMode: 'docked' }), callToMin: set({ callMode: 'min' }),
     toggleMic: () => { this.setState((st) => ({ mic: !st.mic })); if (this.srv) callsW.applyLocal(this); },

@@ -92,7 +92,14 @@ func TestTicketRoutingHandOverAndEscalation(t *testing.T) {
 	if got["hold"] == true {
 		t.Fatal("still on hold")
 	}
-	e.MustDo(200, "POST", "/tickets/"+id+"/act", map[string]any{"do": "step", "step": 3}, it.Access)
+	// resolving needs a comment on what was done
+	if code, _ := e.Do("POST", "/tickets/"+id+"/act", map[string]any{"do": "step", "step": 3, "comment": "  "}, it.Access); code != 400 {
+		t.Fatalf("resolved without a comment: %d", code)
+	}
+	e.MustDo(200, "POST", "/tickets/"+id+"/act", map[string]any{"do": "step", "step": 3, "comment": "Restarted the router"}, it.Access)
+	// resolved but not closed: it may still be reopened
+	e.MustDo(200, "POST", "/tickets/"+id+"/act", map[string]any{"do": "step", "step": 2}, it.Access)
+	e.MustDo(200, "POST", "/tickets/"+id+"/act", map[string]any{"do": "step", "step": 3, "comment": "Replaced the router"}, it.Access)
 	// the raiser was told it was resolved
 	notes := e.MustDo(200, "GET", "/notifications", nil, raiser.Access)
 	if notes["unread"].(float64) < 1 {
@@ -101,6 +108,52 @@ func TestTicketRoutingHandOverAndEscalation(t *testing.T) {
 	full := e.MustDo(200, "GET", "/tickets/"+id, nil, ownerU.Access)
 	if ev := full["events"].([]any); len(ev) < 5 {
 		t.Fatalf("history too short: %v", ev)
+	}
+	// a resolved ticket nobody closes is closed by the sweep 30 minutes later: 5 stars and a comment from Hub
+	ts0 := tickets.New(e.A)
+	if err := ts0.SweepAll(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.MustDo(200, "GET", "/tickets/"+id, nil, ownerU.Access); got["step"].(float64) != 3 {
+		t.Fatalf("closed before 30 minutes: %v", got["step"])
+	}
+	e.AgeResolved(id, 31*time.Minute)
+	if err := ts0.SweepAll(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	shut := e.MustDo(200, "GET", "/tickets/"+id, nil, raiser.Access)
+	if shut["step"].(float64) != 4 || shut["rating"].(float64) != 5 || shut["auto_closed"] != true || shut["closed_at"] == nil {
+		t.Fatalf("not closed automatically: %v", shut)
+	}
+	var byHub, resolved bool
+	for _, c := range shut["comments"].([]any) {
+		m := c.(map[string]any)
+		byHub = byHub || (m["person"] == nil && m["who"] == "Hub" && strings.Contains(m["text"].(string), "Closed automatically"))
+		resolved = resolved || m["text"] == "Resolved: Replaced the router"
+	}
+	if !byHub || !resolved {
+		t.Fatalf("comments: %v", shut["comments"])
+	}
+	// closed is final: no reopening, no comments; the resolver sees the rating, the raiser has none to see
+	if code, _ := e.Do("POST", "/tickets/"+id+"/act", map[string]any{"do": "step", "step": 2}, it.Access); code != 409 {
+		t.Fatalf("reopened a closed ticket: %d", code)
+	}
+	if code, _ := e.Do("POST", "/tickets/"+id+"/comments", map[string]any{"text": "hello"}, raiser.Access); code != 409 {
+		t.Fatalf("commented on a closed ticket: %d", code)
+	}
+	fb := e.MustDo(200, "GET", "/tickets/feedback", nil, it.Access)
+	if fb["total"].(float64) != 1 || fb["average"].(float64) != 5 || fb["items"].([]any)[0].(map[string]any)["mine"] != true {
+		t.Fatalf("resolver feedback: %v", fb)
+	}
+	if fb := e.MustDo(200, "GET", "/tickets/feedback", nil, raiser.Access); fb["total"].(float64) != 0 {
+		t.Fatalf("raiser sees feedback: %v", fb)
+	}
+	// a second sweep leaves it alone
+	if err := ts0.SweepAll(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if again := e.MustDo(200, "GET", "/tickets/"+id, nil, raiser.Access); len(again["comments"].([]any)) != len(shut["comments"].([]any)) {
+		t.Fatal("closed twice")
 	}
 	// a ticket past its TAT is escalated by the sweep
 	key2, _ := e2ee.NewConversationKey()
@@ -171,8 +224,14 @@ func TestOwnTicketsAndEscalationScope(t *testing.T) {
 	if c := act(mine, map[string]any{"do": "assign", "handler": staff.Person}); c != 403 {
 		t.Fatalf("the raiser (not a head of the unit) handed it over: %d", c)
 	}
-	if c := act(mine, map[string]any{"do": "step", "step": 4}); c != 200 {
+	if c := act(mine, map[string]any{"do": "step", "step": 4, "rating": 6}); c != 400 {
+		t.Fatalf("six stars: %d", c)
+	}
+	if c := act(mine, map[string]any{"do": "step", "step": 4, "rating": 4, "comment": "Quick, thanks"}); c != 200 {
 		t.Fatalf("raiser closing: %d", c)
+	}
+	if got := e.MustDo(200, "GET", "/tickets/"+mine, nil, o.Access); got["rating"].(float64) != 4 || got["auto_closed"] != false || len(got["comments"].([]any)) != 1 {
+		t.Fatalf("rating or remark not kept: %v", got)
 	}
 
 	// a unit ticket: not into the owner's own unit again, but up into their own branch is fine

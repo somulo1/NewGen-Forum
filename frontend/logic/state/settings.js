@@ -13,7 +13,7 @@ export const ADDONS = [
 // Neutral until the server's values arrive (see logic/server/widgets/settings.js).
 export function settingsState() {
   return {
-    setTab: 'profile',
+    setTab: 'profile', callFbAll: null, callFbOpen: null, tkFbList: null, tkFbShow: false,
     orgProfile: { name: '', short: '', logo: '', industry: '', size: '', website: '', email: '', phone: '', address: '', city: '', country: '', timezone: 'Africa/Nairobi', language: 'English', currency: 'KES', regNo: '', taxId: '' },
     orgDeleteAfter: '', orgSecurity: { mfa: false, session: '8', domains: '', retention: '12', externalSharing: true, emailDetails: true, maxVideoMB: '50', maxFileMB: '10', fileTypes: 'pdf,doc,docx,xls,xlsx,ppt,pptx,csv,txt,png,jpg,jpeg', userQuotaMB: '5120' },
     setDraft: null,

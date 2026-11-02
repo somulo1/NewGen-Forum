@@ -739,5 +739,123 @@
   "errors": {
    "401": "Missing or wrong token"
   }
+ },
+ "GET /v1/calls/feedback": {
+  "summary": "Calls still waiting for my feedback",
+  "description": "Recent calls, meetings and standups (last 7 days) I was in with at least one other person, have left and have not rated yet. Newest first.",
+  "access": "any member",
+  "status": 200,
+  "response": {
+   "due": [
+    {
+     "call": "uuid",
+     "kind": "video",
+     "context": "meeting",
+     "started_at": "time",
+     "people": [
+      "Amy Lee"
+     ]
+    }
+   ]
+  }
+ },
+ "POST /v1/calls/{id}/feedback": {
+  "summary": "Rate a call I was in",
+  "description": "1 to 5 stars and an optional remark (sealed with the organization's key). Given once, final.",
+  "access": "someone who joined the call with at least one other person, after leaving it",
+  "body": {
+   "stars": 4,
+   "remark": "optional, up to 2000 characters"
+  },
+  "status": 204,
+  "response": null,
+  "errors": {
+   "400": "bad_request: stars out of range, or not someone who was in this call",
+   "409": "conflict: already rated"
+  }
+ },
+ "GET /v1/calls/{id}/feedback": {
+  "summary": "Everyone's feedback on a call",
+  "access": "the person who started the call",
+  "status": 200,
+  "response": {
+   "feedback": [
+    {
+     "person": "uuid",
+     "name": "Amy Lee",
+     "stars": 4,
+     "remark": "text",
+     "at": "time"
+    }
+   ]
+  }
+ },
+ "GET /v1/calls/feedback/all": {
+  "summary": "The organization's call feedback",
+  "description": "Rated calls, meetings and standups, newest first, each with every rating and remark; plus totals and averages per kind.",
+  "access": "Settings: View settings",
+  "query": {
+   "context": "optional: dm, forum, meeting, standup, project",
+   "page": "1-based",
+   "size": "1-50, default 10"
+  },
+  "status": 200,
+  "response": {
+   "calls": [
+    {
+     "call": "uuid",
+     "kind": "video",
+     "context": "meeting",
+     "host_name": "text",
+     "started_at": "time",
+     "duration_seconds": 600,
+     "average": 4.5,
+     "ratings": [
+      {
+       "person": "uuid",
+       "name": "text",
+       "stars": 4,
+       "remark": "text",
+       "at": "time"
+      }
+     ]
+    }
+   ],
+   "total": 1,
+   "ratings": 2,
+   "average": 4.5,
+   "contexts": [
+    {
+     "context": "meeting",
+     "count": 2,
+     "average": 4.5
+    }
+   ],
+   "page": 1,
+   "size": 10
+  }
+ },
+ "POST /v1/calls/{id}/leave": {
+  "summary": "Leave or hang up a call",
+  "description": "If the caller hangs up before anyone answered, the call is marked missed and everyone being rung is told at once.",
+  "access": "someone on the call",
+  "status": 200,
+  "response": {
+   "cancelled": false
+  }
+ },
+ "POST /v1/calls/history/delete": {
+  "summary": "Delete calls from my own history",
+  "description": "For good and for me only.",
+  "access": "any member",
+  "body": {
+   "ids": [
+    "uuid"
+   ]
+  },
+  "status": 200,
+  "response": {
+   "deleted": 1
+  }
  }
 }

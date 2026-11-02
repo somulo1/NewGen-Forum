@@ -569,5 +569,21 @@
   "errors": {
    "400": "Missing dates, or the span is longer than 100 days"
   }
+ },
+ "GET /v1/conversations/cleared": {
+  "summary": "Conversations I deleted for myself",
+  "access": "any member",
+  "status": 200,
+  "response": {
+   "ids": [
+    "uuid"
+   ]
+  }
+ },
+ "POST /v1/conversations/{id}/clear": {
+  "summary": "Delete a private chat or forum for me only",
+  "access": "a member of the conversation",
+  "status": 204,
+  "response": null
  }
 }

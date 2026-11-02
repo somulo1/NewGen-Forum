@@ -120,9 +120,12 @@ export async function startServerSync(logic, request, session, bytes) {
   // a dashboard shows new tickets, communications and requests as they happen (its tabs then blink): drop the cached dashboards so the
   // open one is fetched again
   const staleDash = () => { if (srv.ouAsked) { srv.ouAsked.clear(); logic.forceUpdate(); } };
+  // ticket ratings are fetched again the next time the list shows
+  try { srv.rt && srv.rt.on('ticket.updated', () => { srv.fbTkPage = undefined; if (logic.state.tkFbList) logic.setState({ tkFbList: null }); }); } catch (e) { /* no live connection */ }
   ['ticket.updated', 'approval.changed', 'notification', 'comm.published'].forEach((t) => { try { srv.rt && srv.rt.on(t, staleDash); } catch (e) { /* no live connection */ } });
   callsW.listen(logic, srv);
   callsW.loadHistory(logic, srv).catch(() => {});
+  setTimeout(() => callsW.checkFeedback(logic, srv).catch(() => {}), 4000);
   // what a live notification may need to refresh
   srv.reload.tickets = () => { srv.lazy.refresh(tickets).catch(() => {}); orgW.loadPerformance(logic, srv).catch(() => {}); };
   srv.reload.approvals = () => Promise.all([approvals, comms, awards].map((w) => srv.lazy.refresh(w))).catch(() => {});   // only what was ever opened

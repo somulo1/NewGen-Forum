@@ -29,6 +29,7 @@
 </template>
 </div>
 <DataTable :t="ticketsTable" />
+<TicketRatings />
 </div>
 </template>
 
@@ -77,7 +78,7 @@
 </div>
 
 <div style="border-top: 1px solid var(--k-24322C,#24322C); padding-top: 14px; display: flex; flex-direction: column; gap: 10px">
-<template v-if="tk.closed"><div role="status" style="padding: 12px 14px; border-radius: 12px; background: var(--k-121B17,#121B17); color: var(--k-9DB0A6,#9DB0A6); font-size: 14px">This ticket is closed. Status changes and comments are turned off.</div></template>
+<template v-if="tk.closed"><div role="status" style="padding: 12px 14px; border-radius: 12px; background: var(--k-121B17,#121B17); color: var(--k-9DB0A6,#9DB0A6); font-size: 14px">This ticket is closed. It cannot be reopened, and its activity and comments are now read-only.</div></template>
 <template v-if="tagOpen && !tk.closed">
 <div style="display: flex; flex-wrap: wrap; gap: 6px; align-items: center"><span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Tag:</span><template v-for="(tp, tp__i) in tagPeople" :key="tp__i"><button @click="tp.tag" style="height: 32px; padding: 0 12px; border-radius: 16px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; font-size: 13px">@{{ tp.name }}</button></template></div>
 </template>
@@ -124,6 +125,15 @@
 <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--k-9DB0A6,#9DB0A6)">Actions</span>
 <template v-if="tk.ownNote"><span style="font-size: 13px; color: var(--k-FFB86B,#FFB86B); line-height: 1.5">{{ tk.ownNote }}</span></template>
 <template v-for="(act, act__i) in tk.actions" :key="act__i"><button @click="act.run" :style="act.style">{{ act.label }}</button></template>
+<template v-if="tk.finish">
+<strong style="font-size: 14px">{{ tk.finish.title }}</strong>
+<span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6); line-height: 1.5">{{ tk.finish.hint }}</span>
+<template v-if="!tk.finish.solving"><div role="radiogroup" aria-label="Rating" style="display: flex; gap: 4px"><template v-for="st in tk.finish.starList" :key="st.n"><button type="button" role="radio" :aria-checked="st.on" :aria-label="st.label" @click="st.pick" :style="`width: 34px; height: 34px; border: 0; background: transparent; cursor: pointer; font-size: 24px; line-height: 1; color: ${st.on ? '#F5C451' : 'var(--k-3F524A,#3F524A)'}`">★</button></template></div></template>
+<textarea :value="tk.finish.note" @input="tk.finish.onNote" :placeholder="tk.finish.placeholder" :aria-label="tk.finish.placeholder" rows="3" maxlength="2000" style="padding: 10px 12px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font: inherit; font-size: 14px; resize: vertical"></textarea>
+<template v-if="tk.finish.err"><span role="alert" style="font-size: 13px; color: var(--k-FF9B8A,#FF9B8A)">{{ tk.finish.err }}</span></template>
+<div style="display: flex; gap: 8px"><button @click="tk.finish.cancel" :disabled="tk.finish.busy" style="flex: 1; height: 40px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; font-size: 14px">Cancel</button><button @click="tk.finish.submit" :disabled="tk.finish.busy" style="flex: 1; height: 40px; border-radius: 10px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer; font-size: 14px">{{ tk.finish.busy ? 'Saving…' : tk.finish.solving ? 'Resolve' : 'Close ticket' }}</button></div>
+</template>
+<template v-if="tk.closed"><span style="font-size: 13px; color: var(--k-9DB0A6,#9DB0A6)">{{ tk.closedNote }}</span><span v-if="tk.ratingStars" :aria-label="`Rated ${tk.rating} of 5`" style="font-size: 20px; color: #F5C451; letter-spacing: 2px">{{ tk.ratingStars }}</span></template>
 <template v-if="tk.noActions"><span style="font-size: 13px; color: var(--k-9DB0A6,#9DB0A6)">Assign someone above to start this ticket.</span></template>
 </div>
 

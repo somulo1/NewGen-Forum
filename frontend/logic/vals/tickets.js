@@ -1,4 +1,5 @@
 import * as ticketsW from '~/logic/server/widgets/tickets.js';
+import * as feedbackW from '~/logic/server/widgets/feedback.js';
 import * as mentions from '~/logic/server/mentions.js';
 import { pickHandler } from '~/logic/ticketRouting.js';
 
@@ -20,6 +21,32 @@ export function valsTickets(ctx) {
     setNearPct: (e) => setTs({ nearPct: Number(e.target.value) }),
     setEscalate: (e) => setTs({ escalate: e.target.value }),
     tickets, ticketStats, tk, tagPeople,
+    // ratings on closed tickets: for the people who worked on them and the heads of the place each was with (the server decides)
+    tkFeedback: (() => {
+      if (!this.srv || !((s.section === 'tickets' || s.section === 'ticketdesk') && !cur_t)) return null;
+      const F = s.tkFbList || {};
+      if (!F.loaded && !F.loading && this.srv.fbTkPage === undefined) Promise.resolve().then(() => feedbackW.loadTicketFeedback(this, this.srv, 1));
+      if (!F.total) return null;
+      const pages = Math.max(1, Math.ceil(F.total / (F.size || 10)));
+      const page = F.page || 1;
+      const go = (n) => feedbackW.loadTicketFeedback(this, this.srv, n);
+      return {
+        open: !!s.tkFbShow, toggle: () => this.setState((st) => ({ tkFbShow: !st.tkFbShow })),
+        average: (F.average || 0).toFixed(1), stars: feedbackW.starsText(F.average), total: F.total, loading: !!F.loading, err: F.err || '',
+        items: (F.items || []).map((x) => ({
+          id: x.id, ref: x.ref, title: x.title || x.category, rating: x.rating, stars: feedbackW.starsText(x.rating), remark: x.remark || '',
+          meta: (x.closed_at ? new Date(x.closed_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) + ' · ' : '') + 'Raised by ' + x.raised_by_name + (x.handler_name ? ' · handled by ' + (x.mine ? 'you' : x.handler_name) : '') + (x.auto_closed ? ' · closed automatically' : ''),
+          open: () => {
+            const show = () => this.setState({ ticketOpen: x.ref, ticketFrom: null, tagOpen: false, tcomment: '' });
+            // an older ticket may not be in the loaded list yet: fetch it first
+            if ((this.state.tickets || []).some((t) => t.id === x.ref)) show();
+            else ticketsW.reload(this, this.srv, x.id).then(show).catch((e) => this.notify(e.message || 'Could not open the ticket.', '#FF9B8A'));
+          }
+        })),
+        pageLabel: 'Page ' + page + ' of ' + pages, many: pages > 1, hasPrev: page > 1, hasNext: page < pages,
+        prev: () => go(page - 1), next: () => go(page + 1)
+      };
+    })(),
     showTicketList: s.section === 'tickets' && !cur_t,
     showDeskList: s.section === 'ticketdesk' && ticketDeskOk && !cur_t,
     ticketDeskOk,

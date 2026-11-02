@@ -70,22 +70,49 @@ export function buildTickets(ctx) {
     const primary = 'height:42px;border-radius:10px;border:0;background:#B8F36B;color:#0F1714;font-weight:600;cursor:pointer;font-size:14px';
     const secondary = 'height:42px;border-radius:10px;border:1px solid var(--k-2A3832,#2A3832);background:transparent;color:var(--k-E8EFEA,#E8EFEA);cursor:pointer;font-size:14px';
     const fail = (e) => this.notify(e.message || 'That did not work.', '#FF9B8A');
-    const setStep = (step, done) => ticketsW.setStep(this, this.srv, cur_t, step).then(done).catch(fail);
+    const setStep = (step, done, extra) => ticketsW.setStep(this, this.srv, cur_t, step, extra).then(done).catch(fail);
+    // resolving and closing open a small form first: a comment (required to resolve) and stars (closing only)
+    const fin = s.tkFinish && s.tkFinish.id === id && s.tkFinish.step === cur_t.step + 1 ? s.tkFinish : null;
+    const openFinish = (step) => this.setState({ tkFinish: { id, step, note: '', stars: 0, err: '', busy: false } });
     const actions = [];
     // nobody works on a ticket they raised: the person who raised it can only close it once it is solved
     const raisedByMe = cur_t.raisedBy === 'Sam';
     const mayWork = !raisedByMe && (cur_t.handler === 'Sam' || !this.srv || can('tickets', 'Solve'));
     if (cur_t.step === 1 && mayWork) actions.push({ label: 'Start work', style: primary, run: () => setStep(2) });
     if (cur_t.step === 2 && mayWork) {
-      actions.push({ label: 'Mark as solved', style: primary, run: () => {
-        const late = cur_t.elapsed > c.tat;
-        setStep(3, () => { if (ts.notify.solved) this.notify(id + ' solved' + (late ? ' (late)' : ' on time') + '. ' + cur_t.raisedBy + ' has been notified.', '#B8F36B', id); });
-      } });
+      actions.push({ label: 'Mark as solved', style: primary, run: () => openFinish(3) });
       actions.push({ label: cur_t.hold ? 'Resume work' : 'Put on hold', style: secondary, run: () => (cur_t.hold ? ticketsW.resume : ticketsW.hold)(this, this.srv, cur_t).catch(fail) });
     }
     if (cur_t.step === 3) {
-      actions.push({ label: 'Close ticket', style: primary, run: () => setStep(4) });
+      actions.push({ label: 'Close ticket', style: primary, run: () => openFinish(4) });
       if (mayWork) actions.push({ label: 'Reopen', style: secondary, run: () => setStep(2) });
+    }
+    let finish = null;
+    if (fin) {
+      const patch = (p) => this.setState((st) => ({ tkFinish: st.tkFinish ? { ...st.tkFinish, ...p } : st.tkFinish }));
+      const solving = fin.step === 3;
+      finish = {
+        solving, title: solving ? 'Resolve ticket' : 'Close ticket',
+        hint: solving ? 'Say what was done to resolve it. ' + cur_t.raisedBy + ' sees this comment.' : 'Rate how it was handled (optional) and leave a remark if you like.',
+        placeholder: solving ? 'What was done to resolve it (required)' : 'Remark (optional)',
+        note: fin.note, err: fin.err, busy: fin.busy, stars: fin.stars,
+        starList: [1, 2, 3, 4, 5].map((n) => ({ n, on: n <= fin.stars, label: n + (n === 1 ? ' star' : ' stars'), pick: () => patch({ stars: fin.stars === n ? 0 : n }) })),
+        onNote: (e) => patch({ note: e.target.value, err: '' }),
+        cancel: () => this.setState({ tkFinish: null }),
+        submit: () => {
+          const note = (this.state.tkFinish && this.state.tkFinish.note || '').trim();
+          if (solving && !note) return patch({ err: 'Write what was done to resolve it.' });
+          if (note.length > 2000) return patch({ err: 'Keep the comment under 2000 characters.' });
+          if (fin.busy) return;
+          patch({ busy: true });
+          const late = cur_t.elapsed > c.tat;
+          const extra = solving ? { comment: note } : { comment: note, rating: fin.stars || 0 };
+          ticketsW.setStep(this, this.srv, cur_t, fin.step, extra).then(() => {
+            this.setState({ tkFinish: null });
+            if (solving && ts.notify.solved) this.notify(id + ' solved' + (late ? ' (late)' : ' on time') + '. ' + cur_t.raisedBy + ' has been notified.', '#B8F36B', id);
+          }).catch((e) => patch({ busy: false, err: e.message || 'That did not work.' }));
+        }
+      };
     }
     const pauses = [ts.pause.weekends && 'weekends', ts.pause.holidays && 'public holidays', ts.pause.offhours && ('outside ' + ts.start + '–' + ts.end), ts.pause.onhold && 'on-hold time', ts.pause.awaiting && 'waiting for the requester'].filter(Boolean);
     tk = {
@@ -102,14 +129,17 @@ export function buildTickets(ctx) {
       handoverLabel: cur_t.handler ? 'Hand over to' : 'Assign to',
       // handing over or reassigning needs the right; the person who raised it is never offered as the one to work on it
       // only the head of the department the ticket is with assigns or reassigns (the server decides; the person working on it does not)
-      canHandover: !this.srv || (cur_t.canAssign === true),
+      canHandover: cur_t.step < 4 && (!this.srv || cur_t.canAssign === true),
       handoverOpts: (this.dir || []).filter((p) => p.name !== cur_t.raisedBy && !(raisedByMe && p.name === (this.srv && this.srv.me.name)) && (p.status || 'active') === 'active')
         .map((p) => ({ value: this.srv && p.name === this.srv.me.name ? 'Sam' : p.name, label: (this.srv && p.name === this.srv.me.name ? 'Me (' + p.name + ')' : p.name) + (p.dept ? ' · ' + p.dept : '') }))
         .sort((a, b) => a.label.localeCompare(b.label)),
       ownNote: raisedByMe && cur_t.step < 4 ? 'You raised this ticket, so someone else works on it. You can close it once it is solved.' : '',
       wasEscalated: !!cur_t.escalatedTo, escalatedToLabel: cur_t.escalatedTo || '',
       assignees: cur_t.assignees.map((n) => ({ name: n, initials: ini(n), color: pColor[n] || '#9DB0A6' })),
-      closed: cur_t.step === 4, actions: actions, noActions: actions.length === 0 && cur_t.step !== 4,
+      finish, actions: finish ? [] : actions,
+      ratingStars: cur_t.rating ? '★★★★★'.slice(0, cur_t.rating) + '☆☆☆☆☆'.slice(cur_t.rating) : '',
+      closedNote: cur_t.step === 4 ? (cur_t.autoClosed ? 'Closed automatically 30 minutes after it was resolved.' : 'Closed' + (cur_t.closedAt ? ' ' + cur_t.closedAt : '') + '.') : '',
+      closed: cur_t.step === 4, noActions: !finish && actions.length === 0 && cur_t.step !== 4,
       steps: stepNames.map((label, i) => {
         const done = i < cur_t.step, now = i === cur_t.step;
         const notes = [cur_t.created, cur_t.handler ? 'To ' + cur_t.handler : 'Waiting for someone', cur_t.step === 2 && cur_t.hold ? 'On hold' : (cur_t.step >= 2 ? 'Work started' : ''), cur_t.step >= 3 ? (cur_t.late ? 'After the TAT' : 'Within the TAT') : 'TAT ' + tatText(cur_t.cat), cur_t.step === 4 ? 'Done' : ''];

@@ -2,6 +2,7 @@ import { ADDONS, PLANS } from '~/logic/state/settings.js';
 import { buildXlsx, downloadBlob } from '~/logic/xlsx.js';
 import { buildDoc } from '~/logic/etr.js';
 import * as settingsW from '~/logic/server/widgets/settings.js';
+import * as feedbackW from '~/logic/server/widgets/feedback.js';
 
 // renderVals step: settings. Organization profile, subscription, billing, security and data. Kept to what an org needs.
 export function buildSettings(ctx) {
@@ -167,8 +168,34 @@ export function buildSettings(ctx) {
   const etr = doc ? { open: true, ...doc,
     dateLabel: new Date(inv.date + 'T10:30:00').toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }),
     switchKind: (k) => this.setState({ etrOpen: { no: EO.no, kind: k } }), close: () => this.setState({ etrOpen: null }) } : { open: false };
-  const tabDefs = [['profile', 'Organization profile'], ['subscription', 'Subscription'], ['billing', 'Billing & invoices'], ['security', 'Security & data']];
-  const settingsPage = { canEdit, canSub, tab: s.setTab, tabs: tabDefs.map(([k, l]) => ({ label: l, on: s.setTab === k, go: () => this.setState({ setTab: k }) })), isProfile: s.setTab === 'profile', isSub: s.setTab === 'subscription', isBilling: s.setTab === 'billing', isSecurity: s.setTab === 'security',
+  const tabDefs = [['profile', 'Organization profile'], ['subscription', 'Subscription'], ['billing', 'Billing & invoices'], ['security', 'Security & data']].concat(this.srv ? [['feedback', 'Call feedback']] : []);
+  // ---- Call feedback: every rated call, meeting and standup, newest first, 10 a page ----
+  let feedback = null;
+  if (s.setTab === 'feedback' && this.srv) {
+    const F = s.callFbAll || {};
+    if (!F.loaded && !F.loading && this.srv.fbCallKey === undefined) Promise.resolve().then(() => feedbackW.loadCallFeedback(this, this.srv, 1, ''));
+    const go = (page, context) => feedbackW.loadCallFeedback(this, this.srv, page, context);
+    const ctxName = { '': 'All', dm: 'Private calls', forum: 'Forum calls', meeting: 'Meetings', standup: 'Standups', project: 'Project calls' };
+    const pages = Math.max(1, Math.ceil((F.total || 0) / (F.size || 10)));
+    const page = F.page || 1;
+    const mins = (sec) => (sec >= 3600 ? Math.floor(sec / 3600) + ' h ' : '') + Math.round((sec % 3600) / 60) + ' min';
+    const fmt = (t) => new Date(t).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    feedback = {
+      loading: !!F.loading, err: F.err || '', empty: F.loaded && !F.loading && !(F.calls || []).length,
+      average: (F.average || 0).toFixed(1), stars: feedbackW.starsText(F.average), ratings: F.ratings || 0, total: F.total || 0,
+      kinds: (F.contexts || []).map((c) => ({ label: ctxName[c.context] || c.context, count: c.count, average: c.average.toFixed(1) })),
+      filters: ['', 'dm', 'forum', 'meeting', 'standup'].map((k) => ({ label: ctxName[k], on: (F.context || '') === k, pick: () => { this.setState({ callFbOpen: null }); go(1, k); } })),
+      calls: (F.calls || []).map((c) => ({
+        id: c.call, title: (ctxName[c.context] || 'Call').replace(/s$/, '') + (c.kind === 'video' ? ' · video' : ' · voice'), host: c.host_name, when: fmt(c.started_at), length: mins(c.duration_seconds || 0),
+        average: c.average.toFixed(1), stars: feedbackW.starsText(c.average), count: c.ratings.length + (c.ratings.length === 1 ? ' rating' : ' ratings'),
+        open: s.callFbOpen === c.call, toggle: () => this.setState((st) => ({ callFbOpen: st.callFbOpen === c.call ? null : c.call })),
+        ratings: c.ratings.map((r) => ({ name: r.name, stars: feedbackW.starsText(r.stars), n: r.stars, remark: r.remark || '', at: fmt(r.at) }))
+      })),
+      page, pages, pageLabel: 'Page ' + page + ' of ' + pages, hasPrev: page > 1, hasNext: page < pages,
+      prev: () => go(page - 1, F.context || ''), next: () => go(page + 1, F.context || ''), reload: () => go(page, F.context || '')
+    };
+  }
+  const settingsPage = { canEdit, canSub, tab: s.setTab, tabs: tabDefs.map(([k, l]) => ({ label: l, on: s.setTab === k, go: () => this.setState({ setTab: k }) })), isProfile: s.setTab === 'profile', isSub: s.setTab === 'subscription', isBilling: s.setTab === 'billing', isSecurity: s.setTab === 'security', isFeedback: s.setTab === 'feedback' && !!feedback, feedback,
     profile, sub, billing, security, confirm, etr, orgName: P.name };
   return { settingsPage, orgName: P.name, orgLogo: P.logo };
 }

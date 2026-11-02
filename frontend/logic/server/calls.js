@@ -437,3 +437,38 @@ export async function loadHistory(logic, srv) {
   const dir = (c) => (c.status === 'missed' ? (c.direction === 'out' ? 'missedOut' : 'missedIn') : c.status === 'declined' ? 'declined' : c.direction || 'out');
   logic.setState({ callLog: calls.map((c) => ({ id: c.id, ctx: c.context === 'meeting' || c.context === 'standup' ? 'meeting' : c.context, ref: localOf(c), kind: c.kind, dir: dir(c), at: new Date(c.started_at).getTime(), dur: c.duration_seconds || 0 })) });
 }
+
+// Feedback: after a call, meeting or standup that someone else also joined, everyone who was in it is asked to rate it (1 to 5
+// stars, optional remark). The server keeps the list of calls still waiting, so a closed tab asks again next time; "Later" only
+// waits until the next sign-in or call.
+export async function checkFeedback(logic, srv) {
+  if (logic.state.call || logic.state.callFb) return;
+  const { due } = await srv.request('GET', '/calls/feedback');
+  const later = srv.fbLater || (srv.fbLater = new Set());
+  const next = (due || []).find((d) => !later.has(d.call));
+  if (!next || logic.state.call || logic.state.callFb) return;
+  const what = next.context === 'meeting' ? 'meeting' : next.context === 'standup' ? 'standup' : next.kind === 'video' ? 'video call' : 'call';
+  const with_ = (next.people || []).slice(0, 3).join(', ') + ((next.people || []).length > 3 ? ' and ' + (next.people.length - 3) + ' more' : '');
+  logic.setState({ callFb: { id: next.call, what, with: with_, when: new Date(next.started_at).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' }), stars: 0, remark: '', err: '', busy: false } });
+}
+
+export async function sendFeedback(logic, srv) {
+  const fb = logic.state.callFb;
+  if (!fb || fb.busy) return;
+  if (!fb.stars) { logic.setState({ callFb: { ...fb, err: 'Pick 1 to 5 stars.' } }); return; }
+  logic.setState({ callFb: { ...fb, busy: true, err: '' } });
+  try {
+    await srv.request('POST', `/calls/${fb.id}/feedback`, { stars: fb.stars, remark: fb.remark.trim() });
+  } catch (e) {
+    if (e.status !== 409) { logic.setState((st) => ({ callFb: st.callFb && { ...st.callFb, busy: false, err: e.message || 'That did not work.' } })); return; }
+  }
+  logic.setState({ callFb: null });
+  logic.notify('Thanks for your feedback.', '#B8F36B');
+  checkFeedback(logic, srv).catch(() => {});
+}
+
+export function feedbackLater(logic, srv) {
+  const fb = logic.state.callFb;
+  if (fb) (srv.fbLater || (srv.fbLater = new Set())).add(fb.id);
+  logic.setState({ callFb: null });
+}

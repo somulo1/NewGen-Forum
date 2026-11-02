@@ -22,6 +22,7 @@
 </div>
 </template>
 <DataTable :t="deskTable" />
+<TicketRatings />
 </template>
 <template v-else><TicketCategories /></template>
 </div>
