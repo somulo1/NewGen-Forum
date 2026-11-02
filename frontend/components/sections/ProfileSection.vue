@@ -97,6 +97,20 @@
 </template>
 </div>
 
+<section v-if="!me.isOther && me.sounds" aria-label="Notification sounds (private to you)" style="padding: 16px 20px; border-radius: 18px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+<div style="flex: 1 1 280px; min-width: 0"><strong style="font-size: 15px">Notification sounds</strong><p style="margin: 4px 0 0; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Private to you: nobody else sees these choices. They set which notices make the short chime. Calls, meetings and chats have their own sounds and are not affected.</p></div>
+<button type="button" @click="me.sounds.hear" style="flex: none; height: 34px; padding: 0 14px; border-radius: 17px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; font-size: 13px">Hear the chime</button>
+<div style="flex: none; display: flex; align-items: center; gap: 8px"><span style="font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">All sounds</span>
+<button type="button" role="switch" :aria-checked="me.sounds.all" aria-label="All notification sounds" @click="me.sounds.toggleAll" :style="`width: 46px; height: 26px; padding: 3px; border-radius: 13px; border: 0; cursor: pointer; background: ${me.sounds.all ? '#B8F36B' : '#3A4A42'}; display: flex; justify-content: ${me.sounds.all ? 'flex-end' : 'flex-start'}`"><span style="width: 20px; height: 20px; border-radius: 50%; background: #0F1714"></span></button></div>
+</div>
+<div :style="`display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 12px 28px; ${me.sounds.all ? '' : 'opacity: .45; pointer-events: none'}`">
+<template v-for="(g, g__i) in me.sounds.groups" :key="g__i"><div style="display: flex; flex-direction: column; gap: 4px; min-width: 0"><span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--k-9DB0A6,#9DB0A6)">{{ g.title }}</span>
+<template v-for="(it, it__i) in g.items" :key="it.key"><div style="display: flex; align-items: center; gap: 10px; min-height: 40px; border-top: 1px solid var(--k-24322C,#24322C)"><div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 14px">{{ it.label }}</span><span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">{{ it.hint }}</span></div>
+<button type="button" role="switch" :aria-checked="it.on" :aria-label="it.label + ' sound'" @click="it.toggle" :style="`flex: none; width: 42px; height: 24px; padding: 3px; border-radius: 12px; border: 0; cursor: pointer; background: ${it.on ? '#B8F36B' : '#3A4A42'}; display: flex; justify-content: ${it.on ? 'flex-end' : 'flex-start'}`"><span style="width: 18px; height: 18px; border-radius: 50%; background: #0F1714"></span></button></div></template></div></template>
+</div>
+</section>
+
 <div v-if="!me.isOther" style="padding: 20px; border-radius: 18px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 14px">
 <strong style="font-size: 15px">Recent activity</strong>
 <div tabindex="0" aria-label="Recent activity table" style="max-height: 300px; overflow: auto; border-radius: 12px; border: 1px solid var(--k-24322C,#24322C)">
@@ -172,19 +186,6 @@
 </div>
 </aside>
 </div>
-<section v-if="!me.isOther && me.sounds" aria-label="Notification sounds (private to you)" style="padding: 16px 20px; border-radius: 18px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 14px">
-<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
-<div style="flex: 1 1 280px; min-width: 0"><strong style="font-size: 15px">Notification sounds</strong><p style="margin: 4px 0 0; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Private to you: nobody else sees these choices. They set which notices make the short chime. Calls, meetings and chats have their own sounds and are not affected.</p></div>
-<button type="button" @click="me.sounds.hear" style="flex: none; height: 34px; padding: 0 14px; border-radius: 17px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; font-size: 13px">Hear the chime</button>
-<div style="flex: none; display: flex; align-items: center; gap: 8px"><span style="font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">All sounds</span>
-<button type="button" role="switch" :aria-checked="me.sounds.all" aria-label="All notification sounds" @click="me.sounds.toggleAll" :style="`width: 46px; height: 26px; padding: 3px; border-radius: 13px; border: 0; cursor: pointer; background: ${me.sounds.all ? '#B8F36B' : '#3A4A42'}; display: flex; justify-content: ${me.sounds.all ? 'flex-end' : 'flex-start'}`"><span style="width: 20px; height: 20px; border-radius: 50%; background: #0F1714"></span></button></div>
-</div>
-<div :style="`display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 12px 28px; ${me.sounds.all ? '' : 'opacity: .45; pointer-events: none'}`">
-<template v-for="(g, g__i) in me.sounds.groups" :key="g__i"><div style="display: flex; flex-direction: column; gap: 4px; min-width: 0"><span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--k-9DB0A6,#9DB0A6)">{{ g.title }}</span>
-<template v-for="(it, it__i) in g.items" :key="it.key"><div style="display: flex; align-items: center; gap: 10px; min-height: 40px; border-top: 1px solid var(--k-24322C,#24322C)"><div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 14px">{{ it.label }}</span><span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">{{ it.hint }}</span></div>
-<button type="button" role="switch" :aria-checked="it.on" :aria-label="it.label + ' sound'" @click="it.toggle" :style="`flex: none; width: 42px; height: 24px; padding: 3px; border-radius: 12px; border: 0; cursor: pointer; background: ${it.on ? '#B8F36B' : '#3A4A42'}; display: flex; justify-content: ${it.on ? 'flex-end' : 'flex-start'}`"><span style="width: 18px; height: 18px; border-radius: 50%; background: #0F1714"></span></button></div></template></div></template>
-</div>
-</section>
 </div>
 </template>
 </template>
