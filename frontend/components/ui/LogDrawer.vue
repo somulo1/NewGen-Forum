@@ -13,7 +13,7 @@
 </div>
 <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 18px 20px; display: flex; flex-direction: column; gap: 18px">
 <div v-if="err" role="alert" style="padding: 12px 14px; border-radius: 12px; background: var(--k-3A2420,#3A2420); color: #FFD3CA; font-size: 14px; line-height: 1.5; display: flex; flex-direction: column; gap: 10px">{{ err }}<button type="button" @click="load(id)" style="align-self: flex-start; height: 34px; padding: 0 16px; border-radius: 17px; border: 0; background: #FF9B8A; color: #0F1714; font-weight: 600; cursor: pointer">Try again</button></div>
-<div v-else-if="!d" role="status" style="font-size: 14px; color: var(--k-9DB0A6,#9DB0A6)">Loading the entry…</div>
+<PageSkeleton v-else-if="!d" kind="lines" bare />
 <template v-if="d">
 <dl style="margin: 0; display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 10px 12px; font-size: 14px">
 <dt style="color: var(--k-9DB0A6,#9DB0A6)">Who</dt><dd style="margin: 0; overflow-wrap: anywhere"><strong>{{ d.user }}</strong></dd>
