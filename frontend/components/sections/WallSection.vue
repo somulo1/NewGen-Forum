@@ -32,7 +32,7 @@
 </template>
 </div>
 <template v-if="momentForm.open">
-<form @submit.prevent="submitMoment" aria-label="Add a moment" style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 12px; border-radius: 14px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C)">
+<form class="wall-composer" @submit.prevent="submitMoment" aria-label="Add a moment" style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 12px; border-radius: 14px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C)">
 <input ref="momentCaptionInput" v-model="momentCaption" type="text" maxlength="120" placeholder="What's happening? (optional with a photo or video)" aria-label="Moment caption" style="flex: 1 1 220px; height: 40px; padding: 0 14px; border-radius: 20px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px">
 <EmojiButton :size="38" @pick="insertMomentEmoji"/>
 <span style="display: flex; gap: 6px"><template v-for="c in momentForm.colors" :key="c"><button type="button" :aria-label="`Background ${c}`" @click="momentBg = c" :style="`width: 26px; height: 26px; border-radius: 50%; border: 2px solid ${momentBg === c ? 'var(--k-E8EFEA,#E8EFEA)' : 'transparent'}; background: ${c}; cursor: pointer`"></button></template></span>
