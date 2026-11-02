@@ -1056,5 +1056,43 @@
   "errors": {
    "400": "A role cannot report to itself"
   }
+ },
+ "GET /v1/org/levels": {
+  "summary": "The structure levels this organization uses",
+  "description": "Which of sector, branch, unit and department the organization uses, what it calls each and which sits under which. Records keep the fixed kind, so renaming a level never changes them. Never configured: the kinds the organization already has, each under the nearest one above it.",
+  "access": "any signed-in member of the organization (token issued with `org`)",
+  "response": {
+   "levels": [
+    {
+     "kind": "string. sector | branch | unit | department",
+     "enabled": "boolean. The organization uses this level",
+     "label": "string. What the organization calls it (e.g. Region)",
+     "plural": "string",
+     "parent": "string. The kind it sits under, or empty for the organization itself"
+    }
+   ],
+   "set": "boolean. false until the organization saves its levels"
+  }
+ },
+ "PUT /v1/org/levels": {
+  "summary": "Choose the structure levels, their names and which sits under which",
+  "description": "A level that still has entries cannot be switched off, a level's parent cannot change while its entries sit elsewhere, and the levels cannot form a circle. Creating or moving a part then follows these levels.",
+  "access": "a role with Settings: Edit organization profile",
+  "request": {
+   "levels": [
+    {
+     "kind": "string. sector | branch | unit | department",
+     "enabled": "boolean. The organization uses this level",
+     "label": "string. What the organization calls it (e.g. Region)",
+     "plural": "string",
+     "parent": "string. The kind it sits under, or empty for the organization itself"
+    }
+   ]
+  },
+  "response": "the saved levels",
+  "errors": {
+   "400": "not valid (a level under itself, under a switched-off level, or a circle)",
+   "409": "level_in_use: entries still exist or sit elsewhere"
+  }
  }
 }

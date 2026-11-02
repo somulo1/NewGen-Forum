@@ -173,10 +173,11 @@ export default {
 </script>
 
 <style>
-/* On a phone the forum reads like a chat: my messages sit on the right, everyone else's on the left */
+/* The forum reads like a chat on every screen: my messages sit on the right, everyone else's on the left */
+.ff-msg { box-sizing: border-box; width: fit-content; min-width: min(100%, 320px); max-width: 78%; }
+.ff-mine { margin-left: auto; flex-direction: row-reverse; background: var(--k-2C3D34,#2C3D34) !important; border-color: var(--k-3A5446,#3A5446) !important; border-radius: 14px 4px 14px 14px !important; }
+.ff-other { margin-right: auto; border-radius: 4px 14px 14px 14px !important; }
 @media (max-width: 700px) {
-  .ff-msg { padding: 8px 10px !important; gap: 8px !important; width: 88%; box-sizing: border-box; }
-  .ff-mine { margin-left: auto; flex-direction: row-reverse; background: var(--k-2C3D34,#2C3D34) !important; border-color: var(--k-3A5446,#3A5446) !important; border-radius: 14px 4px 14px 14px !important; }
-  .ff-other { margin-right: auto; border-radius: 4px 14px 14px 14px !important; }
+  .ff-msg { padding: 8px 10px !important; gap: 8px !important; width: 88%; max-width: 88%; }
 }
 </style>

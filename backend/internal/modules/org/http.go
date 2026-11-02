@@ -48,6 +48,34 @@ func (s *Service) Private(r chi.Router) {
 		httpx.JSON(w, 200, map[string]any{"units": u})
 		return nil
 	}))
+	r.Get("/org/levels", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
+		p, err := tenant.MustOrg(r.Context())
+		if err != nil {
+			return err
+		}
+		l, err := s.Levels(r.Context(), p)
+		if err != nil {
+			return err
+		}
+		httpx.JSON(w, 200, l)
+		return nil
+	}))
+	r.Put("/org/levels", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
+		p, err := tenant.MustOrg(r.Context())
+		if err != nil {
+			return err
+		}
+		var in Levels
+		if err := httpx.Decode(r, &in, 8<<10); err != nil {
+			return err
+		}
+		l, err := s.SetLevels(r.Context(), p, in)
+		if err != nil {
+			return err
+		}
+		httpx.JSON(w, 200, l)
+		return nil
+	}))
 	r.Post("/org/units", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
 		p, err := tenant.MustOrg(r.Context())
 		if err != nil {

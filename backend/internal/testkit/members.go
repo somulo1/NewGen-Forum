@@ -139,3 +139,14 @@ func (e *Env) MakeOverdue(conv string) {
 		e.T.Fatal(err)
 	}
 }
+
+// Levels switches on the organization's structure levels: kind -> the kind it sits under ("" for the organization itself).
+func (e *Env) Levels(owner *User, under map[string]string) {
+	e.T.Helper()
+	var ls []any
+	for _, k := range []string{"sector", "branch", "unit", "department"} {
+		p, on := under[k]
+		ls = append(ls, map[string]any{"kind": k, "enabled": on, "parent": p})
+	}
+	e.MustDo(200, "PUT", "/org/levels", map[string]any{"levels": ls}, owner.Access)
+}
