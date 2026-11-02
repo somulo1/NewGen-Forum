@@ -43,7 +43,7 @@
 </template>
 <MomentViewer />
 
-<div v-if="!momentForm.open" style="padding: 16px; border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 12px">
+<div v-if="!momentForm.open" class="wall-composer" style="padding: 16px; border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 12px">
 <div style="display: flex; gap: 12px; align-items: flex-start">
 <UserAvatar :name="meAv.name" :initials="meAv.initials" :color="meAv.color" :size="42" text-color="#fff" aria-label="Your profile photo"/>
 <RichTextInput mentions hashtags style="flex: 1; min-width: 0" :model-value="draft" @update:model-value="onDraftValue" :placeholder="`What's on your mind${meAv.first ? ', ' + meAv.first : ''}?`" aria-label="Write a post" :rows="3" :input-style="`color: ${postBg ? 'var(--k-FFFFFF,#FFFFFF)' : 'var(--k-E8EFEA,#E8EFEA)'}; font-size: 15px`"/>
@@ -106,7 +106,7 @@
 </div>
 </template>
 <template v-if="p.hasTags"><div style="padding: 0 16px 10px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center"><span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Tagged:</span><template v-for="(tg, tg__i) in p.tagList" :key="tg__i"><button @click="tg.open" style="height: 28px; padding: 0 10px; border-radius: 14px; border: 1px solid var(--k-4A4426,#4A4426); background: var(--k-24220F,#24220F); color: var(--k-FFD66B,#FFD66B); cursor: pointer; font-size: 12px; font-weight: 600">@{{ tg.name }}</button></template></div></template>
-<template v-if="p.hasMedia"><div style="padding: 0 12px 12px"><MediaCollage :files="p.media" :max-h="560" :row="230"/></div></template>
+<template v-if="p.hasMedia"><div class="wall-media" style="padding: 0 12px 12px"><MediaCollage :files="p.media" :max-h="560" :row="230"/></div></template>
 <template v-if="p.hasPoll">
 <div style="display: flex; flex-direction: column; gap: 8px; padding: 0 16px 12px">
 <template v-for="(o, o__i) in p.poll" :key="o__i">
@@ -253,7 +253,14 @@ export default {
 .wall-narrow .wall-aside { display: none !important; }
 .wall-narrow .wall-aside.open { display: flex !important; position: absolute !important; z-index: 50; flex: none !important; overflow-y: auto; overscroll-behavior: contain; padding: 12px; border-radius: 18px; background: var(--k-121B17,#121B17); border: 1px solid var(--k-24322C,#24322C); gap: 12px; box-shadow: 0 12px 28px rgba(0, 0, 0, 0.3); }
 .wall-narrow .wall-online { display: none !important; }
-/* On a phone (or any narrow wall) posts run edge to edge like Facebook and LinkedIn: no side borders and no rounded sides, only a line above
-   and below, with a thin gap between posts. The negative margins cancel the page's own side padding (the same expressions as in the layout). */
-.wall-narrow .wall-post { border-left: 0 !important; border-right: 0 !important; border-radius: 0 !important; margin-left: calc(-1 * clamp(16px, 3vw, 40px)); margin-right: calc(-1 * clamp(4px, 0.5vw, 8px)); }
+/* On a phone (or any narrow wall) the cards run edge to edge like Facebook and LinkedIn: no side borders and no rounded sides, only a line above
+   and below, with a thin gap between them. The negative margins cancel the page's own side padding: 14px each side on a phone (assets/hub.css),
+   and the layout's clamp() values on a wider page whose wall is narrow because a panel is docked. */
+.wall-narrow .wall-post, .wall-narrow .wall-composer { border-left: 0 !important; border-right: 0 !important; border-radius: 0 !important; margin-left: calc(-1 * clamp(16px, 3vw, 40px)); margin-right: calc(-1 * clamp(4px, 0.5vw, 8px)); }
+@media (max-width: 900px) { .wall-narrow .wall-post, .wall-narrow .wall-composer { margin-left: -14px; margin-right: -14px; } }
+/* pictures and videos in a post fill the card from edge to edge, one or many, with a hairline between them */
+.wall-narrow .wall-media { padding: 0 0 2px !important; }
+.wall-narrow .wall-media > div { gap: 2px !important; }
+.wall-narrow .wall-media :deep(.mc-cell) { border-radius: 0 !important; border-left: 0 !important; border-right: 0 !important; }
+.wall-narrow .wall-media :deep(div[style*="grid"]) { gap: 2px !important; }
 </style>
