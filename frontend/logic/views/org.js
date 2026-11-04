@@ -210,6 +210,9 @@ export function buildOrg(ctx) {
     if (this.srv) orgW.ensure(this, this.srv, key);
     const mem = membersOf(t, ouRec.name);
     const lead = mem.find((p) => /Lead|Supervisor|Manager/.test(p.title)) || mem[0];
+    // the head role set in the organization structure: the people who hold it and are placed here head this unit
+    const unitRow = this.srv ? (this.srv.unitList || []).find((x) => x.id === ouRec.id) : null;
+    const headNames = ((unitRow && unitRow.heads) || []).map((h) => h.name);
     const dirC = { Received: '#7CC4FF', Sent: '#C9B6FF', Escalated: '#FF9B8A' };
     const stC = (st) => (/on time|Delivered|Read by all|Solved on time/.test(st) ? '#B8F36B' : /late|Partly|Waiting|In progress|Assigned/.test(st) ? '#FFB86B' : /Overdue|Not ack/.test(st) ? '#FF9B8A' : '#9DB0A6');
     const cnt = (arr, d) => arr.filter((x) => x.dir === d).length;
@@ -248,7 +251,7 @@ export function buildOrg(ctx) {
       perfFormula: 'Performance = (resolved in time + escalated in time) ÷ everything received in the period × 100%',
       loading: !!this.srv && !D.loaded,   // its dashboard is still being fetched from the server
       name: ouRec.name, type: typeName[t], short: shortOf(ouRec.name), color: typeTint[t], badge: badge(typeTint[t]), path: pathOf(t, ouRec),
-      managerRole: mgrRole[t], manager: lead ? lead.name : 'Not set', members: mem.length,
+      managerRole: unitRow && unitRow.head_role_name ? unitRow.head_role_name + (headNames.length > 1 ? 's' : '') : mgrRole[t], manager: unitRow && unitRow.head_role ? (headNames.length ? headNames.join(', ') : 'Nobody yet') : lead ? lead.name : 'Not set', members: mem.length,
       typePlural: typeName[t] + (t === 'branches' ? 'es' : 's'),
       commRules: ['Memo', 'Announcement'].map((ty) => ({ text: ruleSentence(t, ty) })),
       sendMemo: () => this.setState({ cmOpen: true, cmd: { type: has.memos ? 'Memo' : 'Announcement', title: '', body: '', wall: false, forum: '', sel: { [t + ':' + ouRec.name]: true } } }),

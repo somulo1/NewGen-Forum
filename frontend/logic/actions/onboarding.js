@@ -3,7 +3,7 @@ import { mapHeaders, parseCsv, structureOptions, templateCsv, toDirectoryEntry, 
 import { todayIso } from '~/logic/projects.js';
 
 const COLORS = ['#7CC4FF', '#FFB86B', '#F49AC1', '#6EE7C8', '#B8F36B', '#C9B6FF', '#FFD66B'];
-const BLANK = { first: '', last: '', dob: '', gender: '', email: '', phone: '', title: '', sector: '', branch: '', unit: '', department: '' };
+const BLANK = { first: '', last: '', dob: '', gender: '', email: '', phone: '', title: '', sector: '', branch: '', unit: '', department: '', role: '' };
 
 // Which structure levels the organization has: the ones it has created (People > Organization structure). Without the
 // server connected, the widgets it switched on decide, as in the sample data.
@@ -37,6 +37,7 @@ export const onboardingActions = {
   },
   // Role and rights drafts while editing a person; saved together with the details.
   setOnboardReport(v) { this.setState((st) => ({ onboard: { ...st.onboard, reportDraft: v } })); },
+  setOnboardBulkRole(v) { this.setState((st) => ({ onboard: { ...st.onboard, bulkRole: v, bulkRoleErr: '' } })); },
   setOnboardRole(v) { this.setState((st) => ({ onboard: { ...st.onboard, roleDraft: v } })); },
   toggleOnboardRight(key, value) { this.setState((st) => ({ onboard: { ...st.onboard, rightsDraft: { ...st.onboard.rightsDraft, [key]: value } } })); },
   resetOnboardRights() { this.setState((st) => ({ onboard: { ...st.onboard, rightsDraft: Object.keys({ ...(st.personRights[this.personById(st.onboard.edit).name] || {}) }).reduce((m, k) => { m[k] = null; return m; }, {}) } })); },
@@ -97,6 +98,8 @@ export const onboardingActions = {
     const own = editing ? (this.personById(ob.edit).email || '').toLowerCase() : '';
     const { errors, clean } = validatePerson(ob.f, this.org, hasLevelsFor(this.state, this.srv ? this.org : null), this.takenEmails().filter((e) => e !== own), todayIso(Date.now()));
     // Records created before these details were collected may have gaps; only insist on what was already filled in.
+    // adding someone by hand: a role is chosen here, because the role is what gives them their rights
+    if (!editing && this.srv && !ob.f.role) errors.role = 'Choose a role for this person.';
     if (editing) ['sector', 'branch', 'unit', 'department'].forEach((k) => { if (ob.orig[k] && ob.f[k] === ob.orig[k]) delete errors[k]; });
     if (editing) ['dob', 'gender', 'phone', 'email'].forEach((k) => { if (!ob.orig[k] && !String(ob.f[k] || '').trim()) delete errors[k]; });
     if (Object.keys(errors).length) { this.setState({ onboard: { ...ob, errs: errors, done: null } }); return; }
@@ -145,7 +148,7 @@ export const onboardingActions = {
     }
     if (this.srv) {
       // saved on the server: the person gets an active account and an email with their first password
-      peopleW.onboard(this, this.srv, [clean]).then((res) => {
+      peopleW.onboard(this, this.srv, [{ ...clean, role: ob.f.role }]).then((res) => {
         const r = res[0] || {};
         if (r.status !== 'invited') { this.notify(r.error || 'Could not onboard this person.', '#FF9B8A'); return; }
         const name = clean.first + ' ' + clean.last;
@@ -194,8 +197,9 @@ export const onboardingActions = {
     if (!ob || !ob.bulk) return;
     const good = ob.bulk.rows.filter((r) => r.ok);
     if (!good.length) return;
+    if (this.srv && !ob.bulkRole) { this.setState({ onboard: { ...ob, bulkRoleErr: 'Choose the role these people will get.' } }); return; }
     if (this.srv) {
-      peopleW.onboard(this, this.srv, good.map((r) => r.clean)).then((res) => {
+      peopleW.onboard(this, this.srv, good.map((r) => ({ ...r.clean, role: ob.bulkRole }))).then((res) => {
         const ok = res.filter((r) => r.status === 'invited').length;
         const skipped = ob.bulk.rows.length - ok;
         this.setState({ onboard: { ...ob, bulkText: '', bulk: null, fileName: '', done: { count: ok, skipped } } });
