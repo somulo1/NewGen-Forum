@@ -146,7 +146,7 @@ func (s *Service) MergeUnits(ctx context.Context, p *tenant.Principal, into uuid
 		if err := s.A.Sign.Seal(ctx, tx, "ticket_categories", "unit_ref=$1", into); err != nil {
 			return err
 		}
-		for _, q := range []string{`delete from hub.unit_targets where unit_id = any($1)`, `delete from hub.org_units where id = any($1)`} {
+		for _, q := range []string{`delete from hub.unit_targets where unit_id = any($1)`, `delete from hub.unit_heads where unit_id = any($1)`, `delete from hub.org_units where id = any($1)`} {
 			if _, err := tx.Exec(ctx, q, src); err != nil {
 				return err
 			}

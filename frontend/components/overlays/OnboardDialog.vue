@@ -27,6 +27,11 @@
 </label>
 </template>
 </div>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Role *
+<select :value="onb.role" @change="onb.onRole" :aria-invalid="onb.hasRoleErr" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px"><option value="">Choose a role</option><template v-for="ro in onb.roleOptions" :key="ro.v"><option :value="ro.v">{{ ro.l }}</option></template></select>
+<span style="font-size: 12px">The role gives this person their rights. You can change it later.</span>
+<template v-if="onb.hasRoleErr"><span role="alert" style="font-size: 12px; color: var(--k-FF9B8A,#FF9B8A)">{{ onb.roleErr }}</span></template>
+</label>
 <label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Job title (optional)<input type="text" :value="onb.title" @input="onb.onTitle" style="height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px"></label>
 <div style="display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 14px; background: var(--k-121B17,#121B17)">
 <span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">{{ onb.structureNote }}</span>
@@ -71,6 +76,10 @@
 <code style="padding: 8px 10px; border-radius: 8px; background: var(--k-121B17,#121B17); font-size: 12px; color: var(--k-B8F36B,#B8F36B); overflow-x: auto; white-space: nowrap">{{ onb.bulk.columns }}</code>
 <span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">{{ onb.bulk.structureNote }} Dates can be 1994-03-21 or 21/03/1994.</span>
 </div>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Role for everyone in this file *
+<select :value="onb.bulk.role" @change="onb.bulk.onRole" :aria-invalid="onb.bulk.hasRoleErr" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px"><option value="">Choose a role</option><template v-for="ro in onb.roleOptions" :key="ro.v"><option :value="ro.v">{{ ro.l }}</option></template></select>
+<template v-if="onb.bulk.hasRoleErr"><span role="alert" style="font-size: 12px; color: var(--k-FF9B8A,#FF9B8A)">{{ onb.bulk.roleErr }}</span></template>
+</label>
 <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center">
 <button type="button" @click="onb.bulk.template" style="height: 38px; padding: 0 16px; border-radius: 19px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; font-size: 13px">Download template</button>
 <label style="position: relative; height: 38px; padding: 0 16px; border-radius: 19px; border: 0; background: var(--k-E8EFEA,#E8EFEA); color: var(--k-0F1714,#0F1714); font-weight: 600; cursor: pointer; font-size: 13px; display: flex; align-items: center">Choose CSV file<input type="file" accept=".csv,text/csv,text/plain" aria-label="Choose CSV file" @change="onb.bulk.onFile" style="position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer"></label>

@@ -113,6 +113,28 @@ func (s *Service) Private(r chi.Router) {
 		return nil
 	}))
 	// Puts a unit under another parent ({"parent_id": null} for the top level).
+	// Sets the role that heads a unit: {"role": "branch_manager"}, or {"role": ""} to remove it.
+	r.Put("/org/units/{id}/head", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
+		p, err := tenant.MustOrg(r.Context())
+		if err != nil {
+			return err
+		}
+		id, err := uuid.Parse(chi.URLParam(r, "id"))
+		if err != nil {
+			return httpx.ErrNotFound
+		}
+		var in struct {
+			Role string `json:"role"`
+		}
+		if err := httpx.Decode(r, &in, 1<<10); err != nil {
+			return err
+		}
+		if err := s.SetHead(r.Context(), p, id, in.Role); err != nil {
+			return err
+		}
+		w.WriteHeader(204)
+		return nil
+	}))
 	r.Post("/org/units/{id}/move", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
 		p, err := tenant.MustOrg(r.Context())
 		if err != nil {

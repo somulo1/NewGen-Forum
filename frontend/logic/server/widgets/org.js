@@ -100,6 +100,11 @@ export async function renameUnit(logic, srv, id, name) {
   await srv.request('PATCH', `/org/units/${id}`, { name });
   await refresh(logic, srv);
 }
+// Gives a unit its head role (a role key), or clears it (''): everyone who holds that role and is placed in the unit heads it.
+export async function setHead(logic, srv, id, role) {
+  await srv.request('PUT', `/org/units/${id}/head`, { role });
+  await refresh(logic, srv);
+}
 export async function removeUnit(logic, srv, id) {
   await srv.request('DELETE', `/org/units/${id}`);
   await refresh(logic, srv);

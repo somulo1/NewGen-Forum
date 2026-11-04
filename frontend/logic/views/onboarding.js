@@ -45,13 +45,14 @@ export function buildOnboarding(ctx) {
     done: ob.done, hasDone: !!ob.done, doneOne: !!(ob.done && ob.done.one), doneBulk: !!(ob.done && ob.done.count !== undefined),
     fields: MANDATORY.map((m) => ({ key: m.key, label: m.label, type: m.type, isSelect: m.type === 'select', value: f[m.key], err: errs[m.key] || '', hasErr: !!errs[m.key], options: GENDERS,
       onInput: (e) => this.setOnboardField(m.key, e.target.value) })),
+    roleOptions: visibleRoles.map((r) => ({ v: r.id, l: r.name })), role: f.role, roleErr: errs.role || '', hasRoleErr: !!errs.role, onRole: (e) => this.setOnboardField('role', e.target.value),
     title: f.title, onTitle: (e) => this.setOnboardField('title', e.target.value),
     structure: structure.map((x) => ({ key: x.key, label: x.label + (x.required ? '' : ' (optional)'), value: f[x.key], options: isEdit && ob.orig[x.key] && opts[x.key].indexOf(ob.orig[x.key]) === -1 && f[x.key] === ob.orig[x.key] ? opts[x.key].concat([ob.orig[x.key]]) : opts[x.key], err: errs[x.key] || '', hasErr: !!errs[x.key],
       onChange: (e) => this.setOnboardField(x.key, e.target.value) })),
     hasStructure: structure.length > 0, access, hasAccess: !!access,
     structureNote: structure.length ? 'These come from your organization: ' + structure.map((x) => x.label.toLowerCase()).join(', ') + '. Each choice narrows the next one.' : 'This organization has no sectors, branches, units or departments set up, so only the required details are needed.',
     submit: () => this.submitOnboard(), saving: !!ob.saving, formError: ob.formError || '',
-    bulk: { text: ob.bulkText, onText: (e) => this.parseBulk(e.target.value), columns: csvColumns(has).join(', '), template: () => this.downloadOnboardTemplate(),
+    bulk: { role: ob.bulkRole || '', onRole: (e) => this.setOnboardBulkRole(e.target.value), roleErr: ob.bulkRoleErr || '', hasRoleErr: !!ob.bulkRoleErr, text: ob.bulkText, onText: (e) => this.parseBulk(e.target.value), columns: csvColumns(has).join(', '), template: () => this.downloadOnboardTemplate(),
       onFile: (e) => { const file = e.target.files && e.target.files[0]; e.target.value = ''; this.readBulkFile(file); }, fileName: ob.fileName,
       structureNote: structure.length ? 'Sector, branch, unit and department names must match the ones in your organization.' : 'No structure columns are needed because this organization has none set up.',
       hasMissing: !!(ob.bulk && ob.bulk.missing.length), missingText: ob.bulk && ob.bulk.missing.length ? 'The first row must have a column for: ' + ob.bulk.missing.join(', ') + '.' : '',
@@ -105,6 +106,8 @@ function buildStructureEd(s, can) {
   const curKind = KS.some((K) => K.kind === se.kind) ? se.kind : ((KS[0] || {}).kind || '');
   const parentOpts = parentChoices(curKind);
   const parent = parentOpts.some((o) => o.id === se.parent) ? se.parent : '';
+  // the roles that can head a unit (the role is what gives its holders their rights)
+  const roleChoices = (s.serverRoles || []).filter((r) => r.id && !r.locked).map((r) => ({ key: r.id, name: r.name }));
   const levels = KS.map((K) => {
     const list = have(K.kind).sort((a, b) => a.name.localeCompare(b.name));
     const sel = (se.sel[K.kind] || []).filter((id) => list.some((u) => u.id === id));
@@ -116,6 +119,8 @@ function buildStructureEd(s, can) {
       const moveTo = se.move[u.id] !== undefined ? se.move[u.id] : (u.parent_id || '');
       const moved = moveTo !== (u.parent_id || '');
       return {
+        headRole: u.head_role || '', headRoles: roleChoices, heads: (u.heads || []).map((h) => h.name),
+        onHead: (e) => { const role = e.target.value; run(() => orgW.setHead(this, this.srv, u.id, role), null, role ? 'The ' + ((roleChoices.find((r) => r.key === role) || {}).name || role) + ' role now heads ' + u.name + '.' : u.name + ' no longer has a head role.'); },
         id: u.id, name: u.name, under: par ? kindLabel(par.kind) + ' ' + par.name : 'Top level', people: n + (n === 1 ? ' person' : ' people'), editing, editName: editing ? se.edit.name : u.name,
         startEdit: () => set({ edit: { id: u.id, name: u.name }, err: '', ok: '' }), cancelEdit: () => set({ edit: null }),
         onEdit: (e) => set({ edit: { id: u.id, name: e.target.value } }),
