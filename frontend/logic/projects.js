@@ -40,7 +40,7 @@ export function normalizeProject(p) {
     }
   }
   const tasks = p.tasks.map((t) => ({ ...t, objective: t.objective || '', kind: t.kind || 'task', deps: t.deps || [], sprint: t.sprint !== undefined ? t.sprint : sprintFor(sprints, t.due).id }));
-  return { ...p, method: p.method || 'agile', workflow: wfOf(p), pages: p.pages || [], milestones, sprints: sprints || [], tasks: tasks.map((t) => ({ ...t, status: statusOf({ workflow: wfOf(p) }, t) })) };
+  return { ...p, method: p.method || 'agile', workflow: wfOf(p), pages: p.pages || [], comments: p.comments || [], milestones, sprints: sprints || [], tasks: tasks.map((t) => ({ ...t, status: statusOf({ workflow: wfOf(p) }, t) })) };
 }
 
 // The sprint that contains a date. Dates outside every sprint fall back to the nearest one.
@@ -80,7 +80,7 @@ export function sprintTimeline(project, today) {
     const tasks = project.tasks.filter((t) => t.sprint === sp.id);
     const done = tasks.filter((t) => t.col === 3).length;
     const total = tasks.length;
-    const status = total > 0 && done === total ? 'done' : sp.end < today ? (total ? 'late' : 'ended') : sp.start <= today ? 'current' : 'upcoming';
+    const status = sp.closed ? 'closed' : total > 0 && done === total ? 'done' : sp.end < today ? (total ? 'late' : 'ended') : sp.start <= today ? 'current' : 'upcoming';
     const ms = project.milestones.find((m) => m.id === sp.milestone) || null;
     return { ...sp, total, done, openTasks: total - done, progress: total ? Math.round((done / total) * 100) : 0, status, milestoneName: ms ? ms.name : '', milestoneClosed: !!(ms && ms.closed) };
   });
@@ -171,6 +171,24 @@ export function statusOf(p, t) {
   if (wf.some((w) => w.key === t.status)) return t.status;
   return (wf.find((w) => w.cat === (t.col || 0)) || wf[0]).key;
 }
+// the longest chain of dependent work: any delay on it delays the end
+export function criticalPath(p) {
+  const memo = new Map();
+  const len = (t, seen = new Set()) => {
+    if (memo.has(t.id)) return memo.get(t.id);
+    if (seen.has(t.id)) return { d: 0, path: [] };
+    seen.add(t.id);
+    const days = t.start && t.due ? Math.max(1, Math.round((isoMs(t.due) - isoMs(t.start)) / DAY) + 1) : 1;
+    let best = { d: 0, path: [] };
+    (t.deps || []).forEach((id) => { const d = p.tasks.find((x) => x.id === id); if (d) { const l = len(d, seen); if (l.d > best.d) best = l; } });
+    const r = { d: best.d + days, path: best.path.concat([t.id]) };
+    memo.set(t.id, r);
+    return r;
+  };
+  let top = { d: 0, path: [] };
+  p.tasks.filter((t) => t.id && (t.deps || []).length).forEach((t) => { const l = len(t); if (l.d > top.d) top = l; });
+  return new Set(top.path);
+}
 export const statusEntry = (p, t) => wfOf(p).find((w) => w.key === statusOf(p, t));
 // the status one step along the workflow, or null at its ends
 export function stepOf(p, t, dir) {
@@ -195,8 +213,10 @@ export function doneAt(t) {
 export const isManager = (project, me) => !!project && !!project.owner && project.owner === me;
 export const ownsTask = (task, me) => !!task && !!me && (task.primary === me || task.secondary === me);
 export function mayMoveTask(project, task, dir, me) {
-  const to = dir ? stepOf(project, task, dir) : null;
-  if (!to) return false;
+  const to = typeof dir === 'string' ? wfOf(project).find((w) => w.key === dir) : dir ? stepOf(project, task, dir) : null;
+  if (!to || to.key === statusOf(project, task)) return false;
+  const from = statusEntry(project, task);
+  if (from.to && from.to.length && !from.to.includes(to.key)) return false;
   if (to.cat === 3 || task.col === 3) return isManager(project, me);
   return isManager(project, me) || ownsTask(task, me);
 }

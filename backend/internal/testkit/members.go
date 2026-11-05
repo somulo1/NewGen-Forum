@@ -174,3 +174,17 @@ func rootURL() string {
 	}
 	return "postgres://hubadmin@/hub?host=/tmp&port=5433"
 }
+
+// MakePlanLegacy marks a project as still having an older encrypted plan to move over.
+func (e *Env) MakePlanLegacy(conv string) {
+	e.T.Helper()
+	root, err := pgx.Connect(context.Background(), rootURL())
+	if err != nil {
+		e.T.Skip("superuser not reachable: ", err)
+	}
+	defer root.Close(context.Background())
+	_, _ = root.Exec(context.Background(), "set session_replication_role = replica")
+	if _, err := root.Exec(context.Background(), `update hub.projects set plan_imported_at = null where conversation_id=$1`, conv); err != nil {
+		e.T.Fatal(err)
+	}
+}

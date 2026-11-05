@@ -12,6 +12,7 @@ import (
 	"hub/internal/modules/chat"
 	"hub/internal/modules/files"
 	"hub/internal/modules/security"
+	"hub/internal/modules/projects"
 	"hub/internal/modules/settings"
 	"hub/internal/modules/tickets"
 )
@@ -22,6 +23,7 @@ import (
 func RunWorker(ctx context.Context, a *app.App) {
 	go calls.New(a).Consume(ctx)
 	ts := tickets.New(a)
+	ps := projects.New(a, approvals.New(a))
 	fs := files.New(a, approvals.New(a))
 	cs := chat.New(a)
 	cs.Purge = func(ctx context.Context) { _, _, _ = fs.PurgeDue(ctx, 500) }
@@ -89,6 +91,7 @@ func RunWorker(ctx context.Context, a *app.App) {
 					slog.Info("unfinished uploads closed", "count", n)
 				}
 			}
+			ps.SweepAll(ctx)
 			if err := ts.SweepAll(ctx); err != nil {
 				slog.Error("ticket sweep", "err", err)
 			}

@@ -95,3 +95,87 @@ func TestPlanIsPlainTrackedAndFollowsItsRules(t *testing.T) {
 		t.Fatalf("items: %v", plan["items"])
 	}
 }
+
+func TestProjectAutomation(t *testing.T) {
+	e := testkit.New(t)
+	ownerU, slug := e.NewOrg("Olivia Owner")
+	o := e.Owner(ownerU)
+	amy := e.Join(ownerU, slug, "Amy", "hod")
+	for _, m := range []*testkit.Member{o, amy} {
+		m.Register(e)
+	}
+	mk := func(method string) string {
+		key, _ := e2ee.NewConversationKey()
+		conv := e.MustDo(201, "POST", "/conversations", map[string]any{"kind": "project", "name": method, "members": []string{amy.Person}, "keys": o.WrapFor(e, key, 1, o.Person, amy.Person)}, ownerU.Access)["id"].(string)
+		e.MustDo(201, "POST", "/projects", map[string]any{"conversation": conv, "start": "2020-01-01", "due": "2030-01-01", "method": method}, ownerU.Access)
+		return conv
+	}
+	id := func() string { return uuid.Must(uuid.NewV7()).String() }
+	put := func(conv, item, coll string, d map[string]any) {
+		t.Helper()
+		e.MustDo(200, "PUT", "/projects/"+conv+"/items/"+item, map[string]any{"collection": coll, "data": d}, ownerU.Access)
+	}
+	item := func(conv, item string) map[string]any {
+		for _, x := range e.MustDo(200, "GET", "/projects/"+conv+"/plan", nil, ownerU.Access)["items"].([]any) {
+			if m := x.(map[string]any); m["id"] == item {
+				return m["data"].(map[string]any)
+			}
+		}
+		t.Fatal("no item")
+		return nil
+	}
+	// a parent follows its children
+	ag := mk("agile")
+	parent, c1, c2 := id(), id(), id()
+	put(ag, parent, "task", map[string]any{"title": "P"})
+	put(ag, c1, "task", map[string]any{"title": "c1", "kind": "subtask", "parent": parent, "status": "doing"})
+	if item(ag, parent)["status"] != "doing" {
+		t.Fatal("parent did not start")
+	}
+	put(ag, c2, "task", map[string]any{"title": "c2", "kind": "subtask", "parent": parent, "status": "done"})
+	put(ag, c1, "task", map[string]any{"title": "c1", "kind": "subtask", "parent": parent, "status": "done"})
+	if item(ag, parent)["status"] != "done" {
+		t.Fatal("parent did not finish")
+	}
+	// closing a sprint records its result and carries the rest forward
+	s1, s2, open := id(), id(), id()
+	put(ag, s1, "sprint", map[string]any{"name": "S1", "start": "2020-01-01", "end": "2020-01-14"})
+	put(ag, s2, "sprint", map[string]any{"name": "S2", "start": "2020-01-15", "end": "2029-01-01"})
+	put(ag, open, "task", map[string]any{"title": "left", "sprint": s1, "points": 3})
+	e.MustDo(204, "POST", "/projects/"+ag+"/sprints/"+s1+"/close", nil, ownerU.Access)
+	if item(ag, open)["sprint"] != s2 || item(ag, s1)["closed"] != true || item(ag, s1)["carried"].(float64) != 1 {
+		t.Fatalf("sprint close: %v %v", item(ag, open), item(ag, s1))
+	}
+	// waterfall: later phases wait for the gate, and a gate needs finished work
+	wf := mk("waterfall")
+	p1, p2, t1, t2 := id(), id(), id(), id()
+	put(wf, p1, "milestone", map[string]any{"name": "Design", "iso": "2026-01-01"})
+	put(wf, p2, "milestone", map[string]any{"name": "Build", "iso": "2026-02-01"})
+	put(wf, t1, "task", map[string]any{"title": "d", "milestone": p1})
+	put(wf, t2, "task", map[string]any{"title": "b", "milestone": p2})
+	if code, _ := e.Do("PUT", "/projects/"+wf+"/items/"+t2, map[string]any{"collection": "task", "data": map[string]any{"title": "b", "milestone": p2, "status": "doing"}}, ownerU.Access); code != 409 {
+		t.Fatalf("later phase started: %d", code)
+	}
+	if code, _ := e.Do("POST", "/projects/"+wf+"/gates/"+p1, map[string]any{"comment": "all designed now"}, ownerU.Access); code != 409 {
+		t.Fatalf("gate with open work: %d", code)
+	}
+	put(wf, t1, "task", map[string]any{"title": "d", "milestone": p1, "status": "done"})
+	req := e.MustDo(200, "POST", "/projects/"+wf+"/gates/"+p1, map[string]any{"comment": "all designed now"}, ownerU.Access)["approval"].(map[string]any)
+	e.MustDo(200, "POST", "/approvals/"+req["id"].(string)+"/approve", map[string]any{}, amy.Access)
+	if item(wf, p1)["closed"] != true {
+		t.Fatal("gate did not close")
+	}
+	put(wf, t2, "task", map[string]any{"title": "b", "milestone": p2, "status": "doing"})
+	// the older plan is moved once
+	old := mk("agile")
+	e.MakePlanLegacy(old)
+	task := id()
+	if code, _ := e.Do("PUT", "/projects/"+old+"/items/"+id(), map[string]any{"collection": "task", "data": map[string]any{"title": "x"}}, ownerU.Access); code != 409 {
+		t.Fatalf("wrote before the move: %d", code)
+	}
+	e.MustDo(204, "POST", "/projects/"+old+"/import", map[string]any{"items": []map[string]any{{"id": task, "collection": "task", "data": map[string]any{"title": "kept", "status": "todo"}}}}, amy.Access)
+	e.MustDo(204, "POST", "/projects/"+old+"/import", map[string]any{"items": []map[string]any{{"id": id(), "collection": "task", "data": map[string]any{"title": "second go"}}}}, amy.Access)
+	if item(old, task)["title"] != "kept" || len(e.MustDo(200, "GET", "/projects/"+old+"/plan", nil, ownerU.Access)["items"].([]any)) != 1 {
+		t.Fatal("the move did not happen exactly once")
+	}
+}

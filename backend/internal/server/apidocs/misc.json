@@ -926,5 +926,26 @@
   },
   "status": 204,
   "response": null
+ },
+ "POST /v1/projects/{id}/sprints/{item}/close": {
+  "summary": "Close a sprint now",
+  "description": "Records what it finished and carries unfinished tasks to the next open sprint or the backlog. Sprints past their end close by themselves.",
+  "access": "Manage milestones",
+  "status": 204,
+  "response": null
+ },
+ "POST /v1/projects/{id}/gates/{item}": {
+  "summary": "Ask for sign-off on a phase gate",
+  "access": "Manage milestones; every task in the phase finished",
+  "body": {
+   "comment": "what the phase achieved"
+  },
+  "status": 200,
+  "response": {
+   "approval": null
+  },
+  "errors": {
+   "409": "phase_open: a task is not finished"
+  }
  }
 }
