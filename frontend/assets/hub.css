@@ -53,6 +53,12 @@ input:not([type=checkbox]):not([type=radio]):not([type=range]):focus,textarea:fo
 .hub-panel-tabs{padding-top:0 !important}
 .hub-panel-tabs > button{min-height:32px !important}
 .hub-panel-composer{padding:6px 10px 6px 12px !important;gap:4px !important}
+/* Phones: a field's label sits above its box, and the box takes the full width, on every page. Search pills (an icon or a fixed height)
+   and tick boxes stay in one line. */
+@media (max-width: 700px){
+label:not([style*="height"]):not(:has(> svg)):has(> select,> input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=range])){flex-direction:column !important;align-items:stretch !important;width:100%;flex:1 1 100%;margin-left:0 !important;gap:6px !important}
+label:not([style*="height"]):not(:has(> svg)) > select,label:not([style*="height"]):not(:has(> svg)) > input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=range]){width:100% !important;max-width:none !important;box-sizing:border-box}
+}
 /* Phones: the messages get the height. Name and actions share one row; the formatting buttons show only while typing. */
 @media (max-width: 900px){
 .hub-chat-bar{flex-wrap:nowrap !important;gap:6px !important;padding:5px 44px 5px 12px !important}
