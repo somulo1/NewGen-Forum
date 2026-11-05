@@ -857,5 +857,74 @@
   "response": {
    "deleted": 1
   }
+ },
+ "GET /v1/projects/{id}/plan": {
+  "summary": "A project's plan and change history",
+  "description": "Tasks, milestones or phases, sprints, risks, activity and documents, as plain rows, with every recorded field change.",
+  "access": "a member of the project",
+  "status": 200,
+  "response": {
+   "items": [
+    {
+     "id": "uuid",
+     "collection": "task",
+     "ref": 1,
+     "data": {},
+     "created_at": "time",
+     "updated_at": "time"
+    }
+   ],
+   "changes": [
+    {
+     "item": "uuid",
+     "who": "text",
+     "at": "time",
+     "field": "status",
+     "old": "todo",
+     "new": "doing"
+    }
+   ]
+  }
+ },
+ "PUT /v1/projects/{id}/items/{item}": {
+  "summary": "Create or update a plan item",
+  "description": "The server checks the rights, the task rules, parents and dependency loops, and records each changed field.",
+  "access": "by kind: Edit tasks, Move tasks, Manage milestones, Manage team",
+  "body": {
+   "collection": "task",
+   "data": {}
+  },
+  "status": 200,
+  "response": {
+   "id": "uuid"
+  },
+  "errors": {
+   "409": "blocked: a dependency is not finished"
+  }
+ },
+ "DELETE /v1/projects/{id}/items/{item}": {
+  "summary": "Delete a plan item",
+  "access": "as for changing it",
+  "status": 204,
+  "response": null,
+  "errors": {
+   "409": "in_use: other tasks depend on it or sit under it"
+  }
+ },
+ "POST /v1/projects/{id}/import": {
+  "summary": "Move an older encrypted plan to plain rows, once",
+  "access": "a member of the project (their device opens the records)",
+  "body": {
+   "items": [
+    {
+     "id": "uuid",
+     "collection": "task",
+     "data": {},
+     "created_at": "time"
+    }
+   ]
+  },
+  "status": 204,
+  "response": null
  }
 }

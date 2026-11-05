@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"encoding/base64"
+	"os"
 	"regexp"
 	"time"
 
@@ -130,7 +131,7 @@ func (e *Env) OrgID(slug string) string {
 // which is the only way to do that without waiting; the integrity scanner would flag it in a real database.
 func (e *Env) MakeOverdue(conv string) {
 	e.T.Helper()
-	root, err := pgx.Connect(context.Background(), "postgres://hubadmin@/hub?host=/tmp&port=5433")
+	root, err := pgx.Connect(context.Background(), rootURL())
 	if err != nil {
 		e.T.Skip("superuser not reachable: ", err)
 	}
@@ -144,7 +145,7 @@ func (e *Env) MakeOverdue(conv string) {
 // AgeResolved makes a resolved ticket look resolved the given time ago (for the automatic close).
 func (e *Env) AgeResolved(conv string, ago time.Duration) {
 	e.T.Helper()
-	root, err := pgx.Connect(context.Background(), "postgres://hubadmin@/hub?host=/tmp&port=5433")
+	root, err := pgx.Connect(context.Background(), rootURL())
 	if err != nil {
 		e.T.Skip("superuser not reachable: ", err)
 	}
@@ -164,4 +165,12 @@ func (e *Env) Levels(owner *User, under map[string]string) {
 		ls = append(ls, map[string]any{"kind": k, "enabled": on, "parent": p})
 	}
 	e.MustDo(200, "PUT", "/org/levels", map[string]any{"levels": ls}, owner.Access)
+}
+
+// rootURL is the superuser connection tests use to change data behind the app's back. HUB_TEST_ROOT_URL points it at an isolated database.
+func rootURL() string {
+	if u := os.Getenv("HUB_TEST_ROOT_URL"); u != "" {
+		return u
+	}
+	return "postgres://hubadmin@/hub?host=/tmp&port=5433"
 }

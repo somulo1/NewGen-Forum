@@ -36,18 +36,21 @@ func New(a *app.App, ap *approvals.Engine) *Service {
 }
 
 type Project struct {
-	ID        uuid.UUID `json:"id"` // = its conversation
-	Code      string    `json:"code"`
-	Color     string    `json:"color"`
-	Owner     uuid.UUID `json:"owner"`
-	OwnerName string    `json:"owner_name"`
-	Status    string    `json:"status"`
-	StartOn   *string   `json:"start,omitempty"`
-	DueOn     *string   `json:"due,omitempty"`
-	Budget    *int      `json:"budget_pct,omitempty"`
-	Sync      string    `json:"sync"`
-	Links     []string  `json:"links"`
-	CreatedAt time.Time `json:"created_at"`
+	ID        uuid.UUID       `json:"id"` // = its conversation
+	Code      string          `json:"code"`
+	Color     string          `json:"color"`
+	Owner     uuid.UUID       `json:"owner"`
+	OwnerName string          `json:"owner_name"`
+	Status    string          `json:"status"`
+	StartOn   *string         `json:"start,omitempty"`
+	DueOn     *string         `json:"due,omitempty"`
+	Budget    *int            `json:"budget_pct,omitempty"`
+	Sync      string          `json:"sync"`
+	Links     []string        `json:"links"`
+	CreatedAt time.Time       `json:"created_at"`
+	Method    string          `json:"method"` // agile | waterfall | hybrid
+	Workflow  json.RawMessage `json:"workflow"`
+	Imported  bool            `json:"plan_imported"` // false: an older encrypted plan a member's device still has to move over
 }
 
 type CreateIn struct {
@@ -58,14 +61,15 @@ type CreateIn struct {
 	Budget       *int      `json:"budget_pct"`
 	Sync         string    `json:"sync"`
 	Links        []string  `json:"links"`
+	Method       string    `json:"method"`
 }
 
-const sel = `select p.conversation_id, p.code, p.color, p.owner, o.first_name || ' ' || o.last_name, p.status, p.start_on::text, p.due_on::text, p.budget_pct, p.sync, p.links, p.created_at
+const sel = `select p.conversation_id, p.code, p.color, p.owner, o.first_name || ' ' || o.last_name, p.status, p.start_on::text, p.due_on::text, p.budget_pct, p.sync, p.links, p.created_at, p.method, p.workflow, p.plan_imported_at is not null
 	from hub.projects p join hub.people o on o.id = p.owner`
 
 func scan(r pgx.Row) (*Project, error) {
 	x := &Project{}
-	err := r.Scan(&x.ID, &x.Code, &x.Color, &x.Owner, &x.OwnerName, &x.Status, &x.StartOn, &x.DueOn, &x.Budget, &x.Sync, &x.Links, &x.CreatedAt)
+	err := r.Scan(&x.ID, &x.Code, &x.Color, &x.Owner, &x.OwnerName, &x.Status, &x.StartOn, &x.DueOn, &x.Budget, &x.Sync, &x.Links, &x.CreatedAt, &x.Method, &x.Workflow, &x.Imported)
 	return x, err
 }
 
@@ -93,6 +97,12 @@ func (s *Service) Create(ctx context.Context, p *tenant.Principal, in CreateIn) 
 	if in.Budget != nil && (*in.Budget < 0 || *in.Budget > 100) {
 		return nil, nil, httpx.Bad("Budget used is a percentage.")
 	}
+	if in.Method == "" {
+		in.Method = "agile"
+	}
+	if !methods[in.Method] {
+		return nil, nil, httpx.Bad("Choose agile, waterfall or hybrid.")
+	}
 	if in.Color == "" {
 		in.Color = "#7CC4FF"
 	}
@@ -118,8 +128,8 @@ func (s *Service) Create(ctx context.Context, p *tenant.Principal, in CreateIn) 
 			return err
 		}
 		code := fmt.Sprintf("PRJ-%02d", n)
-		if _, err := tx.Exec(ctx, `insert into hub.projects (org_id, conversation_id, code, color, owner, status, start_on, due_on, budget_pct, sync, links) values ($1,$2,$3,$4,$5,'Pending approval',$6,$7,$8,$9,$10)`,
-			p.Org, in.Conversation, code, in.Color, p.Person, start, due, in.Budget, in.Sync, in.Links); err != nil {
+		if _, err := tx.Exec(ctx, `insert into hub.projects (org_id, conversation_id, code, color, owner, status, start_on, due_on, budget_pct, sync, links, method, plan_imported_at) values ($1,$2,$3,$4,$5,'Pending approval',$6,$7,$8,$9,$10,$11,now())`,
+			p.Org, in.Conversation, code, in.Color, p.Person, start, due, in.Budget, in.Sync, in.Links, in.Method); err != nil {
 			return err
 		}
 		if err := s.A.Sign.Seal(ctx, tx, "projects", "conversation_id=$1", in.Conversation); err != nil {
@@ -180,11 +190,13 @@ func (s *Service) Mine(ctx context.Context, p *tenant.Principal) ([]*Project, er
 }
 
 type Patch struct {
-	Status *string    `json:"status"`
-	Due    *string    `json:"due"`
-	Budget *int       `json:"budget_pct"`
-	Sync   *string    `json:"sync"`
-	Owner  *uuid.UUID `json:"owner"`
+	Status   *string    `json:"status"`
+	Due      *string    `json:"due"`
+	Budget   *int       `json:"budget_pct"`
+	Sync     *string    `json:"sync"`
+	Owner    *uuid.UUID `json:"owner"`
+	Method   *string    `json:"method"`
+	Workflow []Status   `json:"workflow"`
 }
 
 var statuses = map[string]bool{"On track": true, "At risk": true, "Off track": true, "Delayed": true, "Done": true, "Cancelled": true}
@@ -226,6 +238,12 @@ func (s *Service) Update(ctx context.Context, p *tenant.Principal, id uuid.UUID,
 				return httpx.Bad("The new owner must be on the project team.")
 			}
 		}
+		if err := s.patchPlan(ctx, tx, id, in); err != nil {
+			return err
+		}
+		if err := s.A.Sign.Seal(ctx, tx, "projects", "conversation_id=$1", id); err != nil {
+			return err
+		}
 		if _, err := tx.Exec(ctx, `update hub.projects set status=coalesce($2,status), due_on=case when $3::boolean then $4::date else due_on end, budget_pct=coalesce($5,budget_pct), sync=coalesce($6,sync), owner=coalesce($7,owner), updated_at=now(), `+integrity.Bump+` where conversation_id=$1`,
 			id, in.Status, in.Due != nil, due, in.Budget, in.Sync, in.Owner); err != nil {
 			return err
@@ -260,6 +278,7 @@ func (s *Service) Private(r chi.Router) {
 			return h(w, r, p)
 		})
 	}
+	s.planRoutes(r, org)
 	r.Post("/projects", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
 		var in CreateIn
 		if err := httpx.Decode(r, &in, 8<<10); err != nil {
