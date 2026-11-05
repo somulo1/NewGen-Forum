@@ -212,6 +212,12 @@ func TestPlanFollowsItsRights(t *testing.T) {
 	id := func() string { return uuid.Must(uuid.NewV7()).String() }
 	page := id()
 	e.MustDo(200, "PUT", "/projects/"+conv+"/items/"+page, map[string]any{"collection": "page", "data": map[string]any{"title": "Doc", "body": "x"}}, amy.Access)
+	cm := id()
+	e.MustDo(200, "PUT", "/projects/"+conv+"/items/"+cm, map[string]any{"collection": "page_comment", "data": map[string]any{"page": page, "text": "why?", "quote": "x", "who": "Someone else"}}, amy.Access)
+	got0 := e.MustDo(200, "PUT", "/projects/"+conv+"/items/"+cm, map[string]any{"collection": "page_comment", "data": map[string]any{"page": page, "text": "why?", "quote": "x", "resolved": true}}, ownerU.Access)
+	if d := got0["data"].(map[string]any); !strings.HasPrefix(d["who"].(string), "Amy") || d["resolved"] != true {
+		t.Fatalf("resolving a comment: %v", d)
+	}
 	set("View documents", false)
 	if items := e.MustDo(200, "GET", "/projects/"+conv+"/plan", nil, amy.Access)["items"].([]any); len(items) != 0 {
 		t.Fatalf("documents shown without the right: %v", items)

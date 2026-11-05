@@ -88,6 +88,9 @@
 <span v-if="!plan.docs.list.length" class="pp-mut">No pages found.</span>
 <button v-for="d in plan.docs.list" :key="d.id" type="button" @click="d.open" :aria-current="d.on" :style="`text-align: left; padding: 8px 10px; padding-left: ${10 + d.indent}px; border: 0; border-radius: 8px; cursor: pointer; font: inherit; font-size: 13px; color: var(--k-E8EFEA,#E8EFEA); background: ${d.on ? 'var(--k-22302A,#22302A)' : 'transparent'}`">{{ d.title }}</button>
 <template v-if="plan.docs.elsewhere.length"><span class="pp-mut" style="margin-top: 8px">In other projects</span><button v-for="d in plan.docs.elsewhere" :key="d.id" type="button" class="pp-open" style="flex: none; padding: 4px 10px" @click="d.open">{{ d.title }} <span class="pp-mut">· {{ d.project }}</span></button></template>
+<label v-if="plan.docs.canImport" class="pp-btn" style="position: relative; align-self: flex-start; display: inline-flex; align-items: center; margin-top: 8px; overflow: hidden">Import from Confluence<input type="file" accept=".zip" aria-label="Import a Confluence HTML space export" :disabled="plan.docs.importing.busy" @change="plan.docs.importFile" style="position: absolute; inset: 0; opacity: 0; cursor: pointer"></label>
+<span v-if="plan.docs.importing.text" role="status" class="pp-mut">{{ plan.docs.importing.text }}</span>
+<ul v-if="plan.docs.importing.problems.length" class="pp-mut" style="margin: 0; padding-left: 16px"><li v-for="x in plan.docs.importing.problems" :key="x">{{ x }}</li></ul>
 <span v-if="plan.docs.canCreate" class="pp-mut" style="margin-top: 8px">New page from</span>
 <div v-if="plan.docs.canCreate" style="display: flex; flex-wrap: wrap; gap: 6px"><button v-for="t in plan.docs.templates" :key="t.key" type="button" class="pp-btn" @click="t.pick">{{ t.name }}</button></div>
 </div>
@@ -96,26 +99,27 @@
 <label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Title<input type="text" maxlength="200" :value="plan.docs.draft.title" @input="plan.docs.draft.onTitle" class="pp-input"></label>
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px"><label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Sits under<select :value="plan.docs.draft.parent" @change="plan.docs.draft.onParent" class="pp-input"><option value="">Top level</option><option v-for="o in plan.docs.draft.parentOpts" :key="o.v" :value="o.v">{{ o.l }}</option></select></label>
 <label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Labels, separated by commas<input type="text" :value="plan.docs.draft.labels" @input="plan.docs.draft.onLabels" class="pp-input"></label></div>
-<div role="toolbar" aria-label="Page formatting" style="display: flex; flex-wrap: wrap; gap: 4px"><button v-for="b in toolbar" :key="b.label" type="button" class="pp-mini" style="width: auto; padding: 0 8px" :title="b.title" @mousedown.prevent @click="format(b)">{{ b.label }}</button><button type="button" class="pp-mini" style="width: auto; padding: 0 8px; margin-left: auto" @click="plan.docs.draft.togglePreview">{{ plan.docs.draft.showPreview ? 'Edit' : 'Preview' }}</button></div>
-<div v-if="plan.docs.draft.showPreview" v-html="plan.docs.draft.preview" style="min-height: 200px; padding: 12px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); font-size: 14px; line-height: 1.6; overflow-wrap: anywhere"></div>
-<label v-else style="display: flex; flex-direction: column; font-size: 12px"><span class="pp-sr">Page text</span><textarea ref="editor" rows="16" :value="plan.docs.draft.body" @input="plan.docs.draft.onBody" class="pp-input" style="height: auto; padding: 10px 12px; font: inherit; font-size: 14px; line-height: 1.5; resize: vertical"></textarea></label>
+<NoteEditor :modelValue="plan.docs.draft.body" @update:modelValue="plan.docs.draft.setBody"/>
+<span class="pp-mut">Link another page with [[Page title]], and a task with its key, such as PRJ-01-12.</span>
 <span v-if="plan.docs.draft.err" role="alert" style="font-size: 13px; color: var(--k-FF9B8A,#FF9B8A)">{{ plan.docs.draft.err }}</span>
 <div style="display: flex; gap: 8px"><button type="submit" class="pp-btn pp-primary">Save page</button><button type="button" class="pp-btn" @click="plan.docs.draft.cancel">Cancel</button></div>
 </form>
 <template v-else-if="plan.docs.page">
 <nav v-if="plan.docs.page.crumbs.length" aria-label="Page path" style="display: flex; flex-wrap: wrap; gap: 4px" class="pp-mut"><template v-for="c in plan.docs.page.crumbs" :key="c.id"><button type="button" class="pp-link" @click="c.open">{{ c.title }}</button><span>›</span></template></nav>
 <h3 style="margin: 0; font-size: 20px; overflow-wrap: anywhere">{{ plan.docs.page.title }}<span v-if="plan.docs.page.locked" class="pp-mut"> · locked</span></h3>
-<div style="display: flex; flex-wrap: wrap; gap: 6px"><button v-if="plan.docs.page.mayEdit" type="button" class="pp-btn pp-primary" @click="plan.docs.page.edit">Edit</button><button type="button" class="pp-btn" @click="plan.docs.page.toggleWatch">{{ plan.docs.page.watching ? 'Watching' : 'Watch' }}</button><button v-if="plan.docs.canCreate" type="button" class="pp-btn" @click="plan.docs.page.copy">Copy</button><template v-if="plan.docs.canExport"><button type="button" class="pp-btn" @click="plan.docs.page.exportMd">Export .md</button><button type="button" class="pp-btn" @click="plan.docs.page.exportHtml">Export .html</button></template><button v-if="plan.docs.page.canLock" type="button" class="pp-btn" @click="plan.docs.page.toggleLock">{{ plan.docs.page.locked ? 'Unlock' : 'Lock' }}</button><button v-if="plan.docs.page.canDelete" type="button" class="pp-btn" @click="plan.docs.page.remove">Delete</button></div>
+<div style="display: flex; flex-wrap: wrap; gap: 6px"><button v-if="plan.docs.page.mayEdit" type="button" class="pp-btn pp-primary" @click="plan.docs.page.edit">Edit</button><button type="button" class="pp-btn" @click="plan.docs.page.toggleWatch">{{ plan.docs.page.watching ? 'Watching' : 'Watch' }}</button><button v-if="plan.docs.canCreate" type="button" class="pp-btn" @click="plan.docs.page.copy">Copy</button><template v-if="plan.docs.canExport"><button type="button" class="pp-btn" @click="plan.docs.page.exportDoc">Export Word</button><button type="button" class="pp-btn" @click="plan.docs.page.exportHtml">Export HTML</button></template><button v-if="plan.docs.page.canLock" type="button" class="pp-btn" @click="plan.docs.page.toggleLock">{{ plan.docs.page.locked ? 'Unlock' : 'Lock' }}</button><button v-if="plan.docs.page.canDelete" type="button" class="pp-btn" @click="plan.docs.page.remove">Delete</button></div>
 <span class="pp-mut"><template v-if="plan.docs.page.updated">Last changed {{ plan.docs.page.updated }}</template><template v-for="l in plan.docs.page.labels" :key="l"> · {{ l }}</template></span>
-<div v-html="plan.docs.page.html" @click="plan.docs.follow" style="font-size: 14px; line-height: 1.6; overflow-wrap: anywhere"></div>
+<div ref="reading" @mouseup="readSelection" @keyup="readSelection" @touchend="readSelection"><NoteEditor :key="plan.docs.page.id" :editable="false" :modelValue="plan.docs.page.body" @ref="plan.docs.page.followRef" @comment="showComment"/></div>
+<div v-if="plan.docs.canComment && selected" style="position: sticky; bottom: 8px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 10px; border-radius: 10px; background: var(--k-22302A,#22302A)"><span class="pp-mut" style="flex: 1 1 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">“{{ selected }}”</span><button type="button" class="pp-btn pp-primary" @mousedown.prevent @click="commentOnSelection">Comment on this</button></div>
 <template v-if="plan.docs.page.children.length"><strong style="font-size: 13px">Pages under this one</strong><button v-for="c in plan.docs.page.children" :key="c.id" type="button" class="pp-link" style="text-align: left" @click="c.open">{{ c.title }}</button></template>
 <template v-if="plan.docs.page.backlinks.length"><strong style="font-size: 13px">Linked from</strong><button v-for="c in plan.docs.page.backlinks" :key="c.id" type="button" class="pp-link" style="text-align: left" @click="c.open">{{ c.title }}</button></template>
 <strong style="font-size: 13px">Attachments</strong>
 <div v-for="f in plan.docs.page.files" :key="f.key" style="display: flex; gap: 8px; align-items: center"><button type="button" class="pp-link" style="flex: 1; text-align: left; overflow-wrap: anywhere" @click="f.open">{{ f.name }}</button><button v-if="plan.docs.canAttach" type="button" class="pp-mini" :aria-label="`Remove ${f.name}`" @click="f.remove">×</button></div>
 <label v-if="plan.docs.canAttach" class="pp-btn" style="position: relative; align-self: flex-start; display: inline-flex; align-items: center; height: 32px; overflow: hidden">Attach files<input type="file" multiple aria-label="Attach files to this page" @change="plan.docs.page.onFile" style="position: absolute; inset: 0; opacity: 0; cursor: pointer"></label>
 <strong style="font-size: 13px">Comments</strong>
-<div v-for="c in plan.docs.page.comments" :key="c.id" style="padding: 8px 10px; border-radius: 10px; background: var(--k-121B17,#121B17); display: flex; flex-direction: column; gap: 2px"><span class="pp-mut">{{ c.who }} · {{ c.when }}<button v-if="c.mine" type="button" class="pp-link" style="margin-left: 8px" @click="c.remove">Delete</button></span><span style="font-size: 13px; white-space: pre-line; overflow-wrap: anywhere">{{ c.text }}</span></div>
-<form v-if="plan.docs.canComment" novalidate @submit.prevent="plan.docs.page.addComment" style="display: flex; flex-wrap: wrap; gap: 8px"><label style="flex: 1 1 200px; display: flex; flex-direction: column"><span class="pp-sr">Add a comment</span><input type="text" :value="plan.docs.page.comment" @input="plan.docs.page.onComment" placeholder="Add a comment" class="pp-input"></label><button type="submit" class="pp-btn">Comment</button></form>
+<div v-for="c in plan.docs.page.comments" :key="c.id" :id="`pc-${c.id}`" :style="c.resolved ? 'opacity: .55' : ''" style="padding: 8px 10px; border-radius: 10px; background: var(--k-121B17,#121B17); display: flex; flex-direction: column; gap: 2px"><span class="pp-mut">{{ c.who }} · {{ c.when }}<button v-if="c.quote" type="button" class="pp-link" style="margin-left: 8px" @click="c.toggleResolved">{{ c.resolved ? 'Reopen' : 'Resolve' }}</button><button v-if="c.mine" type="button" class="pp-link" style="margin-left: 8px" @click="c.remove">Delete</button></span><span v-if="c.quote" style="font-size: 12px; font-style: italic; padding-left: 8px; border-left: 3px solid #E0A800; overflow-wrap: anywhere">{{ c.quote }}</span><span style="font-size: 13px; white-space: pre-line; overflow-wrap: anywhere">{{ c.text }}</span></div>
+<span v-if="plan.docs.page.commentQuote" class="pp-mut">On “{{ plan.docs.page.commentQuote }}” <button type="button" class="pp-link" @click="plan.docs.page.clearQuote">Remove</button></span>
+<form v-if="plan.docs.canComment" novalidate @submit.prevent="plan.docs.page.addComment" style="display: flex; flex-wrap: wrap; gap: 8px"><label style="flex: 1 1 200px; display: flex; flex-direction: column"><span class="pp-sr">Add a comment</span><input ref="commentBox" type="text" :value="plan.docs.page.comment" @input="plan.docs.page.onComment" placeholder="Add a comment" class="pp-input"></label><button type="submit" class="pp-btn">Comment</button></form>
 <template v-if="plan.docs.page.versions.length"><strong style="font-size: 13px">Version history</strong><div v-for="v in plan.docs.page.versions" :key="v.key" style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center"><span class="pp-mut" style="flex: 1 1 200px">{{ v.who }}, {{ v.when }}</span><button type="button" class="pp-btn" @click="v.compare">Compare</button><button v-if="plan.docs.page.mayEdit" type="button" class="pp-btn" @click="v.restore">Restore earlier</button></div></template>
 <div v-if="plan.docs.page.diff" style="padding: 10px; border-radius: 10px; background: var(--k-121B17,#121B17); font-size: 13px; overflow-x: auto"><button type="button" class="pp-link" @click="plan.docs.page.closeDiff">Close comparison</button><div v-for="(d, di) in plan.docs.page.diff" :key="di" :style="`white-space: pre-wrap; color: ${d.k === 'add' ? 'var(--k-B8F36B,#B8F36B)' : d.k === 'del' ? 'var(--k-FF9B8A,#FF9B8A)' : 'inherit'}`">{{ d.k === 'add' ? '+ ' : d.k === 'del' ? '− ' : '  ' }}{{ d.t }}</div></div>
 </template>
@@ -146,34 +150,21 @@
 import { hubBindings } from '~/composables/useHub';
 
 const bound = hubBindings(['pj']);
-const wrap = (before, after, ph) => ({ before, after, ph });
-const TOOLBAR = [
-  { label: 'H1', title: 'Heading', line: '# ' }, { label: 'H2', title: 'Subheading', line: '## ' }, { label: 'B', title: 'Bold', ...wrap('**', '**', 'bold') }, { label: 'I', title: 'Italic', ...wrap('*', '*', 'italic') },
-  { label: '• List', title: 'Bullet list', line: '- ' }, { label: '1. List', title: 'Numbered list', line: '1. ' }, { label: '☐ Check', title: 'Checklist', line: '- [ ] ' }, { label: 'Quote', title: 'Quote', line: '> ' },
-  { label: 'Code', title: 'Code block', ...wrap('```\n', '\n```', 'code') }, { label: 'Table', title: 'Table', ...wrap('| Column | Column |\n|---|---|\n| ', ' | |', 'Text') }, { label: 'Rule', title: 'Divider', ...wrap('\n---\n', '', '') },
-  { label: 'Link', title: 'Web link', ...wrap('[', '](https://)', 'text') }, { label: 'Page', title: 'Link to a page', ...wrap('[[', ']]', 'Page title') }
-];
 export default {
   name: 'ProjectPlan',
-  data() { return { drag: null, dragKey: null, dragPx: 0, dragX: 0, moved: false, toolbar: TOOLBAR }; },
+  data() { return { selected: '', drag: null, dragKey: null, dragPx: 0, dragX: 0, moved: false }; },
   methods: {
-    format(b) {
-      const el = this.$refs.editor;
-      if (!el) return;
-      const v = el.value, a = el.selectionStart, z = el.selectionEnd;
-      let next, cur;
-      if (b.line) {
-        const start = v.lastIndexOf('\n', a - 1) + 1;
-        next = v.slice(0, start) + b.line + v.slice(start);
-        cur = z + b.line.length;
-      } else {
-        const inner = v.slice(a, z) || b.ph;
-        next = v.slice(0, a) + b.before + inner + b.after + v.slice(z);
-        cur = a + b.before.length + inner.length;
-      }
-      this.plan.docs.draft.setBody(next);
-      this.$nextTick(() => { el.focus(); el.setSelectionRange(cur, cur); });
+    readSelection() {
+      const sel = window.getSelection();
+      const inside = sel && sel.rangeCount && this.$refs.reading && this.$refs.reading.contains(sel.anchorNode);
+      this.selected = inside ? sel.toString().trim().slice(0, 500) : '';
     },
+    commentOnSelection() {
+      this.plan.docs.page.setQuote(this.selected);
+      this.selected = '';
+      this.$nextTick(() => this.$refs.commentBox && this.$refs.commentBox.focus());
+    },
+    showComment(id) { const el = document.getElementById('pc-' + id); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); },
     barDown(e, r) {
       this.moved = false;
       if (!r.canDrag) return;
