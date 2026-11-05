@@ -19,7 +19,8 @@ export function buildPlan(ctx) {
   const waterfall = p.method === 'waterfall';
   const tab = s.planTab || 'overview';
   const isManager = p.owner === me;
-  const canSettings = isManager || can('projects', 'Manage team');
+  const may = (x) => can('projects', x);
+  const canSettings = may('Manage workflow');
   const tasksOf = (fn) => p.tasks.map((t, ti) => ({ t, ti })).filter(({ t }) => fn(t));
   const patch = (fn) => this.setState((st) => ({ projects: st.projects.map((x) => (x.id === pid ? fn(x) : x)) }));
   const pts = (list) => list.reduce((a, t) => a + (Number(t.points) || 0), 0);
@@ -69,7 +70,7 @@ export function buildPlan(ctx) {
     yOfTask.set(t.id, { y, x1: xOf(start), x2: xOf(t.due) + dayW });
     const st = statusEntry(p, t);
     rows.push({ type: 'task', key: t.id || 'x' + ti, y, label: t.title.length > 28 ? t.title.slice(0, 27) + '…' : t.title, x: xOf(start), w: Math.max(dayW, xOf(t.due) + dayW - xOf(start)), color: t.col !== 3 && t.due < today ? '#FF9B8A' : CAT_COLORS[st.cat],
-      critical: critical.has(t.id), baseX: t.baseDue ? xOf(t.baseStart || t.baseDue) : null, baseW: t.baseDue ? Math.max(dayW, xOf(t.baseDue) + dayW - xOf(t.baseStart || t.baseDue)) : 0, canDrag: isManager || t.primary === me || t.secondary === me, shift: (px) => shiftTask(ti, Math.round(px / dayW)),
+      critical: critical.has(t.id), baseX: t.baseDue ? xOf(t.baseStart || t.baseDue) : null, baseW: t.baseDue ? Math.max(dayW, xOf(t.baseDue) + dayW - xOf(t.baseStart || t.baseDue)) : 0, canDrag: may('Reschedule tasks'), shift: (px) => shiftTask(ti, Math.round(px / dayW)),
       tip: (t.key ? t.key + ' · ' : '') + t.title + ' · ' + st.name + ' · ' + shortDate(start) + ' – ' + shortDate(t.due) + (t.primary ? ' · ' + t.primary : ''), open: () => tools.openTask(ti) });
   };
   const critical = criticalPath(p);
@@ -100,7 +101,7 @@ export function buildPlan(ctx) {
   }));
   const ticks = [];
   for (let i = 0; i < days; i += Math.max(1, Math.round(70 / dayW))) { const iso = addDaysIso(from, i); ticks.push({ x: xOf(iso), label: shortDate(iso) }); }
-  const timeline = { hasCritical: critical.size > 0, hasBaseline: p.tasks.some((t) => t.baseDue), canBaseline: isManager, saveBaseline: () => { patch((pp) => ({ ...pp, tasks: pp.tasks.map((t) => ({ ...t, baseStart: t.start || t.due, baseDue: t.due })) })); this.notify('Baseline saved. Later date changes show against it.', '#B8F36B'); }, rows, links, ticks, width: Math.ceil(LABEL + days * dayW + 20), height: TOP + rows.length * ROW + 8, todayX: today >= from && today <= to ? xOf(today) : null, label: LABEL, empty: rows.length === 0 };
+  const timeline = { hasCritical: critical.size > 0, hasBaseline: p.tasks.some((t) => t.baseDue), canBaseline: may('Save baseline'), saveBaseline: () => { patch((pp) => ({ ...pp, tasks: pp.tasks.map((t) => ({ ...t, baseStart: t.start || t.due, baseDue: t.due })) })); this.notify('Baseline saved. Later date changes show against it.', '#B8F36B'); }, rows, links, ticks, width: Math.ceil(LABEL + days * dayW + 20), height: TOP + rows.length * ROW + 8, todayX: today >= from && today <= to ? xOf(today) : null, label: LABEL, empty: rows.length === 0 };
 
   // ---- reports ----
   const sel = s.planRange || 'current';
@@ -186,7 +187,7 @@ export function buildPlan(ctx) {
       if (ti !== -1) tools.openTask(ti);
     },
     page: cur && !draft ? { id: cur.id, title: cur.title, html: pageHtml(cur.body || '', keys), updated: cur.updatedAt ? fmt(cur.updatedAt) : '', versions, labels: cur.labels || [], locked: !!cur.locked,
-      canLock: isManager || cur.author === me, mayEdit: !cur.locked || isManager || cur.author === me,
+      canLock: may('Lock pages'), canDelete: may('Delete pages'), mayEdit: may('Edit pages') && (!cur.locked || may('Lock pages') || isManager || cur.author === me),
       backlinks: pages.filter((x) => x.id !== cur.id && (x.body || '').toLowerCase().includes('[[' + cur.title.toLowerCase() + ']]')).map((x) => ({ id: x.id, title: x.title, open: () => openPage(x) })),
       crumbs: (() => { const l = []; let u = pages.find((y) => y.id === cur.parent); for (let n = 0; u && n < 6; n++) { const x = u; l.unshift({ id: x.id, title: x.title, open: () => openPage(x) }); u = pages.find((y) => y.id === x.parent); } return l; })(),
       children: pages.filter((x) => x.parent === cur.id).map((x) => ({ id: x.id, title: x.title, open: () => openPage(x) })),
@@ -203,6 +204,7 @@ export function buildPlan(ctx) {
       copy: () => this.setState({ pageDraft: { pid, id: '', title: 'Copy of ' + cur.title, body: cur.body || '', parent: cur.parent || '', labels: (cur.labels || []).join(', '), err: '' } }),
       edit: () => this.setState({ pageDraft: { pid, id: cur.id, title: cur.title, body: cur.body || '', parent: cur.parent || '', labels: (cur.labels || []).join(', '), err: '' }, pageDiff: null }),
       remove: () => { if (pages.some((x) => x.parent === cur.id)) { this.notify('Move or delete the pages under this one first.', '#FFB86B'); return; } this.setState({ pageOpen: null }); patch((x) => ({ ...x, pages: x.pages.filter((y) => y.id !== cur.id), comments: (x.comments || []).filter((y) => y.page !== cur.id) })); } } : null,
+    canCreate: may('Create pages'), canAttach: may('Attach to pages'), canComment: may('Comment on pages'), canExport: may('Export pages'),
     draft: draft ? { ...draft, isNew: !draft.id, preview: s.pagePreview ? pageHtml(draft.body, keys) : '', showPreview: !!s.pagePreview, togglePreview: () => this.setState((st) => ({ pagePreview: !st.pagePreview })), onTitle: setDraft('title'), onBody: setDraft('body'), onParent: setDraft('parent'), onLabels: setDraft('labels'),
       setBody: (v) => this.setState((st) => ({ pageDraft: { ...st.pageDraft, body: v, err: '' } })),
       parentOpts: pages.filter((x) => x.id && x.id !== draft.id).map((x) => ({ v: x.id, l: x.title })),
@@ -225,7 +227,7 @@ export function buildPlan(ctx) {
   const settings = {
     canEdit: canSettings, method: p.method,
     methods: [{ v: 'agile', l: 'Agile (sprints and a backlog)' }, { v: 'waterfall', l: 'Waterfall (phases and gates)' }, { v: 'hybrid', l: 'Hybrid (phases with sprints inside)' }],
-    onMethod: (e) => { const v = e.target.value; patch((x) => ({ ...x, method: v })); this.notify('Project type changed. Your tasks stay as they are.', '#B8F36B'); },
+    canMethod: may('Change project type'), onMethod: (e) => { const v = e.target.value; patch((x) => ({ ...x, method: v })); this.notify('Project type changed. Your tasks stay as they are.', '#B8F36B'); },
     cats: ['Not started', 'In progress', 'Being checked', 'Finished'].map((l, v) => ({ v, l })),
     dirty: !!wd, err: wd ? wd.err : '',
     rows: list.map((w, i) => ({ targets: list.filter((x) => x.key !== w.key).map((x) => ({ key: x.key, name: x.name, on: !w.to || !w.to.length || w.to.includes(x.key), toggle: () => change((l) => l.map((y, j) => { if (j !== i) return y; const all = l.filter((z) => z.key !== y.key).map((z) => z.key); const cur2 = y.to && y.to.length ? y.to : all; const nx = cur2.includes(x.key) ? cur2.filter((k) => k !== x.key) : cur2.concat([x.key]); return { ...y, to: nx.length === all.length ? [] : nx }; })) })), key: w.key, name: w.name, cat: w.cat, wip: w.wip || '', inUse: p.tasks.filter((t) => t.status === w.key).length, first: i === 0, last: i === list.length - 1,
@@ -252,13 +254,13 @@ export function buildPlan(ctx) {
     }
   };
 
-  const tabs = [['overview', 'Overview', null], ['board', 'Board', null], ['backlog', waterfall ? 'Phases' : 'Backlog & sprints', waterfall ? tools.tl.length : backlog.length], ['timeline', 'Timeline', null], ['reports', 'Reports', null], ['docs', 'Documents', pages.length], ['settings', 'Type & workflow', null]];
+  const tabs = [['overview', 'Overview', null], ['board', 'Board', null], ['backlog', waterfall ? 'Phases' : 'Backlog & sprints', waterfall ? tools.tl.length : backlog.length], ['timeline', 'Timeline', null, 'View timeline'], ['reports', 'Reports', null, 'View reports'], ['docs', 'Documents', pages.length, 'View documents'], ['settings', 'Type & workflow', null, null, true]].filter(([, , , need, cfg]) => (!need || may(need)) && (!cfg || may('Manage workflow') || may('Change project type')));
   return {
     waterfall, methodLabel: { agile: 'Agile', waterfall: 'Waterfall', hybrid: 'Hybrid' }[p.method] || 'Agile',
     tabs: tabs.map(([k, l, n]) => ({ key: k, label: l, count: n, on: tab === k, go: () => this.setState({ planTab: k }) })), tab,
-    isOverview: tab === 'overview', isBoard: tab === 'board', isBacklog: tab === 'backlog', isTimeline: tab === 'timeline', isReports: tab === 'reports', isDocs: tab === 'docs', isSettings: tab === 'settings',
+    isOverview: tab === 'overview' || !tabs.some(([k]) => k === tab), isBoard: tab === 'board', isBacklog: tab === 'backlog', isTimeline: tab === 'timeline' && may('View timeline'), isReports: tab === 'reports' && may('View reports'), isDocs: tab === 'docs' && may('View documents'), isSettings: tab === 'settings' && tabs.some(([k]) => k === 'settings'),
     epics, backlog, backlogPoints: pts(backlog.map((x) => p.tasks.find((t) => (t.id || '') === x.id) || {})), phases, canMs: can('projects', 'Manage milestones'), sprintOpts: [{ v: '', l: 'Backlog' }].concat(tools.spl.filter((x) => !x.milestoneClosed && !x.closed).map((x) => ({ v: x.id, l: x.name }))),
-    addBacklog: tools.openTaskFormBacklog, canAdd: can('projects', 'Edit tasks'), timeline, reports, docs, settings,
+    addBacklog: tools.openTaskFormBacklog, canAdd: may('Edit tasks'), canRank: may('Rank backlog'), canPlan: may('Plan sprints'), timeline, reports, docs, settings,
     longStart: longDate(p.start)
   };
 }

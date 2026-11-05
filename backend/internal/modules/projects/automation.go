@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"hub/internal/authz"
 	"hub/internal/httpx"
 	"hub/internal/integrity"
 	"hub/internal/modules/approvals"
@@ -215,7 +216,7 @@ func (s *Service) CloseSprint(ctx context.Context, p *tenant.Principal, project,
 		if err != nil {
 			return err
 		}
-		if err := mayChange(ctx, tx, p, pr, "sprint", false, nil); err != nil {
+		if err := authz.Require(ctx, tx, p.Person, "projects", "Close sprints"); err != nil {
 			return err
 		}
 		sprints, err := loadItems(ctx, tx, project, "sprint")
@@ -262,7 +263,7 @@ func (s *Service) PassGate(ctx context.Context, p *tenant.Principal, project, ph
 		if err != nil {
 			return err
 		}
-		if err := mayChange(ctx, tx, p, pr, "milestone", false, nil); err != nil {
+		if err := authz.Require(ctx, tx, p.Person, "projects", "Request gate sign-off"); err != nil {
 			return err
 		}
 		ms, err := loadItems(ctx, tx, project, "milestone")

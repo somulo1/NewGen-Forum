@@ -170,6 +170,9 @@ func (s *Service) applyActivate(ctx context.Context, tx pgx.Tx, a approvals.Appl
 func (s *Service) Mine(ctx context.Context, p *tenant.Principal) ([]*Project, error) {
 	out := []*Project{}
 	err := s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
+		if err := s.ensureRights(ctx, tx, p.Org); err != nil {
+			return err
+		}
 		if err := authz.Require(ctx, tx, p.Person, "projects", "View"); err != nil {
 			return err
 		}
@@ -225,7 +228,8 @@ func (s *Service) Update(ctx context.Context, p *tenant.Principal, id uuid.UUID,
 		if err != nil {
 			return err
 		}
-		if cur.Owner != p.Person {
+		onlyPlan := in.Status == nil && in.Due == nil && in.Budget == nil && in.Sync == nil && in.Owner == nil
+		if cur.Owner != p.Person && !onlyPlan {
 			if err := authz.Require(ctx, tx, p.Person, "projects", "Manage team"); err != nil {
 				return err
 			}
@@ -239,7 +243,7 @@ func (s *Service) Update(ctx context.Context, p *tenant.Principal, id uuid.UUID,
 				return httpx.Bad("The new owner must be on the project team.")
 			}
 		}
-		if err := s.patchPlan(ctx, tx, id, in); err != nil {
+		if err := s.patchPlan(ctx, tx, p, id, in); err != nil {
 			return err
 		}
 		if err := s.A.Sign.Seal(ctx, tx, "projects", "conversation_id=$1", id); err != nil {

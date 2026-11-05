@@ -1,7 +1,7 @@
 import * as projectsW from '~/logic/server/widgets/projects.js';
 // renderVals step: projectTables. Milestone and sprint tables for the open project, built from the project's own tasks.
 export function buildProjectTables(ctx) {
-  const { C, canEditT, canMs, cur_p, pj, projTools, s } = ctx;
+  const { C, can, canEditT, canMs, cur_p, pj, projTools, s } = ctx;
   if (!cur_p) return {};
   const { tl, spl, openMsClose, openMsReopen, openSprint, openTaskForm, longDate, shortDate } = projTools;
   const msColor = { done: '#B8F36B', ready: '#B8F36B', late: '#FF9B8A', next: '#FFB86B', upcoming: '#9DB0A6' };
@@ -19,8 +19,8 @@ export function buildProjectTables(ctx) {
         : m.total ? m.openTasks + (m.openTasks === 1 ? ' task is' : ' tasks are') + ' still open' : 'Add a sprint, then tasks, to track progress';
       const actions = [];
       if (canMs && m.closed) actions.push({ label: 'Reopen', run: () => openMsReopen(m) });
-      if (canMs && !m.closed && cur_p.method !== 'waterfall') actions.push({ label: 'Add sprint', run: () => openSprint(m.id) });
-      if (canMs && !m.closed && cur_p.method === 'waterfall') actions.push({ label: 'Gate sign-off', run: () => openMsClose(m) });
+      if (can('projects', 'Plan sprints') && !m.closed && cur_p.method !== 'waterfall') actions.push({ label: 'Add sprint', run: () => openSprint(m.id) });
+      if (!m.closed && cur_p.method === 'waterfall') can('projects', 'Request gate sign-off') && actions.push({ label: 'Gate sign-off', run: () => openMsClose(m) });
       return { tint: m.status === 'done' ? '#B8F36B' : m.status === 'late' ? '#FF9B8A' : '', cells: [
         C.t(m.name, { strong: true, sub }), C.t(longDate(m.iso), { nowrap: true, fv: m.iso }),
         C.t(m.sprints.length ? m.sprints.map((sp) => sp.name).join(', ') : 'None yet'),
@@ -33,6 +33,6 @@ export function buildProjectTables(ctx) {
       C.t(sp.name, { strong: true, sub: s.sprintFilter === sp.id ? 'Shown on the task board' : sp.milestoneClosed ? 'Milestone reached' : '' }), C.t(sp.milestoneName),
       C.t(shortDate(sp.start) + ' – ' + shortDate(sp.end), { nowrap: true, fv: sp.start }),
       C.bar(sp.progress, spColor[sp.status], tasksLabel(sp.done, sp.total)), C.b(spLabel[sp.status], spColor[sp.status], { fv: spLabel[sp.status] }),
-      C.a((canMs && !sp.closed && this.srv ? [{ label: 'Close sprint', run: () => projectsW.closeSprint(this, this.srv, cur_p.id, sp.id).then(() => this.notify(sp.name + ' closed. Unfinished work moved on.', '#B8F36B')).catch((e) => this.notify(e.message || 'Could not close the sprint.', '#FF9B8A')) }] : []).concat([{ label: s.sprintFilter === sp.id ? 'Show all open work' : 'Show on board', kind: s.sprintFilter === sp.id ? 'primary' : undefined, run: () => this.setState({ sprintFilter: s.sprintFilter === sp.id ? 'all' : sp.id }) }].concat(canEditT && !sp.milestoneClosed && !sp.closed ? [{ label: 'Add task', run: () => openTaskForm(sp.id) }] : [])))] })) };
+      C.a((pj.plan && can('projects', 'Close sprints') && !sp.closed && this.srv ? [{ label: 'Close sprint', run: () => projectsW.closeSprint(this, this.srv, cur_p.id, sp.id).then(() => this.notify(sp.name + ' closed. Unfinished work moved on.', '#B8F36B')).catch((e) => this.notify(e.message || 'Could not close the sprint.', '#FF9B8A')) }] : []).concat([{ label: s.sprintFilter === sp.id ? 'Show all open work' : 'Show on board', kind: s.sprintFilter === sp.id ? 'primary' : undefined, run: () => this.setState({ sprintFilter: s.sprintFilter === sp.id ? 'all' : sp.id }) }].concat(canEditT && !sp.milestoneClosed && !sp.closed ? [{ label: 'Add task', run: () => openTaskForm(sp.id) }] : [])))] })) };
   return {};
 }

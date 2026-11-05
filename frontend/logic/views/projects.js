@@ -138,7 +138,7 @@ export function buildProjects(ctx) {
       canMilestones: canMs, tab: s.projTab, isMsTab: s.projTab === 'milestones', isSpTab: s.projTab === 'sprints',
       goMs: set({ projTab: 'milestones' }), goSp: set({ projTab: 'sprints' }),
       addMilestone: () => this.setState({ msDialog: { mode: 'new', pid: pid, lockProject: true, name: '', date: '', desc: '', err: '' } }),
-      addSprint: () => openSprint(''),
+      canSprints: can('projects', 'Plan sprints'), addSprint: () => openSprint(''),
       sprintOpts: [{ v: 'all', l: 'All open work' }].concat(spl.map((sp) => ({ v: sp.id, l: sp.name + ' · ' + shortDate(sp.start) + ' – ' + shortDate(sp.end) + (sp.status === 'current' ? ' (current)' : '') }))),
       sprintValue: sprintSel, setSprint: (e) => this.setState({ sprintFilter: e.target.value }),
       boardTitle: sprintSel === 'all' ? 'All open work' : (spl.find((sp) => sp.id === sprintSel) || { name: 'Sprint' }).name,
@@ -293,7 +293,7 @@ export function buildProjects(ctx) {
     const tcx = taskContext(tp, tt);
     const spT = sprintTimeline(tp, today).filter((sp) => !sp.milestoneClosed || sp.id === tt.sprint);
     // Only the people the task is assigned to edit it: Edit opens the fields, Save writes them all at once, Cancel drops them.
-    const mayEdit = mayEditTask(tt, me);
+    const mayEdit = mayEditTask(tt, me) || tp.owner === me || can('projects', 'Edit any task');
     const ed = mayEdit && s.taskEdit && s.taskEdit.pid === tp.id && s.taskEdit.ti === to.ti ? s.taskEdit : null;
     const setE = (k) => (e) => { const v = e.target.value; this.setState((st) => ({ taskEdit: { ...st.taskEdit, [k]: v, err: '' } })); };
     const draftSprint = ed ? tp.sprints.find((x) => x.id === ed.sprint) : null;
@@ -329,6 +329,7 @@ export function buildProjects(ctx) {
       taskOpts: tp.tasks.filter((x) => x.id && x.id !== tt.id).map((x) => ({ v: x.id, l: (x.key ? x.key + ' · ' : '') + x.title })),
       waitingOn: openDeps(tp, tt).map((x) => x.title), isBlocked: tt.col !== 3 && openDeps(tp, tt).length > 0,
       subtasks: tp.tasks.filter((x) => x.parent && x.parent === tt.id).map((x) => ({ title: x.title, key: x.key || '', status: statusEntry(tp, x).name, open: () => this.setState({ taskOpen: { pid: tp.id, ti: tp.tasks.indexOf(x) }, taskEdit: null }) })),
+      showChanges: can('projects', 'View change history'),
       changes: (tt.changes || []).filter((c) => !['col', 'assignee', 'secondary_id', 'kind'].includes(c.field) || c.field === 'kind').slice().reverse().map((c) => {
         const names = { title: 'Title', desc: 'Description', objective: 'Objective', status: 'Status', sprint: 'Sprint', milestone: 'Phase', due: 'Due date', start: 'Start date', primary: 'Owner', secondary: 'Second owner', points: 'Story points', parent: 'Parent', deps: 'Depends on', kind: 'Type', tickets: 'Linked tickets', links: 'Links' };
         const nameOfId = (v) => { const x = tp.tasks.find((y) => y.id === v) || tp.sprints.find((y) => y.id === v) || tp.milestones.find((y) => y.id === v) || wfOf(tp).find((y) => y.key === v); return x ? x.title || x.name : v; };
