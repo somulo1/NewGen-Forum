@@ -10,7 +10,7 @@ export function buildProjectTables(ctx) {
   const spLabel = { closed: 'Closed', done: 'Done', current: 'Current', late: 'Late', upcoming: 'Upcoming', ended: 'Ended' };
   const tasksLabel = (done, total) => (total ? done + ' / ' + total + ' tasks' : 'No tasks yet');
 
-  pj.msTable = { id: 'ms-' + cur_p.id, pageSize: 6, minWidth: '760px', emptyText: 'No milestones yet. Add one to start planning.',
+  pj.msTable = { id: 'ms-' + cur_p.id, pageSize: 6, minWidth: '760px', emptyText: cur_p.method === 'waterfall' ? 'No phases yet. Add one to start planning.' : 'No milestones yet. Add one to start planning.',
     cols: [{ label: cur_p.method === 'waterfall' ? 'Phase' : 'Milestone' }, { label: cur_p.method === 'waterfall' ? 'Gate' : 'Due' }, { label: 'Sprints' }, { label: 'Progress' }, { label: 'Status' }, { label: '', align: 'right' }],
     rows: tl.map((m) => {
       const key = m.status;   // reached by itself once every task is done, open again if one is not

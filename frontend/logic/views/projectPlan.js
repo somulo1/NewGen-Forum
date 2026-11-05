@@ -280,7 +280,9 @@ export function buildPlan(ctx) {
   };
 
   const tabs = [['overview', 'Overview', null], ['board', 'Board', null], ['backlog', waterfall ? 'Phases' : 'Backlog & sprints', waterfall ? tools.tl.length : backlog.length], ['timeline', 'Timeline', null, 'View timeline'], ['reports', 'Reports', null, 'View reports'], ['docs', 'Documents', pages.length, 'View documents'], ['settings', 'Type & workflow', null, null, true]].filter(([, , , need, cfg]) => (!need || may(need)) && (!cfg || may('Manage workflow') || may('Change project type')));
+  const stuck = p.stuck ? { unread: p.stuck.unread, move: () => projectsW.moveReadablePlan(this, this.srv, pid).then(() => this.notify('The plan was moved. It can be changed again.', '#B8F36B')).catch((e) => this.notify(e.message || 'Could not move the plan.', '#FF9B8A')) } : null;
   return {
+    stuck,
     waterfall, methodLabel: { agile: 'Agile', waterfall: 'Waterfall', hybrid: 'Hybrid' }[p.method] || 'Agile',
     tabs: tabs.map(([k, l, n]) => ({ key: k, label: l, count: n, on: tab === k, go: () => this.setState({ planTab: k }) })), tab,
     isOverview: tab === 'overview' || !tabs.some(([k]) => k === tab), isBoard: tab === 'board', isBacklog: tab === 'backlog', isTimeline: tab === 'timeline' && may('View timeline'), isReports: tab === 'reports' && may('View reports'), isDocs: tab === 'docs' && may('View documents'), isSettings: tab === 'settings' && tabs.some(([k]) => k === 'settings'),
