@@ -6,7 +6,8 @@
 //   room socket  -> welcome { you, peers } | peer-joined | peer-left | offer/answer/ice (relayed) | state | chat | mod | ended
 import { connectRealtime } from './realtime.js';
 import * as dmsW from './widgets/dms.js';
-import { connectSfu, leaveSfu, applySfu, sendChatSfu, sfuActive, control } from './sfuCall.js';
+import { connectSfu, leaveSfu, applySfu, sendChatSfu, sfuActive, control, sfuStats } from './sfuCall.js';
+import { startQualityWatch, stopQualityWatch, noteReconnect, noteJoined } from './callQuality.js';
 import { startRing, stopRing, startRingback, stopRingback, connected, hangup, joinedTone, handTone } from '../tones.js';
 import { retryDelay } from './backoff.js';
 
@@ -20,6 +21,41 @@ const changed = () => { media.version++; media.listeners.forEach((fn) => fn(medi
 
 let room = null;   // { ws, me, pcs: Map(peerId -> RTCPeerConnection), callId, host }
 
+// Device-to-device video: every device uploads a copy per person, so it is kept small, and smaller with more people.
+const MESH_VIDEO = { width: { ideal: 640 }, height: { ideal: 360 }, frameRate: { ideal: 24, max: 30 } };
+const meshBitrate = (peers) => (peers <= 1 ? 700000 : 350000);
+const SCREEN_BITRATE = 1500000;
+
+// Voice goes first when the connection is tight; video takes what is left, up to its limit.
+async function tuneSenders(pc) {
+  const peers = room ? room.pcs.size : 1;
+  const screen = media.screen && media.screen.getVideoTracks()[0];
+  for (const sender of pc.getSenders()) {
+    if (!sender.track) continue;
+    const params = sender.getParameters();
+    if (!params.encodings || !params.encodings.length) continue;
+    const video = sender.track.kind === 'video';
+    params.encodings.forEach((e) => {
+      e.priority = video ? 'low' : 'high';
+      e.networkPriority = e.priority;
+      if (video) e.maxBitrate = sender.track === screen ? SCREEN_BITRATE : meshBitrate(peers);
+    });
+    await sender.setParameters(params).catch(() => {});
+  }
+}
+const tuneAll = () => { if (room) room.pcs.forEach((pc) => tuneSenders(pc)); };
+
+// Starts measuring this call's connection, and sends the summary to monitoring when it ends.
+function watchQuality(logic, srv, mode, getReports) {
+  if (!room) return;   // hung up while connecting
+  room.srv = srv;
+  startQualityWatch({ mode, getReports, onWeak: (netWeak) => setCall(logic, { netWeak }) });
+}
+function endQualityWatch() {
+  const summary = stopQualityWatch();
+  if (summary && room && room.srv) room.srv.request('POST', '/calls/quality', summary).catch(() => {});
+}
+
 function setCall(logic, patch) {
   logic.setState((st) => (st.call ? { call: { ...st.call, ...patch } } : {}));
 }
@@ -27,7 +63,7 @@ function setCall(logic, patch) {
 async function getMedia(kind) {
   const md = navigator.mediaDevices;
   if (!md || !md.getUserMedia) return null;
-  const tries = kind === 'video' ? [{ audio: true, video: true }, { audio: true }, { video: true }] : [{ audio: true }];
+  const tries = kind === 'video' ? [{ audio: true, video: MESH_VIDEO }, { audio: true }, { video: MESH_VIDEO }] : [{ audio: true }];
   for (const c of tries) {
     try { return await md.getUserMedia(c); } catch (e) { /* busy, missing or refused: try the next */ }
   }
@@ -57,7 +93,7 @@ function peerConn(logic, peerId) {
     changed();
   };
   pc.onconnectionstatechange = () => {
-    if (pc.connectionState === 'connected') { clearTimeout(pc.lostT); pc.restarts = 0; stopRingback(); setCall(logic, { connected: true }); return; }
+    if (pc.connectionState === 'connected') { clearTimeout(pc.lostT); pc.restarts = 0; stopRingback(); setCall(logic, { connected: true }); tuneAll(); return; }
     if (pc.connectionState === 'disconnected') {
       // often a blip (wifi to mobile data): give it a few seconds, then try to reconnect
       clearTimeout(pc.lostT);
@@ -74,6 +110,7 @@ function peerConn(logic, peerId) {
 function lost(logic, peerId, pc) {
   if (!room || room.pcs.get(peerId) !== pc) return;
   pc.restarts = (pc.restarts || 0) + 1;
+  noteReconnect();
   if (pc.restarts <= 2) {
     if (pc.initiator) {
       pc.restartIce();
@@ -108,7 +145,10 @@ async function connectRoom(logic, srv, entry, opts = {}) {
   leaveRoom(false);
   if (entry.mode === 'sfu') {
     const ctx = { logic, srv, media, changed, setCall, callContext: () => entry.call.context || 'meeting', setRoom: (r) => { room = { ws: null, pcs: new Map(), me: null, ...r }; } };
+    const began = performance.now();
     try { await connectSfu(ctx, entry, opts); } catch (e) { leaveRoom(false); throw e; }
+    watchQuality(logic, srv, 'sfu', sfuStats);
+    noteJoined(performance.now() - began);
     return;
   }
   if (!logic.state.call) return;   // hung up while the call was still being set up: nothing to ring or open
@@ -130,6 +170,7 @@ async function connectRoom(logic, srv, entry, opts = {}) {
   const ws = new WebSocket(entry.url + '?token=' + encodeURIComponent(entry.token));
   room = { ws, me: null, pcs: new Map(), callId: entry.call.id, host: entry.call.host, ctx, kind: entry.call.kind, ice: entry.ice && entry.ice.length ? entry.ice : FALLBACK_ICE };
   setCall(logic, { callId: entry.call.id, peers: [], me: null });
+  watchQuality(logic, srv, 'mesh', () => Promise.all([...room.pcs.values()].map((pc) => pc.getStats().catch(() => null))));
   if (srv.answeredCalls && srv.answeredCalls.has(entry.call.id)) stopRingback();   // picked up while the microphone was being set up
   // messages are handled one after another, in the order they arrive: an offer must be in before the candidates that follow it
   let chain = Promise.resolve();
@@ -278,6 +319,7 @@ function dropPeer(id) {
 }
 
 export function leaveRoom(sound = true) {
+  endQualityWatch();
   leaveSfu();
   media.tracks.clear();
   if (room) {
@@ -303,7 +345,7 @@ async function ensureTrack(kind) {
   const md = navigator.mediaDevices;
   if (!md || !md.getUserMedia || !room) return false;
   let got;
-  try { got = await md.getUserMedia(kind === 'audio' ? { audio: true } : { video: true }); } catch (e) { return false; }
+  try { got = await md.getUserMedia(kind === 'audio' ? { audio: true } : { video: MESH_VIDEO }); } catch (e) { return false; }
   const track = got.getTracks()[0];
   if (!track) return false;
   if (!media.local) media.local = new MediaStream();
@@ -318,6 +360,7 @@ async function ensureTrack(kind) {
       send({ type: 'offer', to: peerId, data: offer });
     } catch (e) { /* that connection will pick it up when it reconnects */ }
   }
+  tuneAll();
   changed();
   return true;
 }
@@ -338,16 +381,19 @@ export async function applyLocal(logic) {
   }
   if (s.sharing && !media.screen && navigator.mediaDevices.getDisplayMedia) {
     try {
-      media.screen = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      media.screen = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: { ideal: 15, max: 15 } } });
       const track = media.screen.getVideoTracks()[0];
+      track.contentHint = 'text';   // keep slides and documents readable: fewer frames rather than blurred text
       track.onended = () => logic.setState({ sharing: false });
-      room && room.pcs.forEach((pc) => { const snd = pc.getSenders().find((x) => x.track && x.track.kind === 'video'); if (snd) snd.replaceTrack(track); else pc.addTrack(track, media.screen); });
+      await Promise.all([...(room ? room.pcs.values() : [])].map(async (pc) => { const snd = pc.getSenders().find((x) => x.track && x.track.kind === 'video'); if (snd) await snd.replaceTrack(track); else pc.addTrack(track, media.screen); }));
+      tuneAll();
     } catch (e) { logic.setState({ sharing: false }); }
   } else if (!s.sharing && media.screen) {
     media.screen.getTracks().forEach((t) => t.stop());
     media.screen = null;
     const cam = media.local && media.local.getVideoTracks()[0];
-    room && room.pcs.forEach((pc) => { const snd = pc.getSenders().find((x) => x.track && x.track.kind === 'video'); if (snd) snd.replaceTrack(cam || null); });
+    await Promise.all([...(room ? room.pcs.values() : [])].map(async (pc) => { const snd = pc.getSenders().find((x) => x.track && x.track.kind === 'video'); if (snd) await snd.replaceTrack(cam || null); }));
+    tuneAll();
   }
   changed();
   sendState(logic);
