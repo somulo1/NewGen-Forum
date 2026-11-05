@@ -40,7 +40,24 @@ input:not([type=checkbox]):not([type=radio]):not([type=range]):focus,textarea:fo
 .hub-task-column-scroll::-webkit-scrollbar-track{background:var(--k-121B17,#121B17);border-radius:4px}
 .hub-task-column-scroll::-webkit-scrollbar-thumb{background:var(--k-3F524A,#3F524A);border-radius:4px}
 .hub-right-drawer{top:65px !important}
-@container hub-dock-panel (max-width: 700px){
+/* The docked chat keeps its height for the messages: its top is one compact row of name and actions, then the chips and tabs. */
+.hub-panel-header{padding:6px 46px 6px 14px !important;gap:8px !important;flex-wrap:nowrap}
+.hub-panel-name > span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px !important}
+.hub-panel-name > strong{font-size:14px !important}
+.hub-panel-actions{gap:0 !important}
+.hub-panel-actions > button,.hub-panel-actions > div > button{width:30px !important;height:30px !important}
+.hub-panel-close{top:6px !important;right:8px !important;width:30px !important;height:30px !important}
+.hub-panel-chips{padding:4px 14px !important}
+.hub-panel-chips > span{width:29px !important;height:29px !important}
+.hub-panel-chips > span > button{transform:scale(.8);transform-origin:top left}
+.hub-panel-tabs{padding-top:0 !important}
+.hub-panel-tabs > button{min-height:32px !important}
+.hub-panel-composer{padding:6px 10px 6px 12px !important;gap:4px !important}
+@media (max-width: 900px){
+.hub-panel-actions > button,.hub-panel-actions > div > button{width:32px !important;height:32px !important}
+.hub-panel-close{width:32px !important;height:32px !important}
+}
+@container hub-dock-panel (max-width: 340px){
 .hub-panel-header{flex-wrap:wrap !important}
 .hub-panel-header > .hub-panel-name{flex:1 1 calc(100% - 54px) !important}
 .hub-panel-actions{order:2;flex:1 0 100% !important;flex-wrap:wrap;justify-content:flex-end}
