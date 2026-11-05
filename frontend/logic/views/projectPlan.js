@@ -172,12 +172,11 @@ export function buildPlan(ctx) {
   const allLabels = [...new Set(pages.flatMap((x) => x.labels || []))].sort();
   const mePerson = this.srv ? this.srv.me.person : me;
   const comments = cur ? (p.comments || []).filter((c) => c.page === cur.id) : [];
-  const elsewhere = query ? (s.projects || []).filter((x) => x.id !== pid).flatMap((x) => (x.pages || []).filter((y) => (y.title + ' ' + pageText(y.body)).toLowerCase().includes(query)).map((y) => ({ id: y.id, title: y.title, project: x.name, open: () => this.setState({ projectOpen: x.id, planTab: 'docs', pageOpen: { pid: x.id, id: y.id }, pageDraft: null }) }))) : [];
   const recent = pages.filter((x) => x.updatedAt).slice().sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1)).slice(0, 5).map((x) => ({ id: x.id, title: x.title, when: fmt(x.updatedAt), open: () => openPage(x) }));
   const download = (name, text, type) => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); };
   const safeName = (t) => t.replace(/[^\w\- ]+/g, '').trim() || 'page';
   const docs = {
-    query: s.pageQuery || '', onQuery: (e) => this.setState({ pageQuery: e.target.value }), elsewhere, recent,
+    query: s.pageQuery || '', onQuery: (e) => this.setState({ pageQuery: e.target.value }), recent,
     labels: allLabels.map((l) => ({ name: l, on: l === labelOn, pick: () => this.setState({ pageLabel: l === labelOn ? '' : l }) })),
     list: ordered.filter((x) => (!query || (x.title + ' ' + pageText(x.body) + ' ' + (x.labels || []).join(' ')).toLowerCase().includes(query)) && (!labelOn || (x.labels || []).includes(labelOn))).map((x) => ({ id: x.id, title: x.title, indent: query ? 0 : depth(x) * 14, on: x.id === openId, open: () => openPage(x) })),
     templates: Object.entries(TEMPLATES).map(([k, t]) => ({ key: k, name: t.name, pick: () => this.setState({ pageDraft: { pid, id: '', title: t.title, body: t.body, kind: t.kind || '', parent: cur ? cur.id : '', labels: '', err: '' }, pageDiff: null }) })),

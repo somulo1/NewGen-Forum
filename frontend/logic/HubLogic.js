@@ -81,6 +81,10 @@ export class HubLogic extends DCLogic {
     const raw = typeof update === 'function' ? update(this.state, this.props) : update;
     let patch = raw ? Object.assign({}, raw) : raw;
     if (patch) {
+      // each project stands alone: filters, forms and drafts of one never carry into the next
+      if (patch.projectOpen !== undefined && patch.projectOpen !== this.state.projectOpen) {
+        patch = { sprintFilter: 'all', planRange: 'current', planTab: 'overview', projTab: 'milestones', taskForm: null, taskEdit: null, taskMove: null, taskOpen: null, msDialog: null, pageOpen: null, pageDraft: null, pageDiff: null, pageQuery: '', pageLabel: '', pageComment: '', pageQuote: '', pageImport: null, wfDraft: null, ...patch };
+      }
       const person = patch.personOpen !== undefined && patch.personOpen !== null ? this.peopleDir()[patch.personOpen] : null;
       if (person && this._canFullProfile) {
         patch.personOpen = null; patch.profileOf = person.name; patch.section = 'profile';
