@@ -95,7 +95,7 @@ func TestRolesRightsAndMe(t *testing.T) {
 	png := "data:image/png;base64," + base64.StdEncoding.EncodeToString([]byte("\x89PNG....fake"))
 	e.MustDo(204, "PATCH", "/me", map[string]any{"status": "Focusing", "bio": "Hello there", "skills": []string{"Go", " ", "SQL"}, "phone": "+254711111111", "photo": png}, staff.Access)
 	pf := e.MustDo(200, "GET", "/me", nil, staff.Access)["profile"].(map[string]any)
-	if pf["status"] != "Focusing" || pf["bio"] != "Hello there" || pf["photo"] != png || len(pf["skills"].([]any)) != 2 || pf["phone"] != "+254711111111" {
+	if pf["status"] != "Focusing" || pf["bio"] != "Hello there" || pf["photo"] != png || len(pf["skills"].([]any)) != 2 || pf["phone"] != "+••• ••• 111" {
 		t.Fatalf("profile not saved: %v", pf)
 	}
 	if code, _ := e.Do("PATCH", "/me", map[string]any{"status": "Hacking"}, staff.Access); code != 400 {

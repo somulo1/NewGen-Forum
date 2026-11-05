@@ -21,8 +21,8 @@
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px">
 <template v-for="(fd, fd__i) in onb.fields" :key="fd.key">
 <label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">{{ fd.label }} *
-<template v-if="fd.isSelect"><select :value="fd.value" @change="fd.onInput" :aria-invalid="fd.hasErr" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px"><option value="">Choose…</option><template v-for="(go, go__i) in fd.options" :key="go__i"><option :value="go">{{ go }}</option></template></select></template>
-<template v-if="!fd.isSelect"><input :type="fd.type" :value="fd.value" @input="fd.onInput" :aria-invalid="fd.hasErr" style="height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px"></template>
+<template v-if="fd.isSelect"><select :value="fd.value" @change="fd.onInput" :aria-invalid="fd.hasErr" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px"><option v-if="String(fd.value || '').includes('•')" :value="fd.value">{{ fd.value }} (hidden)</option><option value="">Choose…</option><template v-for="(go, go__i) in fd.options" :key="go__i"><option :value="go">{{ go }}</option></template></select></template>
+<template v-if="!fd.isSelect"><input :type="String(fd.value || '').includes('•') ? 'text' : fd.type" :value="fd.value" @input="fd.onInput" :aria-invalid="fd.hasErr" style="height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px"></template>
 <template v-if="fd.hasErr"><span role="alert" style="font-size: 12px; color: var(--k-FF9B8A,#FF9B8A)">{{ fd.err }}</span></template>
 </label>
 </template>

@@ -193,13 +193,18 @@ func (m *Module) Start(ctx context.Context, p *tenant.Principal, in StartIn) (*E
 	// a ring that nobody answers becomes a missed call
 	go func(id uuid.UUID) {
 		time.Sleep(45 * time.Second)
+		missed := false
 		_ = m.A.DB.WithOrg(context.Background(), p.Org, func(tx pgx.Tx) error {
 			tag, err := tx.Exec(context.Background(), `update hub.calls set status='missed', ended_at=now(), `+integrity.Bump+` where id=$1 and status='ringing'`, id)
 			if err == nil && tag.RowsAffected() == 1 {
 				err = m.A.Sign.Seal(context.Background(), tx, "calls", "id=$1", id)
+				missed = err == nil
 			}
 			return err
 		})
+		if missed { // nobody answered: the caller stops ringing and everyone's ring clears
+			m.tell(p.Org, id, "call.ended", uuid.Nil)
+		}
 	}(out.Call.ID)
 	return out, nil
 }
@@ -207,11 +212,13 @@ func (m *Module) Start(ctx context.Context, p *tenant.Principal, in StartIn) (*E
 // Join gives someone invited (or in the conversation) a pass for a running call.
 func (m *Module) Join(ctx context.Context, p *tenant.Principal, id uuid.UUID) (*Entry, error) {
 	var out *Entry
+	answers := false
 	err := m.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
 		c, err := m.load(ctx, tx, id, p.Person)
 		if err != nil {
 			return err
 		}
+		answers = c.Status == "ringing" && c.Host != p.Person
 		if c.Status == "ended" || c.Status == "missed" || c.Status == "declined" {
 			return httpx.Err(410, "call_over", "This call has ended.")
 		}
@@ -248,6 +255,12 @@ func (m *Module) Join(ctx context.Context, p *tenant.Principal, id uuid.UUID) (*
 		out = &Entry{Call: c, Mode: "mesh", Token: tok, URL: m.roomURL(id.String()), ICE: m.iceServers(p)}
 		return nil
 	})
+	// Picking up is told at once, from here: the caller (and my other devices) stop ringing now, not after my microphone and the media
+	// connection are ready (which can take seconds, or as long as the permission prompt stays open). The room's own "joined" event
+	// still records the answer in the call history, a little later.
+	if err == nil && answers {
+		go m.tell(p.Org, id, "call.answered", p.Person)
+	}
 	return out, err
 }
 

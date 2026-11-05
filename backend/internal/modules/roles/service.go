@@ -19,6 +19,7 @@ import (
 	"hub/internal/httpx"
 	"hub/internal/integrity"
 	"hub/internal/modules/approvals"
+	"hub/internal/people"
 	"hub/internal/realtime"
 	"hub/internal/tenant"
 )
@@ -355,7 +356,7 @@ func (s *Service) Me(ctx context.Context, p *tenant.Principal) (*Me, error) {
 		}
 		if len(phone) > 0 {
 			if b, err := crypto.FieldOpen(dek, crypto.Context{Org: p.Org.String(), Table: "people", Column: "phone_enc", RowID: p.Person.String()}, phone); err == nil {
-				m.Profile.Phone = string(b)
+				m.Profile.Phone = people.MaskPhone(string(b))
 			}
 		}
 		var bio, skills, photo []byte
@@ -454,6 +455,9 @@ func (s *Service) EditMe(ctx context.Context, p *tenant.Principal, e ProfileEdit
 		if len(photoBytes) > maxPhoto {
 			return httpx.Bad("Profile photos must be 512 KB or smaller.")
 		}
+	}
+	if e.Phone != nil && people.IsMasked(*e.Phone) { // a masked value sent back must never replace the real one
+		return httpx.Bad("Type your full new phone number, or leave the hidden one as it is.")
 	}
 	return s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
 		dek, _, err := s.A.OrgDEK(ctx, tx, p.Org)

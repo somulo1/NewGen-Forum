@@ -29,8 +29,8 @@
 <div style="display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start">
 <div style="flex: 999 1 460px; min-width: 0; display: flex; flex-direction: column; gap: 18px">
 <article style="padding: 24px; display: flex; flex-direction: column; gap: 14px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); border-radius: 16px">
-<p v-if="commView.hasSummary" style="margin: 0; font-size: 17px; font-weight: 600; line-height: 1.5">{{ commView.summary }}</p>
-<div style="font-size: 15px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; max-width: 72ch; color: var(--k-E8EFEA,#E8EFEA)">{{ commView.body }}</div>
+<p v-if="commView.hasSummary" style="margin: 0; font-size: 17px; font-weight: 600; line-height: 1.5"><LinkText :text="commView.summary"/></p>
+<div style="font-size: 15px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; max-width: 72ch; color: var(--k-E8EFEA,#E8EFEA)"><LinkText :text="commView.body"/></div>
 </article>
 <div v-if="commView.hasFiles" style="padding: 18px 20px; display: flex; flex-direction: column; gap: 8px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); border-radius: 16px"><strong style="font-size: 15px">Attachments</strong>
 <template v-for="f in commView.files" :key="f.name"><button type="button" @click="f.open" style="display: flex; gap: 10px; align-items: center; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; text-align: left"><span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ f.name }}</span><span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6); white-space: nowrap">{{ f.meta }} · Open</span></button></template></div>
@@ -46,7 +46,7 @@
 <div style="display: flex; flex-wrap: wrap; gap: 6px"><template v-for="(t, ti) in (showAllTo ? commView.toList : commView.toList.slice(0, 6))" :key="ti"><span style="padding: 4px 10px; border-radius: 12px; font-size: 12px; background: var(--k-22302A,#22302A); color: var(--k-C9D6CF,#C9D6CF)">{{ t }}</span></template></div>
 <button v-if="commView.toList.length > 6" type="button" @click="showAllTo = !showAllTo" style="align-self: flex-start; height: 30px; padding: 0 12px; border-radius: 15px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; font-size: 12px">{{ showAllTo ? 'Show fewer' : 'Show all ' + commView.toList.length }}</button></div>
 <div v-if="commView.fields.length" style="padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); border-radius: 16px"><strong style="font-size: 15px">Details</strong>
-<template v-for="f in commView.fields" :key="f.label"><div style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--k-9DB0A6,#9DB0A6)">{{ f.label }}</span><span style="font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere">{{ f.value }}</span></div></template></div>
+<template v-for="f in commView.fields" :key="f.label"><div style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--k-9DB0A6,#9DB0A6)">{{ f.label }}</span><span style="font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere"><LinkText :text="f.value"/></span></div></template></div>
 </aside>
 </div>
 </div>

@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	pp "hub/internal/people"
 	"hub/internal/testkit"
 )
 
@@ -324,5 +325,31 @@ func TestFirstPasswordEmailLinksToTheSignInPage(t *testing.T) {
 	msgs := e.Dev.To(email)
 	if len(msgs) != 1 || !strings.Contains(msgs[0].Body, "/login") || strings.Contains(msgs[0].Body, "/auth/login") {
 		t.Fatalf("the sign-in link must open the sign-in page (/login): %v", msgs)
+	}
+}
+
+// Personal details leave the API masked, stay clean in storage, and a masked value sent back is refused.
+func TestPersonalDetailsAreMaskedInTransit(t *testing.T) {
+	e := testkit.New(t)
+	ownerU, _ := e.NewOrg("Olivia Owner")
+	o := e.Owner(ownerU)
+	e.MustDo(204, "PATCH", "/me", map[string]any{"phone": "+254700123456"}, ownerU.Access)
+	got := e.MustDo(200, "GET", "/people/"+o.Person, nil, ownerU.Access)
+	if got["phone"] != "+••• ••• 456" || !strings.Contains(got["email"].(string), "•••@") {
+		t.Fatalf("not masked: %v", got)
+	}
+	if code, _ := e.Do("PATCH", "/people/"+o.Person, map[string]any{"phone": got["phone"]}, ownerU.Access); code != 400 {
+		t.Fatalf("masked phone accepted: %d", code)
+	}
+	if code, _ := e.Do("PATCH", "/me", map[string]any{"phone": got["phone"]}, ownerU.Access); code != 400 {
+		t.Fatalf("masked phone accepted on /me: %d", code)
+	}
+	// storage stays clean: a new number comes back masked from its own digits
+	e.MustDo(204, "PATCH", "/me", map[string]any{"phone": "+254700999888"}, ownerU.Access)
+	if got := e.MustDo(200, "GET", "/people/"+o.Person, nil, ownerU.Access); got["phone"] != "+••• ••• 888" {
+		t.Fatalf("after change: %v", got["phone"])
+	}
+	if pp.MaskDOB("1994-03-21") != "••••-03-21" || pp.MaskGender("Female") != "•••" || pp.MaskEmail("benta.mbogo@demulla.co.ke") != "b•••@d•••.ke" {
+		t.Fatal("masks")
 	}
 }

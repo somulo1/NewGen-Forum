@@ -2,7 +2,7 @@
 <template>
 <div :style="node.depth > 0 ? `margin-left: ${node.depth > 4 ? 0 : 14}px; padding-left: 10px; border-left: 2px solid var(--k-2A3832,#2A3832)` : ''">
 <div style="display: flex; gap: 8px; align-items: flex-start; padding-top: 8px">
-<UserAvatar :name="node.who" :uid="node.uid" :self="node.self" :initials="node.initials" :color="node.color" :size="node.depth ? 26 : 32" :font-size="11"/>
+<button type="button" :aria-label="`Open ${node.who}'s profile`" :disabled="!node.openWho" @click.stop="node.openWho && node.openWho()" style="flex: none; align-self: flex-start; padding: 0; border: 0; border-radius: 50%; background: transparent; cursor: pointer"><UserAvatar :name="node.who" :uid="node.uid" :self="node.self" :initials="node.initials" :color="node.color" :size="node.depth ? 26 : 32" :font-size="11"/></button>
 <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px">
 <div style="padding: 8px 12px; border-radius: 4px 16px 16px 16px; background: var(--k-1F2C26,#1F2C26); min-width: 0"><strong style="font-size: 13px">{{ node.who }}</strong><span v-if="node.time" style="font-size: 11px; color: var(--k-9DB0A6,#9DB0A6)"> · {{ node.time }}</span><div v-html="node.htmlText" style="font-size: 14px; line-height: 1.4; overflow-wrap: anywhere"></div></div>
 <div style="display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; padding-left: 2px; font-size: 12px">
