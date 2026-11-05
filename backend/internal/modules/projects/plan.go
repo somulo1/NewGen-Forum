@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"hub/internal/access"
 	"hub/internal/authz"
 	"hub/internal/httpx"
 	"hub/internal/integrity"
@@ -59,6 +60,9 @@ type Change struct {
 
 // member returns the project, locked when asked, for someone on its team.
 func (s *Service) member(ctx context.Context, tx pgx.Tx, p *tenant.Principal, id uuid.UUID, lock bool) (*Project, error) {
+	if err := s.ensureRights(ctx, tx, p.Org); err != nil {
+		return nil, err
+	}
 	var ok bool
 	if err := tx.QueryRow(ctx, `select exists (select 1 from hub.conversation_members where conversation_id=$1 and account_id=$2 and left_at is null)`, id, p.Account).Scan(&ok); err != nil {
 		return nil, err
@@ -84,7 +88,18 @@ func (s *Service) Plan(ctx context.Context, p *tenant.Principal, id uuid.UUID) (
 		if _, err := s.member(ctx, tx, p, id, false); err != nil {
 			return err
 		}
-		rs, err := tx.Query(ctx, `select id, collection, ref, data, created_at, updated_at from hub.project_items where project_id=$1 order by created_at, id`, id)
+		if err := authz.Require(ctx, tx, p.Person, "projects", "View"); err != nil {
+			return err
+		}
+		docs, err := authz.Can(ctx, tx, p.Person, "projects", "View documents")
+		if err != nil {
+			return err
+		}
+		history, err := authz.Can(ctx, tx, p.Person, "projects", "View change history")
+		if err != nil {
+			return err
+		}
+		rs, err := tx.Query(ctx, `select id, collection, ref, data, created_at, updated_at from hub.project_items where project_id=$1 and ($2 or collection not in ('page','page_comment')) order by created_at, id`, id, docs)
 		if err != nil {
 			return err
 		}
@@ -100,7 +115,8 @@ func (s *Service) Plan(ctx context.Context, p *tenant.Principal, id uuid.UUID) (
 		if err := rs.Err(); err != nil {
 			return err
 		}
-		hs, err := tx.Query(ctx, `select item_id, who, at, field, old_value, new_value from hub.project_item_history where project_id=$1 order by at, id`, id)
+		// burndown needs when work finished, so the status record stays; the rest needs the right
+		hs, err := tx.Query(ctx, `select item_id, who, at, field, old_value, new_value from hub.project_item_history h where project_id=$1 and ($2 or field='col') and ($3 or not exists (select 1 from hub.project_items i where i.id=h.item_id and i.collection='page')) order by at, id`, id, history, docs)
 		if err != nil {
 			return err
 		}
@@ -115,6 +131,10 @@ func (s *Service) Plan(ctx context.Context, p *tenant.Principal, id uuid.UUID) (
 		return hs.Err()
 	})
 	return items, changes, err
+}
+
+func (s *Service) ensureRights(ctx context.Context, tx pgx.Tx, org uuid.UUID) error {
+	return access.EnsureProjectRights(ctx, tx, org, func(table, where string, args ...any) error { return s.A.Sign.Seal(ctx, tx, table, where, args...) })
 }
 
 func text(m map[string]any, k string) string { v, _ := m[k].(string); return v }
@@ -148,16 +168,26 @@ func mayChange(ctx context.Context, tx pgx.Tx, p *tenant.Principal, pr *Project,
 			return authz.RequireOwn(ctx, tx, p.Person, "projects", "Move tasks", "Edit own tasks", true)
 		}
 		return authz.Require(ctx, tx, p.Person, "projects", "Move tasks")
-	case "milestone", "sprint":
+	case "milestone":
 		return authz.Require(ctx, tx, p.Person, "projects", "Manage milestones")
+	case "sprint":
+		return authz.Require(ctx, tx, p.Person, "projects", "Plan sprints")
 	case "risk":
 		return authz.Require(ctx, tx, p.Person, "projects", "Manage team")
 	case "page":
-		if pr.Owner == p.Person || mine {
+		if isNew {
+			return authz.Require(ctx, tx, p.Person, "projects", "Create pages")
+		}
+		return authz.Require(ctx, tx, p.Person, "projects", "Edit pages")
+	case "page_comment":
+		if isNew {
+			return authz.Require(ctx, tx, p.Person, "projects", "Comment on pages")
+		}
+		if mine {
 			return nil
 		}
-		return authz.Require(ctx, tx, p.Person, "projects", "Edit tasks")
-	case "activity", "page_comment":
+		return httpx.ErrForbidden
+	case "activity":
 		if isNew || mine {
 			return nil
 		}
@@ -166,10 +196,64 @@ func mayChange(ctx context.Context, tx pgx.Tx, p *tenant.Principal, pr *Project,
 	return httpx.Bad("Unknown kind of item.")
 }
 
+// A change that touches only these fields needs only its own right, not the right to edit the task.
+var narrowTask = []struct {
+	right  string
+	fields map[string]bool
+}{
+	{"Rank backlog", map[string]bool{"rank": true}},
+	{"Plan sprints", map[string]bool{"sprint": true, "due": true}},
+	{"Reschedule tasks", map[string]bool{"start": true, "due": true}},
+	{"Save baseline", map[string]bool{"baseStart": true, "baseDue": true}},
+}
+
+func changedFields(old, next map[string]any, skip ...string) map[string]bool {
+	out := map[string]bool{}
+	for _, m := range []map[string]any{old, next} {
+		for k := range m {
+			ob, _ := json.Marshal(old[k])
+			nb, _ := json.Marshal(next[k])
+			if string(ob) != string(nb) {
+				out[k] = true
+			}
+		}
+	}
+	for _, k := range skip {
+		delete(out, k)
+	}
+	return out
+}
+
+// narrowRight finds the single right that covers this task change, if there is one.
+func narrowRight(old, next map[string]any) string {
+	ch := changedFields(old, next, "col")
+	if len(ch) == 0 {
+		return ""
+	}
+	for _, n := range narrowTask {
+		ok := true
+		for f := range ch {
+			ok = ok && n.fields[f]
+		}
+		if ok {
+			return n.right
+		}
+	}
+	return ""
+}
+
 // taskRules: the project manager moves a task into or out of a finished status; its owners move it between the others (the manager may
 // too) and are the only ones who edit it. Owners are read from the stored task, never from what is being sent.
-func taskRules(p *tenant.Principal, pr *Project, old, next map[string]any) error {
+func taskRules(ctx context.Context, tx pgx.Tx, p *tenant.Principal, pr *Project, old, next map[string]any) error {
 	isManager := pr.Owner == p.Person
+	finish, err := authz.Can(ctx, tx, p.Person, "projects", "Finish tasks")
+	if err != nil {
+		return err
+	}
+	editAny, err := authz.Can(ctx, tx, p.Person, "projects", "Edit any task")
+	if err != nil {
+		return err
+	}
 	me := p.Person.String()
 	isOwner := text(old, "assignee") == me || text(old, "secondary_id") == me
 	cat := map[string]int{}
@@ -179,18 +263,18 @@ func taskRules(p *tenant.Principal, pr *Project, old, next map[string]any) error
 	from, to := text(old, "status"), text(next, "status")
 	switch {
 	case from != to && (cat[from] == 3 || cat[to] == 3):
-		if !isManager {
+		if !isManager && !finish {
 			return httpx.Err(403, "manager_only", "Only the project manager can move a task to Done or back from Done.")
 		}
 	case from != to:
-		if !isManager && !isOwner {
+		if !isManager && !isOwner && !editAny {
 			return httpx.Err(403, "owners_only", "Only the people the task is assigned to, or the project manager, can move it.")
 		}
 	default:
 		if text(old, "assignee") == "" && text(old, "secondary_id") == "" {
 			return nil
 		}
-		if !isOwner && !isManager {
+		if !isOwner && !isManager && !editAny {
 			return httpx.Err(403, "owners_only", "Only the people the task is assigned to can edit it.")
 		}
 	}
@@ -391,20 +475,40 @@ func (s *Service) Save(ctx context.Context, p *tenant.Principal, project, id uui
 		if !isNew && oldColl != coll {
 			return httpx.Bad("An item cannot change its kind.")
 		}
-		if err := mayChange(ctx, tx, p, pr, coll, isNew, author); err != nil {
-			return err
-		}
 		old := map[string]any{}
 		if !isNew {
 			_ = json.Unmarshal(oldB, &old)
+		}
+		// a narrow change needs only its own right
+		narrow := ""
+		if coll == "task" && !isNew {
+			narrow = narrowRight(old, data)
+		}
+		if coll == "page" && !isNew {
+			ch := changedFields(old, data, "baseAt", "author")
+			switch {
+			case len(ch) == 1 && ch["watchers"]:
+				narrow = "View documents"
+			case len(ch) == 1 && ch["locked"]:
+				narrow = "Lock pages"
+			case len(ch) == 1 && ch["files"]:
+				narrow = "Attach to pages"
+			}
+		}
+		if narrow != "" {
+			if err := authz.Require(ctx, tx, p.Person, "projects", narrow); err != nil {
+				return err
+			}
+		} else if err := mayChange(ctx, tx, p, pr, coll, isNew, author); err != nil {
+			return err
 		}
 		switch coll {
 		case "task":
 			if err := s.checkTask(ctx, tx, pr, id, data); err != nil {
 				return err
 			}
-			if !isNew {
-				if err := taskRules(p, pr, old, data); err != nil {
+			if !isNew && narrow == "" {
+				if err := taskRules(ctx, tx, p, pr, old, data); err != nil {
 					return err
 				}
 				if text(old, "status") != text(data, "status") {
@@ -441,8 +545,12 @@ func (s *Service) Save(ctx context.Context, p *tenant.Principal, project, id uui
 						return httpx.Err(409, "page_changed", "Someone else saved this page while you were editing. Reload it and add your changes again.")
 					}
 				}
-				if locked, _ := old["locked"].(bool); locked && pr.Owner != p.Person && (author == nil || *author != p.Person) {
-					return httpx.Err(403, "page_locked", "Only the page's author or the project manager can change this page.")
+				canLock, err := authz.Can(ctx, tx, p.Person, "projects", "Lock pages")
+				if err != nil {
+					return err
+				}
+				if locked, _ := old["locked"].(bool); locked && !canLock && pr.Owner != p.Person && (author == nil || *author != p.Person) && narrow != "View documents" {
+					return httpx.Err(403, "page_locked", "This page is locked.")
 				}
 			}
 			delete(data, "baseAt")
@@ -532,7 +640,15 @@ func (s *Service) Delete(ctx context.Context, p *tenant.Principal, project, id u
 		if err := tx.QueryRow(ctx, `select collection, created_by from hub.project_items where id=$1 and project_id=$2`, id, project).Scan(&coll, &author); err != nil {
 			return httpx.ErrNotFound
 		}
-		if err := mayChange(ctx, tx, p, pr, coll, false, author); err != nil {
+		switch coll {
+		case "task":
+			err = authz.Require(ctx, tx, p.Person, "projects", "Delete tasks")
+		case "page":
+			err = authz.Require(ctx, tx, p.Person, "projects", "Delete pages")
+		default:
+			err = mayChange(ctx, tx, p, pr, coll, false, author)
+		}
+		if err != nil {
 			return err
 		}
 		if coll == "task" {
@@ -612,8 +728,11 @@ func (s *Service) Import(ctx context.Context, p *tenant.Principal, project uuid.
 }
 
 // patchPlan changes a project's type and workflow. A status still holding tasks cannot be removed.
-func (s *Service) patchPlan(ctx context.Context, tx pgx.Tx, id uuid.UUID, in Patch) error {
+func (s *Service) patchPlan(ctx context.Context, tx pgx.Tx, p *tenant.Principal, id uuid.UUID, in Patch) error {
 	if in.Method != nil {
+		if err := authz.Require(ctx, tx, p.Person, "projects", "Change project type"); err != nil {
+			return err
+		}
 		if !methods[*in.Method] {
 			return httpx.Bad("Choose agile, waterfall or hybrid.")
 		}
@@ -626,6 +745,9 @@ func (s *Service) patchPlan(ctx context.Context, tx pgx.Tx, id uuid.UUID, in Pat
 	}
 	if in.Workflow == nil {
 		return nil
+	}
+	if err := authz.Require(ctx, tx, p.Person, "projects", "Manage workflow"); err != nil {
+		return err
 	}
 	w := in.Workflow
 	if len(w) < 2 || len(w) > 12 {

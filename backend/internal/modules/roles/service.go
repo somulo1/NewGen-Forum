@@ -344,6 +344,9 @@ func pctx(org, person uuid.UUID, col string) crypto.Context {
 func (s *Service) Me(ctx context.Context, p *tenant.Principal) (*Me, error) {
 	m := &Me{Account: p.Account, Person: p.Person, Name: p.Name, Rights: map[string][]string{}, Profile: Profile{Skills: []string{}}}
 	err := s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
+		if err := access.EnsureProjectRights(ctx, tx, p.Org, func(table, where string, args ...any) error { return s.A.Sign.Seal(ctx, tx, table, where, args...) }); err != nil {
+			return err
+		}
 		var phone []byte
 		err := tx.QueryRow(ctx, `select p.status, p.availability, p.phone_enc, p.first_name || ' ' || p.last_name, coalesce(r.key,''), coalesce(r.name,'')
 			from hub.people p left join hub.person_roles pr on pr.person_id=p.id left join hub.roles r on r.id=pr.role_id where p.id=$1`, p.Person).Scan(&m.Status, &m.Profile.Availability, &phone, &m.Name, &m.Role, &m.RoleName)

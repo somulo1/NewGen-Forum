@@ -179,3 +179,69 @@ func TestProjectAutomation(t *testing.T) {
 		t.Fatal("the move did not happen exactly once")
 	}
 }
+
+// Every part of the plan follows its own right, set on the Roles page; older rights carry over.
+func TestPlanFollowsItsRights(t *testing.T) {
+	e := testkit.New(t)
+	ownerU, slug := e.NewOrg("Olivia Owner")
+	o := e.Owner(ownerU)
+	amy := e.Join(ownerU, slug, "Amy", "hod")
+	for _, m := range []*testkit.Member{o, amy} {
+		m.Register(e)
+	}
+	key, _ := e2ee.NewConversationKey()
+	conv := e.MustDo(201, "POST", "/conversations", map[string]any{"kind": "project", "name": "R", "members": []string{amy.Person}, "keys": o.WrapFor(e, key, 1, o.Person, amy.Person)}, ownerU.Access)["id"].(string)
+	e.MustDo(201, "POST", "/projects", map[string]any{"conversation": conv, "start": "2026-01-01", "due": "2027-01-01"}, ownerU.Access)
+	rights := e.MustDo(200, "GET", "/me", nil, amy.Access)["rights"].(map[string]any)["projects"].([]any)
+	has := func(n string) bool {
+		for _, r := range rights {
+			if r == n {
+				return true
+			}
+		}
+		return false
+	}
+	if !has("Edit pages") || !has("Rank backlog") || has("Finish tasks") {
+		t.Fatalf("starting rights: %v", rights)
+	}
+	e.MustDo(204, "PUT", "/approvals/flows/f8", map[string]any{"levels": 0}, ownerU.Access)
+	set := func(right string, on bool) {
+		t.Helper()
+		e.MustDo(200, "PUT", "/people/"+amy.Person+"/rights", map[string]any{"module": "projects", "right": right, "allowed": on}, ownerU.Access)
+	}
+	id := func() string { return uuid.Must(uuid.NewV7()).String() }
+	page := id()
+	e.MustDo(200, "PUT", "/projects/"+conv+"/items/"+page, map[string]any{"collection": "page", "data": map[string]any{"title": "Doc", "body": "x"}}, amy.Access)
+	set("View documents", false)
+	if items := e.MustDo(200, "GET", "/projects/"+conv+"/plan", nil, amy.Access)["items"].([]any); len(items) != 0 {
+		t.Fatalf("documents shown without the right: %v", items)
+	}
+	set("Delete pages", false)
+	if code, _ := e.Do("DELETE", "/projects/"+conv+"/items/"+page, nil, amy.Access); code != 403 {
+		t.Fatalf("deleted without the right: %d", code)
+	}
+	// ranking needs only its right, not ownership of the task
+	task := id()
+	base := map[string]any{"title": "T", "due": "2026-05-01"}
+	e.MustDo(200, "PUT", "/projects/"+conv+"/items/"+task, map[string]any{"collection": "task", "data": base}, ownerU.Access)
+	got := e.MustDo(200, "GET", "/projects/"+conv+"/plan", nil, ownerU.Access)["items"].([]any)
+	var stored map[string]any
+	for _, x := range got {
+		if m := x.(map[string]any); m["id"] == task {
+			stored = m["data"].(map[string]any)
+		}
+	}
+	stored["rank"] = 1000
+	e.MustDo(200, "PUT", "/projects/"+conv+"/items/"+task, map[string]any{"collection": "task", "data": stored}, amy.Access)
+	set("Rank backlog", false)
+	stored["rank"] = 2000
+	if code, _ := e.Do("PUT", "/projects/"+conv+"/items/"+task, map[string]any{"collection": "task", "data": stored}, amy.Access); code != 403 {
+		t.Fatalf("ranked without the right: %d", code)
+	}
+	if code, _ := e.Do("PATCH", "/projects/"+conv, map[string]any{"method": "waterfall"}, amy.Access); code == 200 {
+		set("Change project type", false)
+		if code, _ := e.Do("PATCH", "/projects/"+conv, map[string]any{"method": "agile"}, amy.Access); code != 403 {
+			t.Fatalf("changed type without the right: %d", code)
+		}
+	}
+}
