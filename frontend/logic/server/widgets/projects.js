@@ -81,7 +81,7 @@ async function mapProject(srv, row) {
     milestones: of('milestone').map(base), sprints: of('sprint').map(base), tasks, risks: of('risk').map(base), pages: of('page').map(base), comments: of('page_comment').map(base),
     activity: of('activity').reverse().map((x) => ({ ...base(x), time: ago(x.created_at) }))
   };
-  if (!p.milestones.length) p.milestones = [{ id: row.id + '-m1', name: 'Project delivery', iso: p.due }];
+  if (!p.milestones.length) p.milestones = [{ id: row.id + '-m1', name: p.name + ' delivery', iso: p.due }];
   return normalizeProject(p);
 }
 
@@ -108,7 +108,7 @@ export async function create(logic, srv, f, color) {
   const team = f.team.map((n) => pidOf(srv, n)).filter((x) => x && x !== srv.me.person);
   const conv = await srv.request('POST', '/conversations', { kind: 'project', name: f.name, about: f.goal, color, members: team, keys: await keysFor(srv, team) });
   const res = await srv.request('POST', '/projects', { conversation: conv.id, color, method: f.method || 'agile', start: f.start, due: f.due, budget_pct: Math.min(100, Math.max(0, Number(f.budget) || 0)), sync: 'Not synced', links: [] });
-  await srv.request('PUT', `/projects/${conv.id}/items/${newId()}`, { collection: 'milestone', data: { name: f.method === 'waterfall' ? 'Delivery phase' : 'Project delivery', desc: '', iso: f.due, closed: false, history: [] } });
+  await srv.request('PUT', `/projects/${conv.id}/items/${newId()}`, { collection: 'milestone', data: { name: f.name + (f.method === 'waterfall' ? ' delivery phase' : ' delivery'), desc: '', iso: f.due, closed: false, history: [] } });
   await srv.request('PUT', `/projects/${conv.id}/items/${newId()}`, { collection: 'activity', data: { text: 'Project created by ' + srv.me.name } });
   if (res.project && res.project.status !== 'Pending approval') await reload(logic, srv, conv.id);
   return res;
