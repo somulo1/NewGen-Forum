@@ -39,21 +39,23 @@ async function mapLegacy(srv, row) {
   };
   p.unreadable = open.some((x) => x.unread && ['task', 'milestone', 'sprint', 'risk', 'activity'].includes(x.r.collection));
   p.times = new Map(live.map((r) => [r.id, r.created_at]));
+  p.unreadIds = new Set(open.filter((x) => x.unread).map((x) => x.r.id));
   return p;
 }
 
 const plainOf = (x) => { const o = { ...x }; ['id', 'ref', 'key', 'changes', 'time', 'createdAt', 'updatedAt'].forEach((k) => delete o[k]); return o; };
 
-async function importLegacy(srv, row) {
+async function importLegacy(srv, row, force = false) {
   const old = await mapLegacy(srv, row);
-  if (old.unreadable) return false;   // this device cannot read all of it: leave it for one that can, losing nothing
+  if (old.unreadable && !force) return false;   // this device cannot read all of it: leave it for one that can, unless someone chooses to move the rest
   const items = [];
   const add = (collection, list, data) => (list || []).forEach((x) => { if (isUuid(x.id)) items.push({ id: x.id, collection, created_at: old.times.get(x.id), data: data(x) }); });
-  add('milestone', old.milestones, plainOf);
-  add('sprint', old.sprints, plainOf);
-  add('task', old.tasks, (t) => ({ ...plainOf(t), kind: 'task', deps: [], status: COLS[t.col] || 'todo', assignee: pidOf(srv, t.primary) || '', secondary_id: pidOf(srv, t.secondary) || '' }));
-  add('risk', old.risks, plainOf);
-  add('activity', old.activity, plainOf);
+  const readable = (l) => (l || []).filter((x) => !old.unreadIds.has(x.id));
+  add('milestone', readable(old.milestones), plainOf);
+  add('sprint', readable(old.sprints), plainOf);
+  add('task', (old.tasks || []).filter((t) => !old.unreadIds.has(t.id)), (t) => ({ ...plainOf(t), kind: 'task', deps: [], status: COLS[t.col] || 'todo', assignee: pidOf(srv, t.primary) || '', secondary_id: pidOf(srv, t.secondary) || '' }));
+  add('risk', readable(old.risks), plainOf);
+  add('activity', readable(old.activity), plainOf);
   await srv.request('POST', `/projects/${row.id}/import`, { items });
   return true;
 }
@@ -61,8 +63,8 @@ async function importLegacy(srv, row) {
 async function mapProject(srv, row) {
   if (!row.plan_imported && !(await importLegacy(srv, row))) {
     const old = await mapLegacy(srv, row);
-    if (!old.milestones.length) old.milestones = [{ id: row.id + '-m1', name: 'Project delivery', iso: old.due }];
-    return normalizeProject({ ...old, method: row.method, workflow: row.workflow, unreadable: undefined, times: undefined, pages: [] });
+    const unread = old.tasks.filter((t) => old.unreadIds.has(t.id)).length + old.milestones.filter((m) => old.unreadIds.has(m.id)).length + old.sprints.filter((x) => old.unreadIds.has(x.id)).length;
+    return normalizeProject({ ...old, tasks: old.tasks.filter((t) => !old.unreadIds.has(t.id)), milestones: old.milestones.filter((m) => !old.unreadIds.has(m.id)), sprints: old.sprints.filter((x) => !old.unreadIds.has(x.id)), method: row.method, workflow: row.workflow, stuck: { unread }, unreadable: undefined, times: undefined, unreadIds: undefined, pages: [] });
   }
   if (srv.rt) srv.rt.sub(row.id);   // live changes and co-editing arrive on the project's channel
   const conv = await srv.vault.conversation(row.id, true);
@@ -81,7 +83,6 @@ async function mapProject(srv, row) {
     milestones: of('milestone').map(base), sprints: of('sprint').map(base), tasks, risks: of('risk').map(base), pages: of('page').map(base), comments: of('page_comment').map(base),
     activity: of('activity').reverse().map((x) => ({ ...base(x), time: ago(x.created_at) }))
   };
-  if (!p.milestones.length) p.milestones = [{ id: row.id + '-m1', name: p.name + ' delivery', iso: p.due }];
   return normalizeProject(p);
 }
 
@@ -108,10 +109,17 @@ export async function create(logic, srv, f, color) {
   const team = f.team.map((n) => pidOf(srv, n)).filter((x) => x && x !== srv.me.person);
   const conv = await srv.request('POST', '/conversations', { kind: 'project', name: f.name, about: f.goal, color, members: team, keys: await keysFor(srv, team) });
   const res = await srv.request('POST', '/projects', { conversation: conv.id, color, method: f.method || 'agile', start: f.start, due: f.due, budget_pct: Math.min(100, Math.max(0, Number(f.budget) || 0)), sync: 'Not synced', links: [] });
-  await srv.request('PUT', `/projects/${conv.id}/items/${newId()}`, { collection: 'milestone', data: { name: f.name + (f.method === 'waterfall' ? ' delivery phase' : ' delivery'), desc: '', iso: f.due, closed: false, history: [] } });
   await srv.request('PUT', `/projects/${conv.id}/items/${newId()}`, { collection: 'activity', data: { text: 'Project created by ' + srv.me.name } });
   if (res.project && res.project.status !== 'Pending approval') await reload(logic, srv, conv.id);
   return res;
+}
+
+// The older plan has items no device here can read. Moves what can be read; the unread records stay stored, untouched.
+export async function moveReadablePlan(logic, srv, pid) {
+  const { projects } = await srv.request('GET', '/projects');
+  const row = projects.find((p) => p.id === pid);
+  if (row && !row.plan_imported) await importLegacy(srv, row, true);
+  await reload(logic, srv, pid);
 }
 
 export async function closeSprint(logic, srv, pid, sprint) {

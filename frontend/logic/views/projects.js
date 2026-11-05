@@ -93,7 +93,7 @@ export function buildProjects(ctx) {
     const c = projCalc(p);
     return { ...p, initials: initialsOf(p.name), progress: c.progress, statusStyle: badge(c.sc), statusColor: c.sc,
       barStyle: 'height:100%;width:' + Math.max(3, c.progress) + '%;background:' + c.sc + ';border-radius:4px',
-      nextMilestone: c.next ? c.next.name : 'All done', dueLabel: longDate(p.due), dueShort: shortDate(p.due),
+      nextMilestone: c.next ? c.next.name : p.milestones.length ? 'All done' : 'None yet', dueLabel: longDate(p.due), dueShort: shortDate(p.due),
       sprintLabel: c.cur ? c.cur.name : 'No sprint now',
       team: p.team.slice(0, 4).map((n) => ({ name: n, initials: ini(n), color: pColor[n] || '#9DB0A6' })), teamSize: p.team.length,
       open: () => this.setState({ section: 'projects', projectOpen: p.id, ticketOpen: null, taskForm: null }) };
@@ -120,6 +120,7 @@ export function buildProjects(ctx) {
     const openMsClose = (m) => this.setState({ msDialog: { mode: 'close', pid: pid, mid: m.id, comment: '', err: '' } });
     const openMsReopen = (m) => this.setState({ msDialog: { mode: 'reopen', pid: pid, mid: m.id, comment: '', err: '' } });
     const openSprint = (milestone) => {
+      if (!cur_p.milestones.some((m) => !m.closed)) { this.notify('Add a milestone first. A sprint sits under a milestone.', '#FFB86B'); return; }
       const d = sprintDefaults(cur_p, milestone);
       this.setState({ msDialog: { mode: 'sprint', pid: pid, lockProject: true, milestone: milestone || '', name: nextSprintName(cur_p), start: d.start, end: d.end, err: '' } });
     };
@@ -202,7 +203,7 @@ export function buildProjects(ctx) {
         addSprint: () => openSprint(''),
         submit: () => {
           const err = validateTask(cur_p, f);
-          if (err) { this.setState({ taskForm: { ...f, err } }); return; }
+          if (err) { this.setState({ taskForm: { ...f, err: waterfall && !cur_p.milestones.some((m) => !m.closed) ? 'Add a phase first. A task sits in a phase.' : err } }); return; }
           const title = f.title.trim();
           this.setState((st) => ({ taskForm: null, projects: st.projects.map((p) => (p.id === pid ? { ...p, tasks: p.tasks.concat([{ title: title, kind: f.kind || 'task', points: f.points === '' ? null : Number(f.points), parent: f.parent || '', deps: f.deps || [], milestone: waterfall ? f.milestone : '', status: wfOf(p)[0].key, desc: f.desc.trim(), objective: f.objective.trim(), sprint: waterfall ? '' : f.sprint, col: wfOf(p)[0].cat, primary: f.owner || p.owner, secondary: '', start: today, due: f.due, links: [] }]), activity: [{ text: 'You created "' + title + '"' + (sp ? ' in ' + sp.name + ' (' + sp.milestoneName + ')' : waterfall ? ' in its phase' : ' in the backlog'), time: 'Just now' }].concat(p.activity) } : p)) }));
           this.notify(sp ? 'Task "' + title + '" added to ' + sp.name + '. It now counts toward "' + sp.milestoneName + '".' : 'Task "' + title + '" added.', '#B8F36B');
