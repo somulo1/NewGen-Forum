@@ -579,6 +579,19 @@ func (s *Service) Save(ctx context.Context, p *tenant.Principal, project, id uui
 		if err != nil && !isNew {
 			return err
 		}
+		if isNew {
+			// an id used by an item of another project must never reach across
+			var elsewhere bool
+			if err := tx.QueryRow(ctx, `select exists (select 1 from hub.project_items where id=$1)`, id).Scan(&elsewhere); err != nil {
+				return err
+			}
+			if elsewhere {
+				return httpx.Err(409, "other_project", "That item belongs to another project.")
+			}
+		}
+		if err := checkLinks(ctx, tx, project, coll, data); err != nil {
+			return err
+		}
 		if !isNew && oldColl != coll {
 			return httpx.Bad("An item cannot change its kind.")
 		}
@@ -764,6 +777,35 @@ func (s *Service) Save(ctx context.Context, p *tenant.Principal, project, id uui
 		s.planChanged(ctx, p, project)
 	}
 	return out, err
+}
+
+// checkLinks keeps a project to itself: what an item points at has to be in the same project.
+func checkLinks(ctx context.Context, tx pgx.Tx, project uuid.UUID, coll string, data map[string]any) error {
+	links := map[string][]string{
+		"task":         {"sprint:sprint", "milestone:milestone"},
+		"sprint":       {"milestone:milestone"},
+		"page":         {"parent:page"},
+		"page_comment": {"page:page"},
+	}[coll]
+	for _, l := range links {
+		field, want, _ := strings.Cut(l, ":")
+		v := text(data, field)
+		if v == "" {
+			continue
+		}
+		id, err := uuid.Parse(v)
+		if err != nil {
+			return httpx.Bad("That " + want + " is not in this project.")
+		}
+		var ok bool
+		if err := tx.QueryRow(ctx, `select exists (select 1 from hub.project_items where id=$1 and project_id=$2 and collection=$3)`, id, project, want).Scan(&ok); err != nil {
+			return err
+		}
+		if !ok {
+			return httpx.Bad("That " + want + " is not in this project.")
+		}
+	}
+	return nil
 }
 
 func contains(l []string, v string) bool {

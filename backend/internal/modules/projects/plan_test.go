@@ -268,3 +268,42 @@ func TestPlanFollowsItsRights(t *testing.T) {
 		}
 	}
 }
+
+// A project is managed on its own: nothing in it can point into, or take over an item of, another project.
+func TestProjectsStaySeparate(t *testing.T) {
+	e := testkit.New(t)
+	ownerU, _ := e.NewOrg("Olivia Owner")
+	o := e.Owner(ownerU)
+	o.Register(e)
+	mk := func(name string) string {
+		key, _ := e2ee.NewConversationKey()
+		conv := e.MustDo(201, "POST", "/conversations", map[string]any{"kind": "project", "name": name, "members": []string{}, "keys": o.WrapFor(e, key, 1, o.Person)}, ownerU.Access)["id"].(string)
+		e.MustDo(201, "POST", "/projects", map[string]any{"conversation": conv, "start": "2026-01-01", "due": "2027-01-01"}, ownerU.Access)
+		return conv
+	}
+	a, b := mk("A"), mk("B")
+	id := func() string { return uuid.Must(uuid.NewV7()).String() }
+	ms, sp := id(), id()
+	put := func(conv, item, coll string, d map[string]any) int {
+		code, _ := e.Do("PUT", "/projects/"+conv+"/items/"+item, map[string]any{"collection": coll, "data": d}, ownerU.Access)
+		return code
+	}
+	if c := put(a, ms, "milestone", map[string]any{"name": "M", "iso": "2026-06-01"}); c != 200 {
+		t.Fatal(c)
+	}
+	if c := put(a, sp, "sprint", map[string]any{"name": "S", "start": "2026-02-01", "end": "2026-02-14", "milestone": ms}); c != 200 {
+		t.Fatal(c)
+	}
+	if c := put(b, id(), "sprint", map[string]any{"name": "S", "milestone": ms}); c != 400 {
+		t.Fatalf("a sprint joined another project's milestone: %d", c)
+	}
+	if c := put(b, id(), "task", map[string]any{"title": "T", "sprint": sp}); c != 400 {
+		t.Fatalf("a task joined another project's sprint: %d", c)
+	}
+	if c := put(b, ms, "milestone", map[string]any{"name": "Taken", "iso": "2026-06-01"}); c != 409 {
+		t.Fatalf("took another project's item: %d", c)
+	}
+	if n := len(e.MustDo(200, "GET", "/projects/"+b+"/plan", nil, ownerU.Access)["items"].([]any)); n != 0 {
+		t.Fatalf("project B holds %d items", n)
+	}
+}
