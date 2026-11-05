@@ -335,6 +335,12 @@
    "levels": 0
   },
   {
+   "id": "f20",
+   "mod": "projects",
+   "action": "Pass a project phase gate",
+   "levels": 1
+  },
+  {
    "id": "f3",
    "mod": "files",
    "action": "Share a file outside Hub",

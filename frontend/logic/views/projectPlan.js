@@ -1,5 +1,5 @@
-import { richTextHtml } from '~/logic/richText.js';
-import { CAT_COLORS, addDaysIso, doneAt, isoMs, openDeps, statusEntry, wfOf } from '~/logic/projects.js';
+import { pageHtml, lineDiff } from '~/logic/pageMarkup.js';
+import { CAT_COLORS, addDaysIso, criticalPath, doneAt, isoMs, openDeps, statusEntry, wfOf } from '~/logic/projects.js';
 
 // The open project's plan views: backlog or work breakdown, timeline, reports, documents and settings. Edits go into state.projects, and the
 // projects widget writes them to the server like every other project change.
@@ -14,10 +14,10 @@ const TEMPLATES = {
 const DAY = 86400000;
 
 export function buildPlan(ctx) {
-  const { s, can, me, today, cur_p: p, tools, shortDate, longDate } = ctx;
+  const { s, can, me, today, cur_p: p, tools, shortDate, longDate, projectsW } = ctx;
   const pid = p.id;
   const waterfall = p.method === 'waterfall';
-  const tab = s.planTab || 'backlog';
+  const tab = s.planTab || 'overview';
   const isManager = p.owner === me;
   const canSettings = isManager || can('projects', 'Manage team');
   const tasksOf = (fn) => p.tasks.map((t, ti) => ({ t, ti })).filter(({ t }) => fn(t));
@@ -39,7 +39,18 @@ export function buildPlan(ctx) {
     const pct = under.length ? Math.round((pts(done) || done.length) / (pts(under) || under.length) * 100) : 0;
     return { id: t.id || ti, key: t.key || '', title: t.title, count: under.length, done: done.length, points: pts(under), pct, bar: 'height:100%;width:' + Math.max(2, pct) + '%;background:#7CC4FF;border-radius:3px', open: () => tools.openTask(ti) };
   });
-  const backlog = tasksOf((t) => !t.sprint && !t.milestone && t.col !== 3 && t.kind !== 'epic').map(row);
+  const rankOf = (t, i) => (t.rank === undefined || t.rank === null ? i * 1000 : t.rank);
+  const ordered0 = tasksOf((t) => !t.sprint && !t.milestone && t.col !== 3 && t.kind !== 'epic').sort((a, b) => rankOf(a.t, a.ti) - rankOf(b.t, b.ti));
+  // the order is the priority: moving an item renumbers the list
+  const moveRank = (from, to) => {
+    if (from === to || to < 0 || to >= ordered0.length) return;
+    const l = ordered0.slice();
+    const [x] = l.splice(from, 1);
+    l.splice(to, 0, x);
+    const ranks = new Map(l.map((e, n) => [e.ti, n * 1000]));
+    patch((pp) => ({ ...pp, tasks: pp.tasks.map((y, j) => (ranks.has(j) && y.rank !== ranks.get(j) ? { ...y, rank: ranks.get(j) } : y)) }));
+  };
+  const backlog = ordered0.map((e, n) => ({ ...row(e), n, first: n === 0, last: n === ordered0.length - 1, up: () => moveRank(n, n - 1), down: () => moveRank(n, n + 1), dropOn: (from) => moveRank(from, n) }));
   const phases = tools.tl.map((m) => ({ id: m.id, name: m.name, due: shortDate(m.iso), done: m.done, total: m.total, status: m.status, rows: tasksOf((t) => t.milestone === m.id || p.sprints.some((sp) => sp.id === t.sprint && sp.milestone === m.id)).map(row) }));
 
   // ---- timeline ----
@@ -58,7 +69,21 @@ export function buildPlan(ctx) {
     yOfTask.set(t.id, { y, x1: xOf(start), x2: xOf(t.due) + dayW });
     const st = statusEntry(p, t);
     rows.push({ type: 'task', key: t.id || 'x' + ti, y, label: t.title.length > 28 ? t.title.slice(0, 27) + '…' : t.title, x: xOf(start), w: Math.max(dayW, xOf(t.due) + dayW - xOf(start)), color: t.col !== 3 && t.due < today ? '#FF9B8A' : CAT_COLORS[st.cat],
+      critical: critical.has(t.id), baseX: t.baseDue ? xOf(t.baseStart || t.baseDue) : null, baseW: t.baseDue ? Math.max(dayW, xOf(t.baseDue) + dayW - xOf(t.baseStart || t.baseDue)) : 0, canDrag: isManager || t.primary === me || t.secondary === me, shift: (px) => shiftTask(ti, Math.round(px / dayW)),
       tip: (t.key ? t.key + ' · ' : '') + t.title + ' · ' + st.name + ' · ' + shortDate(start) + ' – ' + shortDate(t.due) + (t.primary ? ' · ' + t.primary : ''), open: () => tools.openTask(ti) });
+  };
+  const critical = criticalPath(p);
+  // moving a bar moves its dates; the work that depends on it follows when it would now overlap
+  const shiftTask = (ti, days) => {
+    if (!days) return;
+    patch((pp) => {
+      const tasks = pp.tasks.map((x) => ({ ...x }));
+      const move = (t, d) => { if (t.start) t.start = addDaysIso(t.start, d); t.due = addDaysIso(t.due, d); };
+      move(tasks[ti], days);
+      const walk = (t, n) => { if (n > 50) return; tasks.filter((x) => (x.deps || []).includes(t.id) && x.col !== 3).forEach((x) => { const st = x.start || x.due; if (st <= t.due) { const gap = Math.round((isoMs(t.due) - isoMs(st)) / DAY) + 1; move(x, gap); walk(x, n + 1); } }); };
+      if (tasks[ti].id) walk(tasks[ti], 0);
+      return { ...pp, tasks };
+    });
   };
   const seen = new Set();
   tools.tl.forEach((m) => {
@@ -75,7 +100,7 @@ export function buildPlan(ctx) {
   }));
   const ticks = [];
   for (let i = 0; i < days; i += Math.max(1, Math.round(70 / dayW))) { const iso = addDaysIso(from, i); ticks.push({ x: xOf(iso), label: shortDate(iso) }); }
-  const timeline = { rows, links, ticks, width: Math.ceil(LABEL + days * dayW + 20), height: TOP + rows.length * ROW + 8, todayX: today >= from && today <= to ? xOf(today) : null, label: LABEL, empty: rows.length === 0 };
+  const timeline = { hasCritical: critical.size > 0, hasBaseline: p.tasks.some((t) => t.baseDue), canBaseline: isManager, saveBaseline: () => { patch((pp) => ({ ...pp, tasks: pp.tasks.map((t) => ({ ...t, baseStart: t.start || t.due, baseDue: t.due })) })); this.notify('Baseline saved. Later date changes show against it.', '#B8F36B'); }, rows, links, ticks, width: Math.ceil(LABEL + days * dayW + 20), height: TOP + rows.length * ROW + 8, todayX: today >= from && today <= to ? xOf(today) : null, label: LABEL, empty: rows.length === 0 };
 
   // ---- reports ----
   const sel = s.planRange || 'current';
@@ -97,9 +122,9 @@ export function buildPlan(ctx) {
     const left = total - scope.reduce((a, t) => { const at = doneAt(t); return a + (at && new Date(at).getTime() < end ? size(t) : 0); }, 0);
     points.push({ x: cx(i), y: cy(left), tip: shortDate(iso) + ': ' + left + ' ' + unit + ' left', date: shortDate(iso), left });
   }
-  const velocitySprints = tools.spl.filter((x) => x.end < today || x.status === 'done' || x.status === 'current');
-  const velDone = velocitySprints.map((x) => { const list = p.tasks.filter((t) => t.sprint === x.id && t.col === 3); return { id: x.id, name: x.name, value: list.reduce((a, t) => a + size(t), 0) }; });
-  const finished = velDone.filter((x) => { const sp = tools.spl.find((y) => y.id === x.id); return sp.status !== 'current'; });
+  const velocitySprints = tools.spl.filter((x) => x.closed || x.status === 'current');
+  const velDone = velocitySprints.map((x) => { const list = p.tasks.filter((t) => t.sprint === x.id && t.col === 3); return { id: x.id, name: x.name, closed: !!x.closed, value: x.closed && usesPoints ? Number(x.completed) || 0 : x.closed ? Number(x.doneCount) || 0 : list.reduce((a, t) => a + size(t), 0) }; });
+  const finished = velDone.filter((x) => x.closed);
   const maxV = Math.max(1, ...velDone.map((x) => x.value));
   const barW = Math.min(44, (W - L - R) / Math.max(1, velDone.length) - 8);
   const reports = {
@@ -120,6 +145,7 @@ export function buildPlan(ctx) {
 
   // ---- documents ----
   const query = (s.pageQuery || '').trim().toLowerCase();
+  const labelOn = s.pageLabel || '';
   const draft = s.pageDraft && s.pageDraft.pid === pid ? s.pageDraft : null;
   const openId = s.pageOpen && s.pageOpen.pid === pid ? s.pageOpen.id : null;
   const pages = p.pages || [];
@@ -131,23 +157,63 @@ export function buildPlan(ctx) {
   pages.forEach((x) => { if (!ordered.includes(x)) ordered.push(x); });
   const setDraft = (k) => (e) => { const v = e.target.value; this.setState((st) => ({ pageDraft: { ...st.pageDraft, [k]: v, err: '' } })); };
   const fmt = (at) => new Date(at).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-  const versions = cur ? (cur.changes || []).filter((c) => c.field === 'body').slice().reverse().map((c) => ({ key: c.at, who: c.who, when: fmt(c.at), restore: () => this.setState({ pageDraft: { pid, id: cur.id, title: cur.title, parent: cur.parent || '', body: c.old || '', err: '' } }) })) : [];
+  const openPage = (x) => this.setState({ pageOpen: { pid, id: x.id }, pageDraft: null, pageDiff: null });
+  const updPage = (id, fn) => patch((x) => ({ ...x, pages: x.pages.map((y) => (y.id === id ? fn(y) : y)) }));
+  const bodyChanges = cur ? (cur.changes || []).filter((c) => c.field === 'body').slice().reverse() : [];
+  const versions = bodyChanges.map((c, i) => ({ key: c.at, who: c.who, when: fmt(c.at),
+    compare: () => this.setState({ pageDiff: { id: cur.id, at: c.at } }),
+    restore: () => this.setState({ pageDraft: { pid, id: cur.id, title: cur.title, parent: cur.parent || '', body: c.old || '', labels: (cur.labels || []).join(', '), err: '' }, pageDiff: null }) }));
+  const shownDiff = cur && s.pageDiff && s.pageDiff.id === cur.id ? bodyChanges.find((c) => c.at === s.pageDiff.at) : null;
+  const allLabels = [...new Set(pages.flatMap((x) => x.labels || []))].sort();
+  const keys = p.tasks.map((t) => t.key).filter(Boolean);
+  const mePerson = this.srv ? this.srv.me.person : me;
+  const comments = cur ? (p.comments || []).filter((c) => c.page === cur.id) : [];
+  const elsewhere = query ? (s.projects || []).filter((x) => x.id !== pid).flatMap((x) => (x.pages || []).filter((y) => (y.title + ' ' + (y.body || '')).toLowerCase().includes(query)).map((y) => ({ id: y.id, title: y.title, project: x.name, open: () => this.setState({ projectOpen: x.id, planTab: 'docs', pageOpen: { pid: x.id, id: y.id }, pageDraft: null }) }))) : [];
+  const recent = pages.filter((x) => x.updatedAt).slice().sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1)).slice(0, 5).map((x) => ({ id: x.id, title: x.title, when: fmt(x.updatedAt), open: () => openPage(x) }));
+  const download = (name, text, type) => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); };
+  const safeName = (t) => t.replace(/[^\w\- ]+/g, '').trim() || 'page';
   const docs = {
-    query: s.pageQuery || '', onQuery: (e) => this.setState({ pageQuery: e.target.value }),
-    list: ordered.filter((x) => !query || (x.title + ' ' + (x.body || '')).toLowerCase().includes(query)).map((x) => ({ id: x.id, title: x.title, indent: query ? 0 : depth(x) * 14, on: x.id === openId, open: () => this.setState({ pageOpen: { pid, id: x.id }, pageDraft: null }) })),
-    templates: Object.entries(TEMPLATES).map(([k, t]) => ({ key: k, name: t.name, pick: () => this.setState({ pageDraft: { pid, id: '', title: t.title, body: t.body, parent: cur ? cur.id : '', err: '' } }) })),
-    page: cur && !draft ? { title: cur.title, html: richTextHtml(cur.body || ''), updated: cur.updatedAt ? fmt(cur.updatedAt) : '', versions,
-      edit: () => this.setState({ pageDraft: { pid, id: cur.id, title: cur.title, body: cur.body || '', parent: cur.parent || '', err: '' } }),
-      remove: () => { if (pages.some((x) => x.parent === cur.id)) { this.notify('Move or delete the pages under this one first.', '#FFB86B'); return; } this.setState({ pageOpen: null }); patch((x) => ({ ...x, pages: x.pages.filter((y) => y.id !== cur.id) })); } } : null,
-    draft: draft ? { ...draft, isNew: !draft.id, onTitle: setDraft('title'), onBody: setDraft('body'), onParent: setDraft('parent'),
+    query: s.pageQuery || '', onQuery: (e) => this.setState({ pageQuery: e.target.value }), elsewhere, recent,
+    labels: allLabels.map((l) => ({ name: l, on: l === labelOn, pick: () => this.setState({ pageLabel: l === labelOn ? '' : l }) })),
+    list: ordered.filter((x) => (!query || (x.title + ' ' + (x.body || '') + ' ' + (x.labels || []).join(' ')).toLowerCase().includes(query)) && (!labelOn || (x.labels || []).includes(labelOn))).map((x) => ({ id: x.id, title: x.title, indent: query ? 0 : depth(x) * 14, on: x.id === openId, open: () => openPage(x) })),
+    templates: Object.entries(TEMPLATES).map(([k, t]) => ({ key: k, name: t.name, pick: () => this.setState({ pageDraft: { pid, id: '', title: t.title, body: t.body, parent: cur ? cur.id : '', labels: '', err: '' }, pageDiff: null }) })),
+    follow: (e) => {
+      const a = e.target.closest && e.target.closest('[data-page],[data-task]');
+      if (!a) return;
+      e.preventDefault();
+      if (a.dataset.page) { const x = pages.find((y) => y.title.toLowerCase() === a.dataset.page.toLowerCase()); if (x) openPage(x); else this.notify('No page is called "' + a.dataset.page + '" yet.', '#FFB86B'); return; }
+      const ti = p.tasks.findIndex((t) => t.key === a.dataset.task);
+      if (ti !== -1) tools.openTask(ti);
+    },
+    page: cur && !draft ? { id: cur.id, title: cur.title, html: pageHtml(cur.body || '', keys), updated: cur.updatedAt ? fmt(cur.updatedAt) : '', versions, labels: cur.labels || [], locked: !!cur.locked,
+      canLock: isManager || cur.author === me, mayEdit: !cur.locked || isManager || cur.author === me,
+      backlinks: pages.filter((x) => x.id !== cur.id && (x.body || '').toLowerCase().includes('[[' + cur.title.toLowerCase() + ']]')).map((x) => ({ id: x.id, title: x.title, open: () => openPage(x) })),
+      crumbs: (() => { const l = []; let u = pages.find((y) => y.id === cur.parent); for (let n = 0; u && n < 6; n++) { const x = u; l.unshift({ id: x.id, title: x.title, open: () => openPage(x) }); u = pages.find((y) => y.id === x.parent); } return l; })(),
+      children: pages.filter((x) => x.parent === cur.id).map((x) => ({ id: x.id, title: x.title, open: () => openPage(x) })),
+      watching: (cur.watchers || []).includes(mePerson), toggleWatch: () => updPage(cur.id, (y) => ({ ...y, watchers: (y.watchers || []).includes(mePerson) ? y.watchers.filter((w) => w !== mePerson) : (y.watchers || []).concat([mePerson]) })),
+      toggleLock: () => updPage(cur.id, (y) => ({ ...y, locked: !y.locked })),
+      diff: shownDiff ? lineDiff(shownDiff.old, shownDiff.new) : null, closeDiff: () => this.setState({ pageDiff: null }),
+      files: (cur.files || []).map((f, i) => ({ key: i, name: f.name, open: () => (this.srv ? projectsW.openAttachment(this.srv, f.ref).catch((e) => this.notify(e.message || 'Could not open it.', '#FF9B8A')) : null), remove: () => updPage(cur.id, (y) => ({ ...y, files: y.files.filter((_, j) => j !== i) })) })),
+      onFile: (e) => { const list = Array.from(e.target.files || []); e.target.value = ''; if (!this.srv) return; const id = cur.id; Promise.all(list.map((f) => projectsW.attach(this.srv, pid, f))).then((added) => { updPage(id, (y) => ({ ...y, files: (y.files || []).concat(added) })); this.notify(added.length + ' file' + (added.length === 1 ? '' : 's') + ' attached.', '#B8F36B'); }).catch((x) => this.notify(x.message || 'Could not attach the file.', '#FF9B8A')); },
+      comments: comments.map((c) => ({ id: c.id, who: c.who, text: c.text, when: c.createdAt ? fmt(c.createdAt) : 'Just now', mine: c.who === me, remove: () => patch((x) => ({ ...x, comments: x.comments.filter((y) => y.id !== c.id) })) })),
+      comment: s.pageComment || '', onComment: (e) => this.setState({ pageComment: e.target.value }),
+      addComment: () => { const text = (this.state.pageComment || '').trim(); if (!text) return; this.setState({ pageComment: '' }); patch((x) => ({ ...x, comments: (x.comments || []).concat([{ page: cur.id, who: me, text }]) })); },
+      exportMd: () => download(safeName(cur.title) + '.md', '# ' + cur.title + '\n\n' + (cur.body || ''), 'text/markdown'),
+      exportHtml: () => download(safeName(cur.title) + '.html', '<!doctype html><meta charset="utf-8"><title>' + cur.title.replace(/</g, '&lt;') + '</title><h1>' + cur.title.replace(/</g, '&lt;') + '</h1>' + pageHtml(cur.body || '', []), 'text/html'),
+      copy: () => this.setState({ pageDraft: { pid, id: '', title: 'Copy of ' + cur.title, body: cur.body || '', parent: cur.parent || '', labels: (cur.labels || []).join(', '), err: '' } }),
+      edit: () => this.setState({ pageDraft: { pid, id: cur.id, title: cur.title, body: cur.body || '', parent: cur.parent || '', labels: (cur.labels || []).join(', '), err: '' }, pageDiff: null }),
+      remove: () => { if (pages.some((x) => x.parent === cur.id)) { this.notify('Move or delete the pages under this one first.', '#FFB86B'); return; } this.setState({ pageOpen: null }); patch((x) => ({ ...x, pages: x.pages.filter((y) => y.id !== cur.id), comments: (x.comments || []).filter((y) => y.page !== cur.id) })); } } : null,
+    draft: draft ? { ...draft, isNew: !draft.id, preview: s.pagePreview ? pageHtml(draft.body, keys) : '', showPreview: !!s.pagePreview, togglePreview: () => this.setState((st) => ({ pagePreview: !st.pagePreview })), onTitle: setDraft('title'), onBody: setDraft('body'), onParent: setDraft('parent'), onLabels: setDraft('labels'),
+      setBody: (v) => this.setState((st) => ({ pageDraft: { ...st.pageDraft, body: v, err: '' } })),
       parentOpts: pages.filter((x) => x.id && x.id !== draft.id).map((x) => ({ v: x.id, l: x.title })),
       cancel: () => this.setState({ pageDraft: null }),
       save: () => {
         const title = draft.title.trim();
         if (!title) { this.setState({ pageDraft: { ...draft, err: 'Give the page a title.' } }); return; }
-        const data = { title, body: draft.body, parent: draft.parent || '' };
+        if (pages.some((x) => x.id !== draft.id && x.title.trim().toLowerCase() === title.toLowerCase())) { this.setState({ pageDraft: { ...draft, err: 'A page in this project already has that title.' } }); return; }
+        const data = { title, body: draft.body, parent: draft.parent || '', labels: [...new Set((draft.labels || '').split(',').map((x) => x.trim()).filter(Boolean))] };
         this.setState({ pageDraft: null });
-        patch((x) => ({ ...x, pages: draft.id ? x.pages.map((y) => (y.id === draft.id ? { ...y, ...data } : y)) : (x.pages || []).concat([{ ...data, author: me }]) }));
+        patch((x) => ({ ...x, pages: draft.id ? x.pages.map((y) => (y.id === draft.id ? { ...y, ...data } : y)) : (x.pages || []).concat([{ ...data, author: me, watchers: [mePerson], files: [] }]) }));
         this.notify('Page saved.', '#B8F36B');
       } } : null
   };
@@ -162,7 +228,7 @@ export function buildPlan(ctx) {
     onMethod: (e) => { const v = e.target.value; patch((x) => ({ ...x, method: v })); this.notify('Project type changed. Your tasks stay as they are.', '#B8F36B'); },
     cats: ['Not started', 'In progress', 'Being checked', 'Finished'].map((l, v) => ({ v, l })),
     dirty: !!wd, err: wd ? wd.err : '',
-    rows: list.map((w, i) => ({ key: w.key, name: w.name, cat: w.cat, wip: w.wip || '', inUse: p.tasks.filter((t) => t.status === w.key).length, first: i === 0, last: i === list.length - 1,
+    rows: list.map((w, i) => ({ targets: list.filter((x) => x.key !== w.key).map((x) => ({ key: x.key, name: x.name, on: !w.to || !w.to.length || w.to.includes(x.key), toggle: () => change((l) => l.map((y, j) => { if (j !== i) return y; const all = l.filter((z) => z.key !== y.key).map((z) => z.key); const cur2 = y.to && y.to.length ? y.to : all; const nx = cur2.includes(x.key) ? cur2.filter((k) => k !== x.key) : cur2.concat([x.key]); return { ...y, to: nx.length === all.length ? [] : nx }; })) })), key: w.key, name: w.name, cat: w.cat, wip: w.wip || '', inUse: p.tasks.filter((t) => t.status === w.key).length, first: i === 0, last: i === list.length - 1,
       onName: (e) => { const v = e.target.value; change((l) => l.map((x, j) => (j === i ? { ...x, name: v } : x))); },
       onCat: (e) => { const v = Number(e.target.value); change((l) => l.map((x, j) => (j === i ? { ...x, cat: v } : x))); },
       onWip: (e) => { const v = Math.max(0, Number(e.target.value) || 0); change((l) => l.map((x, j) => (j === i ? { ...x, wip: v } : x))); },
@@ -186,12 +252,12 @@ export function buildPlan(ctx) {
     }
   };
 
-  const tabs = [['backlog', waterfall ? 'Work breakdown' : 'Backlog', waterfall ? p.tasks.length : backlog.length], ['timeline', 'Timeline', null], ['reports', 'Reports', null], ['docs', 'Documents', pages.length], ['settings', 'Type & workflow', null]];
+  const tabs = [['overview', 'Overview', null], ['board', 'Board', null], ['backlog', waterfall ? 'Phases' : 'Backlog & sprints', waterfall ? tools.tl.length : backlog.length], ['timeline', 'Timeline', null], ['reports', 'Reports', null], ['docs', 'Documents', pages.length], ['settings', 'Type & workflow', null]];
   return {
     waterfall, methodLabel: { agile: 'Agile', waterfall: 'Waterfall', hybrid: 'Hybrid' }[p.method] || 'Agile',
     tabs: tabs.map(([k, l, n]) => ({ key: k, label: l, count: n, on: tab === k, go: () => this.setState({ planTab: k }) })), tab,
-    isBacklog: tab === 'backlog', isTimeline: tab === 'timeline', isReports: tab === 'reports', isDocs: tab === 'docs', isSettings: tab === 'settings',
-    epics, backlog, backlogPoints: pts(backlog.map((x) => p.tasks.find((t) => (t.id || '') === x.id) || {})), phases, sprintOpts: [{ v: '', l: 'Backlog' }].concat(tools.spl.filter((x) => !x.milestoneClosed).map((x) => ({ v: x.id, l: x.name }))),
+    isOverview: tab === 'overview', isBoard: tab === 'board', isBacklog: tab === 'backlog', isTimeline: tab === 'timeline', isReports: tab === 'reports', isDocs: tab === 'docs', isSettings: tab === 'settings',
+    epics, backlog, backlogPoints: pts(backlog.map((x) => p.tasks.find((t) => (t.id || '') === x.id) || {})), phases, canMs: can('projects', 'Manage milestones'), sprintOpts: [{ v: '', l: 'Backlog' }].concat(tools.spl.filter((x) => !x.milestoneClosed && !x.closed).map((x) => ({ v: x.id, l: x.name }))),
     addBacklog: tools.openTaskFormBacklog, canAdd: can('projects', 'Edit tasks'), timeline, reports, docs, settings,
     longStart: longDate(p.start)
   };

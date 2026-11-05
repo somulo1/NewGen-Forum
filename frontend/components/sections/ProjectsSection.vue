@@ -110,27 +110,29 @@
 </form>
 </template>
 
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px">
+<ProjectPlan>
+<template #plan-tables>
+<div style="display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px">
+<div role="tablist" style="display: flex; padding: 3px; border-radius: 12px; background: var(--k-121B17,#121B17); border: 1px solid var(--k-24322C,#24322C)"><button role="tab" @click="pj.goMs" :style="`height: 34px; padding: 0 14px; border-radius: 9px; border: 0; cursor: pointer; font-size: 13px; font-weight: 600; ${pj.isMsTab ? 'background: var(--k-E8EFEA,#E8EFEA); color: var(--k-0F1714,#0F1714)' : 'background: transparent; color: var(--k-C9D6CF,#C9D6CF)'}`">{{ pj.plan.waterfall ? 'Phases' : 'Milestones' }} ({{ pj.msCount }})</button><button role="tab" v-if="!pj.plan.waterfall" @click="pj.goSp" :style="`height: 34px; padding: 0 14px; border-radius: 9px; border: 0; cursor: pointer; font-size: 13px; font-weight: 600; ${pj.isSpTab ? 'background: var(--k-E8EFEA,#E8EFEA); color: var(--k-0F1714,#0F1714)' : 'background: transparent; color: var(--k-C9D6CF,#C9D6CF)'}`">Sprints ({{ pj.spCount }})</button></div>
+<span style="flex: 1 1 200px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">{{ pj.plan.waterfall ? 'Tasks sit in phases. A phase passes its gate with sign-off, and the next one can then start.' : 'Tasks sit in sprints, sprints belong to milestones, and sprints close by themselves on their end date.' }}</span>
+<template v-if="pj.canMilestones && !pj.plan.waterfall"><button @click="pj.addSprint" style="height: 36px; padding: 0 16px; border-radius: 18px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); font-weight: 600; cursor: pointer; font-size: 13px">Add sprint</button><button @click="pj.addMilestone" style="height: 36px; padding: 0 16px; border-radius: 18px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer; font-size: 13px">Add milestone</button></template>
+</div>
+<template v-if="pj.isMsTab"><DataTable :t="pj.msTable" /></template>
+<template v-if="pj.isSpTab"><DataTable :t="pj.spTable" /></template>
+</div>
+</template>
+</ProjectPlan>
+
+<div v-if="pj.plan.isOverview" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px">
 <div style="padding: 16px; border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 8px"><span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Overall progress</span><span style="font-family: 'Space Grotesk', sans-serif; font-size: 30px; font-weight: 700">{{ pj.progress }}%</span><div style="height: 6px; border-radius: 3px; background: var(--k-22302A,#22302A); overflow: hidden"><div :style="pj.barStyle"></div></div></div>
 <div style="padding: 16px; border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 8px"><span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Tasks done</span><span style="font-family: 'Space Grotesk', sans-serif; font-size: 30px; font-weight: 700">{{ pj.doneCount }}<span style="font-size: 16px; color: var(--k-9DB0A6,#9DB0A6)"> / {{ pj.taskCount }}</span></span></div>
 <div style="padding: 16px; border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 8px"><span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Milestones reached</span><span style="font-family: 'Space Grotesk', sans-serif; font-size: 30px; font-weight: 700">{{ pj.msDone }}<span style="font-size: 16px; color: var(--k-9DB0A6,#9DB0A6)"> / {{ pj.msCount }}</span></span></div>
 <div style="padding: 16px; border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 8px"><span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Time left</span><span style="font-family: 'Space Grotesk', sans-serif; font-size: 30px; font-weight: 700">{{ pj.daysLeft }}<span style="font-size: 16px; color: var(--k-9DB0A6,#9DB0A6)"> days</span></span></div>
 </div>
 
-<div style="padding: 16px 18px; border-radius: 18px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 12px">
-<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px">
-<div role="tablist" style="display: flex; padding: 3px; border-radius: 12px; background: var(--k-121B17,#121B17); border: 1px solid var(--k-24322C,#24322C)"><button role="tab" @click="pj.goMs" :style="`height: 34px; padding: 0 14px; border-radius: 9px; border: 0; cursor: pointer; font-size: 13px; font-weight: 600; ${pj.isMsTab ? 'background: var(--k-E8EFEA,#E8EFEA); color: var(--k-0F1714,#0F1714)' : 'background: transparent; color: var(--k-C9D6CF,#C9D6CF)'}`">Milestones ({{ pj.msCount }})</button><button role="tab" @click="pj.goSp" :style="`height: 34px; padding: 0 14px; border-radius: 9px; border: 0; cursor: pointer; font-size: 13px; font-weight: 600; ${pj.isSpTab ? 'background: var(--k-E8EFEA,#E8EFEA); color: var(--k-0F1714,#0F1714)' : 'background: transparent; color: var(--k-C9D6CF,#C9D6CF)'}`">Sprints ({{ pj.spCount }})</button></div>
-<span style="flex: 1 1 200px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Tasks sit in sprints, sprints belong to milestones, and progress rolls up automatically.</span>
-<template v-if="pj.canMilestones"><button @click="pj.addSprint" style="height: 36px; padding: 0 16px; border-radius: 18px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); font-weight: 600; cursor: pointer; font-size: 13px">Add sprint</button><button @click="pj.addMilestone" style="height: 36px; padding: 0 16px; border-radius: 18px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer; font-size: 13px">Add milestone</button></template>
-</div>
-<template v-if="pj.isMsTab"><DataTable :t="pj.msTable" /></template>
-<template v-if="pj.isSpTab"><DataTable :t="pj.spTable" /></template>
-</div>
-
-<ProjectPlan />
-
 <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start">
-<div style="flex: 999 1 560px; min-width: 0; padding: 18px; border-radius: 18px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 14px">
+<div v-if="pj.plan.isBoard" style="flex: 999 1 560px; min-width: 0; padding: 18px; border-radius: 18px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 14px">
 <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center"><div style="flex: 1; display: flex; flex-direction: column; gap: 2px"><strong style="font-size: 15px">Task board · {{ pj.boardTitle }}</strong><span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">{{ pj.boardNote }}</span></div>
 <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Sprint<select :value="pj.sprintValue" @change="pj.setSprint" aria-label="Filter tasks by sprint" style="height: 38px; max-width: 260px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 13px"><template v-for="(sp, sp__i) in pj.sprintOpts" :key="sp__i"><option :value="sp.v">{{ sp.l }}</option></template></select></label>
 <template v-if="pj.canNewTask"><button @click="pj.openTaskForm" style="height: 38px; padding: 0 18px; border-radius: 19px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer; font-size: 14px">New task</button></template>
@@ -183,7 +185,7 @@
 </div>
 </div>
 
-<aside aria-label="Project overview" style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+<aside v-if="pj.plan.isOverview" aria-label="Project overview" style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
 <div style="padding: 18px; border-radius: 18px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 10px">
 <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--k-9DB0A6,#9DB0A6)">Why this project</span>
 <p style="margin: 0; font-size: 14px; line-height: 1.55"><LinkText :text="pj.goal"/></p>

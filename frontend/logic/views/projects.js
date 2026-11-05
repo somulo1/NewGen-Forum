@@ -114,7 +114,7 @@ export function buildProjects(ctx) {
     const daysLeft = Math.max(0, Math.ceil((dueMs - nowMs) / 86400000));
     const tl = milestoneTimeline(cur_p, today);
     const spl = sprintTimeline(cur_p, today);
-    const openSprints = spl.filter((sp) => !sp.milestoneClosed);
+    const openSprints = spl.filter((sp) => !sp.milestoneClosed && !sp.closed);
     const sprintSel = s.sprintFilter;
     const openTask = (ti) => this.setState({ taskOpen: { pid: pid, ti: ti } });
     const openMsClose = (m) => this.setState({ msDialog: { mode: 'close', pid: pid, mid: m.id, comment: '', err: '' } });
@@ -209,7 +209,7 @@ export function buildProjects(ctx) {
         } };
     }
     pj.taskForm = tform;
-    pj.plan = buildPlan.call(this, { s, can, me, today, cur_p, tools, shortDate, longDate, set });
+    pj.plan = buildPlan.call(this, { s, can, me, today, cur_p, tools, shortDate, longDate, set, projectsW });
   } else {
     pj.taskForm = { open: false };
   }
@@ -249,6 +249,11 @@ export function buildProjects(ctx) {
       if (!mtl) { fail('This milestone no longer exists.'); return; }
       if (d.mode === 'close') {
         if (!mtl.ready) { fail(mtl.openTasks + ' task' + (mtl.openTasks === 1 ? ' is' : 's are') + ' still open. Finish them before closing the milestone.'); return; }
+        if (mproj.method === 'waterfall' && this.srv) {
+          this.setState({ msDialog: null });
+          projectsW.passGate(this, this.srv, mproj.id, mtl.id, comment).then((r) => this.notify(r.approval ? 'Gate sign-off for "' + mtl.name + '" sent for approval.' : 'Phase "' + mtl.name + '" passed its gate.', '#B8F36B')).catch((e) => this.notify(e.message || 'Could not ask for sign-off.', '#FF9B8A'));
+          return;
+        }
         this.setState((st) => ({ msDialog: null, projects: st.projects.map((p) => (p.id === mproj.id ? logMs({ ...p, milestones: p.milestones.map((m) => (m.id === mtl.id ? { ...m, closed: true, closedOn: today, closedBy: 'Samwel Okoth Omulo', closedComment: comment, history: m.history.concat([{ when: today, who: 'Samwel Okoth Omulo', action: 'Reached', comment }]) } : m)) }, 'Milestone "' + mtl.name + '" reached: "' + comment + '"') : p)) }));
         this.notify('Milestone "' + mtl.name + '" marked as reached. Your comment was saved.', '#B8F36B');
       } else {
@@ -256,8 +261,9 @@ export function buildProjects(ctx) {
         this.notify('Milestone "' + mtl.name + '" reopened.', '#FFB86B');
       }
     };
-    const titles = { new: 'New milestone', sprint: 'New sprint', close: 'Mark milestone as reached', reopen: 'Reopen milestone' };
-    const labels = { new: 'Create milestone', sprint: 'Create sprint', close: 'Mark as reached', reopen: 'Reopen milestone' };
+    const wfl = mproj && mproj.method === 'waterfall';
+    const titles = { new: wfl ? 'New phase' : 'New milestone', sprint: 'New sprint', close: wfl ? 'Ask for gate sign-off' : 'Mark milestone as reached', reopen: wfl ? 'Reopen phase' : 'Reopen milestone' };
+    const labels = { new: wfl ? 'Create phase' : 'Create milestone', sprint: 'Create sprint', close: wfl ? 'Send for sign-off' : 'Mark as reached', reopen: wfl ? 'Reopen phase' : 'Reopen milestone' };
     msd = { open: true, mode: md.mode, isNew: md.mode === 'new', isSprint: md.mode === 'sprint', isClose: md.mode === 'close', isReopen: md.mode === 'reopen',
       title: titles[md.mode], submitLabel: labels[md.mode], projectName: mproj ? mproj.name : '',
       name: md.name || '', date: md.date || '', desc: md.desc || '', comment: md.comment || '', err: md.err || '', hasErr: !!md.err,
@@ -345,7 +351,9 @@ export function buildProjects(ctx) {
       canFwd: canMoveT && mayMoveTask(tp, tt, 1, me), nextCol: stepOf(tp, tt, 1) ? stepOf(tp, tt, 1).name : '', fwd: () => this.askTaskMove(tp.id, to.ti, 1),
       history: (tt.history || []).slice().reverse().map((h) => ({ line: h.from + ' → ' + h.to, by: h.by, when: new Date(h.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }), comment: h.comment })), hasHistory: (tt.history || []).length > 0,
       moving: !!(s.taskMove && s.taskMove.pid === tp.id && s.taskMove.ti === to.ti),
-      moveTitle: s.taskMove && stepOf(tp, tt, s.taskMove.dir) ? 'Move to ' + stepOf(tp, tt, s.taskMove.dir).name : '', moveBack: !!(s.taskMove && s.taskMove.dir < 0),
+      moveTitle: s.taskMove ? 'Move to ' + ((typeof s.taskMove.dir === 'string' ? wfOf(tp).find((w) => w.key === s.taskMove.dir) : stepOf(tp, tt, s.taskMove.dir)) || {}).name : '',
+      statusValue: statusOf(tp, tt), statusOpts: wfOf(tp).filter((w) => w.key === statusOf(tp, tt) || (canMoveT && mayMoveTask(tp, tt, w.key, me))).map((w) => ({ v: w.key, l: w.name })),
+      onStatus: (e) => { const v = e.target.value; if (v !== statusOf(tp, tt)) this.askTaskMove(tp.id, to.ti, v); }, moveBack: !!(s.taskMove && (typeof s.taskMove.dir === 'number' ? s.taskMove.dir < 0 : (wfOf(tp).find((w) => w.key === s.taskMove.dir) || {}).cat < tt.col)),
       moveComment: s.taskMove ? s.taskMove.comment : '', moveErr: s.taskMove ? s.taskMove.err : '', hasMoveErr: !!(s.taskMove && s.taskMove.err),
       onMoveComment: (e) => this.setState((st) => ({ taskMove: { ...st.taskMove, comment: e.target.value, err: '' } })),
       confirmMove: () => this.confirmTaskMove(), cancelMove: () => this.setState({ taskMove: null }),

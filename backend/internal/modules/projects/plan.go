@@ -16,6 +16,7 @@ import (
 	"hub/internal/authz"
 	"hub/internal/httpx"
 	"hub/internal/integrity"
+	"hub/internal/notify"
 	"hub/internal/realtime"
 	"hub/internal/tenant"
 )
@@ -26,15 +27,16 @@ import (
 var (
 	methods    = map[string]bool{"agile": true, "waterfall": true, "hybrid": true}
 	taskKinds  = map[string]bool{"epic": true, "story": true, "task": true, "bug": true, "subtask": true}
-	collection = map[string]bool{"task": true, "milestone": true, "sprint": true, "risk": true, "activity": true, "page": true}
+	collection = map[string]bool{"task": true, "milestone": true, "sprint": true, "risk": true, "activity": true, "page": true, "page_comment": true}
 )
 
 // Status is one column of a project's workflow. Cat says what it means for progress: 0 not started, 1 in progress, 2 being checked, 3 finished.
 type Status struct {
-	Key  string `json:"key"`
-	Name string `json:"name"`
-	Cat  int    `json:"cat"`
-	WIP  int    `json:"wip,omitempty"` // most tasks wanted in this column at once; 0 means no limit
+	Key  string   `json:"key"`
+	Name string   `json:"name"`
+	Cat  int      `json:"cat"`
+	WIP  int      `json:"wip,omitempty"` // most tasks wanted in this column at once; 0 means no limit
+	To   []string `json:"to,omitempty"`  // the statuses a task may go to from here; empty means any
 }
 
 type Item struct {
@@ -155,7 +157,7 @@ func mayChange(ctx context.Context, tx pgx.Tx, p *tenant.Principal, pr *Project,
 			return nil
 		}
 		return authz.Require(ctx, tx, p.Person, "projects", "Edit tasks")
-	case "activity":
+	case "activity", "page_comment":
 		if isNew || mine {
 			return nil
 		}
@@ -369,6 +371,7 @@ func (s *Service) Save(ctx context.Context, p *tenant.Principal, project, id uui
 		return nil, httpx.Bad("Nothing to save.")
 	}
 	out := &Item{}
+	var nb notify.Batch
 	err := s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
 		pr, err := s.member(ctx, tx, p, project, true)
 		if err != nil {
@@ -404,10 +407,50 @@ func (s *Service) Save(ctx context.Context, p *tenant.Principal, project, id uui
 				if err := taskRules(p, pr, old, data); err != nil {
 					return err
 				}
+				if text(old, "status") != text(data, "status") {
+					for _, st := range workflowOf(pr) {
+						if st.Key == text(old, "status") && len(st.To) > 0 && !contains(st.To, text(data, "status")) {
+							return httpx.Err(409, "transition", "This workflow does not allow that move.")
+						}
+					}
+				}
+			}
+			if c, _ := data["col"].(int); c > 0 {
+				if was, _ := old["col"].(float64); was == 0 {
+					name, err := phaseLocked(ctx, tx, pr, data)
+					if err != nil {
+						return err
+					}
+					if name != "" {
+						return httpx.Err(409, "phase_locked", fmt.Sprintf("Phase %q has to pass its gate before this work starts.", name))
+					}
+				}
 			}
 		case "page":
 			if t := strings.TrimSpace(text(data, "title")); t == "" || len(t) > 200 {
 				return httpx.Bad("Give the page a title of up to 200 characters.")
+			}
+			if !isNew {
+				// someone else saved while this was being edited: never overwrite them silently
+				if base := text(data, "baseAt"); base != "" {
+					var at time.Time
+					if err := tx.QueryRow(ctx, `select updated_at from hub.project_items where id=$1`, id).Scan(&at); err != nil {
+						return err
+					}
+					if t, err := time.Parse(time.RFC3339Nano, base); err == nil && !t.Equal(at) {
+						return httpx.Err(409, "page_changed", "Someone else saved this page while you were editing. Reload it and add your changes again.")
+					}
+				}
+				if locked, _ := old["locked"].(bool); locked && pr.Owner != p.Person && (author == nil || *author != p.Person) {
+					return httpx.Err(403, "page_locked", "Only the page's author or the project manager can change this page.")
+				}
+			}
+			delete(data, "baseAt")
+		}
+		if coll == "page_comment" {
+			data["who"] = p.Name // who wrote it is never taken from the browser
+			if strings.TrimSpace(text(data, "text")) == "" {
+				return httpx.Bad("Write the comment first.")
 			}
 		}
 		b, _ := json.Marshal(data)
@@ -429,17 +472,52 @@ func (s *Service) Save(ctx context.Context, p *tenant.Principal, project, id uui
 		if err := s.A.Sign.Seal(ctx, tx, "project_items", "id=$1", id); err != nil {
 			return err
 		}
-		if coll != "activity" {
+		if coll != "activity" && coll != "page_comment" {
 			if err := recordChanges(ctx, tx, p, project, id, old, data); err != nil {
 				return err
+			}
+		}
+		if coll == "task" {
+			// history and parents read the row as stored
+			if err := s.rollUp(ctx, tx, p.Org, pr, text(data, "parent")); err != nil {
+				return err
+			}
+			if old := text(old, "parent"); old != "" && old != text(data, "parent") {
+				if err := s.rollUp(ctx, tx, p.Org, pr, old); err != nil {
+					return err
+				}
+			}
+			if who, err := uuid.Parse(text(data, "assignee")); err == nil && who != p.Person && text(old, "assignee") != who.String() {
+				if err := nb.Add(ctx, tx, p.Org, who, "project", fmt.Sprintf("%s assigned %q in %s to you.", p.Name, text(data, "title"), pr.Code), "#7CC4FF", pr.Code); err != nil {
+					return err
+				}
+			}
+		}
+		if coll == "page" && !isNew && text(old, "body") != text(data, "body") {
+			for _, w := range strList(data["watchers"]) {
+				if who, err := uuid.Parse(w); err == nil && who != p.Person {
+					if err := nb.Add(ctx, tx, p.Org, who, "project", fmt.Sprintf("%s changed the page %q in %s.", p.Name, text(data, "title"), pr.Code), "#7CC4FF", pr.Code); err != nil {
+						return err
+					}
+				}
 			}
 		}
 		return tx.QueryRow(ctx, `select id, collection, ref, data, created_at, updated_at from hub.project_items where id=$1`, id).Scan(&out.ID, &out.Collection, &out.Ref, &out.Data, &out.CreatedAt, &out.UpdatedAt)
 	})
 	if err == nil {
+		nb.Send(ctx, s.A)
 		s.planChanged(ctx, p, project)
 	}
 	return out, err
+}
+
+func contains(l []string, v string) bool {
+	for _, x := range l {
+		if x == v {
+			return true
+		}
+	}
+	return false
 }
 
 // Delete removes an item. The history stays. A task others depend on, or with tasks under it, has to be untied first.
@@ -625,6 +703,7 @@ func (s *Service) planRoutes(r chi.Router, org func(func(http.ResponseWriter, *h
 		}
 		return id, nil
 	}
+	s.automationRoutes(r, org, ids)
 	r.Get("/projects/{id}/plan", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
 		id, err := ids(r, "id")
 		if err != nil {

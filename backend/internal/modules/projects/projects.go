@@ -32,6 +32,7 @@ type Service struct {
 func New(a *app.App, ap *approvals.Engine) *Service {
 	s := &Service{A: a, Ap: ap}
 	ap.Register("project.activate", s.applyActivate)
+	ap.Register("project.gate", s.applyGate)
 	return s
 }
 

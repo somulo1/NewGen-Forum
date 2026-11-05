@@ -1,12 +1,13 @@
 <!-- The open project's plan: backlog or work breakdown, timeline, reports, documents, and its type and workflow. -->
 <template>
-<section v-if="plan" aria-label="Project plan" class="pp" style="padding: 16px 18px; border-radius: 18px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 14px; min-width: 0">
+<section v-if="plan" aria-label="Project plan" class="pp" style="padding: 12px 18px; border-radius: 18px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 14px; min-width: 0">
 <ScrollTabs :active="plan.tab">
 <button v-for="t in plan.tabs" :key="t.key" role="tab" :aria-selected="t.on" @click="t.go" :style="`min-height: 40px; padding: 0 14px; border: 0; background: transparent; cursor: pointer; font: inherit; font-size: 14px; border-bottom: 2px solid ${t.on ? 'var(--k-B8F36B,#B8F36B)' : 'transparent'}; color: ${t.on ? 'var(--k-E8EFEA,#E8EFEA)' : 'var(--k-9DB0A6,#9DB0A6)'}; font-weight: ${t.on ? 600 : 500}`">{{ t.label }}<span v-if="t.count !== null" style="color: var(--k-9DB0A6,#9DB0A6); font-weight: 400"> {{ t.count }}</span></button>
 </ScrollTabs>
 
 <!-- Backlog / work breakdown -->
 <template v-if="plan.isBacklog">
+<slot name="plan-tables" />
 <template v-if="plan.epics.length">
 <strong style="font-size: 14px">Epics</strong>
 <button v-for="e in plan.epics" :key="e.id" type="button" class="pp-row" @click="e.open" style="flex-wrap: wrap">
@@ -24,7 +25,7 @@
 <template v-else>
 <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center"><strong style="font-size: 14px; flex: 1 1 200px">Backlog<span class="pp-mut" style="font-weight: 400"> · waiting to be planned into a sprint</span></strong><button v-if="plan.canAdd" type="button" class="pp-btn" @click="plan.addBacklog">Add to backlog</button></div>
 <span v-if="!plan.backlog.length" class="pp-mut">The backlog is empty. Tasks with no sprint wait here.</span>
-<div v-for="r in plan.backlog" :key="r.id" class="pp-row" style="cursor: default"><button type="button" class="pp-open" @click="r.open"><span class="pp-key">{{ r.key }}</span> {{ r.title }}</button><span class="pp-mut">{{ r.kind }}<template v-if="r.points !== ''"> · {{ r.points }} pts</template> · {{ r.owner }}</span><span v-if="r.blocked" class="pp-blocked">Blocked</span>
+<div v-for="r in plan.backlog" :key="r.id" class="pp-row" draggable="true" @dragstart="drag = r.n" @dragover.prevent @drop.prevent="drag !== null && r.dropOn(drag); drag = null" style="cursor: grab"><span style="display: flex; gap: 2px"><button type="button" class="pp-mini" :disabled="r.first" :aria-label="`Move ${r.title} up`" @click="r.up">↑</button><button type="button" class="pp-mini" :disabled="r.last" :aria-label="`Move ${r.title} down`" @click="r.down">↓</button></span><button type="button" class="pp-open" @click="r.open"><span class="pp-key">{{ r.key }}</span> {{ r.title }}</button><span class="pp-mut">{{ r.kind }}<template v-if="r.points !== ''"> · {{ r.points }} pts</template> · {{ r.owner }}</span><span v-if="r.blocked" class="pp-blocked">Blocked</span>
 <label style="display: flex; flex-direction: column; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)"><span class="pp-sr">Plan {{ r.title }} into a sprint</span><select :value="r.sprint" @change="r.setSprint" class="pp-input" style="height: 32px"><option v-for="o in plan.sprintOpts" :key="o.v" :value="o.v">{{ o.l }}</option></select></label></div>
 </template>
 </template>
@@ -33,14 +34,15 @@
 <template v-if="plan.isTimeline">
 <span v-if="plan.timeline.empty" class="pp-mut">Nothing to draw yet. Add phases and tasks with dates.</span>
 <template v-else>
-<div style="display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)"><span v-for="l in legend" :key="l.name"><span :style="`display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; background: ${l.color}`"></span>{{ l.name }}</span><span>◆ milestone or gate</span><span>→ depends on</span></div>
+<div style="display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)"><span v-for="l in legend" :key="l.name"><span :style="`display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; background: ${l.color}`"></span>{{ l.name }}</span><span>◆ milestone or gate</span><span>→ depends on</span><span v-if="plan.timeline.hasBaseline">▁ baseline</span></div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center"><span class="pp-mut" style="flex: 1 1 240px">Drag a bar to change its dates. Work that depends on it moves with it. <template v-if="plan.timeline.hasCritical">The outlined bars are the critical path.</template></span><button v-if="plan.timeline.canBaseline" type="button" class="pp-btn" @click="plan.timeline.saveBaseline">{{ plan.timeline.hasBaseline ? 'Update baseline' : 'Save baseline' }}</button></div>
 <div style="overflow-x: auto; scrollbar-width: thin">
 <svg :width="plan.timeline.width" :height="plan.timeline.height" role="img" aria-label="Project timeline" style="display: block; font-family: inherit">
 <template v-for="k in plan.timeline.ticks" :key="k.x"><line :x1="k.x" :x2="k.x" y1="20" :y2="plan.timeline.height" stroke="var(--k-24322C,#24322C)"/><text :x="k.x + 3" y="13" font-size="10" fill="var(--k-9DB0A6,#9DB0A6)">{{ k.label }}</text></template>
 <line v-if="plan.timeline.todayX !== null" :x1="plan.timeline.todayX" :x2="plan.timeline.todayX" y1="0" :y2="plan.timeline.height" stroke="var(--k-FF9B8A,#FF9B8A)" stroke-width="2"/>
 <template v-for="r in plan.timeline.rows" :key="r.key">
 <g v-if="r.type === 'phase'"><text x="0" :y="r.y + 19" font-size="12" font-weight="700" fill="var(--k-E8EFEA,#E8EFEA)">{{ r.label }}</text><path :d="`M${r.x} ${r.y + 8} l7 7 l-7 7 l-7 -7 z`" fill="var(--k-E8EFEA,#E8EFEA)"><title>{{ r.tip }}</title></path></g>
-<g v-else style="cursor: pointer" @click="r.open"><title>{{ r.tip }}</title><rect x="0" :y="r.y" :width="plan.timeline.width" height="30" fill="transparent"/><text x="10" :y="r.y + 19" font-size="12" fill="var(--k-C9D6CF,#C9D6CF)">{{ r.label }}</text><rect :x="r.x" :y="r.y + 8" :width="r.w" height="14" rx="4" :fill="r.color"/></g>
+<g v-else><title>{{ r.tip }}</title><text x="10" :y="r.y + 19" font-size="12" fill="var(--k-C9D6CF,#C9D6CF)" style="cursor: pointer" @click="r.open">{{ r.label }}</text><rect v-if="r.baseX !== null" :x="r.baseX" :y="r.y + 23" :width="r.baseW" height="4" rx="2" fill="var(--k-6F8178,#6F8178)"/><rect :x="r.x + (dragKey === r.key ? dragPx : 0)" :y="r.y + 7" :width="r.w" height="14" rx="4" :fill="r.color" :stroke="r.critical ? 'var(--k-E8EFEA,#E8EFEA)' : 'none'" :stroke-width="r.critical ? 2 : 0" :style="`cursor: ${r.canDrag ? 'grab' : 'pointer'}; touch-action: none`" @pointerdown="barDown($event, r)" @pointermove="barMove" @pointerup="barUp($event, r)" @pointercancel="dragKey = null"/></g>
 </template>
 <path v-for="l in plan.timeline.links" :key="l.key" :d="l.d" fill="none" stroke="var(--k-9DB0A6,#9DB0A6)" stroke-width="1.5"/>
 </svg>
@@ -82,26 +84,42 @@
 <div style="display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start">
 <div style="flex: 1 1 220px; min-width: 0; display: flex; flex-direction: column; gap: 6px">
 <label style="display: flex; flex-direction: column; font-size: 12px"><span class="pp-sr">Search pages</span><input type="search" :value="plan.docs.query" @input="plan.docs.onQuery" placeholder="Search pages" class="pp-input"></label>
-<span v-if="!plan.docs.list.length" class="pp-mut">No pages yet. Start one below.</span>
+<div v-if="plan.docs.labels.length" style="display: flex; flex-wrap: wrap; gap: 4px"><button v-for="l in plan.docs.labels" :key="l.name" type="button" class="pp-mini" :aria-pressed="l.on" :style="l.on ? 'width: auto; padding: 0 8px; background: var(--k-22302A,#22302A)' : 'width: auto; padding: 0 8px'" @click="l.pick">{{ l.name }}</button></div>
+<span v-if="!plan.docs.list.length" class="pp-mut">No pages found.</span>
 <button v-for="d in plan.docs.list" :key="d.id" type="button" @click="d.open" :aria-current="d.on" :style="`text-align: left; padding: 8px 10px; padding-left: ${10 + d.indent}px; border: 0; border-radius: 8px; cursor: pointer; font: inherit; font-size: 13px; color: var(--k-E8EFEA,#E8EFEA); background: ${d.on ? 'var(--k-22302A,#22302A)' : 'transparent'}`">{{ d.title }}</button>
+<template v-if="plan.docs.elsewhere.length"><span class="pp-mut" style="margin-top: 8px">In other projects</span><button v-for="d in plan.docs.elsewhere" :key="d.id" type="button" class="pp-open" style="flex: none; padding: 4px 10px" @click="d.open">{{ d.title }} <span class="pp-mut">· {{ d.project }}</span></button></template>
 <span class="pp-mut" style="margin-top: 8px">New page from</span>
 <div style="display: flex; flex-wrap: wrap; gap: 6px"><button v-for="t in plan.docs.templates" :key="t.key" type="button" class="pp-btn" @click="t.pick">{{ t.name }}</button></div>
 </div>
 <div style="flex: 999 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 10px">
 <form v-if="plan.docs.draft" novalidate @submit.prevent="plan.docs.draft.save" aria-label="Edit page" style="display: flex; flex-direction: column; gap: 10px">
 <label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Title<input type="text" maxlength="200" :value="plan.docs.draft.title" @input="plan.docs.draft.onTitle" class="pp-input"></label>
-<label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Sits under<select :value="plan.docs.draft.parent" @change="plan.docs.draft.onParent" class="pp-input"><option value="">Top level</option><option v-for="o in plan.docs.draft.parentOpts" :key="o.v" :value="o.v">{{ o.l }}</option></select></label>
-<label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Page<textarea rows="14" :value="plan.docs.draft.body" @input="plan.docs.draft.onBody" class="pp-input" style="height: auto; padding: 10px 12px; font: inherit; font-size: 14px; line-height: 1.5; resize: vertical"></textarea></label>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px"><label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Sits under<select :value="plan.docs.draft.parent" @change="plan.docs.draft.onParent" class="pp-input"><option value="">Top level</option><option v-for="o in plan.docs.draft.parentOpts" :key="o.v" :value="o.v">{{ o.l }}</option></select></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Labels, separated by commas<input type="text" :value="plan.docs.draft.labels" @input="plan.docs.draft.onLabels" class="pp-input"></label></div>
+<div role="toolbar" aria-label="Page formatting" style="display: flex; flex-wrap: wrap; gap: 4px"><button v-for="b in toolbar" :key="b.label" type="button" class="pp-mini" style="width: auto; padding: 0 8px" :title="b.title" @mousedown.prevent @click="format(b)">{{ b.label }}</button><button type="button" class="pp-mini" style="width: auto; padding: 0 8px; margin-left: auto" @click="plan.docs.draft.togglePreview">{{ plan.docs.draft.showPreview ? 'Edit' : 'Preview' }}</button></div>
+<div v-if="plan.docs.draft.showPreview" v-html="plan.docs.draft.preview" style="min-height: 200px; padding: 12px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); font-size: 14px; line-height: 1.6; overflow-wrap: anywhere"></div>
+<label v-else style="display: flex; flex-direction: column; font-size: 12px"><span class="pp-sr">Page text</span><textarea ref="editor" rows="16" :value="plan.docs.draft.body" @input="plan.docs.draft.onBody" class="pp-input" style="height: auto; padding: 10px 12px; font: inherit; font-size: 14px; line-height: 1.5; resize: vertical"></textarea></label>
 <span v-if="plan.docs.draft.err" role="alert" style="font-size: 13px; color: var(--k-FF9B8A,#FF9B8A)">{{ plan.docs.draft.err }}</span>
 <div style="display: flex; gap: 8px"><button type="submit" class="pp-btn pp-primary">Save page</button><button type="button" class="pp-btn" @click="plan.docs.draft.cancel">Cancel</button></div>
 </form>
 <template v-else-if="plan.docs.page">
-<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center"><h3 style="margin: 0; flex: 1 1 200px; font-size: 18px; overflow-wrap: anywhere">{{ plan.docs.page.title }}</h3><button type="button" class="pp-btn" @click="plan.docs.page.edit">Edit</button><button type="button" class="pp-btn" @click="plan.docs.page.remove">Delete</button></div>
-<span v-if="plan.docs.page.updated" class="pp-mut">Last changed {{ plan.docs.page.updated }}</span>
-<div v-html="plan.docs.page.html" style="font-size: 14px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere"></div>
-<template v-if="plan.docs.page.versions.length"><strong style="font-size: 13px; margin-top: 8px">Earlier versions</strong><div v-for="v in plan.docs.page.versions" :key="v.key" style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center"><span class="pp-mut" style="flex: 1 1 200px">Replaced by {{ v.who }}, {{ v.when }}</span><button type="button" class="pp-btn" @click="v.restore">Restore</button></div></template>
+<nav v-if="plan.docs.page.crumbs.length" aria-label="Page path" style="display: flex; flex-wrap: wrap; gap: 4px" class="pp-mut"><template v-for="c in plan.docs.page.crumbs" :key="c.id"><button type="button" class="pp-link" @click="c.open">{{ c.title }}</button><span>›</span></template></nav>
+<h3 style="margin: 0; font-size: 20px; overflow-wrap: anywhere">{{ plan.docs.page.title }}<span v-if="plan.docs.page.locked" class="pp-mut"> · locked</span></h3>
+<div style="display: flex; flex-wrap: wrap; gap: 6px"><button v-if="plan.docs.page.mayEdit" type="button" class="pp-btn pp-primary" @click="plan.docs.page.edit">Edit</button><button type="button" class="pp-btn" @click="plan.docs.page.toggleWatch">{{ plan.docs.page.watching ? 'Watching' : 'Watch' }}</button><button type="button" class="pp-btn" @click="plan.docs.page.copy">Copy</button><button type="button" class="pp-btn" @click="plan.docs.page.exportMd">Export .md</button><button type="button" class="pp-btn" @click="plan.docs.page.exportHtml">Export .html</button><button v-if="plan.docs.page.canLock" type="button" class="pp-btn" @click="plan.docs.page.toggleLock">{{ plan.docs.page.locked ? 'Unlock' : 'Lock' }}</button><button v-if="plan.docs.page.mayEdit" type="button" class="pp-btn" @click="plan.docs.page.remove">Delete</button></div>
+<span class="pp-mut"><template v-if="plan.docs.page.updated">Last changed {{ plan.docs.page.updated }}</template><template v-for="l in plan.docs.page.labels" :key="l"> · {{ l }}</template></span>
+<div v-html="plan.docs.page.html" @click="plan.docs.follow" style="font-size: 14px; line-height: 1.6; overflow-wrap: anywhere"></div>
+<template v-if="plan.docs.page.children.length"><strong style="font-size: 13px">Pages under this one</strong><button v-for="c in plan.docs.page.children" :key="c.id" type="button" class="pp-link" style="text-align: left" @click="c.open">{{ c.title }}</button></template>
+<template v-if="plan.docs.page.backlinks.length"><strong style="font-size: 13px">Linked from</strong><button v-for="c in plan.docs.page.backlinks" :key="c.id" type="button" class="pp-link" style="text-align: left" @click="c.open">{{ c.title }}</button></template>
+<strong style="font-size: 13px">Attachments</strong>
+<div v-for="f in plan.docs.page.files" :key="f.key" style="display: flex; gap: 8px; align-items: center"><button type="button" class="pp-link" style="flex: 1; text-align: left; overflow-wrap: anywhere" @click="f.open">{{ f.name }}</button><button v-if="plan.docs.page.mayEdit" type="button" class="pp-mini" :aria-label="`Remove ${f.name}`" @click="f.remove">×</button></div>
+<label v-if="plan.docs.page.mayEdit" class="pp-btn" style="position: relative; align-self: flex-start; display: inline-flex; align-items: center; height: 32px; overflow: hidden">Attach files<input type="file" multiple aria-label="Attach files to this page" @change="plan.docs.page.onFile" style="position: absolute; inset: 0; opacity: 0; cursor: pointer"></label>
+<strong style="font-size: 13px">Comments</strong>
+<div v-for="c in plan.docs.page.comments" :key="c.id" style="padding: 8px 10px; border-radius: 10px; background: var(--k-121B17,#121B17); display: flex; flex-direction: column; gap: 2px"><span class="pp-mut">{{ c.who }} · {{ c.when }}<button v-if="c.mine" type="button" class="pp-link" style="margin-left: 8px" @click="c.remove">Delete</button></span><span style="font-size: 13px; white-space: pre-line; overflow-wrap: anywhere">{{ c.text }}</span></div>
+<form novalidate @submit.prevent="plan.docs.page.addComment" style="display: flex; flex-wrap: wrap; gap: 8px"><label style="flex: 1 1 200px; display: flex; flex-direction: column"><span class="pp-sr">Add a comment</span><input type="text" :value="plan.docs.page.comment" @input="plan.docs.page.onComment" placeholder="Add a comment" class="pp-input"></label><button type="submit" class="pp-btn">Comment</button></form>
+<template v-if="plan.docs.page.versions.length"><strong style="font-size: 13px">Version history</strong><div v-for="v in plan.docs.page.versions" :key="v.key" style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center"><span class="pp-mut" style="flex: 1 1 200px">{{ v.who }}, {{ v.when }}</span><button type="button" class="pp-btn" @click="v.compare">Compare</button><button v-if="plan.docs.page.mayEdit" type="button" class="pp-btn" @click="v.restore">Restore earlier</button></div></template>
+<div v-if="plan.docs.page.diff" style="padding: 10px; border-radius: 10px; background: var(--k-121B17,#121B17); font-size: 13px; overflow-x: auto"><button type="button" class="pp-link" @click="plan.docs.page.closeDiff">Close comparison</button><div v-for="(d, di) in plan.docs.page.diff" :key="di" :style="`white-space: pre-wrap; color: ${d.k === 'add' ? 'var(--k-B8F36B,#B8F36B)' : d.k === 'del' ? 'var(--k-FF9B8A,#FF9B8A)' : 'inherit'}`">{{ d.k === 'add' ? '+ ' : d.k === 'del' ? '− ' : '  ' }}{{ d.t }}</div></div>
 </template>
-<span v-else class="pp-mut">Choose a page, or start a new one.</span>
+<template v-else><span class="pp-mut">Choose a page, or start a new one.</span><template v-if="plan.docs.recent.length"><strong style="font-size: 13px">Recently changed</strong><button v-for="c in plan.docs.recent" :key="c.id" type="button" class="pp-link" style="text-align: left" @click="c.open">{{ c.title }} <span class="pp-mut">· {{ c.when }}</span></button></template></template>
 </div>
 </div>
 </template>
@@ -115,6 +133,7 @@
 <label style="flex: 1 1 150px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Name<input type="text" maxlength="40" :value="r.name" :disabled="!plan.settings.canEdit" @input="r.onName" class="pp-input"></label>
 <label style="flex: 1 1 130px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Means<select :value="r.cat" :disabled="!plan.settings.canEdit" @change="r.onCat" class="pp-input"><option v-for="c in plan.settings.cats" :key="c.v" :value="c.v">{{ c.l }}</option></select></label>
 <label style="flex: 0 1 80px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Limit<input type="number" min="0" :value="r.wip" :disabled="!plan.settings.canEdit" @input="r.onWip" class="pp-input"></label>
+<fieldset style="flex: 1 1 100%; margin: 0; padding: 0; border: 0; display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)"><legend style="padding: 0 0 4px">Can move to</legend><label v-for="x in r.targets" :key="x.key" style="display: flex !important; flex-direction: row !important; width: auto; gap: 4px; align-items: center"><input type="checkbox" :checked="x.on" :disabled="!plan.settings.canEdit" @change="x.toggle">{{ x.name }}</label></fieldset>
 <div v-if="plan.settings.canEdit" style="display: flex; gap: 4px"><button type="button" class="pp-btn" :disabled="r.first" :aria-label="`Move ${r.name} up`" @click="r.up">↑</button><button type="button" class="pp-btn" :disabled="r.last" :aria-label="`Move ${r.name} down`" @click="r.down">↓</button><button type="button" class="pp-btn" :disabled="r.inUse > 0" :title="r.inUse ? r.inUse + ' tasks are here' : 'Remove'" :aria-label="`Remove ${r.name}`" @click="r.remove">×</button></div>
 </div>
 <span v-if="plan.settings.err" role="alert" style="font-size: 13px; color: var(--k-FF9B8A,#FF9B8A)">{{ plan.settings.err }}</span>
@@ -127,8 +146,47 @@
 import { hubBindings } from '~/composables/useHub';
 
 const bound = hubBindings(['pj']);
+const wrap = (before, after, ph) => ({ before, after, ph });
+const TOOLBAR = [
+  { label: 'H1', title: 'Heading', line: '# ' }, { label: 'H2', title: 'Subheading', line: '## ' }, { label: 'B', title: 'Bold', ...wrap('**', '**', 'bold') }, { label: 'I', title: 'Italic', ...wrap('*', '*', 'italic') },
+  { label: '• List', title: 'Bullet list', line: '- ' }, { label: '1. List', title: 'Numbered list', line: '1. ' }, { label: '☐ Check', title: 'Checklist', line: '- [ ] ' }, { label: 'Quote', title: 'Quote', line: '> ' },
+  { label: 'Code', title: 'Code block', ...wrap('```\n', '\n```', 'code') }, { label: 'Table', title: 'Table', ...wrap('| Column | Column |\n|---|---|\n| ', ' | |', 'Text') }, { label: 'Rule', title: 'Divider', ...wrap('\n---\n', '', '') },
+  { label: 'Link', title: 'Web link', ...wrap('[', '](https://)', 'text') }, { label: 'Page', title: 'Link to a page', ...wrap('[[', ']]', 'Page title') }
+];
 export default {
   name: 'ProjectPlan',
+  data() { return { drag: null, dragKey: null, dragPx: 0, dragX: 0, moved: false, toolbar: TOOLBAR }; },
+  methods: {
+    format(b) {
+      const el = this.$refs.editor;
+      if (!el) return;
+      const v = el.value, a = el.selectionStart, z = el.selectionEnd;
+      let next, cur;
+      if (b.line) {
+        const start = v.lastIndexOf('\n', a - 1) + 1;
+        next = v.slice(0, start) + b.line + v.slice(start);
+        cur = z + b.line.length;
+      } else {
+        const inner = v.slice(a, z) || b.ph;
+        next = v.slice(0, a) + b.before + inner + b.after + v.slice(z);
+        cur = a + b.before.length + inner.length;
+      }
+      this.plan.docs.draft.setBody(next);
+      this.$nextTick(() => { el.focus(); el.setSelectionRange(cur, cur); });
+    },
+    barDown(e, r) {
+      this.moved = false;
+      if (!r.canDrag) return;
+      this.dragKey = r.key; this.dragPx = 0; this.dragX = e.clientX;
+      e.target.setPointerCapture(e.pointerId);
+    },
+    barMove(e) { if (this.dragKey) { this.dragPx = e.clientX - this.dragX; if (Math.abs(this.dragPx) > 4) this.moved = true; } },
+    barUp(e, r) {
+      const px = this.dragPx, moved = this.moved;
+      this.dragKey = null; this.dragPx = 0; this.moved = false;
+      if (moved) r.shift(px); else r.open();
+    }
+  },
   computed: {
     ...bound.computed,
     plan() { return this.pj && this.pj.plan; },
@@ -147,5 +205,8 @@ export default {
 .pp-btn { min-height: 32px; padding: 0 12px; border-radius: 16px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; font: inherit; font-size: 13px; }
 .pp-btn:disabled { opacity: .4; cursor: default; }
 .pp-primary { border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; }
+.pp-mini { width: 26px; height: 26px; padding: 0; border-radius: 7px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; font: inherit; font-size: 12px; }
+.pp-mini:disabled { opacity: .35; cursor: default; }
+.pp-link { padding: 0; border: 0; background: transparent; color: var(--k-7CC4FF,#7CC4FF); cursor: pointer; font: inherit; font-size: 13px; }
 .pp-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 </style>

@@ -3,6 +3,7 @@
 // The page edits state.projects directly; this module watches those edits and writes the differences to the server.
 import { newConversationKey, wrap, newId, b64, unb64 } from '../e2ee.js';
 import { normalizeProject } from '../../projects.js';
+import * as files from '../files.js';
 
 export const name = 'projects';
 
@@ -74,7 +75,7 @@ async function mapProject(srv, row) {
   const p = {
     id: row.id, name: conv.name || row.code, code: row.code, color: row.color, owner: row.owner_name || nameOf(srv, row.owner), team: (conv.members || []).map((m) => (m.person === srv.me.person ? srv.me.name : m.name)), status: row.status, goal: conv.about || '',
     start: row.start || '', due: row.due || '', budget: row.budget_pct || 0, sync: row.sync || 'Not synced', tickets: row.links || [], method: row.method || 'agile', workflow: row.workflow,
-    milestones: of('milestone').map(base), sprints: of('sprint').map(base), tasks, risks: of('risk').map(base), pages: of('page').map(base),
+    milestones: of('milestone').map(base), sprints: of('sprint').map(base), tasks, risks: of('risk').map(base), pages: of('page').map(base), comments: of('page_comment').map(base),
     activity: of('activity').reverse().map((x) => ({ ...base(x), time: ago(x.created_at) }))
   };
   if (!p.milestones.length) p.milestones = [{ id: row.id + '-m1', name: 'Project delivery', iso: p.due }];
@@ -110,6 +111,23 @@ export async function create(logic, srv, f, color) {
   return res;
 }
 
+export async function closeSprint(logic, srv, pid, sprint) {
+  await srv.request('POST', `/projects/${pid}/sprints/${sprint}/close`, {});
+  await reload(logic, srv, pid);
+}
+
+export async function passGate(logic, srv, pid, phase, comment) {
+  const r = await srv.request('POST', `/projects/${pid}/gates/${phase}`, { comment });
+  await reload(logic, srv, pid);
+  return r;
+}
+
+export async function attach(srv, pid, file) {
+  const ref = await files.upload(srv, pid, file);
+  return { ref, name: file.name, size: file.size };
+}
+export const openAttachment = async (srv, ref) => { window.open(await files.openUrl(srv, ref), '_blank', 'noopener'); };
+
 export async function reload(logic, srv, id) {
   const { projects } = await srv.request('GET', '/projects');
   const row = projects.find((p) => p.id === id);
@@ -128,7 +146,8 @@ const SPEC = {
   tasks: { collection: 'task', data: (t, tr, srv) => ({ ...plainOf(t), sprint: tr(t.sprint) || '', milestone: tr(t.milestone) || '', parent: tr(t.parent) || '', deps: (t.deps || []).map(tr).filter(Boolean), assignee: pidOf(srv, t.primary) || '', secondary_id: pidOf(srv, t.secondary) || '' }) },
   risks: { collection: 'risk', data: (r) => ({ ...plainOf(r), level: ['Low', 'Medium', 'High'].includes(r.level) ? r.level : 'Medium' }) },
   activity: { collection: 'activity', data: (a) => plainOf(a) },
-  pages: { collection: 'page', data: (x, tr) => ({ ...plainOf(x), parent: tr(x.parent) || '' }) }
+  pages: { collection: 'page', data: (x, tr) => ({ ...plainOf(x), parent: tr(x.parent) || '', baseAt: x.updatedAt || '' }) },
+  comments: { collection: 'page_comment', data: (x, tr) => ({ ...plainOf(x), page: tr(x.page) || '' }) }
 };
 
 async function syncProject(logic, srv, prev, next) {
@@ -167,7 +186,7 @@ async function syncProject(logic, srv, prev, next) {
   if (Object.keys(patch).length) await srv.request('PATCH', `/projects/${id}`, patch);
   // items, parents first so children can point at them
   const save = (itemId, spec, item) => srv.request('PUT', `/projects/${id}/items/${itemId}`, { collection: spec.collection, data: spec.data(item, tr, srv) });
-  for (const k of ['milestones', 'sprints', 'tasks', 'risks', 'activity', 'pages']) {
+  for (const k of ['milestones', 'sprints', 'tasks', 'risks', 'activity', 'pages', 'comments']) {
     const spec = SPEC[k];
     const before = new Map((prev[k] || []).filter((x) => x.id).map((x) => [x.id, JSON.stringify(x)]));
     const ids = new Set();
