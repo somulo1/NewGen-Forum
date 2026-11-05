@@ -22,6 +22,19 @@ export function decorate(html, keys = [], comments = []) {
   }).join('');
 }
 
+// Macros are worked out when the page is read: they always show the current pages and tasks.
+export function expandMacros(html, ctx) {
+  const list = (items) => (items.length ? '<ul>' + items.map((x) => '<li>' + x + '</li>').join('') + '</ul>' : '<p>Nothing to show yet.</p>');
+  const link = (kind, v, label) => '<span data-ref="' + kind + ':' + attr(v) + '">' + esc(label) + '</span>';
+  return String(html).replace(/<div data-macro="([a-z]+)"(?: data-arg="([^"]*)")?[^>]*>\s*<\/div>/g, (m, kind, arg) => {
+    if (kind === 'toc') return list((String(html).match(/<h[1-3][^>]*>.*?<\/h[1-3]>/g) || []).map((h) => esc(h.replace(/<[^>]+>/g, '')).replace(/&amp;(\w+;)/g, '&$1')));
+    if (kind === 'children') return list(ctx.children.map((c) => link('page', c, c)));
+    if (kind === 'tasks') return list(ctx.tasks.filter((t) => t.key && t.col !== 3 && (!arg || (t.kind || 'task') === arg)).map((t) => link('task', t.key, t.key) + ' ' + esc(t.title) + ' · ' + esc(t.statusName || '')));
+    if (kind === 'board') { const u = ctx.boardUrl(arg); return u ? '<img src="' + u + '" alt="' + (arg || '') + '">' : '<p>No whiteboard is called ' + (arg || '') + '.</p>'; }
+    return m;
+  });
+}
+
 export const pageHtml = (body) => (isHtml(body) ? body : String(body || '').split('\n').map((l) => '<p>' + esc(l) + '</p>').join(''));
 // The words of a page, one block a line: for search, links and comparing versions.
 export function pageText(body) {

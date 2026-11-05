@@ -99,6 +99,20 @@ func (s *Service) Plan(ctx context.Context, p *tenant.Principal, id uuid.UUID) (
 		if err != nil {
 			return err
 		}
+		pr, err := scan(tx.QueryRow(ctx, sel+` where p.conversation_id=$1`, id))
+		if err != nil {
+			return err
+		}
+		pages, err := loadPages(ctx, tx, id)
+		if err != nil {
+			return err
+		}
+		hidden := map[string]bool{}
+		for pid := range pages {
+			if !pageAllowed(pages, pid, pr, p.Person, "view") {
+				hidden[pid] = true
+			}
+		}
 		rs, err := tx.Query(ctx, `select id, collection, ref, data, created_at, updated_at from hub.project_items where project_id=$1 and ($2 or collection not in ('page','page_comment')) order by created_at, id`, id, docs)
 		if err != nil {
 			return err
@@ -108,6 +122,16 @@ func (s *Service) Plan(ctx context.Context, p *tenant.Principal, id uuid.UUID) (
 			if err := rs.Scan(&it.ID, &it.Collection, &it.Ref, &it.Data, &it.CreatedAt, &it.UpdatedAt); err != nil {
 				rs.Close()
 				return err
+			}
+			if it.Collection == "page" && hidden[it.ID.String()] {
+				continue
+			}
+			if it.Collection == "page_comment" {
+				var c map[string]any
+				_ = json.Unmarshal(it.Data, &c)
+				if hidden[text(c, "page")] {
+					continue
+				}
 			}
 			items = append(items, it)
 		}
@@ -126,11 +150,94 @@ func (s *Service) Plan(ctx context.Context, p *tenant.Principal, id uuid.UUID) (
 			if err := hs.Scan(&c.Item, &c.Who, &c.At, &c.Field, &c.Old, &c.New); err != nil {
 				return err
 			}
+			if hidden[c.Item.String()] {
+				continue
+			}
 			changes = append(changes, c)
 		}
 		return hs.Err()
 	})
 	return items, changes, err
+}
+
+// loadPages reads every page of a project, for its restrictions.
+func loadPages(ctx context.Context, tx pgx.Tx, project uuid.UUID) (map[string]map[string]any, error) {
+	rows, err := loadItems(ctx, tx, project, "page")
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]map[string]any, len(rows))
+	for _, r := range rows {
+		out[r.id.String()] = r.data
+	}
+	return out, nil
+}
+
+// pageAllowed: a page's restrictions list who may view or edit it, and a restriction on a page also applies to everything under it. Its
+// creator and the project manager are never locked out. No list means everyone on the team.
+func pageAllowed(pages map[string]map[string]any, id string, pr *Project, person uuid.UUID, what string) bool {
+	if pr.Owner == person {
+		return true
+	}
+	me := person.String()
+	for cur, n := id, 0; cur != "" && n < 50; n++ {
+		pg, ok := pages[cur]
+		if !ok {
+			return true
+		}
+		if text(pg, "createdBy") == me {
+			return true
+		}
+		if rs, _ := pg["restrict"].(map[string]any); rs != nil {
+			view, edit := strList(rs["view"]), strList(rs["edit"])
+			// someone listed to edit may also read; a page you cannot read you cannot edit
+			if len(view) > 0 && !contains(view, me) && !contains(edit, me) {
+				return false
+			}
+			if what == "edit" && len(edit) > 0 && !contains(edit, me) {
+				return false
+			}
+		}
+		cur = text(pg, "parent")
+	}
+	return true
+}
+
+// LiveIn is one message between people editing a page together. The server only checks who may send it and passes it on.
+type LiveIn struct {
+	Kind string `json:"kind"` // hello | state | update | bye
+	Data string `json:"data"`
+	SID  string `json:"sid"`
+}
+
+// Live relays co-editing messages to the others on the project. Nothing is stored: the page is saved the usual way.
+func (s *Service) Live(ctx context.Context, p *tenant.Principal, project, page uuid.UUID, in LiveIn) error {
+	if !contains([]string{"hello", "state", "update", "bye"}, in.Kind) || in.SID == "" || len(in.SID) > 40 {
+		return httpx.Bad("Unknown message.")
+	}
+	err := s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
+		pr, err := s.member(ctx, tx, p, project, false)
+		if err != nil {
+			return err
+		}
+		if err := authz.Require(ctx, tx, p.Person, "projects", "Edit pages"); err != nil {
+			return err
+		}
+		pages, err := loadPages(ctx, tx, project)
+		if err != nil {
+			return err
+		}
+		if !pageAllowed(pages, page.String(), pr, p.Person, "edit") {
+			return httpx.ErrForbidden
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	d, _ := json.Marshal(map[string]any{"project": project, "page": page, "kind": in.Kind, "data": in.Data, "sid": in.SID, "name": p.Name})
+	s.A.Publish(ctx, realtime.Event{Type: "project.live", Channel: realtime.ConvChannel(project), Org: p.Org.String(), Actor: p.Person.String(), Data: d})
+	return nil
 }
 
 func (s *Service) ensureRights(ctx context.Context, tx pgx.Tx, org uuid.UUID) error {
@@ -536,7 +643,38 @@ func (s *Service) Save(ctx context.Context, p *tenant.Principal, project, id uui
 					}
 				}
 			}
+		case "page_comment":
+			pages, err := loadPages(ctx, tx, project)
+			if err != nil {
+				return err
+			}
+			if !pageAllowed(pages, text(data, "page"), pr, p.Person, "view") {
+				return httpx.ErrNotFound
+			}
 		case "page":
+			pages, err := loadPages(ctx, tx, project)
+			if err != nil {
+				return err
+			}
+			if !isNew && !pageAllowed(pages, id.String(), pr, p.Person, "view") {
+				return httpx.ErrNotFound
+			}
+			if !isNew && narrow != "View documents" && !pageAllowed(pages, id.String(), pr, p.Person, "edit") {
+				return httpx.Err(403, "page_restricted", "This page's restrictions do not let you change it.")
+			}
+			oldR, _ := json.Marshal(old["restrict"])
+			newR, _ := json.Marshal(data["restrict"])
+			if string(oldR) != string(newR) {
+				if err := authz.Require(ctx, tx, p.Person, "projects", "Restrict pages"); err != nil {
+					return err
+				}
+			}
+			if !isNew && data["createdBy"] == nil {
+				data["createdBy"] = old["createdBy"]
+			}
+			if isNew {
+				data["createdBy"] = p.Person.String()
+			}
 			if t := strings.TrimSpace(text(data, "title")); t == "" || len(t) > 200 {
 				return httpx.Bad("Give the page a title of up to 200 characters.")
 			}
@@ -654,6 +792,15 @@ func (s *Service) Delete(ctx context.Context, p *tenant.Principal, project, id u
 			err = authz.Require(ctx, tx, p.Person, "projects", "Delete tasks")
 		case "page":
 			err = authz.Require(ctx, tx, p.Person, "projects", "Delete pages")
+			if err == nil {
+				pages, e := loadPages(ctx, tx, project)
+				if e != nil {
+					return e
+				}
+				if !pageAllowed(pages, id.String(), pr, p.Person, "edit") {
+					return httpx.Err(403, "page_restricted", "This page's restrictions do not let you change it.")
+				}
+			}
 		default:
 			err = mayChange(ctx, tx, p, pr, coll, false, author)
 		}
@@ -835,6 +982,25 @@ func (s *Service) planRoutes(r chi.Router, org func(func(http.ResponseWriter, *h
 		return id, nil
 	}
 	s.automationRoutes(r, org, ids)
+	r.Post("/projects/{id}/pages/{item}/live", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
+		id, err := ids(r, "id")
+		if err != nil {
+			return err
+		}
+		item, err := ids(r, "item")
+		if err != nil {
+			return err
+		}
+		var in LiveIn
+		if err := httpx.Decode(r, &in, 6<<20); err != nil {
+			return err
+		}
+		if err := s.Live(r.Context(), p, id, item, in); err != nil {
+			return err
+		}
+		w.WriteHeader(204)
+		return nil
+	}))
 	r.Get("/projects/{id}/plan", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
 		id, err := ids(r, "id")
 		if err != nil {

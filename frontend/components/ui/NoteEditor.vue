@@ -48,6 +48,7 @@
 <button type="button" class="nr-b" :class="{ on: on('codeBlock') }" title="Code block" aria-label="Code block" @click="run(c => c.toggleCodeBlock())">&lt;/&gt;</button>
 <button type="button" class="nr-b" title="Horizontal line" aria-label="Horizontal line" @click="run(c => c.setHorizontalRule())">―</button>
 <button type="button" class="nr-b" :class="{ on: on('link') }" title="Link" aria-label="Link" @click="setLink">🔗</button>
+<select v-if="macros" class="nr-s" aria-label="Insert a macro" value="" @change="insertMacro($event.target.value); $event.target.value = ''"><option value="">Insert…</option><option value="info">Info panel</option><option value="note">Note panel</option><option value="warning">Warning panel</option><option value="success">Success panel</option><option value="expand">Expand section</option><option value="status">Status label</option><option value="toc">Table of contents</option><option value="children">Child pages</option><option value="tasks">Open tasks</option><option value="board">Whiteboard or diagram</option></select>
 <label class="nr-b" title="Insert a picture" aria-label="Insert a picture" style="position: relative; display: inline-flex; align-items: center; justify-content: center; cursor: pointer">🖼<input type="file" accept="image/*" aria-label="Insert a picture" @change="pickImage" style="position: absolute; inset: 0; opacity: 0; cursor: pointer"></label>
 </div>
 <div class="nr-grp">
@@ -80,7 +81,10 @@
 <script setup>
 import { ref, shallowRef, reactive, watch, onMounted, onBeforeUnmount } from 'vue';
 import { Editor, EditorContent } from '@tiptap/vue-3';
-import { Node, Mark, mergeAttributes } from '@tiptap/core';
+import { Node, Mark, mergeAttributes, generateJSON, getSchema } from '@tiptap/core';
+import Collaboration from '@tiptap/extension-collaboration';
+import { prosemirrorToYXmlFragment } from '@tiptap/y-tiptap';
+import { Node as PMNode } from '@tiptap/pm/model';
 import { imageDataUrl } from '~/logic/confluenceImport.js';
 import StarterKit from '@tiptap/starter-kit';
 import { Table, TableRow, TableCell, TableHeader } from '@tiptap/extension-table';
@@ -92,11 +96,11 @@ import Subscript from '@tiptap/extension-subscript';
 import Superscript from '@tiptap/extension-superscript';
 import { TaskList, TaskItem } from '@tiptap/extension-list';
 
-const props = defineProps({ modelValue: { type: String, default: '' }, editable: { type: Boolean, default: true } });
+const props = defineProps({ modelValue: { type: String, default: '' }, editable: { type: Boolean, default: true }, live: { type: Object, default: null }, liveSeed: { type: String, default: '' }, macros: { type: Boolean, default: false } });
 const emit = defineEmits(['update:modelValue', 'ref', 'comment']);
 
 // A picture lives inside the note or page itself, as data: nothing is fetched from elsewhere unless it was pasted as a web address.
-const safeSrc = (v) => /^(data:image\/(png|jpeg|gif|webp);base64,|https:\/\/)/i.test(v || '');
+const safeSrc = (v) => /^(data:image\/(png|jpeg|gif|webp);base64,|data:image\/svg\+xml;charset=utf-8,|https:\/\/)/i.test(v || '');
 const HubImage = Node.create({
   name: 'image', group: 'block', atom: true, draggable: true,
   addAttributes() { return { src: { default: null }, alt: { default: '' } }; },
@@ -110,6 +114,31 @@ const HubMark = Mark.create({
   parseHTML() { return [{ tag: 'span[data-ref]' }, { tag: 'span[data-comment]' }]; },
   renderHTML({ HTMLAttributes }) { return ['span', HTMLAttributes, 0]; }
 });
+// Confluence-style macros, for pages
+const Panel = Node.create({
+  name: 'panel', group: 'block', content: 'block+', defining: true,
+  addAttributes() { return { kind: { default: 'info', parseHTML: (el) => el.getAttribute('data-panel'), renderHTML: (a) => ({ 'data-panel': a.kind }) } }; },
+  parseHTML() { return [{ tag: 'div[data-panel]' }]; },
+  renderHTML({ HTMLAttributes }) { return ['div', HTMLAttributes, 0]; }
+});
+const Expand = Node.create({
+  name: 'expand', group: 'block', content: 'block+', defining: true,
+  addAttributes() { return { title: { default: 'More', parseHTML: (el) => el.getAttribute('data-expand'), renderHTML: (a) => ({ 'data-expand': a.title }) } }; },
+  parseHTML() { return [{ tag: 'div[data-expand]' }]; },
+  renderHTML({ HTMLAttributes }) { return ['div', HTMLAttributes, 0]; }
+});
+const Macro = Node.create({
+  name: 'macro', group: 'block', atom: true,
+  addAttributes() { return { kind: { default: 'toc', parseHTML: (el) => el.getAttribute('data-macro'), renderHTML: (a) => ({ 'data-macro': a.kind }) }, arg: { default: '', parseHTML: (el) => el.getAttribute('data-arg') || '', renderHTML: (a) => (a.arg ? { 'data-arg': a.arg } : {}) } }; },
+  parseHTML() { return [{ tag: 'div[data-macro]' }]; },
+  renderHTML({ HTMLAttributes }) { return ['div', HTMLAttributes]; }
+});
+const Status = Mark.create({
+  name: 'status',
+  addAttributes() { return { color: { default: 'blue', parseHTML: (el) => el.getAttribute('data-status'), renderHTML: (a) => ({ 'data-status': a.color }) } }; },
+  parseHTML() { return [{ tag: 'span[data-status]' }]; },
+  renderHTML({ HTMLAttributes }) { return ['span', HTMLAttributes, 0]; }
+});
 const MAX_IMAGE = 15 << 20;
 const addImage = async (ed, file) => { if (file.size > MAX_IMAGE) { window.alert('That picture is over 15 MB.'); return; } try { ed.chain().focus().insertContent({ type: 'image', attrs: { src: await imageDataUrl(file), alt: file.name } }).run(); } catch (e) { window.alert('That picture could not be read.'); } };
 const imagesOf = (list) => Array.from(list || []).filter((f) => /^image\/(png|jpeg|gif|webp)/.test(f.type));
@@ -121,6 +150,7 @@ const fonts = [
 ];
 const sizes = [10, 11, 12, 14, 16, 18, 20, 24, 28, 36];
 
+let unmounted = false;
 const editor = shallowRef(null);
 const tick = ref(0);
 const grid = reactive({ open: false, r: 0, c: 0 });
@@ -130,18 +160,28 @@ const esc = (t) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, 
 // Notes saved before rich text are plain text: turn each line into a paragraph.
 const toHtml = (v) => (!v ? '' : /^\s*</.test(v) ? v : v.split('\n').map((l) => '<p>' + esc(l) + '</p>').join(''));
 
-onMounted(() => {
-  const ed = new Editor({
-    content: toHtml(props.modelValue),
-    editable: props.editable,
-    extensions: [
-      StarterKit.configure({ link: { openOnClick: false, autolink: true, HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' } } }),
-      HubImage, HubMark, TextStyleKit, Subscript, Superscript, Highlight.configure({ multicolor: true }),
+onMounted(async () => {
+  const baseExt = () => [
+      StarterKit.configure({ ...(props.live ? { undoRedo: false } : {}), link: { openOnClick: false, autolink: true, HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' } } }),
+      HubImage, HubMark, Panel, Expand, Macro, Status, TextStyleKit, Subscript, Superscript, Highlight.configure({ multicolor: true }),
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
       Table.configure({ resizable: true }), TableRow, TableHeader, TableCell,
-      TaskList, TaskItem.configure({ nested: true }),
-      Placeholder.configure({ placeholder: 'Start writing, or paste a document here…' })
-    ],
+      TaskList, TaskItem.configure({ nested: true })
+    ];
+  const seedLive = async () => {
+    const found = await props.live.ready();
+    if (unmounted) return false;
+    if (found) return true;
+    const exts = baseExt();
+    const seed = toHtml(props.liveSeed);
+    if (seed) { const schema = getSchema(exts); const node = PMNode.fromJSON(schema, generateJSON(seed, exts)); props.live.seed(() => prosemirrorToYXmlFragment(node, props.live.doc.getXmlFragment('default'))); }
+    return true;
+  };
+  if (props.live && !(await seedLive())) return;
+  const ed = new Editor({
+    ...(props.live ? {} : { content: toHtml(props.modelValue) }),
+    editable: props.editable,
+    extensions: [...baseExt(), ...(props.live ? [Collaboration.configure({ document: props.live.doc, field: 'default' })] : []), Placeholder.configure({ placeholder: 'Start writing, or paste a document here…' })],
     editorProps: { attributes: { 'aria-label': 'Note text', role: 'textbox', 'aria-multiline': 'true', spellcheck: 'true' },
       handlePaste: (v, e) => { const l = imagesOf(e.clipboardData && e.clipboardData.files); if (!l.length) return false; l.forEach((f) => addImage(editor.value, f)); return true; },
       handleDrop: (v, e) => { const l = imagesOf(e.dataTransfer && e.dataTransfer.files); if (!l.length) return false; e.preventDefault(); l.forEach((f) => addImage(editor.value, f)); return true; } },
@@ -149,8 +189,10 @@ onMounted(() => {
     onTransaction: () => { tick.value++; hl.value = ed.getAttributes('highlight').color || ''; }
   });
   editor.value = ed;
+  // a restored version replaces the text for everyone in the session
+  if (props.live && props.modelValue && props.modelValue !== props.liveSeed) ed.commands.setContent(toHtml(props.modelValue));
 });
-onBeforeUnmount(() => { if (editor.value) editor.value.destroy(); });
+onBeforeUnmount(() => { unmounted = true; if (editor.value) editor.value.destroy(); });
 
 const on = (n) => { tick.value; return !!editor.value && editor.value.isActive(n); };
 const attr = (k) => { tick.value; return (editor.value && editor.value.getAttributes('textStyle')[k]) || ''; };
@@ -168,12 +210,23 @@ const pickImage = (e) => { const f = e.target.files && e.target.files[0]; e.targ
 // While reading, links work with one click. While writing, Ctrl or Cmd and click opens them.
 const onDocClick = (e) => {
   const t = e.target;
+  const ex = !props.editable && t.closest && t.closest('[data-expand]');
+  if (ex && e.offsetY < 30 && t === ex) { ex.classList.toggle('nr-closed'); return; }
   const ref = t.closest && t.closest('[data-ref]');
   if (ref) { emit('ref', ref.getAttribute('data-ref')); return; }
   const c = t.closest && t.closest('[data-comment]');
   if (c) { emit('comment', c.getAttribute('data-comment')); return; }
   const a = t.closest && t.closest('.ProseMirror a[href]');
   if (a && (!props.editable || e.ctrlKey || e.metaKey) && /^(https?:|mailto:)/i.test(a.getAttribute('href'))) { e.preventDefault(); window.open(a.getAttribute('href'), '_blank', 'noopener,noreferrer'); }
+};
+const insertMacro = (v) => {
+  const ed = editor.value;
+  if (['info', 'note', 'warning', 'success'].includes(v)) run((c) => c.insertContent({ type: 'panel', attrs: { kind: v }, content: [{ type: 'paragraph' }] }));
+  else if (v === 'expand') { const t = window.prompt('Title of the expandable section', 'More'); if (t) run((c) => c.insertContent({ type: 'expand', attrs: { title: t }, content: [{ type: 'paragraph' }] })); }
+  else if (v === 'status') { const t = window.prompt('Status text', 'IN PROGRESS'); const col = t && window.prompt('Colour: grey, blue, green, yellow or red', 'blue'); if (t) run((c) => c.insertContent({ type: 'text', text: t, marks: [{ type: 'status', attrs: { color: ['grey', 'blue', 'green', 'yellow', 'red'].includes(col) ? col : 'blue' } }] }).insertContent(' ')); }
+  else if (v === 'board') { const t = window.prompt('Title of the whiteboard or diagram page to show here'); if (t) run((c) => c.insertContent({ type: 'macro', attrs: { kind: 'board', arg: t } })); }
+  else if (v) run((c) => c.insertContent({ type: 'macro', attrs: { kind: v, arg: '' } }));
+  void ed;
 };
 const setLink = () => {
   const cur = editor.value.getAttributes('link').href || '';
@@ -189,7 +242,7 @@ const syncBlock = () => { const e = editor.value; if (!e) return; const h = [1, 
 watch(tick, syncBlock);
 watch(() => props.editable, (v) => { if (editor.value) editor.value.setEditable(v); });
 // A note opened later with different content (e.g. switching notes) is loaded in.
-watch(() => props.modelValue, (v) => { const e = editor.value; if (e && v !== (e.isEmpty ? '' : e.getHTML())) e.commands.setContent(toHtml(v), { emitUpdate: false }); });
+watch(() => props.modelValue, (v) => { const e = editor.value; if (!props.live && e && v !== (e.isEmpty ? '' : e.getHTML())) e.commands.setContent(toHtml(v), { emitUpdate: false }); });
 </script>
 
 <style>
@@ -237,6 +290,18 @@ watch(() => props.modelValue, (v) => { const e = editor.value; if (e && v !== (e
 .nr-doc .ProseMirror mark { border-radius: 2px; padding: 0 1px; }
 .nr-doc .ProseMirror img { display: block; max-width: 100%; height: auto; margin: 8px 0; border-radius: 6px; }
 .nr-doc .ProseMirror img.ProseMirror-selectednode { outline: 2px solid #7CC4FF; }
+.nr-doc .ProseMirror [data-panel] { margin: 8px 0; padding: 8px 12px; border-radius: 8px; border-left: 4px solid #1F6FB5; background: #1F6FB522; }
+.nr-doc .ProseMirror [data-panel="warning"] { border-color: #C0392B; background: #C0392B22; }
+.nr-doc .ProseMirror [data-panel="note"] { border-color: #E0A800; background: #E0A80022; }
+.nr-doc .ProseMirror [data-panel="success"] { border-color: #3C8D2F; background: #3C8D2F22; }
+.nr-doc .ProseMirror [data-expand] { margin: 8px 0; padding: 8px 12px; border: 1px solid #8884; border-radius: 8px; }
+.nr-doc .ProseMirror [data-expand]::before { content: '▾ ' attr(data-expand); display: block; font-weight: 700; cursor: pointer; }
+.nr-doc .ProseMirror [data-expand].nr-closed::before { content: '▸ ' attr(data-expand); }
+.nr-doc .ProseMirror [data-expand].nr-closed > * { display: none; }
+.nr-doc .ProseMirror [data-macro] { margin: 8px 0; padding: 10px; border: 1px dashed #8886; border-radius: 8px; font-size: 13px; }
+.nr-doc .ProseMirror [data-macro]::before { content: 'Macro: ' attr(data-macro) ' ' attr(data-arg) ' (shows when the page is read)'; }
+.nr-doc .ProseMirror [data-status] { padding: 1px 6px; border-radius: 4px; font-size: 12px; font-weight: 700; background: #1F6FB5; color: #fff; }
+.nr-doc .ProseMirror [data-status="green"] { background: #3C8D2F; } .nr-doc .ProseMirror [data-status="yellow"] { background: #E0A800; color: #111; } .nr-doc .ProseMirror [data-status="red"] { background: #C0392B; } .nr-doc .ProseMirror [data-status="grey"] { background: #777; }
 .nr-doc .ProseMirror [data-ref] { color: #1F6FB5; text-decoration: underline; cursor: pointer; }
 .nr-doc .ProseMirror [data-comment] { background: #FFD66B66; border-bottom: 2px solid #E0A800; cursor: pointer; }
 

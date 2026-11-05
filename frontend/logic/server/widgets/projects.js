@@ -4,6 +4,7 @@
 import { newConversationKey, wrap, newId, b64, unb64 } from '../e2ee.js';
 import { normalizeProject } from '../../projects.js';
 import * as files from '../files.js';
+import { joinPage } from '../../pageCollab.js';
 
 export const name = 'projects';
 
@@ -62,6 +63,7 @@ async function mapProject(srv, row) {
     if (!old.milestones.length) old.milestones = [{ id: row.id + '-m1', name: 'Project delivery', iso: old.due }];
     return normalizeProject({ ...old, method: row.method, workflow: row.workflow, unreadable: undefined, times: undefined, pages: [] });
   }
+  if (srv.rt) srv.rt.sub(row.id);   // live changes and co-editing arrive on the project's channel
   const conv = await srv.vault.conversation(row.id, true);
   const { items, changes } = await srv.request('GET', `/projects/${row.id}/plan`);
   const changesOf = new Map();
@@ -73,7 +75,7 @@ async function mapProject(srv, row) {
     return { ...t, key: row.code + '-' + x.ref, primary: (t.assignee && nameOf(srv, t.assignee)) || t.primary || '', secondary: (t.secondary_id && nameOf(srv, t.secondary_id)) || t.secondary || '', start: t.start || '', due: t.due || row.due || '', desc: t.desc || '', links: t.links || [], tickets: t.tickets || [], history: t.history || [] };
   });
   const p = {
-    id: row.id, name: conv.name || row.code, code: row.code, color: row.color, owner: row.owner_name || nameOf(srv, row.owner), team: (conv.members || []).map((m) => (m.person === srv.me.person ? srv.me.name : m.name)), status: row.status, goal: conv.about || '',
+    id: row.id, name: conv.name || row.code, code: row.code, color: row.color, owner: row.owner_name || nameOf(srv, row.owner), team: (conv.members || []).map((m) => (m.person === srv.me.person ? srv.me.name : m.name)), members: (conv.members || []).map((m) => ({ person: m.person, name: m.person === srv.me.person ? srv.me.name : m.name })), status: row.status, goal: conv.about || '',
     start: row.start || '', due: row.due || '', budget: row.budget_pct || 0, sync: row.sync || 'Not synced', tickets: row.links || [], method: row.method || 'agile', workflow: row.workflow,
     milestones: of('milestone').map(base), sprints: of('sprint').map(base), tasks, risks: of('risk').map(base), pages: of('page').map(base), comments: of('page_comment').map(base),
     activity: of('activity').reverse().map((x) => ({ ...base(x), time: ago(x.created_at) }))
@@ -146,6 +148,8 @@ export async function importPages(logic, srv, pid, pages, taken, onProgress) {
   return failed;
 }
 
+export const joinLive = (srv, pid, page, onPeers) => joinPage(srv, pid, page, onPeers);
+
 export async function attach(srv, pid, file) {
   const ref = await files.upload(srv, pid, file);
   return { ref, name: file.name, size: file.size };
@@ -170,7 +174,7 @@ const SPEC = {
   tasks: { collection: 'task', data: (t, tr, srv) => ({ ...plainOf(t), sprint: tr(t.sprint) || '', milestone: tr(t.milestone) || '', parent: tr(t.parent) || '', deps: (t.deps || []).map(tr).filter(Boolean), assignee: pidOf(srv, t.primary) || '', secondary_id: pidOf(srv, t.secondary) || '' }) },
   risks: { collection: 'risk', data: (r) => ({ ...plainOf(r), level: ['Low', 'Medium', 'High'].includes(r.level) ? r.level : 'Medium' }) },
   activity: { collection: 'activity', data: (a) => plainOf(a) },
-  pages: { collection: 'page', data: (x, tr) => ({ ...plainOf(x), parent: tr(x.parent) || '', baseAt: x.updatedAt || '' }) },
+  pages: { collection: 'page', data: (x, tr) => { const o = { ...plainOf(x), parent: tr(x.parent) || '', baseAt: x.liveSave ? '' : x.updatedAt || '' }; delete o.liveSave; return o; } },
   comments: { collection: 'page_comment', data: (x, tr) => ({ ...plainOf(x), page: tr(x.page) || '' }) }
 };
 
