@@ -553,6 +553,7 @@ func (m *Module) Private(r chi.Router) {
 	}
 	m.sfuPrivate(r, org)
 	m.feedbackRoutes(r, org)
+	r.Post("/calls/quality", org(handleQuality))
 	r.Post("/calls", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
 		var in StartIn
 		if err := httpx.Decode(r, &in, 2<<10); err != nil {

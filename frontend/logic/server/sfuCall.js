@@ -8,10 +8,12 @@
 // Media is encrypted on the device before it leaves (insertable streams) with a key made from the conversation's key, which
 // only members have, so the media server relays video it cannot watch. In-call chat is sealed the same way.
 import { startRingback, stopRingback, connected, joinedTone, handTone } from '../tones.js';
+import { noteReconnect } from './callQuality.js';
 
 const enc = new TextEncoder();
 const dec = new TextDecoder();
-const STAGE_TILES = 24;      // most tiles drawn at once
+const isPhone = () => typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches;
+const stageTiles = () => (isPhone() ? 5 : 15);   // most other people drawn at once (the rest are still heard, and in the people list)
 const ROSTER_EVERY = 900;    // the people list is refreshed at most this often (ms)
 const TILES_EVERY = 250;
 
@@ -67,8 +69,9 @@ const personView = (p) => ({
 function stageOf(room) {
   const rem = [...room.remoteParticipants.values()].filter(canPublish).map(personView);
   const loud = new Map(room.activeSpeakers.map((p, i) => [p.identity, i]));
-  rem.sort((a, b) => (loud.has(a.id) ? loud.get(a.id) : 99) - (loud.has(b.id) ? loud.get(b.id) : 99) || (b.cam - a.cam) || (b.sharing - a.sharing));
-  return rem.slice(0, STAGE_TILES);
+  rem.sort((a, b) => (loud.has(a.id) ? loud.get(a.id) : 99) - (loud.has(b.id) ? loud.get(b.id) : 99) || (b.cam - a.cam));
+  rem.sort((a, b) => b.sharing - a.sharing);   // a shared screen is always drawn, whoever is talking
+  return rem.slice(0, stageTiles());
 }
 
 function refresh(ctx, now = false) {
@@ -119,12 +122,14 @@ export async function connectSfu(ctx, entry, opts = {}) {
   S.info = info; S.canSpeak = !!info.can_speak;
   if (opts.ringback && !(srv.answeredCalls && srv.answeredCalls.has(entry.call.id))) startRingback();
   const lk = await import('livekit-client');
+  S.lk = lk;
   const keys = await callKeys(srv, entry);
   S.key = keys && keys.media; S.chatKey = keys && keys.chat;
   const opt = {
     adaptiveStream: true, dynacast: true,
     publishDefaults: { simulcast: true, dtx: true, red: true, videoCodec: 'vp8' },
-    videoCaptureDefaults: { resolution: lk.VideoPresets.h540.resolution },
+    // a computer offers up to 720p for someone drawn large; dynacast stops that layer when no tile is big enough to need it
+    videoCaptureDefaults: { resolution: (isPhone() ? lk.VideoPresets.h540 : lk.VideoPresets.h720).resolution },
     audioCaptureDefaults: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
   };
   if (S.key) {
@@ -198,7 +203,7 @@ export async function connectSfu(ctx, entry, opts = {}) {
     else logic.notify('The call connection closed.', '#FFB86B');
     if (logic.state.call) logic.endCall();
   });
-  room.on(E.Reconnecting, () => logic.notify('Reconnecting to the call…', '#FFB86B'));
+  room.on(E.Reconnecting, () => { noteReconnect(); logic.notify('Reconnecting to the call…', '#FFB86B'); });
   room.on(E.Reconnected, () => logic.notify('Back in the call.', '#B8F36B'));
 
   await room.connect(info.url, info.token, { autoSubscribe: true });
@@ -277,7 +282,9 @@ export async function applySfu(ctx) {
     }
   }
   if (video && !!s.sharing !== lp.isScreenShareEnabled) {
-    try { await lp.setScreenShareEnabled(!!s.sharing, { audio: true }); } catch (e) { ctx.logic.setState({ sharing: false }); }
+    try { // slides and documents stay readable on a poor connection: fewer frames rather than blurred text
+      const preset = S.lk.ScreenSharePresets.h1080fps15;
+      await lp.setScreenShareEnabled(!!s.sharing, { audio: true, contentHint: 'text', resolution: preset.resolution }, { screenShareEncoding: preset.encoding, degradationPreference: 'maintain-resolution' }); } catch (e) { ctx.logic.setState({ sharing: false }); }
   }
   const cam = [...lp.videoTrackPublications.values()].find((p) => p.source === 'camera');
   const scr = [...lp.videoTrackPublications.values()].find((p) => p.source === 'screen_share');
@@ -292,13 +299,24 @@ export async function sendChatSfu(text) {
   await S.room.localParticipant.publishData(await sealChat(text), { reliable: true, topic: 'chat' });
 }
 
+// Stats for the connection watch: what I send, and the audio I receive (enough to see the connection without asking every track).
+export function sfuStats() {
+  if (!S.room) return Promise.resolve([]);
+  const tracks = [...S.room.localParticipant.trackPublications.values()].map((p) => p.track);
+  for (const p of S.room.remoteParticipants.values()) {
+    if (tracks.length >= 10) break;
+    for (const pub of p.audioTrackPublications.values()) tracks.push(pub.track);
+  }
+  return Promise.all(tracks.filter(Boolean).map((t) => t.getRTCStatsReport().catch(() => null)));
+}
+
 export function leaveSfu() {
   const room = S.room;
   S.room = null;
   Object.values(S.timers).forEach((t) => clearTimeout(t));
   S.timers = {};
   S.audio.forEach((el) => el.remove());
-  S.audio.clear(); S.vids.clear(); S.key = S.chatKey = null; S.canSpeak = false;
+  S.audio.clear(); S.vids.clear(); S.key = S.chatKey = null; S.canSpeak = false; S.lk = null;
   if (room) { try { room.disconnect(); } catch (e) { /* closed */ } }
 }
 

@@ -12,6 +12,7 @@ import (
 	"hub/internal/mail"
 	"hub/internal/metrics"
 	"hub/internal/modules/auth"
+	"hub/internal/modules/calls"
 )
 
 // Module mounts routes. Public ones need no sign-in; Private ones are mounted behind the auth middleware.
@@ -30,6 +31,9 @@ type Deps struct {
 func Router(d Deps) http.Handler {
 	r := chi.NewRouter()
 	reg := metrics.New()
+	for name, read := range calls.QualityGauges() {
+		reg.Gauge(name, read)
+	}
 	reg.Gauge("hub_realtime_connections", func() float64 { return float64(d.App.Hub.Connections()) })
 	reg.Gauge("hub_db_pool_acquired", func() float64 { return float64(d.App.DB.Pool.Stat().AcquiredConns()) })
 	reg.Gauge("hub_db_pool_idle", func() float64 { return float64(d.App.DB.Pool.Stat().IdleConns()) })
