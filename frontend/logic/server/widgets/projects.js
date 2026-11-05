@@ -9,7 +9,8 @@ import { joinPage } from '../../pageCollab.js';
 export const name = 'projects';
 
 const COLS = ['todo', 'doing', 'review', 'done'];
-const isUuid = (x) => typeof x === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-7/.test(x);
+// a whole id: a new item's temporary id starts with the project's id, so the start alone is not enough
+const isUuid = (x) => typeof x === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(x);
 const ago = (iso) => { const m = Math.round((Date.now() - new Date(iso)) / 60000); return m < 60 ? Math.max(1, m) + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) === 1 ? 'Yesterday' : Math.round(m / 1440) + ' days ago'; };
 const pidOf = (srv, n) => (n === srv.me.name || n === 'Sam' ? srv.me.person : srv.personOf.get(n));
 const nameOf = (srv, pid) => (pid === srv.me.person ? srv.me.name : srv.nameOf.get(pid) || '');
