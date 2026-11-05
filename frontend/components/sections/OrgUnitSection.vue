@@ -69,7 +69,7 @@
 </div>
 
 
-<div role="tablist" style="display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--k-24322C,#24322C)"><template v-for="(ot, ot__i) in ou.tabs" :key="ot__i"><button role="tab" @click="ot.go" :style="ot.style + ';position:relative'" :aria-label="ot.fresh ? ot.label + ' (new)' : undefined">{{ ot.label }}<span v-if="ot.fresh" class="hub-blink" aria-hidden="true"></span> <span style="color: var(--k-9DB0A6,#9DB0A6); font-weight: 400">{{ ot.count }}</span></button></template></div>
+<ScrollTabs :active="(ou.tabs.find((t) => t.on) || {}).label"><template v-for="(ot, ot__i) in ou.tabs" :key="ot__i"><button role="tab" :aria-selected="!!ot.on" @click="ot.go" :style="ot.style + ';position:relative'" :aria-label="ot.fresh ? ot.label + ' (new)' : undefined">{{ ot.label }}<span v-if="ot.fresh" class="hub-blink" aria-hidden="true"></span> <span style="color: var(--k-9DB0A6,#9DB0A6); font-weight: 400">{{ ot.count }}</span></button></template></ScrollTabs>
 <template v-if="ou.isCats"><TicketCategories /></template>
 <DataTable v-if="!ou.isCats" :t="ouTable" />
 </div>
