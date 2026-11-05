@@ -9,13 +9,15 @@ export const name = 'projects';
 const COLS = ['todo', 'doing', 'review', 'done'];
 const isUuid = (x) => typeof x === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-7/.test(x);
 const ago = (iso) => { const m = Math.round((Date.now() - new Date(iso)) / 60000); return m < 60 ? Math.max(1, m) + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) === 1 ? 'Yesterday' : Math.round(m / 1440) + ' days ago'; };
+const pidOf = (srv, n) => (n === srv.me.name || n === 'Sam' ? srv.me.person : srv.personOf.get(n));
 const nameOf = (srv, pid) => (pid === srv.me.person ? srv.me.name : srv.nameOf.get(pid) || '');
 
-async function mapProject(srv, row) {
+// Older projects: their plan is still sealed in encrypted records. A member's device opens it once and hands it to the server as plain rows.
+async function mapLegacy(srv, row) {
   const conv = await srv.vault.conversation(row.id, true);
   const { records } = await srv.request('GET', `/containers/${row.id}/records?limit=1000`);
   const live = records.filter((r) => !r.deleted);
-  const open = await Promise.all(live.map(async (r) => ({ r, pl: (await srv.vault.openRecord(r)) || {} })));
+  const open = await Promise.all(live.map(async (r) => { const pl = await srv.vault.openRecord(r); return { r, pl: pl || {}, unread: !pl }; }));
   const of = (c) => open.filter((x) => x.r.collection === c);
   const milestones = of('milestone').map(({ r, pl }) => ({ id: r.id, name: pl.name || '', iso: r.meta.due || '', desc: pl.desc || '', closed: !!r.meta.closed, closedOn: pl.closedOn || '', closedBy: pl.closedBy || '', closedComment: pl.closedComment || '', history: pl.history || [] }));
   const sprints = of('sprint').map(({ r, pl }) => ({ id: r.id, name: pl.name || '', start: r.meta.start || '', end: r.meta.end || '', milestone: r.meta.milestone || '' }));
@@ -32,7 +34,50 @@ async function mapProject(srv, row) {
     start: row.start || '', due: row.due || '', budget: row.budget_pct || 0, sync: row.sync || 'Not synced', tickets: row.links || [],
     milestones, sprints, tasks, risks, activity
   };
-  if (!milestones.length) p.milestones = [{ id: row.id + '-m1', name: 'Project delivery', iso: p.due }];
+  p.unreadable = open.some((x) => x.unread && ['task', 'milestone', 'sprint', 'risk', 'activity'].includes(x.r.collection));
+  p.times = new Map(live.map((r) => [r.id, r.created_at]));
+  return p;
+}
+
+const plainOf = (x) => { const o = { ...x }; ['id', 'ref', 'key', 'changes', 'time', 'createdAt', 'updatedAt'].forEach((k) => delete o[k]); return o; };
+
+async function importLegacy(srv, row) {
+  const old = await mapLegacy(srv, row);
+  if (old.unreadable) return false;   // this device cannot read all of it: leave it for one that can, losing nothing
+  const items = [];
+  const add = (collection, list, data) => (list || []).forEach((x) => { if (isUuid(x.id)) items.push({ id: x.id, collection, created_at: old.times.get(x.id), data: data(x) }); });
+  add('milestone', old.milestones, plainOf);
+  add('sprint', old.sprints, plainOf);
+  add('task', old.tasks, (t) => ({ ...plainOf(t), kind: 'task', deps: [], status: COLS[t.col] || 'todo', assignee: pidOf(srv, t.primary) || '', secondary_id: pidOf(srv, t.secondary) || '' }));
+  add('risk', old.risks, plainOf);
+  add('activity', old.activity, plainOf);
+  await srv.request('POST', `/projects/${row.id}/import`, { items });
+  return true;
+}
+
+async function mapProject(srv, row) {
+  if (!row.plan_imported && !(await importLegacy(srv, row))) {
+    const old = await mapLegacy(srv, row);
+    if (!old.milestones.length) old.milestones = [{ id: row.id + '-m1', name: 'Project delivery', iso: old.due }];
+    return normalizeProject({ ...old, method: row.method, workflow: row.workflow, unreadable: undefined, times: undefined, pages: [] });
+  }
+  const conv = await srv.vault.conversation(row.id, true);
+  const { items, changes } = await srv.request('GET', `/projects/${row.id}/plan`);
+  const changesOf = new Map();
+  (changes || []).forEach((c) => { if (!changesOf.has(c.item)) changesOf.set(c.item, []); changesOf.get(c.item).push(c); });
+  const of = (c) => items.filter((x) => x.collection === c);
+  const base = (x) => ({ ...x.data, id: x.id, createdAt: x.created_at, updatedAt: x.updated_at, changes: changesOf.get(x.id) || [] });
+  const tasks = of('task').map((x) => {
+    const t = base(x);
+    return { ...t, key: row.code + '-' + x.ref, primary: (t.assignee && nameOf(srv, t.assignee)) || t.primary || '', secondary: (t.secondary_id && nameOf(srv, t.secondary_id)) || t.secondary || '', start: t.start || '', due: t.due || row.due || '', desc: t.desc || '', links: t.links || [], tickets: t.tickets || [], history: t.history || [] };
+  });
+  const p = {
+    id: row.id, name: conv.name || row.code, code: row.code, color: row.color, owner: row.owner_name || nameOf(srv, row.owner), team: (conv.members || []).map((m) => (m.person === srv.me.person ? srv.me.name : m.name)), status: row.status, goal: conv.about || '',
+    start: row.start || '', due: row.due || '', budget: row.budget_pct || 0, sync: row.sync || 'Not synced', tickets: row.links || [], method: row.method || 'agile', workflow: row.workflow,
+    milestones: of('milestone').map(base), sprints: of('sprint').map(base), tasks, risks: of('risk').map(base), pages: of('page').map(base),
+    activity: of('activity').reverse().map((x) => ({ ...base(x), time: ago(x.created_at) }))
+  };
+  if (!p.milestones.length) p.milestones = [{ id: row.id + '-m1', name: 'Project delivery', iso: p.due }];
   return normalizeProject(p);
 }
 
@@ -53,17 +98,14 @@ async function keysFor(srv, people) {
   const keys = await Promise.all(devices.map(async (d) => ({ epoch: 1, device: d.id, wrapped_key: b64(await wrap(key, unb64(d.identity_key))) })));
   return keys;
 }
-const pidOf = (srv, n) => (n === srv.me.name || n === 'Sam' ? srv.me.person : srv.personOf.get(n));
 
-// form: { name, goal, owner, team (names), start, due, budget }
+// form: { name, goal, method, owner, team (names), start, due, budget }
 export async function create(logic, srv, f, color) {
   const team = f.team.map((n) => pidOf(srv, n)).filter((x) => x && x !== srv.me.person);
   const conv = await srv.request('POST', '/conversations', { kind: 'project', name: f.name, about: f.goal, color, members: team, keys: await keysFor(srv, team) });
-  const res = await srv.request('POST', '/projects', { conversation: conv.id, color, start: f.start, due: f.due, budget_pct: Math.min(100, Math.max(0, Number(f.budget) || 0)), sync: 'Not synced', links: [] });
-  const ms = await srv.vault.seal(conv.id, { name: 'Project delivery', desc: '', history: [] });
-  await srv.request('POST', `/containers/${conv.id}/records`, { id: ms.id, collection: 'milestone', epoch: ms.epoch, device: ms.device, envelope: ms.envelope, meta: { due: f.due, closed: false } });
-  const act = await srv.vault.seal(conv.id, { text: 'Project created by ' + srv.me.name });
-  await srv.request('POST', `/containers/${conv.id}/records`, { id: act.id, collection: 'activity', epoch: act.epoch, device: act.device, envelope: act.envelope, meta: {} });
+  const res = await srv.request('POST', '/projects', { conversation: conv.id, color, method: f.method || 'agile', start: f.start, due: f.due, budget_pct: Math.min(100, Math.max(0, Number(f.budget) || 0)), sync: 'Not synced', links: [] });
+  await srv.request('PUT', `/projects/${conv.id}/items/${newId()}`, { collection: 'milestone', data: { name: f.method === 'waterfall' ? 'Delivery phase' : 'Project delivery', desc: '', iso: f.due, closed: false, history: [] } });
+  await srv.request('PUT', `/projects/${conv.id}/items/${newId()}`, { collection: 'activity', data: { text: 'Project created by ' + srv.me.name } });
   if (res.project && res.project.status !== 'Pending approval') await reload(logic, srv, conv.id);
   return res;
 }
@@ -81,11 +123,12 @@ export async function reload(logic, srv, id) {
 
 // ---- writing edits back ----
 const SPEC = {
-  milestones: { collection: 'milestone', payload: (m) => ({ name: m.name, desc: m.desc || '', closedOn: m.closedOn || '', closedBy: m.closedBy || '', closedComment: m.closedComment || '', history: m.history || [] }), meta: (m) => ({ due: m.iso, closed: !!m.closed }) },
-  sprints: { collection: 'sprint', payload: (s) => ({ name: s.name }), meta: (s, tr) => ({ start: s.start, end: s.end, ...(tr(s.milestone) ? { milestone: tr(s.milestone) } : {}) }) },
-  tasks: { collection: 'task', payload: (t, tr) => ({ title: t.title, desc: t.desc || '', primary: t.primary || '', secondary: t.secondary || '', start: t.start || '', due: t.due || '', links: t.links || [], tickets: t.tickets || [], objective: t.objective || '', history: t.history || [], sprint: tr(t.sprint) || t.sprint || '' }), meta: (t, tr, srv) => ({ column: COLS[Math.min(3, Math.max(0, t.col))], ...(t.due ? { due: t.due } : {}), ...(pidOf(srv, t.primary) ? { assignee: pidOf(srv, t.primary) } : {}), ...(t.secondary && pidOf(srv, t.secondary) ? { secondary: pidOf(srv, t.secondary) } : {}), ...(t.sprint ? { sprint: String(tr(t.sprint) || t.sprint) } : {}) }) },
-  risks: { collection: 'risk', payload: (r) => ({ text: r.text }), meta: (r) => ({ level: ['Low', 'Medium', 'High'].includes(r.level) ? r.level : 'Medium' }) },
-  activity: { collection: 'activity', payload: (a) => ({ text: a.text }), meta: () => ({}) }
+  milestones: { collection: 'milestone', data: (m) => plainOf(m) },
+  sprints: { collection: 'sprint', data: (x, tr) => ({ ...plainOf(x), milestone: tr(x.milestone) || '' }) },
+  tasks: { collection: 'task', data: (t, tr, srv) => ({ ...plainOf(t), sprint: tr(t.sprint) || '', milestone: tr(t.milestone) || '', parent: tr(t.parent) || '', deps: (t.deps || []).map(tr).filter(Boolean), assignee: pidOf(srv, t.primary) || '', secondary_id: pidOf(srv, t.secondary) || '' }) },
+  risks: { collection: 'risk', data: (r) => ({ ...plainOf(r), level: ['Low', 'Medium', 'High'].includes(r.level) ? r.level : 'Medium' }) },
+  activity: { collection: 'activity', data: (a) => plainOf(a) },
+  pages: { collection: 'page', data: (x, tr) => ({ ...plainOf(x), parent: tr(x.parent) || '' }) }
 };
 
 async function syncProject(logic, srv, prev, next) {
@@ -99,6 +142,8 @@ async function syncProject(logic, srv, prev, next) {
   if (prev.budget !== next.budget) patch.budget_pct = Math.min(100, Math.max(0, Number(next.budget) || 0));
   if (prev.sync !== next.sync) patch.sync = next.sync;
   if (prev.owner !== next.owner && pidOf(srv, next.owner)) patch.owner = pidOf(srv, next.owner);
+  if (prev.method !== next.method) patch.method = next.method;
+  if (JSON.stringify(prev.workflow) !== JSON.stringify(next.workflow)) patch.workflow = next.workflow;
   // team: give keys to newcomers before anything references them
   const added = next.team.filter((n) => prev.team.indexOf(n) === -1).map((n) => pidOf(srv, n)).filter(Boolean);
   if (added.length) {
@@ -120,9 +165,9 @@ async function syncProject(logic, srv, prev, next) {
     srv.vault.keys.delete(id); srv.vault.convs.delete(id);
   }
   if (Object.keys(patch).length) await srv.request('PATCH', `/projects/${id}`, patch);
-  // records, parents first so children can point at them
-  const created = {};
-  for (const k of ['milestones', 'sprints', 'tasks', 'risks', 'activity']) {
+  // items, parents first so children can point at them
+  const save = (itemId, spec, item) => srv.request('PUT', `/projects/${id}/items/${itemId}`, { collection: spec.collection, data: spec.data(item, tr, srv) });
+  for (const k of ['milestones', 'sprints', 'tasks', 'risks', 'activity', 'pages']) {
     const spec = SPEC[k];
     const before = new Map((prev[k] || []).filter((x) => x.id).map((x) => [x.id, JSON.stringify(x)]));
     const ids = new Set();
@@ -130,20 +175,23 @@ async function syncProject(logic, srv, prev, next) {
       const known = item.id && (isUuid(item.id) || srv.projIds.has(item.id)) ? tr(item.id) : null;
       if (known) {
         ids.add(item.id);
-        if (before.get(item.id) === JSON.stringify(item)) continue;
-        const sealed = await srv.vault.seal(id, spec.payload(item, tr), known);
-        await srv.request('PUT', `/containers/${id}/records/${known}`, { collection: spec.collection, epoch: sealed.epoch, device: sealed.device, envelope: sealed.envelope, meta: spec.meta(item, tr, srv) });
+        if (before.get(item.id) !== JSON.stringify(item)) await save(known, spec, item);
       } else {
-        const sealed = await srv.vault.seal(id, spec.payload(item, tr));
-        await srv.request('POST', `/containers/${id}/records`, { id: sealed.id, collection: spec.collection, epoch: sealed.epoch, device: sealed.device, envelope: sealed.envelope, meta: spec.meta(item, tr, srv) });
-        if (item.id) { srv.projIds.set(item.id, sealed.id); ids.add(item.id); } else created[k] = (created[k] || []).concat([sealed.id]);
+        const fresh = newId();
+        await save(fresh, spec, item);
+        if (item.id) { srv.projIds.set(item.id, fresh); ids.add(item.id); }
       }
     }
-    for (const [oldId] of before) if (!ids.has(oldId) && tr(oldId)) await srv.request('DELETE', `/containers/${id}/records/${tr(oldId)}`);
+    for (const [oldId] of before) if (!ids.has(oldId) && tr(oldId)) await srv.request('DELETE', `/projects/${id}/items/${tr(oldId)}`);
   }
 }
 
 function watch(logic, srv) {
+  // someone else on the team changed the plan
+  if (srv.rt && !srv.projLive) {
+    srv.projLive = true;
+    try { srv.rt.on('project.plan', (ev) => { const d = ev.data || {}; if (d.by !== srv.me.person && d.project && srv.projSnap.has(d.project)) reload(logic, srv, d.project).catch(() => {}); }); } catch (e) { /* no live connection */ }
+  }
   let busy = false, again = false, timer = null;
   const run = async () => {
     if (busy) { again = true; return; }

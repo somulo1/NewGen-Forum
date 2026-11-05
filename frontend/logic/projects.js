@@ -31,7 +31,7 @@ export function normalizeProject(p) {
   });
   const ordered = milestones.slice().sort(byDate);
   let sprints = p.sprints;
-  if (!sprints || !sprints.length) {
+  if (p.method === undefined && (!sprints || !sprints.length)) {   // sample data only: a real project plans its own sprints
     sprints = [];
     for (let n = 1, start = p.start; start <= p.due; n++, start = addDaysIso(start, SPRINT_DAYS)) {
       const end = addDaysIso(start, SPRINT_DAYS - 1) > p.due ? p.due : addDaysIso(start, SPRINT_DAYS - 1);
@@ -39,8 +39,8 @@ export function normalizeProject(p) {
       sprints.push({ id: p.id + '-s' + n, name: 'Sprint ' + n, start, end, milestone: ms.id });
     }
   }
-  const tasks = p.tasks.map((t) => ({ ...t, objective: t.objective || '', sprint: t.sprint || sprintFor(sprints, t.due).id }));
-  return { ...p, milestones, sprints, tasks };
+  const tasks = p.tasks.map((t) => ({ ...t, objective: t.objective || '', kind: t.kind || 'task', deps: t.deps || [], sprint: t.sprint !== undefined ? t.sprint : sprintFor(sprints, t.due).id }));
+  return { ...p, method: p.method || 'agile', workflow: wfOf(p), pages: p.pages || [], milestones, sprints: sprints || [], tasks: tasks.map((t) => ({ ...t, status: statusOf({ workflow: wfOf(p) }, t) })) };
 }
 
 // The sprint that contains a date. Dates outside every sprint fall back to the nearest one.
@@ -94,8 +94,9 @@ export function milestoneTimeline(project, today) {
   const firstOpen = sorted.find((m) => !m.closed);
   return sorted.map((m) => {
     const own = sprints.filter((sp) => sp.milestone === m.id);
-    const total = own.reduce((a, sp) => a + sp.total, 0);
-    const done = own.reduce((a, sp) => a + sp.done, 0);
+    const direct = project.tasks.filter((t) => !t.sprint && t.milestone === m.id);
+    const total = own.reduce((a, sp) => a + sp.total, 0) + direct.length;
+    const done = own.reduce((a, sp) => a + sp.done, 0) + direct.filter((t) => t.col === 3).length;
     // A milestone is reached by itself the moment every task in its sprints is done, and is open again as soon as one is not
     // (a milestone someone closed by hand with a comment stays closed until it is reopened).
     const ready = !m.closed && total > 0 && done === total;
@@ -107,7 +108,8 @@ export function milestoneTimeline(project, today) {
 
 export function taskContext(project, task) {
   const sprint = project.sprints.find((s) => s.id === task.sprint) || null;
-  const milestone = sprint ? project.milestones.find((m) => m.id === sprint.milestone) || null : null;
+  const msId = sprint ? sprint.milestone : task.milestone;   // a waterfall task sits directly in a phase
+  const milestone = msId ? project.milestones.find((m) => m.id === msId) || null : null;
   return { sprint, milestone };
 }
 
@@ -142,14 +144,48 @@ export function validateSprint(project, f) {
 
 export function validateTask(project, f) {
   if (!f.title.trim()) return 'Give the task a title.';
-  if (!f.objective.trim()) return 'Write the objective this task serves.';
+  if (f.kind === 'subtask' && !f.parent) return 'A subtask needs a parent task.';
+  if (f.points !== undefined && f.points !== '' && !(Number(f.points) >= 0 && Number(f.points) <= 1000)) return 'Story points are a number from 0 to 1000.';
+  if (!f.due) return 'Pick a due date.';
+  if (project.method === 'waterfall') {
+    const ph = project.milestones.find((m) => m.id === f.milestone);
+    if (!ph) return 'Choose the phase this task belongs to.';
+    if (ph.closed) return 'That phase has already passed its gate. Pick another phase.';
+    return '';
+  }
+  if (!f.sprint) return '';   // no sprint: it waits in the backlog
   const sp = project.sprints.find((s) => s.id === f.sprint);
   if (!sp) return 'Choose the sprint this task belongs to.';
   const ms = project.milestones.find((m) => m.id === sp.milestone);
   if (ms && ms.closed) return 'That sprint belongs to a milestone that is already reached. Pick another sprint.';
-  if (!f.due) return 'Pick a due date.';
   if (f.due < sp.start || f.due > sp.end) return 'The due date must fall inside the sprint (' + sp.start + ' to ' + sp.end + ').';
   return '';
+}
+
+// ---- a project's workflow: its own statuses, each meaning not started (0), in progress (1), being checked (2) or finished (3) ----
+export const DEFAULT_WORKFLOW = [{ key: 'todo', name: 'To do', cat: 0 }, { key: 'doing', name: 'In progress', cat: 1 }, { key: 'review', name: 'Review', cat: 2 }, { key: 'done', name: 'Done', cat: 3 }];
+export const CAT_COLORS = ['#9DB0A6', '#7CC4FF', '#FFB86B', '#B8F36B'];
+export const wfOf = (p) => (p && p.workflow && p.workflow.length ? p.workflow : DEFAULT_WORKFLOW);
+export function statusOf(p, t) {
+  const wf = wfOf(p);
+  if (wf.some((w) => w.key === t.status)) return t.status;
+  return (wf.find((w) => w.cat === (t.col || 0)) || wf[0]).key;
+}
+export const statusEntry = (p, t) => wfOf(p).find((w) => w.key === statusOf(p, t));
+// the status one step along the workflow, or null at its ends
+export function stepOf(p, t, dir) {
+  const wf = wfOf(p);
+  return wf[wf.findIndex((w) => w.key === statusOf(p, t)) + dir] || null;
+}
+// the unfinished tasks this one waits for
+export const openDeps = (p, t) => (t.deps || []).map((id) => p.tasks.find((x) => x.id === id)).filter((x) => x && x.col !== 3);
+// when a task was finished, from its change history
+export function doneAt(t) {
+  if (t.col !== 3) return '';
+  const c = (t.changes || []).filter((x) => x.field === 'col' && x.new === '3').pop();
+  if (c) return c.at;
+  const h = (t.history || []).slice().pop();
+  return h ? h.at : '';
 }
 
 // ---- who may do what with a task ----
@@ -159,9 +195,9 @@ export function validateTask(project, f) {
 export const isManager = (project, me) => !!project && !!project.owner && project.owner === me;
 export const ownsTask = (task, me) => !!task && !!me && (task.primary === me || task.secondary === me);
 export function mayMoveTask(project, task, dir, me) {
-  const to = task.col + dir;
-  if (to < 0 || to > 3 || dir === 0) return false;
-  if (to === 3 || task.col === 3) return isManager(project, me);
+  const to = dir ? stepOf(project, task, dir) : null;
+  if (!to) return false;
+  if (to.cat === 3 || task.col === 3) return isManager(project, me);
   return isManager(project, me) || ownsTask(task, me);
 }
 export const mayEditTask = (task, me) => ownsTask(task, me);
@@ -171,7 +207,9 @@ export const mayEditTask = (task, me) => ownsTask(task, me);
 export function boardTasks(project, sprintId, reachedMilestones) {
   return project.tasks.map((t, ti) => ({ t, ti })).filter(({ t }) => {
     if (sprintId && sprintId !== 'all') return t.sprint === sprintId;
+    if (!t.sprint && !t.milestone && project.method !== 'waterfall') return false;   // still in the backlog
     const sp = project.sprints.find((x) => x.id === t.sprint);
-    return !(sp && reachedMilestones.indexOf(sp.milestone) !== -1);
+    const ms = sp ? sp.milestone : t.milestone;
+    return !(ms && reachedMilestones.indexOf(ms) !== -1);
   });
 }
