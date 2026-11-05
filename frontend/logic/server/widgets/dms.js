@@ -5,6 +5,7 @@ import { newConversationKey, wrap, b64, unb64 } from '../e2ee.js';
 import { connectRealtime } from '../realtime.js';
 import { changedSince, markOf, pause } from '../catchup.js';
 import * as files from '../files.js';
+import * as presence from '../presence.js';
 import { messageTone, alertTone } from '../../tones.js';
 
 export const name = 'dms';
@@ -90,6 +91,7 @@ export async function load(logic, srv) {
   // keep chats only on this screen (not yet written to) and messages still sending
   const local = (logic.state.dms || []).filter((d) => String(d.id).startsWith('dm-') && !dms.some((x) => x.with === d.with));
   logic.setState({ dms: dms.map((d) => ({ ...d, msgs: d.msgs.concat(((prev.get(d.id) || {}).msgs || []).filter((m) => m.pending)) })).concat(local) });
+  presence.track(logic, srv, dms.map((d) => d.person));   // who of them is online, and keep following
   const media = dms.flatMap((d) => loadFiles(logic, srv, d.id, d.msgs));
   live(logic, srv);
   await files.settle(media);   // the first pictures and files of the chats are in before the chats count as loaded
@@ -149,6 +151,7 @@ export async function ensure(logic, srv, personName) {
   if (have) return have.id;
   const pid = srv.personOf.get(personName);
   if (!pid) throw new Error(personName + ' does not have an account yet.');
+  presence.track(logic, srv, [pid]);
   const { devices } = await srv.request('POST', '/e2ee/people/devices', { people: [srv.me.person, pid] });
   const key = newConversationKey();
   const keys = await Promise.all(devices.map(async (d) => ({ epoch: 1, device: d.id, wrapped_key: b64(await wrap(key, unb64(d.identity_key))) })));

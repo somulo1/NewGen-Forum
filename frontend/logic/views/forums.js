@@ -2,6 +2,7 @@ import * as dmsW from '~/logic/server/widgets/dms.js';
 import { richTextHtml, mentionLinker } from '~/logic/richText.js';
 import { noteText, notesConnected, isMine, permLabel } from '~/logic/noteText.js';
 import * as forumsW from '~/logic/server/widgets/forums.js';
+import * as presenceW from '~/logic/server/presence.js';
 // "Amy is typing…", "Amy and Ben are typing…", "3 people are typing…"
 const typingLine = (names) => (!names || !names.length ? '' : names.length === 1 ? names[0] + ' is typing…' : names.length === 2 ? names[0] + ' and ' + names[1] + ' are typing…' : names.length + ' people are typing…');
 // renderVals step: forums. Receives the names built by earlier steps and returns the ones later steps need.
@@ -101,6 +102,7 @@ export function buildForums(ctx) {
   let dmView = null;
   if (curDm) {
     const pr = dmPerson(curDm.with);
+    const dmOnline = !!this.srv && presenceW.isOnline(this.srv, curDm.person);   // the other person's browser is connected right now
     const secureShares = s.secureShares.filter((share) => share.recipient === curDm.with).map((share) => {
       const now = Date.now();
       const expired = !share.openedAt && now >= share.expiresAt;
@@ -151,7 +153,7 @@ export function buildForums(ctx) {
         ...actions
       };
     }).filter((message) => !s.hiddenChatMessages[message.messageKey] && !s.removedChatMessages[message.messageKey]);
-    dmView = { id: curDm.id, name: curDm.with, initials: pr.initials, color: pr.color, online: '', about: pr.title, subline: typingLine(s.typing && s.typing[curDm.id]) || ((pr.status || 'Available') + ' · private chat'), typingText: typingLine(s.typing && s.typing[curDm.id]), dotColor: dmStatusCol[pr.status] || '#B8F36B', title: pr.title,
+    dmView = { id: curDm.id, name: curDm.with, initials: pr.initials, color: pr.color, online: '', about: pr.title, subline: typingLine(s.typing && s.typing[curDm.id]) || (dmOnline ? 'Online · ' + (pr.status || 'Available') : this.srv ? 'Offline' : (pr.status || 'Available') + ' · private chat'), typingText: typingLine(s.typing && s.typing[curDm.id]), dotColor: dmOnline || !this.srv ? (dmStatusCol[pr.status] || '#B8F36B') : '#6B7A72', isOnline: dmOnline, title: pr.title,
       chat: dmMessages, topics: [] };
   }
   const curView = isDM ? dmView : forumView;

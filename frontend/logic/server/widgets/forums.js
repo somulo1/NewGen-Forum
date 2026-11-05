@@ -287,8 +287,12 @@ async function loadPresence(logic, srv) {
       Object.keys(online || {}).forEach((id) => online[id] && on.add(id));
     } catch (e) { /* presence is best effort */ }
   }
-  on.add(srv.me.person);
-  srv.online = on;
+  // merged into what is already known (private chats follow people too), not replaced by it
+  const known = srv.online || new Set();
+  ids.forEach((id) => known.delete(id));
+  on.forEach((id) => known.add(id));
+  known.add(srv.me.person);
+  srv.online = known;
   applyOnline(logic, srv);
 }
 function applyOnline(logic, srv) {
