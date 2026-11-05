@@ -8,15 +8,12 @@ import { connectRealtime } from './realtime.js';
 import * as dmsW from './widgets/dms.js';
 import { connectSfu, leaveSfu, applySfu, sendChatSfu, sfuActive, control } from './sfuCall.js';
 import { startRing, stopRing, startRingback, stopRingback, connected, hangup, joinedTone, handTone } from '../tones.js';
+import { retryDelay } from './backoff.js';
 
-// STUN servers always; a TURN relay too when the server has one (it comes with the call, see the API's `ice`), so calls connect
-// across different networks, mobile data and strict firewalls.
 const FALLBACK_ICE = [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun.cloudflare.com:3478' }];
 
-// Live media, outside the reactive state (MediaStreams must not be proxied). Components read them with streamFor().
 const media = { local: null, screen: null, remote: new Map(), audio: new Map(), tracks: new Map(), version: 0, listeners: new Set() };
 export const streamFor = (key) => (key === 'local' ? media.screen || media.local : media.remote.get(key) || null);
-// In a big room the video comes as media-server tracks (the server picks the quality from the size they are drawn at).
 export const trackFor = (key) => media.tracks.get(key) || null;
 export const onMedia = (fn) => { media.listeners.add(fn); return () => media.listeners.delete(fn); };
 const changed = () => { media.version++; media.listeners.forEach((fn) => fn(media.version)); };
@@ -27,9 +24,6 @@ function setCall(logic, patch) {
   logic.setState((st) => (st.call ? { call: { ...st.call, ...patch } } : {}));
 }
 
-// Takes what the computer can give: microphone and camera together, then each on its own. A microphone or camera another app or
-// browser tab already holds (the usual case when two windows are tried on one computer) must not stop the call: whatever is
-// missing is simply not sent, and the call still carries what the other side sends (see peerConn).
 async function getMedia(kind) {
   const md = navigator.mediaDevices;
   if (!md || !md.getUserMedia) return null;
@@ -48,8 +42,6 @@ function peerConn(logic, peerId) {
   room.pcs.set(peerId, pc);
   const local = media.local;
   if (local) local.getTracks().forEach((t) => pc.addTrack(t, local));
-  // Nothing to send of a kind (no microphone, no camera, or another app holds it): still ask for the other side's. Without this the
-  // offer has no media sections at all, and the call would carry nothing in either direction.
   const has = (k) => !!(local && local.getTracks().some((t) => t.kind === k));
   if (!has('audio')) pc.addTransceiver('audio', { direction: 'recvonly' });
   if (room && room.kind === 'video' && !has('video')) pc.addTransceiver('video', { direction: 'recvonly' });
@@ -120,7 +112,9 @@ async function connectRoom(logic, srv, entry, opts = {}) {
     return;
   }
   if (!logic.state.call) return;   // hung up while the call was still being set up: nothing to ring or open
-  if (opts.ringback) startRingback();
+  // The other person may have picked up before this side was even ready: then there is nothing to ring.
+  const pickedUp = !!(srv.answeredCalls && srv.answeredCalls.has(entry.call.id));
+  if (opts.ringback && !pickedUp) startRingback();
   const ctx = entry.call.context || 'meeting';
   media.local = await getMedia(entry.call.kind);
   if (!logic.state.call) { (media.local ? media.local.getTracks() : []).forEach((t) => t.stop()); media.local = null; stopRingback(); return; }   // hung up while the microphone was being asked for
@@ -136,15 +130,18 @@ async function connectRoom(logic, srv, entry, opts = {}) {
   const ws = new WebSocket(entry.url + '?token=' + encodeURIComponent(entry.token));
   room = { ws, me: null, pcs: new Map(), callId: entry.call.id, host: entry.call.host, ctx, kind: entry.call.kind, ice: entry.ice && entry.ice.length ? entry.ice : FALLBACK_ICE };
   setCall(logic, { callId: entry.call.id, peers: [], me: null });
+  if (srv.answeredCalls && srv.answeredCalls.has(entry.call.id)) stopRingback();   // picked up while the microphone was being set up
   // messages are handled one after another, in the order they arrive: an offer must be in before the candidates that follow it
   let chain = Promise.resolve();
-  ws.onmessage = (e) => { chain = chain.then(() => handle(e)).catch((x) => console.warn('call message failed', x)); };
+  const feed = (e) => { chain = chain.then(() => handle(e)).catch((x) => console.warn('call message failed', x)); };
+  ws.onmessage = feed;
   const handle = async (e) => {
     let m; try { m = JSON.parse(e.data); } catch (x) { return; }
     const peers = () => (logic.state.call && logic.state.call.peers) || [];
     switch (m.type) {
       case 'welcome':
         room.me = m.you.id;
+        room.resume = m.resume || '';   // the secret that lets this device take its place back if its connection drops
         setCall(logic, { me: m.you.id, myRole: m.you.role, peers: (m.peers || []).map(peerView) });
         // the newcomer calls everyone already in the room
         for (const p of m.peers || []) {
@@ -158,6 +155,15 @@ async function connectRoom(logic, srv, entry, opts = {}) {
         if ((m.peers || []).length) { stopRingback(); connected(); }
         sendState(logic);
         break;
+      case 'resumed': {
+        // the connection to the call server came back and this device has its place again: bring the list of people up to date with what
+        // happened while it was away (the media between devices carried on by itself)
+        const now = (m.peers || []).map(peerView);
+        for (const p of peers()) if (!now.some((x) => x.id === p.id)) dropPeer(p.id);
+        setCall(logic, { peers: now });
+        sendState(logic);
+        break;
+      }
       case 'peer-joined':
         setCall(logic, { peers: peers().filter((p) => p.id !== m.peer.id).concat([peerView(m.peer)]) });
         stopRingback();
@@ -215,14 +221,52 @@ async function connectRoom(logic, srv, entry, opts = {}) {
       default:
     }
   };
+
+  let resuming = false;
+  const reconnect = async () => {
+    if (resuming) return;
+    resuming = true;
+    logic.notify('Connection lost. Reconnecting to the call…', '#FFB86B');
+    const t0 = Date.now();
+    for (let attempt = 1; room && logic.state.call && Date.now() - t0 < 30000; attempt++) {
+      await new Promise((r) => setTimeout(r, attempt === 1 ? 400 : retryDelay(attempt)));
+      if (!room || !logic.state.call) break;
+      const q = '?resume=' + encodeURIComponent(room.me) + '&room=' + encodeURIComponent(entry.call.id) + '&key=' + encodeURIComponent(room.resume);
+      const back = await new Promise((resolve) => {
+        let w; let settled = false;
+        const fin = (v) => { if (!settled) { settled = true; clearTimeout(giveUp); resolve(v); } };
+        const giveUp = setTimeout(() => { try { w && w.close(); } catch (x) { /* already closed */ } fin(null); }, 6000);
+        try { w = new WebSocket(entry.url + q); } catch (x) { fin(null); return; }
+        w.onmessage = (e) => {
+          let m; try { m = JSON.parse(e.data); } catch (x) { return; }
+          if (!m || m.type !== 'resumed') return;
+          if (!room || !logic.state.call) { try { w.close(); } catch (x) { /* closed */ } fin(null); return; }
+          room.ws = w;
+          watch(w);
+          feed(e);   // the "resumed" message itself, then everything after it, goes through the normal handler
+          fin(w);
+        };
+        w.onclose = () => fin(null);
+        w.onerror = () => fin(null);
+      });
+      if (back) { resuming = false; logic.notify('Back in the call.', '#B8F36B'); return; }
+    }
+    resuming = false;
+    if (room && logic.state.call) { logic.notify('The call connection closed.', '#FFB86B'); logic.endCall(); }
+  };
   let opened = false;
-  ws.onopen = () => { opened = true; };
-  ws.onclose = () => {
-    if (room && room.ws === ws && logic.state.call) {
+  // handlers of the connection the room is using now (the first one, or the one that came back)
+  const watch = (w) => {
+    w.onmessage = feed;
+    w.onclose = () => {
+      if (!room || room.ws !== w || !logic.state.call) return;
+      if (room.resume && room.me) { reconnect(); return; }
       logic.notify(opened ? 'The call connection closed.' : 'Could not reach the call server, or the call pass expired. Start the call again.', '#FFB86B');
       logic.endCall();
-    }
+    };
   };
+  ws.onopen = () => { opened = true; };
+  watch(ws);
 }
 
 function dropPeer(id) {
@@ -353,6 +397,15 @@ export async function start(logic, srv, { kind, context, ref }) {
   srv.startingCall = entry.call.id;
   // hung up before the call even existed on the server: tell it now, so nobody is left ringing
   if (srv.cancelStart || !logic.state.call) { srv.cancelStart = false; srv.request('POST', `/calls/${entry.call.id}/leave`, {}).catch(() => {}); return; }
+  // A private call nobody picks up must not ring for ever, even if the server's "missed" notice never reaches this browser: after 50 s
+  // (the server gives up at 45) it says so and hangs up.
+  if (ctx === 'dm') {
+    const id = entry.call.id;
+    setTimeout(() => {
+      const cur = logic.state.call;
+      if (cur && cur.callId === id && !cur.connected && !(srv.answeredCalls && srv.answeredCalls.has(id))) { logic.notify('No answer.', '#7CC4FF'); logic.endCall(); }
+    }, 50000);
+  }
   await connectRoom(logic, srv, entry, { ringback: ctx === 'dm' });
 }
 
@@ -380,6 +433,7 @@ export function listen(logic, srv) {
   if (srv.callsLive) return;
   srv.callsLive = true;
   srv.doneCalls = srv.doneCalls || new Set();   // calls already answered or ended: a late ring for one is ignored
+  srv.answeredCalls = srv.answeredCalls || new Set();   // calls the other side picked up (so a ring that has not started yet is not started)
   const onCall = (ev) => {
     const d = ev.data || {};
     if (srv.doneCalls.has(d.call)) return;
@@ -399,9 +453,12 @@ export function listen(logic, srv) {
   rt.on('call.answered', (ev) => {
     const d = ev.data || {};
     srv.doneCalls.add(d.call);
+    srv.answeredCalls.add(d.call);
     const inc = logic.state.incoming;
     if (inc && inc.callId === d.call) { clearTimeout(srv.ringT); stopRing(); logic.setState({ incoming: null }); }
-    if (logic.state.call && logic.state.call.callId === d.call) stopRingback();
+    // my ringback stops the moment they pick up. The call's id is known to the app before it is set on the call screen (which waits for
+    // the microphone), so the call being started counts too.
+    if ((logic.state.call && logic.state.call.callId === d.call) || srv.startingCall === d.call) stopRingback();
   });
   rt.on('call.ended', (ev) => {
     const d = ev.data || {};
@@ -410,7 +467,11 @@ export function listen(logic, srv) {
     if (inc && inc.callId === d.call) { clearTimeout(srv.ringT); stopRing(); logic.setState({ incoming: null }); logic.notify('Missed a call from ' + (inc.name || 'a colleague') + '.', '#FFB86B'); }
     // the server ended the call I am in (everyone else left): hang up here too
     const cur = logic.state.call;
-    if (cur && cur.callId === d.call) { logic.notify(cur.context === 'dm' ? 'The call ended.' : 'Everyone else left, so the call ended.', '#7CC4FF'); logic.endCall(); }
+    if (cur && cur.callId === d.call) {
+      const unanswered = !srv.answeredCalls.has(d.call) && !cur.connected;
+      logic.notify(unanswered ? (cur.context === 'dm' ? 'No answer.' : 'Nobody joined.') : cur.context === 'dm' ? 'The call ended.' : 'Everyone else left, so the call ended.', '#7CC4FF');
+      logic.endCall();
+    }
   });
   rt.on('call.declined', (ev) => {
     const d = ev.data || {};

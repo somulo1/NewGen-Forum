@@ -55,7 +55,7 @@
 <div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><strong style="font-size: 16px">{{ pr.name }}</strong><span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">{{ pr.code }} · Led by {{ pr.owner }}</span></div>
 <span :style="pr.statusStyle">{{ pr.status }}</span>
 </div>
-<p style="margin: 0; font-size: 13px; line-height: 1.5; color: var(--k-C9D6CF,#C9D6CF)">{{ pr.goal }}</p>
+<p style="margin: 0; font-size: 13px; line-height: 1.5; color: var(--k-C9D6CF,#C9D6CF)"><LinkText :text="pr.goal"/></p>
 <div style="display: flex; flex-direction: column; gap: 6px">
 <div style="display: flex; justify-content: space-between; font-size: 12px"><span style="color: var(--k-9DB0A6,#9DB0A6)">Progress</span><strong>{{ pr.progress }}%</strong></div>
 <div style="height: 8px; border-radius: 4px; background: var(--k-22302A,#22302A); overflow: hidden"><div :style="pr.barStyle"></div></div>
@@ -176,7 +176,7 @@
 <aside aria-label="Project overview" style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
 <div style="padding: 18px; border-radius: 18px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 10px">
 <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--k-9DB0A6,#9DB0A6)">Why this project</span>
-<p style="margin: 0; font-size: 14px; line-height: 1.55">{{ pj.goal }}</p>
+<p style="margin: 0; font-size: 14px; line-height: 1.55"><LinkText :text="pj.goal"/></p>
 <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--k-9DB0A6,#9DB0A6); margin-top: 6px">Team · {{ pj.teamCount }}</span>
 <div style="max-height: 200px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 4px">
 <template v-for="(tm, tm__i) in pj.team" :key="tm__i"><div style="display: flex; gap: 10px; align-items: center"><UserAvatar :name="tm.name" :initials="tm.initials" :color="tm.color" :size="30" :font-size="11"/><span style="font-size: 14px; flex: 1">{{ tm.name }}</span><span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">{{ tm.load }} open</span></div></template>
@@ -185,7 +185,7 @@
 <div style="padding: 18px; border-radius: 18px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 10px">
 <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--k-9DB0A6,#9DB0A6)">Recent activity</span>
 <div style="max-height: 230px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 4px">
-<template v-for="(pa, pa__i) in pj.activity" :key="pa__i"><div style="display: flex; gap: 10px; align-items: flex-start"><span style="width: 6px; height: 6px; margin-top: 7px; flex: none; border-radius: 50%; background: #B8F36B"></span><span style="font-size: 13px; line-height: 1.45; color: var(--k-C9D6CF,#C9D6CF)">{{ pa.text }} <span style="color: var(--k-9DB0A6,#9DB0A6)">· {{ pa.time }}</span></span></div></template>
+<template v-for="(pa, pa__i) in pj.activity" :key="pa__i"><div style="display: flex; gap: 10px; align-items: flex-start"><span style="width: 6px; height: 6px; margin-top: 7px; flex: none; border-radius: 50%; background: #B8F36B"></span><span style="font-size: 13px; line-height: 1.45; color: var(--k-C9D6CF,#C9D6CF)"><LinkText :text="pa.text"/> <span style="color: var(--k-9DB0A6,#9DB0A6)">· {{ pa.time }}</span></span></div></template>
 </div>
 </div>
 </aside>

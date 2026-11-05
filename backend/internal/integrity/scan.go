@@ -92,6 +92,9 @@ func (sc *Scanner) Run(ctx context.Context, conn *pgx.Conn, only string) (*Repor
 
 	// which tables are sealed, and which of those are per organization
 	rs, err := tx.Query(ctx, `select c.relname, exists (select 1 from pg_attribute a where a.attrelid = c.oid and a.attname = 'org_id' and not a.attisdropped)
+		  -- per organization only when the database itself filters the table by organization (a "tenant" policy): a table that merely has an
+		  -- org_id column (like account_orgs, shared by all) is read once, whatever organization is current
+		  and exists (select 1 from pg_policy pl where pl.polrelid = c.oid and pl.polname = 'tenant')
 		from pg_class c join pg_namespace n on n.oid = c.relnamespace
 		where n.nspname = 'hub' and c.relkind in ('r','p') and not c.relispartition
 		  and exists (select 1 from pg_trigger t where t.tgrelid = c.oid and t.tgname like '%\_mac' and not t.tgisinternal)
@@ -233,6 +236,12 @@ func (sc *Scanner) Run(ctx context.Context, conn *pgx.Conn, only string) (*Repor
 			for _, k := range identKeys {
 				if v, ok := text(k); ok && len(v) <= 80 {
 					p.Ident[k] = v
+				}
+			}
+			// a shared table's record still belongs to an organization when it names one: the problem is reported there
+			if !t.tenant {
+				if v, ok := text("org_id"); ok {
+					p.Org = v
 				}
 			}
 			switch {

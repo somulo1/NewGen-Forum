@@ -117,7 +117,7 @@ export async function connectSfu(ctx, entry, opts = {}) {
   const { logic, srv, media } = ctx;
   const info = entry.sfu;
   S.info = info; S.canSpeak = !!info.can_speak;
-  if (opts.ringback) startRingback();
+  if (opts.ringback && !(srv.answeredCalls && srv.answeredCalls.has(entry.call.id))) startRingback();
   const lk = await import('livekit-client');
   const keys = await callKeys(srv, entry);
   S.key = keys && keys.media; S.chatKey = keys && keys.chat;

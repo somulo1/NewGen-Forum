@@ -132,14 +132,17 @@ func scanPerson(r pgx.Row) (*scanned, error) {
 }
 
 // reveal decrypts what the viewer may see: contact details (email, phone) with the contact right, and date of birth and
-// gender only with the full-profile right. Your own record is always yours.
+// gender only with the full-profile right. Your own record is always yours. All of it leaves the API masked; storage stays clean.
 func (s *Service) reveal(dek []byte, org uuid.UUID, x *scanned, contact, sensitive bool) {
-	str := func(col string, ct []byte) *string { v := pp.Dec(dek, org, x.ID, col, ct); return &v }
+	str := func(col string, ct []byte, mask func(string) string) *string {
+		v := mask(pp.Dec(dek, org, x.ID, col, ct))
+		return &v
+	}
 	if contact {
-		x.Email, x.Phone = str(pp.ColEmail, x.emailEnc), str(pp.ColPhone, x.phoneEnc)
+		x.Email, x.Phone = str(pp.ColEmail, x.emailEnc, pp.MaskEmail), str(pp.ColPhone, x.phoneEnc, pp.MaskPhone)
 	}
 	if sensitive {
-		x.DOB, x.Gender = str(pp.ColDOB, x.dobEnc), str(pp.ColGender, x.genderEnc)
+		x.DOB, x.Gender = str(pp.ColDOB, x.dobEnc, pp.MaskDOB), str(pp.ColGender, x.genderEnc, pp.MaskGender)
 	}
 }
 
@@ -815,6 +818,12 @@ func (s *Service) Update(ctx context.Context, p *tenant.Principal, id uuid.UUID,
 }
 
 func (s *Service) validateChanges(ctx context.Context, tx pgx.Tx, c Changes) error {
+	// a masked value sent back must never replace the real one
+	for _, v := range []*string{c.Email, c.Phone, c.DOB, c.Gender} {
+		if v != nil && pp.IsMasked(*v) {
+			return httpx.Bad("Type the full new value, or leave the hidden one as it is.")
+		}
+	}
 	for _, v := range []*string{c.First, c.Last} {
 		if v != nil && (strings.TrimSpace(*v) == "" || len(*v) > 60) {
 			return httpx.Bad("Names cannot be empty.")

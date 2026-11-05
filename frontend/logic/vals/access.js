@@ -34,12 +34,6 @@ export function valsAccess(ctx) {
         .then(() => { this.setState({ profileEdit: false }); this.notify('Profile updated.', '#B8F36B'); })
         .catch((e) => this.notify(e.message || 'Could not save your profile.', '#FF9B8A'));
     },
-    copyEmail: () => {
-      const email = me.email || '';
-      if (!email || email.startsWith('Not')) { this.notify('No email to copy.', '#FFB86B'); return; }
-      const done = () => this.notify('Email copied: ' + email, '#7CC4FF');
-      if (navigator.clipboard) navigator.clipboard.writeText(email).then(done).catch(() => this.notify(email, '#7CC4FF')); else this.notify(email, '#7CC4FF');
-    },
     shareProfile: () => {
       const url = window.location.origin + '/profile';
       const done = () => this.notify('Profile link copied. Paste it anywhere in Hub.', '#7CC4FF');

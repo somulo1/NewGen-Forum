@@ -102,6 +102,8 @@ export const onboardingActions = {
     if (!editing && this.srv && !ob.f.role) errors.role = 'Choose a role for this person.';
     if (editing) ['sector', 'branch', 'unit', 'department'].forEach((k) => { if (ob.orig[k] && ob.f[k] === ob.orig[k]) delete errors[k]; });
     if (editing) ['dob', 'gender', 'phone', 'email'].forEach((k) => { if (!ob.orig[k] && !String(ob.f[k] || '').trim()) delete errors[k]; });
+    // the server sends these masked: left untouched they are not changed, and the masked value is never sent back
+    if (editing) ['dob', 'gender', 'phone', 'email'].forEach((k) => { if (String(ob.orig[k] || '').includes('•') && ob.f[k] === ob.orig[k]) { delete errors[k]; clean[k] = ob.orig[k]; } });
     if (Object.keys(errors).length) { this.setState({ onboard: { ...ob, errs: errors, done: null } }); return; }
     if (editing) {
       const p = this.personById(ob.edit);

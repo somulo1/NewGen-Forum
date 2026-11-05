@@ -1,5 +1,7 @@
 // Session and HTTP client for the Hub backend (/v1). Tokens live in localStorage; an expired access token is refreshed once
 // (refresh tokens rotate, so concurrent callers share one refresh) before a request is retried.
+import { trackWrite } from '~/logic/submitGuard.js';
+
 const KEY = 'hub-session';
 
 export interface Session {
@@ -17,6 +19,9 @@ const write = (s: Session | null) => { try { if (s) localStorage.setItem(KEY, JS
 
 let refreshing: Promise<Session | null> | null = null;
 
+// The same write (same address and body) already on its way is not sent again: callers share its answer.
+const inFlight = new Map<string, Promise<any>>();
+
 // The server ended this session on purpose: a sign-in somewhere else, or too long without activity. The login page says why.
 const ENDED = ['session_replaced', 'session_expired'];
 export const SIGNOUT_KEY = 'hub-signout';
@@ -29,7 +34,7 @@ const ended = (code: string) => {
 export const useBackend = () => {
   const base = ((useRuntimeConfig().public.apiBase as string) || '').replace(/\/$/, '');
 
-  const raw = async (method: string, path: string, body?: unknown, token?: string): Promise<any> => {
+  const send = async (method: string, path: string, body?: unknown, token?: string): Promise<any> => {
     let res: Response;
     try {
       res = await fetch(base + '/v1' + path, {
@@ -46,6 +51,12 @@ export const useBackend = () => {
     try { data = text ? JSON.parse(text) : null; } catch (e) { /* non-JSON body */ }
     if (!res.ok) throw new ApiError(res.status, data?.error?.code || 'error', data?.error?.message || 'Something went wrong (' + res.status + ').');
     return data;
+  };
+
+  // writes are reported to the button that caused them, which stays locked and shows a spinner until they end
+  const raw = (method: string, path: string, body?: unknown, token?: string): Promise<any> => {
+    const call = send(method, path, body, token);
+    return method === 'GET' || path === '/auth/refresh' ? call : trackWrite(call);
   };
 
   const toSession = (t: any, email: string): Session => ({
@@ -76,7 +87,7 @@ export const useBackend = () => {
     return refreshing;
   };
 
-  const request = async (method: string, path: string, body?: unknown): Promise<any> => {
+  const authorized = async (method: string, path: string, body?: unknown): Promise<any> => {
     let s = read();
     if (s && Date.now() >= s.expiresAt) s = await refresh();
     if (!s) throw new ApiError(401, 'signed_out', 'Sign in to continue.');
@@ -94,8 +105,18 @@ export const useBackend = () => {
     }
   };
 
+  const request = (method: string, path: string, body?: unknown): Promise<any> => {
+    if (method === 'GET') return authorized(method, path, body);
+    const key = method + ' ' + path + ' ' + JSON.stringify(body);
+    const running = inFlight.get(key);
+    if (running) return running;
+    const call = authorized(method, path, body).finally(() => { inFlight.delete(key); });
+    inFlight.set(key, call);
+    return call;
+  };
+
   // Binary transfer (encrypted file contents): PUT bytes up, or GET bytes down.
-  const bytes = async (method: 'GET' | 'PUT', path: string, body?: Uint8Array): Promise<Uint8Array | null> => {
+  const transfer = async (method: 'GET' | 'PUT', path: string, body?: Uint8Array): Promise<Uint8Array | null> => {
     let s = read();
     if (s && Date.now() >= s.expiresAt) s = await refresh();
     if (!s) throw new ApiError(401, 'signed_out', 'Sign in to continue.');
@@ -114,6 +135,8 @@ export const useBackend = () => {
     }
     return method === 'GET' ? new Uint8Array(await res.arrayBuffer()) : null;
   };
+
+  const bytes = (method: 'GET' | 'PUT', path: string, body?: Uint8Array) => (method === 'PUT' ? trackWrite(transfer(method, path, body)) : transfer(method, path, body));
 
   return {
     session: read,

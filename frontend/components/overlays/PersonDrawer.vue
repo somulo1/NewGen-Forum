@@ -12,7 +12,7 @@
 <span style="color: var(--k-9DB0A6,#9DB0A6)">Location</span><span>{{ psn.loc }}</span>
 <span style="color: var(--k-9DB0A6,#9DB0A6)">Reports to</span><span>{{ psn.manager }}</span>
 <span style="color: var(--k-9DB0A6,#9DB0A6)">Role in Hub</span><span>{{ psn.hubRole }}</span>
-<span style="color: var(--k-9DB0A6,#9DB0A6)">Email</span><span>{{ psn.email }}</span>
+<span style="color: var(--k-9DB0A6,#9DB0A6)">Email</span><span>{{ psn.email || 'Not shared' }}</span>
 <template v-if="psn.securityCode"><span style="color: var(--k-9DB0A6,#9DB0A6)">Security code</span><span style="font-family: monospace; font-size: 12px; word-spacing: 4px; overflow-wrap: anywhere">{{ psn.securityCode }}</span></template>
 </div>
 <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--k-9DB0A6,#9DB0A6)">Skills</span>

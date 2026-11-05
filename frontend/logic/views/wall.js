@@ -32,7 +32,7 @@ export function buildWall(ctx) {
   const buildComments = (p, list, path) => list.map((c, i) => {
     const here = path.concat([i]);
     const key = p.id + ':' + here.join('.');
-    return { key, who: c.who, uid: c.uid || '', self: !!c.mine, initials: c.initials, color: c.color, text: c.text, htmlText: linkHashtags(linkMentions(richTextHtml(c.text))), time: c.time || '', depth: path.length, replying: s.replyFor === key,
+    return { key, openWho: () => openPersonName(c.mine ? 'Sam' : c.who), who: c.who, uid: c.uid || '', self: !!c.mine, initials: c.initials, color: c.color, text: c.text, htmlText: linkHashtags(linkMentions(richTextHtml(c.text))), time: c.time || '', depth: path.length, replying: s.replyFor === key,
       startReply: () => this.setState({ replyFor: key }), cancel: () => this.setState({ replyFor: null }),
       send: (text) => { this.setState({ replyFor: null }); wallW.comment(this, this.srv, c.id || p.id, text).catch((e) => this.notify(e.message || 'That did not work.', '#FF9B8A')); },
       id: c.id || '', likes: c.likes || 0, dislikes: c.dislikes || 0, iLiked: !!c.iLiked, iDisliked: !!c.iDisliked, canReact: !!(this.srv && c.id),
@@ -97,7 +97,7 @@ export function buildWall(ctx) {
       shareNote: s.shareNote[p.id] || '',
       hasShareNote: !!s.shareNote[p.id],
       hasPoster: !!p.poster, posterAward: p.poster ? p.poster.award : '', posterNames: p.poster ? p.poster.names : '', posterWhen: p.poster ? p.poster.when : '',
-      hasTags: !!(p.tags && p.tags.length), tagList: (p.tags || []).map((n) => ({ name: n, open: () => openPersonName(n) })),
+      openAuthor: () => openPersonName(p.mine ? 'Sam' : p.author), hasTags: !!(p.tags && p.tags.length), tagList: (p.tags || []).map((n) => ({ name: n, open: () => openPersonName(n) })),
       previewImg: ((p.media || []).find((m) => m.isImg) || {}).url || '',
       hasPreviewImg: (p.media || []).some((m) => m.isImg),
       hasPreviewBg: !!p.photoBg && !(p.media || []).some((m) => m.isImg),

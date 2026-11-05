@@ -266,7 +266,8 @@ func TestTheLastPersonLeftInACallIsHungUp(t *testing.T) {
 	hostRoom, amyRoom := connect(t, started), connect(t, joined)
 	read(t, hostRoom, "welcome")
 	read(t, amyRoom, "welcome")
-	read(t, wsO, "call.answered")
+	read(t, wsO, "call.answered") // the instant notice, when Amy picked up
+	read(t, wsO, "call.answered") // and the one that follows once the room has recorded both people
 
 	// Amy hangs up: the call is told to Olivia straight away, so her side hangs up too
 	t0 := time.Now()
