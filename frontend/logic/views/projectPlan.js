@@ -1,15 +1,16 @@
-import { pageHtml, lineDiff } from '~/logic/pageMarkup.js';
+import { decorate, pageHtml, pageText, lineDiff } from '~/logic/pageMarkup.js';
+import { parseExport } from '~/logic/confluenceImport.js';
 import { CAT_COLORS, addDaysIso, criticalPath, doneAt, isoMs, openDeps, statusEntry, wfOf } from '~/logic/projects.js';
 
 // The open project's plan views: backlog or work breakdown, timeline, reports, documents and settings. Edits go into state.projects, and the
 // projects widget writes them to the server like every other project change.
 const TEMPLATES = {
   blank: { name: 'Blank page', title: '', body: '' },
-  requirements: { name: 'Requirements', title: 'Requirements', body: 'Background\n\nGoals\n\nWhat is in scope\n\nWhat is out of scope\n\nAcceptance criteria\n' },
-  notes: { name: 'Meeting notes', title: 'Meeting notes', body: 'Date and attendees\n\nDiscussion\n\nDecisions\n\nAction items\n' },
-  decision: { name: 'Decision record', title: 'Decision: ', body: 'Context\n\nOptions considered\n\nDecision\n\nConsequences\n' },
-  runbook: { name: 'Runbook', title: 'Runbook: ', body: 'Purpose\n\nBefore you start\n\nSteps\n\nIf something goes wrong\n\nWho to contact\n' },
-  release: { name: 'Release notes', title: 'Release notes', body: 'Version and date\n\nWhat is new\n\nFixes\n\nKnown issues\n' }
+  requirements: { name: 'Requirements', title: 'Requirements', body: ['<h2>Background</h2><p></p>','<h2>Goals</h2><p></p>','<h2>What is in scope</h2><p></p>','<h2>What is out of scope</h2><p></p>','<h2>Acceptance criteria</h2><p></p>'].join('') },
+  notes: { name: 'Meeting notes', title: 'Meeting notes', body: ['<h2>Date and attendees</h2><p></p>','<h2>Discussion</h2><p></p>','<h2>Decisions</h2><p></p>','<h2>Action items</h2><p></p>'].join('') },
+  decision: { name: 'Decision record', title: 'Decision: ', body: ['<h2>Context</h2><p></p>','<h2>Options considered</h2><p></p>','<h2>Decision</h2><p></p>','<h2>Consequences</h2><p></p>'].join('') },
+  runbook: { name: 'Runbook', title: 'Runbook: ', body: ['<h2>Purpose</h2><p></p>','<h2>Before you start</h2><p></p>','<h2>Steps</h2><p></p>','<h2>If something goes wrong</h2><p></p>','<h2>Who to contact</h2><p></p>'].join('') },
+  release: { name: 'Release notes', title: 'Release notes', body: ['<h2>Version and date</h2><p></p>','<h2>What is new</h2><p></p>','<h2>Fixes</h2><p></p>','<h2>Known issues</h2><p></p>'].join('') }
 };
 const DAY = 86400000;
 
@@ -166,46 +167,53 @@ export function buildPlan(ctx) {
     restore: () => this.setState({ pageDraft: { pid, id: cur.id, title: cur.title, parent: cur.parent || '', body: c.old || '', labels: (cur.labels || []).join(', '), err: '' }, pageDiff: null }) }));
   const shownDiff = cur && s.pageDiff && s.pageDiff.id === cur.id ? bodyChanges.find((c) => c.at === s.pageDiff.at) : null;
   const allLabels = [...new Set(pages.flatMap((x) => x.labels || []))].sort();
-  const keys = p.tasks.map((t) => t.key).filter(Boolean);
   const mePerson = this.srv ? this.srv.me.person : me;
   const comments = cur ? (p.comments || []).filter((c) => c.page === cur.id) : [];
-  const elsewhere = query ? (s.projects || []).filter((x) => x.id !== pid).flatMap((x) => (x.pages || []).filter((y) => (y.title + ' ' + (y.body || '')).toLowerCase().includes(query)).map((y) => ({ id: y.id, title: y.title, project: x.name, open: () => this.setState({ projectOpen: x.id, planTab: 'docs', pageOpen: { pid: x.id, id: y.id }, pageDraft: null }) }))) : [];
+  const elsewhere = query ? (s.projects || []).filter((x) => x.id !== pid).flatMap((x) => (x.pages || []).filter((y) => (y.title + ' ' + pageText(y.body)).toLowerCase().includes(query)).map((y) => ({ id: y.id, title: y.title, project: x.name, open: () => this.setState({ projectOpen: x.id, planTab: 'docs', pageOpen: { pid: x.id, id: y.id }, pageDraft: null }) }))) : [];
   const recent = pages.filter((x) => x.updatedAt).slice().sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1)).slice(0, 5).map((x) => ({ id: x.id, title: x.title, when: fmt(x.updatedAt), open: () => openPage(x) }));
   const download = (name, text, type) => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); };
   const safeName = (t) => t.replace(/[^\w\- ]+/g, '').trim() || 'page';
   const docs = {
     query: s.pageQuery || '', onQuery: (e) => this.setState({ pageQuery: e.target.value }), elsewhere, recent,
     labels: allLabels.map((l) => ({ name: l, on: l === labelOn, pick: () => this.setState({ pageLabel: l === labelOn ? '' : l }) })),
-    list: ordered.filter((x) => (!query || (x.title + ' ' + (x.body || '') + ' ' + (x.labels || []).join(' ')).toLowerCase().includes(query)) && (!labelOn || (x.labels || []).includes(labelOn))).map((x) => ({ id: x.id, title: x.title, indent: query ? 0 : depth(x) * 14, on: x.id === openId, open: () => openPage(x) })),
+    list: ordered.filter((x) => (!query || (x.title + ' ' + pageText(x.body) + ' ' + (x.labels || []).join(' ')).toLowerCase().includes(query)) && (!labelOn || (x.labels || []).includes(labelOn))).map((x) => ({ id: x.id, title: x.title, indent: query ? 0 : depth(x) * 14, on: x.id === openId, open: () => openPage(x) })),
     templates: Object.entries(TEMPLATES).map(([k, t]) => ({ key: k, name: t.name, pick: () => this.setState({ pageDraft: { pid, id: '', title: t.title, body: t.body, parent: cur ? cur.id : '', labels: '', err: '' }, pageDiff: null }) })),
-    follow: (e) => {
-      const a = e.target.closest && e.target.closest('[data-page],[data-task]');
-      if (!a) return;
-      e.preventDefault();
-      if (a.dataset.page) { const x = pages.find((y) => y.title.toLowerCase() === a.dataset.page.toLowerCase()); if (x) openPage(x); else this.notify('No page is called "' + a.dataset.page + '" yet.', '#FFB86B'); return; }
-      const ti = p.tasks.findIndex((t) => t.key === a.dataset.task);
-      if (ti !== -1) tools.openTask(ti);
-    },
-    page: cur && !draft ? { id: cur.id, title: cur.title, html: pageHtml(cur.body || '', keys), updated: cur.updatedAt ? fmt(cur.updatedAt) : '', versions, labels: cur.labels || [], locked: !!cur.locked,
+    page: cur && !draft ? { id: cur.id, title: cur.title, body: decorate(pageHtml(cur.body || ''), p.tasks.map((t) => t.key).filter(Boolean), comments),
+      followRef: (m) => { const [kind, ...rest] = m.split(':'); const v = rest.join(':'); if (kind === 'page') { const x = pages.find((y) => y.title.toLowerCase() === v.toLowerCase()); if (x) openPage(x); else this.notify('No page is called "' + v + '" yet.', '#FFB86B'); return; } const ti = p.tasks.findIndex((t) => t.key === v); if (ti !== -1) tools.openTask(ti); },
+      commentQuote: s.pageQuote || '', setQuote: (q) => this.setState({ pageQuote: q }), clearQuote: () => this.setState({ pageQuote: '' }),
+      updated: cur.updatedAt ? fmt(cur.updatedAt) : '', versions, labels: cur.labels || [], locked: !!cur.locked,
       canLock: may('Lock pages'), canDelete: may('Delete pages'), mayEdit: may('Edit pages') && (!cur.locked || may('Lock pages') || isManager || cur.author === me),
-      backlinks: pages.filter((x) => x.id !== cur.id && (x.body || '').toLowerCase().includes('[[' + cur.title.toLowerCase() + ']]')).map((x) => ({ id: x.id, title: x.title, open: () => openPage(x) })),
+      backlinks: pages.filter((x) => x.id !== cur.id && pageText(x.body).toLowerCase().includes('[[' + cur.title.toLowerCase() + ']]')).map((x) => ({ id: x.id, title: x.title, open: () => openPage(x) })),
       crumbs: (() => { const l = []; let u = pages.find((y) => y.id === cur.parent); for (let n = 0; u && n < 6; n++) { const x = u; l.unshift({ id: x.id, title: x.title, open: () => openPage(x) }); u = pages.find((y) => y.id === x.parent); } return l; })(),
       children: pages.filter((x) => x.parent === cur.id).map((x) => ({ id: x.id, title: x.title, open: () => openPage(x) })),
       watching: (cur.watchers || []).includes(mePerson), toggleWatch: () => updPage(cur.id, (y) => ({ ...y, watchers: (y.watchers || []).includes(mePerson) ? y.watchers.filter((w) => w !== mePerson) : (y.watchers || []).concat([mePerson]) })),
       toggleLock: () => updPage(cur.id, (y) => ({ ...y, locked: !y.locked })),
-      diff: shownDiff ? lineDiff(shownDiff.old, shownDiff.new) : null, closeDiff: () => this.setState({ pageDiff: null }),
+      diff: shownDiff ? lineDiff(pageText(shownDiff.old), pageText(shownDiff.new)) : null, closeDiff: () => this.setState({ pageDiff: null }),
       files: (cur.files || []).map((f, i) => ({ key: i, name: f.name, open: () => (this.srv ? projectsW.openAttachment(this.srv, f.ref).catch((e) => this.notify(e.message || 'Could not open it.', '#FF9B8A')) : null), remove: () => updPage(cur.id, (y) => ({ ...y, files: y.files.filter((_, j) => j !== i) })) })),
       onFile: (e) => { const list = Array.from(e.target.files || []); e.target.value = ''; if (!this.srv) return; const id = cur.id; Promise.all(list.map((f) => projectsW.attach(this.srv, pid, f))).then((added) => { updPage(id, (y) => ({ ...y, files: (y.files || []).concat(added) })); this.notify(added.length + ' file' + (added.length === 1 ? '' : 's') + ' attached.', '#B8F36B'); }).catch((x) => this.notify(x.message || 'Could not attach the file.', '#FF9B8A')); },
-      comments: comments.map((c) => ({ id: c.id, who: c.who, text: c.text, when: c.createdAt ? fmt(c.createdAt) : 'Just now', mine: c.who === me, remove: () => patch((x) => ({ ...x, comments: x.comments.filter((y) => y.id !== c.id) })) })),
+      comments: comments.map((c) => ({ quote: c.quote || '', resolved: !!c.resolved, toggleResolved: () => patch((x) => ({ ...x, comments: x.comments.map((y) => (y.id === c.id ? { ...y, resolved: !y.resolved } : y)) })), id: c.id, who: c.who, text: c.text, when: c.createdAt ? fmt(c.createdAt) : 'Just now', mine: c.who === me, remove: () => patch((x) => ({ ...x, comments: x.comments.filter((y) => y.id !== c.id) })) })),
       comment: s.pageComment || '', onComment: (e) => this.setState({ pageComment: e.target.value }),
-      addComment: () => { const text = (this.state.pageComment || '').trim(); if (!text) return; this.setState({ pageComment: '' }); patch((x) => ({ ...x, comments: (x.comments || []).concat([{ page: cur.id, who: me, text }]) })); },
-      exportMd: () => download(safeName(cur.title) + '.md', '# ' + cur.title + '\n\n' + (cur.body || ''), 'text/markdown'),
-      exportHtml: () => download(safeName(cur.title) + '.html', '<!doctype html><meta charset="utf-8"><title>' + cur.title.replace(/</g, '&lt;') + '</title><h1>' + cur.title.replace(/</g, '&lt;') + '</h1>' + pageHtml(cur.body || '', []), 'text/html'),
+      addComment: () => { const text = (this.state.pageComment || '').trim(); if (!text) return; const quote = this.state.pageQuote || ''; this.setState({ pageComment: '', pageQuote: '' }); patch((x) => ({ ...x, comments: (x.comments || []).concat([{ page: cur.id, who: me, text, quote, resolved: false }]) })); },
+      exportDoc: () => download(safeName(cur.title) + '.doc', '<html><head><meta charset="utf-8"></head><body><h1>' + cur.title.replace(/</g, '&lt;') + '</h1>' + pageHtml(cur.body || '') + '</body></html>', 'application/msword'),
+      exportHtml: () => download(safeName(cur.title) + '.html', '<!doctype html><meta charset="utf-8"><title>' + cur.title.replace(/</g, '&lt;') + '</title><h1>' + cur.title.replace(/</g, '&lt;') + '</h1>' + pageHtml(cur.body || ''), 'text/html'),
       copy: () => this.setState({ pageDraft: { pid, id: '', title: 'Copy of ' + cur.title, body: cur.body || '', parent: cur.parent || '', labels: (cur.labels || []).join(', '), err: '' } }),
       edit: () => this.setState({ pageDraft: { pid, id: cur.id, title: cur.title, body: cur.body || '', parent: cur.parent || '', labels: (cur.labels || []).join(', '), err: '' }, pageDiff: null }),
       remove: () => { if (pages.some((x) => x.parent === cur.id)) { this.notify('Move or delete the pages under this one first.', '#FFB86B'); return; } this.setState({ pageOpen: null }); patch((x) => ({ ...x, pages: x.pages.filter((y) => y.id !== cur.id), comments: (x.comments || []).filter((y) => y.page !== cur.id) })); } } : null,
+    canImport: may('Import pages') && !!this.srv, importing: s.pageImport || { busy: false, text: '', problems: [] },
+    importFile: (e) => {
+      const f = e.target.files && e.target.files[0];
+      e.target.value = '';
+      if (!f) return;
+      const say = (text, problems = []) => this.setState({ pageImport: { busy: true, text, problems } });
+      say('Reading the export…');
+      parseExport(f, (n, of) => say('Reading page ' + n + ' of ' + of + '…')).then(async ({ pages: found, problems }) => {
+        const taken = new Set(pages.map((x) => x.title.trim().toLowerCase()));
+        const failed = await projectsW.importPages(this, this.srv, pid, found, taken, (n) => say('Saving page ' + n + ' of ' + found.length + '…'));
+        this.setState({ pageImport: { busy: false, text: (found.length - failed.filter((x) => !x.includes(': attachment ')).length) + ' of ' + found.length + ' pages imported.', problems: problems.concat(failed) } });
+      }).catch((x) => this.setState({ pageImport: { busy: false, text: x.message || 'Could not read that export.', problems: [] } }));
+    },
     canCreate: may('Create pages'), canAttach: may('Attach to pages'), canComment: may('Comment on pages'), canExport: may('Export pages'),
-    draft: draft ? { ...draft, isNew: !draft.id, preview: s.pagePreview ? pageHtml(draft.body, keys) : '', showPreview: !!s.pagePreview, togglePreview: () => this.setState((st) => ({ pagePreview: !st.pagePreview })), onTitle: setDraft('title'), onBody: setDraft('body'), onParent: setDraft('parent'), onLabels: setDraft('labels'),
+    draft: draft ? { ...draft, isNew: !draft.id, onTitle: setDraft('title'), onParent: setDraft('parent'), onLabels: setDraft('labels'),
       setBody: (v) => this.setState((st) => ({ pageDraft: { ...st.pageDraft, body: v, err: '' } })),
       parentOpts: pages.filter((x) => x.id && x.id !== draft.id).map((x) => ({ v: x.id, l: x.title })),
       cancel: () => this.setState({ pageDraft: null }),

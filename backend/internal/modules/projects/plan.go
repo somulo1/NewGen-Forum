@@ -495,6 +495,12 @@ func (s *Service) Save(ctx context.Context, p *tenant.Principal, project, id uui
 				narrow = "Attach to pages"
 			}
 		}
+		if coll == "page_comment" && !isNew {
+			// anyone who may comment can resolve; the comment stays its writer's
+			if ch := changedFields(old, data, "who"); len(ch) == 1 && ch["resolved"] {
+				narrow = "Comment on pages"
+			}
+		}
 		if narrow != "" {
 			if err := authz.Require(ctx, tx, p.Person, "projects", narrow); err != nil {
 				return err
@@ -557,6 +563,9 @@ func (s *Service) Save(ctx context.Context, p *tenant.Principal, project, id uui
 		}
 		if coll == "page_comment" {
 			data["who"] = p.Name // who wrote it is never taken from the browser
+			if w := text(old, "who"); w != "" {
+				data["who"] = w
+			}
 			if strings.TrimSpace(text(data, "text")) == "" {
 				return httpx.Bad("Write the comment first.")
 			}
@@ -851,7 +860,7 @@ func (s *Service) planRoutes(r chi.Router, org func(func(http.ResponseWriter, *h
 			Collection string         `json:"collection"`
 			Data       map[string]any `json:"data"`
 		}
-		if err := httpx.Decode(r, &in, 512<<10); err != nil {
+		if err := httpx.Decode(r, &in, 8<<20); err != nil {
 			return err
 		}
 		out, err := s.Save(r.Context(), p, id, item, in.Collection, in.Data)

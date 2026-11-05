@@ -32,6 +32,7 @@ var projectRights = []struct{ Name, From string }{
 	{"Comment on pages", "View"},
 	{"Attach to pages", "Edit tasks"},
 	{"Export pages", "Export"},
+	{"Import pages", "Create pages"},
 }
 
 // EnsureProjectRights is safe to run on every request: it does nothing once the rights exist.

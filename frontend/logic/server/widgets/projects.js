@@ -122,6 +122,30 @@ export async function passGate(logic, srv, pid, phase, comment) {
   return r;
 }
 
+// Saves pages from a Confluence export one by one: one that fails is reported, and the rest still arrive.
+export async function importPages(logic, srv, pid, pages, taken, onProgress) {
+  const ids = new Map();
+  const failed = [];
+  let done = 0;
+  for (const g of pages) {
+    const id = newId();
+    let title = g.title;
+    for (let n = 2; taken.has(title.toLowerCase()); n++) title = g.title + ' (' + n + ')';
+    taken.add(title.toLowerCase());
+    const uploaded = [];
+    for (const a of g.attachments) {
+      try { uploaded.push(await attach(srv, pid, new File([await a.read()], a.name))); } catch (e) { failed.push(title + ': attachment ' + a.name); }
+    }
+    try {
+      await srv.request('PUT', `/projects/${pid}/items/${id}`, { collection: 'page', data: { title, body: g.body, parent: ids.get(g.parentFile) || '', labels: ['imported'], author: srv.me.name, watchers: [srv.me.person], files: uploaded } });
+      ids.set(g.file, id);
+    } catch (e) { failed.push(title + ': ' + (e.message || 'could not be saved')); }
+    onProgress(++done);
+  }
+  await reload(logic, srv, pid);
+  return failed;
+}
+
 export async function attach(srv, pid, file) {
   const ref = await files.upload(srv, pid, file);
   return { ref, name: file.name, size: file.size };

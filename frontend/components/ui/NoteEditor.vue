@@ -1,6 +1,6 @@
 <!-- Word-style rich text editor for notes. Pasted Word / web / Excel content keeps its bold, headings, lists, colours and tables. -->
 <template>
-<div class="nr-wrap">
+<div class="nr-wrap" @click="onDocClick">
 <div v-if="editor && editable" class="nr-bar" role="toolbar" aria-label="Formatting" @mousedown="keepFocus">
 <div class="nr-grp">
 <button type="button" class="nr-b" title="Undo (Ctrl+Z)" aria-label="Undo" :disabled="!can('undo')" @click="run(c => c.undo())">↶</button>
@@ -48,6 +48,7 @@
 <button type="button" class="nr-b" :class="{ on: on('codeBlock') }" title="Code block" aria-label="Code block" @click="run(c => c.toggleCodeBlock())">&lt;/&gt;</button>
 <button type="button" class="nr-b" title="Horizontal line" aria-label="Horizontal line" @click="run(c => c.setHorizontalRule())">―</button>
 <button type="button" class="nr-b" :class="{ on: on('link') }" title="Link" aria-label="Link" @click="setLink">🔗</button>
+<label class="nr-b" title="Insert a picture" aria-label="Insert a picture" style="position: relative; display: inline-flex; align-items: center; justify-content: center; cursor: pointer">🖼<input type="file" accept="image/*" aria-label="Insert a picture" @change="pickImage" style="position: absolute; inset: 0; opacity: 0; cursor: pointer"></label>
 </div>
 <div class="nr-grp">
 <span class="nr-pop-wrap">
@@ -79,6 +80,8 @@
 <script setup>
 import { ref, shallowRef, reactive, watch, onMounted, onBeforeUnmount } from 'vue';
 import { Editor, EditorContent } from '@tiptap/vue-3';
+import { Node, Mark, mergeAttributes } from '@tiptap/core';
+import { imageDataUrl } from '~/logic/confluenceImport.js';
 import StarterKit from '@tiptap/starter-kit';
 import { Table, TableRow, TableCell, TableHeader } from '@tiptap/extension-table';
 import { TextStyleKit } from '@tiptap/extension-text-style';
@@ -90,7 +93,26 @@ import Superscript from '@tiptap/extension-superscript';
 import { TaskList, TaskItem } from '@tiptap/extension-list';
 
 const props = defineProps({ modelValue: { type: String, default: '' }, editable: { type: Boolean, default: true } });
-const emit = defineEmits(['update:modelValue']);
+const emit = defineEmits(['update:modelValue', 'ref', 'comment']);
+
+// A picture lives inside the note or page itself, as data: nothing is fetched from elsewhere unless it was pasted as a web address.
+const safeSrc = (v) => /^(data:image\/(png|jpeg|gif|webp);base64,|https:\/\/)/i.test(v || '');
+const HubImage = Node.create({
+  name: 'image', group: 'block', atom: true, draggable: true,
+  addAttributes() { return { src: { default: null }, alt: { default: '' } }; },
+  parseHTML() { return [{ tag: 'img[src]', getAttrs: (el) => (safeSrc(el.getAttribute('src')) ? {} : false) }]; },
+  renderHTML({ HTMLAttributes }) { return ['img', mergeAttributes(HTMLAttributes, safeSrc(HTMLAttributes.src) ? {} : { src: '' })]; }
+});
+// Only shown while reading: a link to a page or task, and text someone commented on.
+const HubMark = Mark.create({
+  name: 'hubMark',
+  addAttributes() { return { ref: { default: null, parseHTML: (el) => el.getAttribute('data-ref'), renderHTML: (a) => (a.ref ? { 'data-ref': a.ref } : {}) }, comment: { default: null, parseHTML: (el) => el.getAttribute('data-comment'), renderHTML: (a) => (a.comment ? { 'data-comment': a.comment } : {}) } }; },
+  parseHTML() { return [{ tag: 'span[data-ref]' }, { tag: 'span[data-comment]' }]; },
+  renderHTML({ HTMLAttributes }) { return ['span', HTMLAttributes, 0]; }
+});
+const MAX_IMAGE = 15 << 20;
+const addImage = async (ed, file) => { if (file.size > MAX_IMAGE) { window.alert('That picture is over 15 MB.'); return; } try { ed.chain().focus().insertContent({ type: 'image', attrs: { src: await imageDataUrl(file), alt: file.name } }).run(); } catch (e) { window.alert('That picture could not be read.'); } };
+const imagesOf = (list) => Array.from(list || []).filter((f) => /^image\/(png|jpeg|gif|webp)/.test(f.type));
 
 const fonts = [
   { l: 'Default', v: 'DM Sans, sans-serif' }, { l: 'Space Grotesk', v: 'Space Grotesk, sans-serif' }, { l: 'Arial', v: 'Arial, sans-serif' },
@@ -114,13 +136,15 @@ onMounted(() => {
     editable: props.editable,
     extensions: [
       StarterKit.configure({ link: { openOnClick: false, autolink: true, HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' } } }),
-      TextStyleKit, Subscript, Superscript, Highlight.configure({ multicolor: true }),
+      HubImage, HubMark, TextStyleKit, Subscript, Superscript, Highlight.configure({ multicolor: true }),
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
       Table.configure({ resizable: true }), TableRow, TableHeader, TableCell,
       TaskList, TaskItem.configure({ nested: true }),
       Placeholder.configure({ placeholder: 'Start writing, or paste a document here…' })
     ],
-    editorProps: { attributes: { 'aria-label': 'Note text', role: 'textbox', 'aria-multiline': 'true', spellcheck: 'true' } },
+    editorProps: { attributes: { 'aria-label': 'Note text', role: 'textbox', 'aria-multiline': 'true', spellcheck: 'true' },
+      handlePaste: (v, e) => { const l = imagesOf(e.clipboardData && e.clipboardData.files); if (!l.length) return false; l.forEach((f) => addImage(editor.value, f)); return true; },
+      handleDrop: (v, e) => { const l = imagesOf(e.dataTransfer && e.dataTransfer.files); if (!l.length) return false; e.preventDefault(); l.forEach((f) => addImage(editor.value, f)); return true; } },
     onUpdate: ({ editor: e }) => emit('update:modelValue', e.isEmpty ? '' : e.getHTML()),
     onTransaction: () => { tick.value++; hl.value = ed.getAttributes('highlight').color || ''; }
   });
@@ -140,6 +164,17 @@ const setSize = (v) => run((c) => (v ? c.setFontSize(v) : c.unsetFontSize()));
 const hex = (v, d) => (/^#[0-9a-f]{6}$/i.test(v || '') ? v : d);
 const indent = () => run((c) => (editor.value.isActive('listItem') ? c.sinkListItem('listItem') : editor.value.isActive('taskItem') ? c.sinkListItem('taskItem') : c.setBlockquote()));
 const outdent = () => run((c) => (editor.value.isActive('listItem') ? c.liftListItem('listItem') : editor.value.isActive('taskItem') ? c.liftListItem('taskItem') : c.unsetBlockquote()));
+const pickImage = (e) => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) addImage(editor.value, f); };
+// While reading, links work with one click. While writing, Ctrl or Cmd and click opens them.
+const onDocClick = (e) => {
+  const t = e.target;
+  const ref = t.closest && t.closest('[data-ref]');
+  if (ref) { emit('ref', ref.getAttribute('data-ref')); return; }
+  const c = t.closest && t.closest('[data-comment]');
+  if (c) { emit('comment', c.getAttribute('data-comment')); return; }
+  const a = t.closest && t.closest('.ProseMirror a[href]');
+  if (a && (!props.editable || e.ctrlKey || e.metaKey) && /^(https?:|mailto:)/i.test(a.getAttribute('href'))) { e.preventDefault(); window.open(a.getAttribute('href'), '_blank', 'noopener,noreferrer'); }
+};
 const setLink = () => {
   const cur = editor.value.getAttributes('link').href || '';
   const url = window.prompt('Link address (leave empty to remove)', cur);
@@ -200,7 +235,10 @@ watch(() => props.modelValue, (v) => { const e = editor.value; if (e && v !== (e
 .nr-doc .ProseMirror pre { background: #2A2716; color: var(--k-F3EBC8,#F3EBC8); padding: 12px 14px; border-radius: 8px; overflow-x: auto; margin: 0 0 0.8em; }
 .nr-doc .ProseMirror pre code { background: transparent; padding: 0; color: inherit; }
 .nr-doc .ProseMirror mark { border-radius: 2px; padding: 0 1px; }
-.nr-doc .ProseMirror img { max-width: 100%; height: auto; }
+.nr-doc .ProseMirror img { display: block; max-width: 100%; height: auto; margin: 8px 0; border-radius: 6px; }
+.nr-doc .ProseMirror img.ProseMirror-selectednode { outline: 2px solid #7CC4FF; }
+.nr-doc .ProseMirror [data-ref] { color: #1F6FB5; text-decoration: underline; cursor: pointer; }
+.nr-doc .ProseMirror [data-comment] { background: #FFD66B66; border-bottom: 2px solid #E0A800; cursor: pointer; }
 
 .nr-doc .tableWrapper { overflow-x: auto; margin: 0.4em 0 1em; max-width: 100%; }
 .nr-doc .ProseMirror table { border-collapse: collapse; table-layout: fixed; width: 100%; margin: 0; overflow: hidden; }
