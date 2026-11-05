@@ -947,5 +947,17 @@
   "errors": {
    "409": "phase_open: a task is not finished"
   }
+ },
+ "POST /v1/projects/{id}/pages/{item}/live": {
+  "summary": "Pass a live co-editing message to the others on a page",
+  "description": "Nothing is stored; the page is saved the usual way.",
+  "access": "Edit pages, and allowed by the page's restrictions",
+  "body": {
+   "kind": "hello | state | update | bye",
+   "data": "base64",
+   "sid": "editing session"
+  },
+  "status": 204,
+  "response": null
  }
 }

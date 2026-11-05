@@ -99,7 +99,11 @@
 <label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Title<input type="text" maxlength="200" :value="plan.docs.draft.title" @input="plan.docs.draft.onTitle" class="pp-input"></label>
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px"><label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Sits under<select :value="plan.docs.draft.parent" @change="plan.docs.draft.onParent" class="pp-input"><option value="">Top level</option><option v-for="o in plan.docs.draft.parentOpts" :key="o.v" :value="o.v">{{ o.l }}</option></select></label>
 <label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Labels, separated by commas<input type="text" :value="plan.docs.draft.labels" @input="plan.docs.draft.onLabels" class="pp-input"></label></div>
-<NoteEditor :modelValue="plan.docs.draft.body" @update:modelValue="plan.docs.draft.setBody"/>
+<BoardEditor v-if="plan.docs.draft.isBoard" :modelValue="plan.docs.draft.body" @update:modelValue="plan.docs.draft.setBody"/>
+<template v-else>
+<span v-if="editingWith.length" role="status" class="pp-mut">Also editing now: {{ editingWith.join(', ') }}. Your changes merge as you type.</span>
+<NoteEditor :key="liveSession ? liveSession.key : 'solo'" macros :live="liveSession && liveSession.conn" :liveSeed="plan.docs.draft.seed || ''" :modelValue="plan.docs.draft.body" @update:modelValue="plan.docs.draft.setBody"/>
+</template>
 <span class="pp-mut">Link another page with [[Page title]], and a task with its key, such as PRJ-01-12.</span>
 <span v-if="plan.docs.draft.err" role="alert" style="font-size: 13px; color: var(--k-FF9B8A,#FF9B8A)">{{ plan.docs.draft.err }}</span>
 <div style="display: flex; gap: 8px"><button type="submit" class="pp-btn pp-primary">Save page</button><button type="button" class="pp-btn" @click="plan.docs.draft.cancel">Cancel</button></div>
@@ -107,12 +111,14 @@
 <template v-else-if="plan.docs.page">
 <nav v-if="plan.docs.page.crumbs.length" aria-label="Page path" style="display: flex; flex-wrap: wrap; gap: 4px" class="pp-mut"><template v-for="c in plan.docs.page.crumbs" :key="c.id"><button type="button" class="pp-link" @click="c.open">{{ c.title }}</button><span>›</span></template></nav>
 <h3 style="margin: 0; font-size: 20px; overflow-wrap: anywhere">{{ plan.docs.page.title }}<span v-if="plan.docs.page.locked" class="pp-mut"> · locked</span></h3>
-<div style="display: flex; flex-wrap: wrap; gap: 6px"><button v-if="plan.docs.page.mayEdit" type="button" class="pp-btn pp-primary" @click="plan.docs.page.edit">Edit</button><button type="button" class="pp-btn" @click="plan.docs.page.toggleWatch">{{ plan.docs.page.watching ? 'Watching' : 'Watch' }}</button><button v-if="plan.docs.canCreate" type="button" class="pp-btn" @click="plan.docs.page.copy">Copy</button><template v-if="plan.docs.canExport"><button type="button" class="pp-btn" @click="plan.docs.page.exportDoc">Export Word</button><button type="button" class="pp-btn" @click="plan.docs.page.exportHtml">Export HTML</button></template><button v-if="plan.docs.page.canLock" type="button" class="pp-btn" @click="plan.docs.page.toggleLock">{{ plan.docs.page.locked ? 'Unlock' : 'Lock' }}</button><button v-if="plan.docs.page.canDelete" type="button" class="pp-btn" @click="plan.docs.page.remove">Delete</button></div>
+<div style="display: flex; flex-wrap: wrap; gap: 6px"><button v-if="plan.docs.page.mayEdit" type="button" class="pp-btn pp-primary" @click="plan.docs.page.edit">Edit</button><button type="button" class="pp-btn" @click="plan.docs.page.toggleWatch">{{ plan.docs.page.watching ? 'Watching' : 'Watch' }}</button><button v-if="plan.docs.canCreate" type="button" class="pp-btn" @click="plan.docs.page.copy">Copy</button><template v-if="plan.docs.canExport"><button type="button" class="pp-btn" @click="plan.docs.page.exportDoc">Export Word</button><button type="button" class="pp-btn" @click="plan.docs.page.exportHtml">Export HTML</button><button type="button" class="pp-btn" @click="plan.docs.page.exportPdf">Export PDF</button></template><button v-if="plan.docs.page.canLock" type="button" class="pp-btn" @click="plan.docs.page.toggleLock">{{ plan.docs.page.locked ? 'Unlock' : 'Lock' }}</button><button v-if="plan.docs.page.canDelete" type="button" class="pp-btn" @click="plan.docs.page.remove">Delete</button></div>
 <span class="pp-mut"><template v-if="plan.docs.page.updated">Last changed {{ plan.docs.page.updated }}</template><template v-for="l in plan.docs.page.labels" :key="l"> · {{ l }}</template></span>
-<div ref="reading" @mouseup="readSelection" @keyup="readSelection" @touchend="readSelection"><NoteEditor :key="plan.docs.page.id" :editable="false" :modelValue="plan.docs.page.body" @ref="plan.docs.page.followRef" @comment="showComment"/></div>
+<div ref="reading" @mouseup="readSelection" @keyup="readSelection" @touchend="readSelection"><div v-if="plan.docs.page.isBoard" v-html="plan.docs.page.boardHtml" style="overflow: auto"></div>
+<NoteEditor v-else :key="plan.docs.page.id" :editable="false" :modelValue="plan.docs.page.body" @ref="plan.docs.page.followRef" @comment="showComment"/></div>
 <div v-if="plan.docs.canComment && selected" style="position: sticky; bottom: 8px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 10px; border-radius: 10px; background: var(--k-22302A,#22302A)"><span class="pp-mut" style="flex: 1 1 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">“{{ selected }}”</span><button type="button" class="pp-btn pp-primary" @mousedown.prevent @click="commentOnSelection">Comment on this</button></div>
 <template v-if="plan.docs.page.children.length"><strong style="font-size: 13px">Pages under this one</strong><button v-for="c in plan.docs.page.children" :key="c.id" type="button" class="pp-link" style="text-align: left" @click="c.open">{{ c.title }}</button></template>
 <template v-if="plan.docs.page.backlinks.length"><strong style="font-size: 13px">Linked from</strong><button v-for="c in plan.docs.page.backlinks" :key="c.id" type="button" class="pp-link" style="text-align: left" @click="c.open">{{ c.title }}</button></template>
+<details v-if="plan.docs.page.canRestrict"><summary style="cursor: pointer; font-size: 13px; font-weight: 700">Restrictions<template v-if="plan.docs.page.restricted"> · on</template></summary><div v-for="l in plan.docs.page.restrictLists" :key="l.key" style="margin-top: 8px"><span class="pp-mut">{{ l.label }}</span><div style="display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 4px; font-size: 13px"><label v-for="m in l.people" :key="m.person" style="display: flex !important; flex-direction: row !important; width: auto; gap: 4px; align-items: center"><input type="checkbox" :checked="m.on" @change="m.toggle">{{ m.name }}</label></div></div><span class="pp-mut">Applies to the pages under this one too. The page's creator and the project manager always keep access.</span></details>
 <strong style="font-size: 13px">Attachments</strong>
 <div v-for="f in plan.docs.page.files" :key="f.key" style="display: flex; gap: 8px; align-items: center"><button type="button" class="pp-link" style="flex: 1; text-align: left; overflow-wrap: anywhere" @click="f.open">{{ f.name }}</button><button v-if="plan.docs.canAttach" type="button" class="pp-mini" :aria-label="`Remove ${f.name}`" @click="f.remove">×</button></div>
 <label v-if="plan.docs.canAttach" class="pp-btn" style="position: relative; align-self: flex-start; display: inline-flex; align-items: center; height: 32px; overflow: hidden">Attach files<input type="file" multiple aria-label="Attach files to this page" @change="plan.docs.page.onFile" style="position: absolute; inset: 0; opacity: 0; cursor: pointer"></label>
@@ -152,7 +158,16 @@ import { hubBindings } from '~/composables/useHub';
 const bound = hubBindings(['pj']);
 export default {
   name: 'ProjectPlan',
-  data() { return { selected: '', drag: null, dragKey: null, dragPx: 0, dragX: 0, moved: false }; },
+  data() { return { liveSession: null, editingWith: [], selected: '', drag: null, dragKey: null, dragPx: 0, dragX: 0, moved: false }; },
+  watch: {
+    // a session opens when an existing page starts being edited, and closes with the editor
+    liveKey: { immediate: true, handler(k) {
+      if (this.liveSession) { this.liveSession.conn.leave(); this.liveSession = null; this.editingWith = []; }
+      const d = this.plan && this.plan.docs && this.plan.docs.draft;
+      if (k && d) this.liveSession = { key: k, conn: d.joinLive((names) => { this.editingWith = names; }) };
+    } }
+  },
+  beforeUnmount() { if (this.liveSession) this.liveSession.conn.leave(); },
   methods: {
     readSelection() {
       const sel = window.getSelection();
@@ -181,6 +196,7 @@ export default {
   computed: {
     ...bound.computed,
     plan() { return this.pj && this.pj.plan; },
+    liveKey() { const d = this.plan && this.plan.isDocs && this.plan.docs.draft; return d && d.liveOn ? d.id : ''; },
     legend() { return [{ name: 'Not started', color: '#9DB0A6' }, { name: 'In progress', color: '#7CC4FF' }, { name: 'Being checked', color: '#FFB86B' }, { name: 'Finished', color: '#B8F36B' }, { name: 'Overdue', color: '#FF9B8A' }]; }
   }
 };

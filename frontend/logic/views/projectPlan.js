@@ -1,4 +1,5 @@
-import { decorate, pageHtml, pageText, lineDiff } from '~/logic/pageMarkup.js';
+import { decorate, expandMacros, pageHtml, pageText, lineDiff } from '~/logic/pageMarkup.js';
+import { boardDataUrl, boardSvg } from '~/logic/boardSvg.js';
 import { parseExport } from '~/logic/confluenceImport.js';
 import { CAT_COLORS, addDaysIso, criticalPath, doneAt, isoMs, openDeps, statusEntry, wfOf } from '~/logic/projects.js';
 
@@ -6,6 +7,8 @@ import { CAT_COLORS, addDaysIso, criticalPath, doneAt, isoMs, openDeps, statusEn
 // projects widget writes them to the server like every other project change.
 const TEMPLATES = {
   blank: { name: 'Blank page', title: '', body: '' },
+  board: { name: 'Whiteboard', title: 'Whiteboard', body: '{}', kind: 'board' },
+  diagram: { name: 'Diagram', title: 'Diagram', body: '{}', kind: 'board' },
   requirements: { name: 'Requirements', title: 'Requirements', body: ['<h2>Background</h2><p></p>','<h2>Goals</h2><p></p>','<h2>What is in scope</h2><p></p>','<h2>What is out of scope</h2><p></p>','<h2>Acceptance criteria</h2><p></p>'].join('') },
   notes: { name: 'Meeting notes', title: 'Meeting notes', body: ['<h2>Date and attendees</h2><p></p>','<h2>Discussion</h2><p></p>','<h2>Decisions</h2><p></p>','<h2>Action items</h2><p></p>'].join('') },
   decision: { name: 'Decision record', title: 'Decision: ', body: ['<h2>Context</h2><p></p>','<h2>Options considered</h2><p></p>','<h2>Decision</h2><p></p>','<h2>Consequences</h2><p></p>'].join('') },
@@ -164,7 +167,7 @@ export function buildPlan(ctx) {
   const bodyChanges = cur ? (cur.changes || []).filter((c) => c.field === 'body').slice().reverse() : [];
   const versions = bodyChanges.map((c, i) => ({ key: c.at, who: c.who, when: fmt(c.at),
     compare: () => this.setState({ pageDiff: { id: cur.id, at: c.at } }),
-    restore: () => this.setState({ pageDraft: { pid, id: cur.id, title: cur.title, parent: cur.parent || '', body: c.old || '', labels: (cur.labels || []).join(', '), err: '' }, pageDiff: null }) }));
+    restore: () => this.setState({ pageDraft: { pid, id: cur.id, kind: cur.kind || '', seed: cur.body || '', title: cur.title, parent: cur.parent || '', body: c.old || '', labels: (cur.labels || []).join(', '), err: '' }, pageDiff: null }) }));
   const shownDiff = cur && s.pageDiff && s.pageDiff.id === cur.id ? bodyChanges.find((c) => c.at === s.pageDiff.at) : null;
   const allLabels = [...new Set(pages.flatMap((x) => x.labels || []))].sort();
   const mePerson = this.srv ? this.srv.me.person : me;
@@ -177,8 +180,23 @@ export function buildPlan(ctx) {
     query: s.pageQuery || '', onQuery: (e) => this.setState({ pageQuery: e.target.value }), elsewhere, recent,
     labels: allLabels.map((l) => ({ name: l, on: l === labelOn, pick: () => this.setState({ pageLabel: l === labelOn ? '' : l }) })),
     list: ordered.filter((x) => (!query || (x.title + ' ' + pageText(x.body) + ' ' + (x.labels || []).join(' ')).toLowerCase().includes(query)) && (!labelOn || (x.labels || []).includes(labelOn))).map((x) => ({ id: x.id, title: x.title, indent: query ? 0 : depth(x) * 14, on: x.id === openId, open: () => openPage(x) })),
-    templates: Object.entries(TEMPLATES).map(([k, t]) => ({ key: k, name: t.name, pick: () => this.setState({ pageDraft: { pid, id: '', title: t.title, body: t.body, parent: cur ? cur.id : '', labels: '', err: '' }, pageDiff: null }) })),
-    page: cur && !draft ? { id: cur.id, title: cur.title, body: decorate(pageHtml(cur.body || ''), p.tasks.map((t) => t.key).filter(Boolean), comments),
+    templates: Object.entries(TEMPLATES).map(([k, t]) => ({ key: k, name: t.name, pick: () => this.setState({ pageDraft: { pid, id: '', title: t.title, body: t.body, kind: t.kind || '', parent: cur ? cur.id : '', labels: '', err: '' }, pageDiff: null }) })),
+    page: cur && !draft ? { id: cur.id, title: cur.title, isBoard: cur.kind === 'board', boardHtml: cur.kind === 'board' ? boardSvg(cur.body) : '',
+      body: cur.kind === 'board' ? '' : decorate(expandMacros(pageHtml(cur.body || ''), { children: pages.filter((x) => x.parent === cur.id).map((x) => x.title), tasks: p.tasks.map((t) => ({ ...t, statusName: statusEntry(p, t).name })), boardUrl: (title) => { const x = pages.find((y) => y.kind === 'board' && y.title.toLowerCase() === String(title || '').toLowerCase()); return x ? boardDataUrl(x.body) : ''; } }), p.tasks.map((t) => t.key).filter(Boolean), comments),
+      canRestrict: may('Restrict pages') && (p.members || []).length > 0,
+      restrictLists: ['view', 'edit'].map((k) => ({ key: k, label: k === 'view' ? 'Who can view (nobody ticked: everyone on the team)' : 'Who can edit (nobody ticked: everyone who can edit pages)', people: (p.members || []).map((m) => ({ person: m.person, name: m.name, on: ((cur.restrict || {})[k] || []).includes(m.person), toggle: () => updPage(cur.id, (y) => { const r0 = y.restrict || {}; const l = r0[k] || []; return { ...y, restrict: { ...r0, [k]: l.includes(m.person) ? l.filter((v) => v !== m.person) : l.concat([m.person]) } }; }) })) })),
+      restricted: ((cur.restrict || {}).view || []).length + ((cur.restrict || {}).edit || []).length > 0,
+      exportPdf: () => {
+        const clean = new DOMParser().parseFromString(cur.kind === 'board' ? boardSvg(cur.body) : expandMacros(pageHtml(cur.body || ''), { children: pages.filter((x) => x.parent === cur.id).map((x) => x.title), tasks: [], boardUrl: (title) => { const x = pages.find((y) => y.kind === 'board' && y.title.toLowerCase() === String(title || '').toLowerCase()); return x ? boardDataUrl(x.body) : ''; } }), 'text/html');
+        clean.querySelectorAll('script,iframe,object,embed,link,meta,base').forEach((n) => n.remove());
+        clean.querySelectorAll('*').forEach((n) => [...n.attributes].forEach((a) => { if (/^on/i.test(a.name)) n.removeAttribute(a.name); }));
+        const f = document.createElement('iframe');
+        f.setAttribute('sandbox', 'allow-same-origin allow-modals');
+        f.style.cssText = 'position:fixed;width:0;height:0;border:0';
+        f.srcdoc = '<!doctype html><meta charset="utf-8"><title>' + cur.title.replace(/</g, '&lt;') + '</title><style>body{font:14px/1.5 sans-serif;color:#111}img,svg{max-width:100%}table{border-collapse:collapse}td,th{border:1px solid #999;padding:4px 8px}[data-panel]{border-left:4px solid #1F6FB5;padding:6px 10px;margin:8px 0}[data-status]{font-weight:700}</style><h1>' + cur.title.replace(/</g, '&lt;') + '</h1>' + clean.body.innerHTML;
+        f.onload = () => { f.contentWindow.focus(); f.contentWindow.print(); setTimeout(() => f.remove(), 60000); };
+        document.body.appendChild(f);
+      },
       followRef: (m) => { const [kind, ...rest] = m.split(':'); const v = rest.join(':'); if (kind === 'page') { const x = pages.find((y) => y.title.toLowerCase() === v.toLowerCase()); if (x) openPage(x); else this.notify('No page is called "' + v + '" yet.', '#FFB86B'); return; } const ti = p.tasks.findIndex((t) => t.key === v); if (ti !== -1) tools.openTask(ti); },
       commentQuote: s.pageQuote || '', setQuote: (q) => this.setState({ pageQuote: q }), clearQuote: () => this.setState({ pageQuote: '' }),
       updated: cur.updatedAt ? fmt(cur.updatedAt) : '', versions, labels: cur.labels || [], locked: !!cur.locked,
@@ -196,8 +214,8 @@ export function buildPlan(ctx) {
       addComment: () => { const text = (this.state.pageComment || '').trim(); if (!text) return; const quote = this.state.pageQuote || ''; this.setState({ pageComment: '', pageQuote: '' }); patch((x) => ({ ...x, comments: (x.comments || []).concat([{ page: cur.id, who: me, text, quote, resolved: false }]) })); },
       exportDoc: () => download(safeName(cur.title) + '.doc', '<html><head><meta charset="utf-8"></head><body><h1>' + cur.title.replace(/</g, '&lt;') + '</h1>' + pageHtml(cur.body || '') + '</body></html>', 'application/msword'),
       exportHtml: () => download(safeName(cur.title) + '.html', '<!doctype html><meta charset="utf-8"><title>' + cur.title.replace(/</g, '&lt;') + '</title><h1>' + cur.title.replace(/</g, '&lt;') + '</h1>' + pageHtml(cur.body || ''), 'text/html'),
-      copy: () => this.setState({ pageDraft: { pid, id: '', title: 'Copy of ' + cur.title, body: cur.body || '', parent: cur.parent || '', labels: (cur.labels || []).join(', '), err: '' } }),
-      edit: () => this.setState({ pageDraft: { pid, id: cur.id, title: cur.title, body: cur.body || '', parent: cur.parent || '', labels: (cur.labels || []).join(', '), err: '' }, pageDiff: null }),
+      copy: () => this.setState({ pageDraft: { pid, id: '', kind: cur.kind || '', title: 'Copy of ' + cur.title, body: cur.body || '', parent: cur.parent || '', labels: (cur.labels || []).join(', '), err: '' } }),
+      edit: () => this.setState({ pageDraft: { pid, id: cur.id, kind: cur.kind || '', seed: cur.body || '', title: cur.title, body: cur.body || '', parent: cur.parent || '', labels: (cur.labels || []).join(', '), err: '' }, pageDiff: null }),
       remove: () => { if (pages.some((x) => x.parent === cur.id)) { this.notify('Move or delete the pages under this one first.', '#FFB86B'); return; } this.setState({ pageOpen: null }); patch((x) => ({ ...x, pages: x.pages.filter((y) => y.id !== cur.id), comments: (x.comments || []).filter((y) => y.page !== cur.id) })); } } : null,
     canImport: may('Import pages') && !!this.srv, importing: s.pageImport || { busy: false, text: '', problems: [] },
     importFile: (e) => {
@@ -214,14 +232,14 @@ export function buildPlan(ctx) {
     },
     canCreate: may('Create pages'), canAttach: may('Attach to pages'), canComment: may('Comment on pages'), canExport: may('Export pages'),
     draft: draft ? { ...draft, isNew: !draft.id, onTitle: setDraft('title'), onParent: setDraft('parent'), onLabels: setDraft('labels'),
-      setBody: (v) => this.setState((st) => ({ pageDraft: { ...st.pageDraft, body: v, err: '' } })),
+      liveOn: !!draft.id && !draft.kind && !!this.srv, joinLive: (onPeers) => projectsW.joinLive(this.srv, pid, draft.id, onPeers), isBoard: draft.kind === 'board', setBody: (v) => this.setState((st) => ({ pageDraft: { ...st.pageDraft, body: v, err: '' } })),
       parentOpts: pages.filter((x) => x.id && x.id !== draft.id).map((x) => ({ v: x.id, l: x.title })),
       cancel: () => this.setState({ pageDraft: null }),
       save: () => {
         const title = draft.title.trim();
         if (!title) { this.setState({ pageDraft: { ...draft, err: 'Give the page a title.' } }); return; }
         if (pages.some((x) => x.id !== draft.id && x.title.trim().toLowerCase() === title.toLowerCase())) { this.setState({ pageDraft: { ...draft, err: 'A page in this project already has that title.' } }); return; }
-        const data = { title, body: draft.body, parent: draft.parent || '', labels: [...new Set((draft.labels || '').split(',').map((x) => x.trim()).filter(Boolean))] };
+        const data = { title, body: draft.body, kind: draft.kind || '', liveSave: !!draft.id && !!this.srv, parent: draft.parent || '', labels: [...new Set((draft.labels || '').split(',').map((x) => x.trim()).filter(Boolean))] };
         this.setState({ pageDraft: null });
         patch((x) => ({ ...x, pages: draft.id ? x.pages.map((y) => (y.id === draft.id ? { ...y, ...data } : y)) : (x.pages || []).concat([{ ...data, author: me, watchers: [mePerson], files: [] }]) }));
         this.notify('Page saved.', '#B8F36B');

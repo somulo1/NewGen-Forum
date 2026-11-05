@@ -218,6 +218,23 @@ func TestPlanFollowsItsRights(t *testing.T) {
 	if d := got0["data"].(map[string]any); !strings.HasPrefix(d["who"].(string), "Amy") || d["resolved"] != true {
 		t.Fatalf("resolving a comment: %v", d)
 	}
+	// restrictions: a page only the manager may see disappears for others, with what sits under it
+	secret, under := id(), id()
+	amyKid := map[string]any{"title": "Under", "body": "y", "parent": secret}
+	e.MustDo(200, "PUT", "/projects/"+conv+"/items/"+secret, map[string]any{"collection": "page", "data": map[string]any{"title": "Secret", "body": "z", "restrict": map[string]any{"view": []string{o.Person}}}}, ownerU.Access)
+	e.MustDo(200, "PUT", "/projects/"+conv+"/items/"+under, map[string]any{"collection": "page", "data": amyKid}, ownerU.Access)
+	for _, x := range e.MustDo(200, "GET", "/projects/"+conv+"/plan", nil, amy.Access)["items"].([]any) {
+		if i := x.(map[string]any)["id"]; i == secret || i == under {
+			t.Fatal("a restricted page was sent")
+		}
+	}
+	if code, _ := e.Do("PUT", "/projects/"+conv+"/items/"+secret, map[string]any{"collection": "page", "data": map[string]any{"title": "Mine", "body": ""}}, amy.Access); code != 404 {
+		t.Fatalf("changed a restricted page: %d", code)
+	}
+	if code, _ := e.Do("POST", "/projects/"+conv+"/pages/"+secret+"/live", map[string]any{"kind": "update", "sid": "a", "data": "x"}, amy.Access); code != 403 {
+		t.Fatalf("joined a restricted page: %d", code)
+	}
+	e.MustDo(204, "POST", "/projects/"+conv+"/pages/"+page+"/live", map[string]any{"kind": "hello", "sid": "a"}, amy.Access)
 	set("View documents", false)
 	if items := e.MustDo(200, "GET", "/projects/"+conv+"/plan", nil, amy.Access)["items"].([]any); len(items) != 0 {
 		t.Fatalf("documents shown without the right: %v", items)
