@@ -6,8 +6,8 @@
 //   room socket  -> welcome { you, peers } | peer-joined | peer-left | offer/answer/ice (relayed) | state | chat | mod | ended
 import { connectRealtime } from './realtime.js';
 import * as dmsW from './widgets/dms.js';
-import { connectSfu, leaveSfu, applySfu, sendChatSfu, sfuActive, control, sfuStats } from './sfuCall.js';
-import { startQualityWatch, stopQualityWatch, noteReconnect, noteJoined } from './callQuality.js';
+import { connectSfu, leaveSfu, applySfu, sendChatSfu, sfuActive, control, sfuStats, setSfuUpload, sfuVideoPaused } from './sfuCall.js';
+import { startQualityWatch, stopQualityWatch, noteReconnect, noteJoined, newLadder, stepLadder, resetLadder, upBad, downBad } from './callQuality.js';
 import { startRing, stopRing, startRingback, stopRingback, connected, hangup, joinedTone, handTone } from '../tones.js';
 import { retryDelay } from './backoff.js';
 
@@ -25,20 +25,25 @@ let room = null;   // { ws, me, pcs: Map(peerId -> RTCPeerConnection), callId, h
 const MESH_VIDEO = { width: { ideal: 640 }, height: { ideal: 360 }, frameRate: { ideal: 24, max: 30 } };
 const meshBitrate = (peers) => (peers <= 1 ? 700000 : 350000);
 const SCREEN_BITRATE = 1500000;
+const REDUCED_BITRATE = 150000;
 
 // Voice goes first when the connection is tight; video takes what is left, up to its limit.
 async function tuneSenders(pc) {
   const peers = room ? room.pcs.size : 1;
   const screen = media.screen && media.screen.getVideoTracks()[0];
+  const upLevel = net ? net.up.level : 0;
   for (const sender of pc.getSenders()) {
     if (!sender.track) continue;
+    // someone who joined while my video is paused must not start receiving it
+    if (upLevel === 2 && sender.track.kind === 'video' && sender.track !== screen) { await sender.replaceTrack(null).catch(() => {}); continue; }
     const params = sender.getParameters();
     if (!params.encodings || !params.encodings.length) continue;
     const video = sender.track.kind === 'video';
     params.encodings.forEach((e) => {
       e.priority = video ? 'low' : 'high';
       e.networkPriority = e.priority;
-      if (video) e.maxBitrate = sender.track === screen ? SCREEN_BITRATE : meshBitrate(peers);
+      if (video && sender.track === screen) { e.maxBitrate = SCREEN_BITRATE; e.scaleResolutionDownBy = 1; }
+      else if (video) { e.maxBitrate = upLevel === 1 ? REDUCED_BITRATE : meshBitrate(peers); e.scaleResolutionDownBy = upLevel === 1 ? 2 : 1; }
     });
     await sender.setParameters(params).catch(() => {});
   }
@@ -49,7 +54,77 @@ const tuneAll = () => { if (room) room.pcs.forEach((pc) => tuneSenders(pc)); };
 function watchQuality(logic, srv, mode, getReports) {
   if (!room) return;   // hung up while connecting
   room.srv = srv;
-  startQualityWatch({ mode, getReports, onWeak: (netWeak) => setCall(logic, { netWeak }) });
+  net = { mode, up: newLadder(), down: newLadder(), downOff: false, lastCam: !!logic.state.cam, notice: '' };
+  startQualityWatch({ mode, getReports, onWeak: (netWeak) => setCall(logic, { netWeak }), onSample: (s) => netStep(logic, s) });
+}
+
+// ---- falling back to voice when a connection cannot carry video ----
+// A weak upload stops only my camera, so everyone sees my avatar and I still see them. A weak download stops only the video
+// coming to me, and everyone still sees me. A shared screen is left alone. A camera the person turned off stays off.
+let net = null;
+
+function netStep(logic, sample) {
+  if (!net || !room || !logic.state.call || logic.state.call.mode !== 'video') return;
+  if (logic.state.cam || net.up.level > 0) {
+    const before = net.up.level;
+    if (stepLadder(net.up, upBad(sample)) !== before) applyUpLevel(logic);
+  }
+  if (net.mode === 'mesh') {
+    stepLadder(net.down, downBad(sample));
+    applyDownOff(logic);
+  } else net.sfuDownPaused = downBad(sample) && sfuVideoPaused();
+  showNetNotice(logic);
+}
+
+function showNetNotice(logic) {
+  if (!net) return;
+  const s = logic.state;
+  const upOff = net.up.level === 2 && s.cam;
+  const notice = upOff ? 'Your video is paused to keep your call stable.'
+    : net.downOff ? 'Video from others is paused to keep your call stable.'
+    : net.sfuDownPaused ? 'Some video is paused because your connection is weak.' : '';
+  const canResume = !!(upOff || net.downOff);
+  if (notice === net.notice && canResume === net.canResume) return;
+  net.notice = notice; net.canResume = canResume;
+  setCall(logic, { netNotice: notice, netCanResume: canResume, netDownPaused: !!net.downOff });
+}
+
+function applyUpLevel(logic) {
+  const level = net.up.level;
+  if (net.mode === 'sfu') { setSfuUpload(level); return; }
+  if (room && level < 2) {
+    const cam = media.local && media.local.getVideoTracks()[0];
+    if (cam && !media.screen) room.pcs.forEach((pc) => {
+      const tr = pc.getTransceivers().find((t) => t.receiver && t.receiver.track && t.receiver.track.kind === 'video');
+      if (tr && !tr.sender.track) tr.sender.replaceTrack(cam).then(() => tuneSenders(pc)).catch(() => {});
+    });
+  }
+  tuneAll();
+  sendState(logic);
+}
+
+// Stops or restarts the video coming to me: the other side is told through a fresh offer.
+function applyDownOff(logic) {
+  const sharing = ((logic.state.call && logic.state.call.peers) || []).some((p) => p.sharing);
+  const off = net.down.level === 2 && !sharing;
+  if (off === net.downOff || !room) return;
+  net.downOff = off;
+  const flip = off ? { sendrecv: 'sendonly', recvonly: 'inactive' } : { sendonly: 'sendrecv', inactive: 'recvonly' };
+  for (const [peerId, pc] of room.pcs) {
+    const tr = pc.getTransceivers().find((t) => t.receiver && t.receiver.track && t.receiver.track.kind === 'video');
+    if (!tr || !flip[tr.direction]) continue;
+    tr.direction = flip[tr.direction];
+    pc.createOffer().then((o) => pc.setLocalDescription(o).then(() => send({ type: 'offer', to: peerId, data: o }))).catch(() => {});
+  }
+}
+
+// The "Turn back on" button, or the person switching their camera back on.
+export function resumeVideo(logic) {
+  if (!net) return;
+  resetLadder(net.up); resetLadder(net.down);
+  applyUpLevel(logic);
+  if (net.mode === 'mesh') applyDownOff(logic);
+  showNetNotice(logic);
 }
 function endQualityWatch() {
   const summary = stopQualityWatch();
@@ -137,7 +212,7 @@ async function flushCandidates(pc) {
 function send(o) { if (room && room.ws && room.ws.readyState === 1) room.ws.send(JSON.stringify(o)); }
 
 function peerView(p) {
-  return { id: p.id, person: p.person, name: p.name, role: p.role, mic: p.mic !== false, cam: !!p.cam, hand: !!p.hand, sharing: !!p.sharing };
+  return { id: p.id, person: p.person, name: p.name, role: p.role, mic: p.mic !== false, cam: !!p.cam, hand: !!p.hand, sharing: !!p.sharing, netPaused: !!p.net_paused };
 }
 
 // opts.ringback: this is a private call I started, so I hear it ringing until the other person answers.
@@ -320,6 +395,7 @@ function dropPeer(id) {
 
 export function leaveRoom(sound = true) {
   endQualityWatch();
+  net = null;
   leaveSfu();
   media.tracks.clear();
   if (room) {
@@ -366,8 +442,13 @@ async function ensureTrack(kind) {
 }
 
 export async function applyLocal(logic) {
-  if (sfuActive()) return applySfu({ logic, media, changed, setCall });
   const s = logic.state;
+  if (net) {
+    if (s.cam && !net.lastCam && net.up.level > 0) resumeVideo(logic);
+    net.lastCam = !!s.cam;
+    showNetNotice(logic);
+  }
+  if (sfuActive()) return applySfu({ logic, media, changed, setCall });
   const HOW = ' Allow it in the browser (the lock icon in the address bar), then tap it again.';
   if (room && s.mic && !(media.local && media.local.getAudioTracks().length)) {
     if (!(await ensureTrack('audio'))) { logic.setState({ mic: false }); logic.notify('Hub cannot use your microphone, so you are muted. You can still listen.' + HOW, '#FFB86B'); }
@@ -392,7 +473,8 @@ export async function applyLocal(logic) {
     media.screen.getTracks().forEach((t) => t.stop());
     media.screen = null;
     const cam = media.local && media.local.getVideoTracks()[0];
-    await Promise.all([...(room ? room.pcs.values() : [])].map(async (pc) => { const snd = pc.getSenders().find((x) => x.track && x.track.kind === 'video'); if (snd) await snd.replaceTrack(cam || null); }));
+    // back to the camera, unless my video is paused for the connection
+    await Promise.all([...(room ? room.pcs.values() : [])].map(async (pc) => { const snd = pc.getSenders().find((x) => x.track && x.track.kind === 'video'); if (snd) await snd.replaceTrack(net && net.up.level === 2 ? null : cam || null); }));
     tuneAll();
   }
   changed();
@@ -401,7 +483,7 @@ export async function applyLocal(logic) {
 
 function sendState(logic) {
   const s = logic.state;
-  send({ type: 'state', mic: !!s.mic, cam: !!s.cam, sharing: !!s.sharing, hand: !!s.hand });
+  send({ type: 'state', mic: !!s.mic, cam: !!s.cam, sharing: !!s.sharing, hand: !!s.hand, net_paused: !!(net && net.up.level === 2 && s.cam) });
 }
 
 export function sendChat(text) { if (sfuActive()) { sendChatSfu(text); return; } send({ type: 'chat', data: JSON.stringify({ text }) }); }

@@ -1,6 +1,7 @@
 import * as forumsW from '~/logic/server/widgets/forums.js';
 import * as dmsW from '~/logic/server/widgets/dms.js';
 import * as callsW from '~/logic/server/calls.js';
+import * as presenceW from '~/logic/server/presence.js';
 // Values and handlers the templates read through hubBindings: panels.
 export function valsPanels(ctx) {
   const { chatCtl, chatGate, dmPerson, dmPriv, dmStatusCol, forums, incomingView, isDM, panelStyle, pollView, s, set } = ctx;
@@ -49,7 +50,7 @@ export function valsPanels(ctx) {
       return mine.concat(other);
     })(),
     dmList: s.dms.map((d) => { const pr = dmPerson(d.with); const last = d.msgs[d.msgs.length - 1]; const on = isDM && d.id === s.dmId && s.mode !== 'closed';
-      return { key: d.id, name: d.with, kindLabel: 'private chat', remove: () => (this.srv ? dmsW.clear(this, this.srv, d.id) : Promise.resolve(this.setState((x) => ({ dms: x.dms.filter((y) => y.id !== d.id) })))), initials: pr.initials, color: pr.color, dot: dmStatusCol[pr.status] || '#B8F36B', unread: d.unread, hasUnread: d.unread > 0,
+      return { key: d.id, name: d.with, kindLabel: 'private chat', remove: () => (this.srv ? dmsW.clear(this, this.srv, d.id) : Promise.resolve(this.setState((x) => ({ dms: x.dms.filter((y) => y.id !== d.id) })))), initials: pr.initials, color: pr.color, dot: this.srv && !presenceW.isOnline(this.srv, d.person) ? '#6B7A72' : (dmStatusCol[pr.status] || '#B8F36B'), online: !this.srv || presenceW.isOnline(this.srv, d.person), unread: d.unread, hasUnread: d.unread > 0,
         typing: !!(s.typing && s.typing[d.id] && s.typing[d.id].length), last: (s.typing && s.typing[d.id] && s.typing[d.id].length) ? 'typing…' : last ? (last.from === 'me' ? 'You: ' : '') + (last.text || (last.file ? 'Sent a file' : '')) : 'Say hello', open: () => this.openDm(d.with),
         style: 'display:flex;align-items:center;gap:10px;width:100%;min-height:50px;padding:4px 10px;border:0;border-radius:10px;cursor:pointer;text-align:left;font-family:inherit;color:var(--k-E8EFEA,#E8EFEA);background:' + (on ? 'var(--k-22302A,#22302A)' : 'transparent') }; }),
     dmsOpen: s.dmsOpen, toggleDms: () => this.setState((x) => ({ dmsOpen: !x.dmsOpen })),

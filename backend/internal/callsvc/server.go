@@ -69,16 +69,17 @@ type Room struct {
 }
 
 type Peer struct {
-	ID     string `json:"id"`
-	Person string `json:"person"`
-	Name   string `json:"name"`
-	Role   string `json:"role"`
-	Mic    bool   `json:"mic"`
-	Cam    bool   `json:"cam"`
-	Share  bool   `json:"sharing"`
-	Hand   bool   `json:"hand"`
-	send   chan []byte
-	cancel context.CancelFunc
+	ID        string `json:"id"`
+	Person    string `json:"person"`
+	Name      string `json:"name"`
+	Role      string `json:"role"`
+	Mic       bool   `json:"mic"`
+	Cam       bool   `json:"cam"`
+	Share     bool   `json:"sharing"`
+	Hand      bool   `json:"hand"`
+	NetPaused bool   `json:"net_paused"`
+	send      chan []byte
+	cancel    context.CancelFunc
 	// resuming a dropped connection: a secret only this device has (given over its own connection), which connection of the peer is
 	// current, and whether it was removed on purpose (then it cannot come back)
 	key      string
@@ -128,16 +129,17 @@ func (s *Server) Handler() http.Handler {
 }
 
 type msg struct {
-	Type   string          `json:"type"`
-	To     string          `json:"to,omitempty"`
-	From   string          `json:"from,omitempty"`
-	Action string          `json:"action,omitempty"`
-	Target string          `json:"target,omitempty"`
-	Data   json.RawMessage `json:"data,omitempty"`
-	Mic    *bool           `json:"mic,omitempty"`
-	Cam    *bool           `json:"cam,omitempty"`
-	Share  *bool           `json:"sharing,omitempty"`
-	Hand   *bool           `json:"hand,omitempty"`
+	Type      string          `json:"type"`
+	To        string          `json:"to,omitempty"`
+	From      string          `json:"from,omitempty"`
+	Action    string          `json:"action,omitempty"`
+	Target    string          `json:"target,omitempty"`
+	Data      json.RawMessage `json:"data,omitempty"`
+	Mic       *bool           `json:"mic,omitempty"`
+	Cam       *bool           `json:"cam,omitempty"`
+	Share     *bool           `json:"sharing,omitempty"`
+	Hand      *bool           `json:"hand,omitempty"`
+	NetPaused *bool           `json:"net_paused,omitempty"`
 }
 
 func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
@@ -398,6 +400,9 @@ func (s *Server) handle(room *Room, p *Peer, m *msg, raw []byte) {
 		}
 		if m.Share != nil {
 			p.Share = *m.Share
+		}
+		if m.NetPaused != nil {
+			p.NetPaused = *m.NetPaused
 		}
 		if m.Hand != nil {
 			p.Hand = *m.Hand

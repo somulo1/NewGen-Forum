@@ -60,7 +60,7 @@ const metaOf = (p) => { try { return JSON.parse(p.metadata || '{}'); } catch (e)
 const canPublish = (p) => !!(p.permissions && p.permissions.canPublish);
 const personView = (p) => ({
   id: p.identity, person: metaOf(p).person || '', name: p.name || 'Someone', role: metaOf(p).role || 'participant',
-  mic: p.isMicrophoneEnabled, cam: p.isCameraEnabled, sharing: p.isScreenShareEnabled, hand: (p.attributes || {}).hand === '1', stage: canPublish(p), speaking: !!p.isSpeaking
+  mic: p.isMicrophoneEnabled, cam: p.isCameraEnabled, sharing: p.isScreenShareEnabled, hand: (p.attributes || {}).hand === '1', stage: canPublish(p), speaking: !!p.isSpeaking, netPaused: (p.attributes || {}).net === '1'
 });
 
 // ---- what the screen shows ----
@@ -122,7 +122,7 @@ export async function connectSfu(ctx, entry, opts = {}) {
   S.info = info; S.canSpeak = !!info.can_speak;
   if (opts.ringback && !(srv.answeredCalls && srv.answeredCalls.has(entry.call.id))) startRingback();
   const lk = await import('livekit-client');
-  S.lk = lk;
+  S.lk = lk; S.ctx = ctx; S.videoOff = false; S.pausedVideo = new Set();
   const keys = await callKeys(srv, entry);
   S.key = keys && keys.media; S.chatKey = keys && keys.chat;
   const opt = {
@@ -160,6 +160,10 @@ export async function connectSfu(ctx, entry, opts = {}) {
   room.on(E.ActiveSpeakersChanged, re);
   room.on(E.TrackMuted, (pub, p) => { if (p.isLocal) syncLocalState(ctx); re(); });
   room.on(E.TrackUnmuted, (pub, p) => { if (p.isLocal) syncLocalState(ctx); re(); });
+  room.on(E.TrackStreamStateChanged, (pub, state) => {
+    if (pub.kind !== 'video') return;
+    if (state === lk.Track.StreamState.Paused) S.pausedVideo.add(pub.trackSid); else S.pausedVideo.delete(pub.trackSid);
+  });
   room.on(E.TrackPublished, re);
   room.on(E.TrackUnpublished, re);
   room.on(E.ParticipantAttributesChanged, (changed, p) => {
@@ -221,7 +225,7 @@ function syncLocalState(ctx) {
   const st = ctx.logic.state;
   const patch = {};
   if (st.mic !== lp.isMicrophoneEnabled && S.canSpeak) patch.mic = lp.isMicrophoneEnabled;
-  if (st.cam !== lp.isCameraEnabled && S.canSpeak && st.call && st.call.mode === 'video') patch.cam = lp.isCameraEnabled;
+  if (!S.videoOff && st.cam !== lp.isCameraEnabled && S.canSpeak && st.call && st.call.mode === 'video') patch.cam = lp.isCameraEnabled;
   if (Object.keys(patch).length) {
     ctx.logic.setState(patch);
     if ('mic' in patch && !patch.mic) ctx.logic.notify('The host muted you.', '#FFB86B');
@@ -275,8 +279,8 @@ export async function applySfu(ctx) {
       ctx.logic.notify('Hub cannot use your microphone, so you are muted. You can still listen.' + HOW, '#FFB86B');
     }
   }
-  if (video && !!s.cam !== lp.isCameraEnabled) {
-    try { await lp.setCameraEnabled(!!s.cam); } catch (e) {
+  if (video && (!!s.cam && !S.videoOff) !== lp.isCameraEnabled) {
+    try { await lp.setCameraEnabled(!!s.cam && !S.videoOff); } catch (e) {
       ctx.logic.setState({ cam: false });
       ctx.logic.notify('Hub cannot use your camera, so it is off. People can still see and hear the others.' + HOW, '#FFB86B');
     }
@@ -299,6 +303,23 @@ export async function sendChatSfu(text) {
   await S.room.localParticipant.publishData(await sealChat(text), { reliable: true, topic: 'chat' });
 }
 
+// My connection cannot carry my video: 0 normal, 1 lowest quality only, 2 camera off (everyone sees my avatar).
+export async function setSfuUpload(level) {
+  const room = S.room;
+  if (!room || !S.ctx || !S.canSpeak) return;
+  const lp = room.localParticipant;
+  const wasOff = S.videoOff;
+  S.videoOff = level === 2;
+  if (S.videoOff !== wasOff) {
+    lp.setAttributes({ net: S.videoOff ? '1' : '0' }).catch(() => {});
+    await applySfu(S.ctx);
+  }
+  const cam = [...lp.videoTrackPublications.values()].find((p) => p.source === 'camera');
+  if (cam && cam.videoTrack && !S.videoOff) cam.videoTrack.setPublishingQuality(level === 1 ? S.lk.VideoQuality.LOW : S.lk.VideoQuality.HIGH);
+}
+// LiveKit has paused video coming to me.
+export const sfuVideoPaused = () => !!(S.pausedVideo && S.pausedVideo.size);
+
 // Stats for the connection watch: what I send, and the audio I receive (enough to see the connection without asking every track).
 export function sfuStats() {
   if (!S.room) return Promise.resolve([]);
@@ -316,7 +337,7 @@ export function leaveSfu() {
   Object.values(S.timers).forEach((t) => clearTimeout(t));
   S.timers = {};
   S.audio.forEach((el) => el.remove());
-  S.audio.clear(); S.vids.clear(); S.key = S.chatKey = null; S.canSpeak = false; S.lk = null;
+  S.audio.clear(); S.vids.clear(); S.key = S.chatKey = null; S.canSpeak = false; S.lk = null; S.ctx = null; S.videoOff = false; S.pausedVideo = null;
   if (room) { try { room.disconnect(); } catch (e) { /* closed */ } }
 }
 

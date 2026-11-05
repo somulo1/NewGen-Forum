@@ -19,7 +19,7 @@ export function buildCallState(ctx) {
     const othersLive = live ? s.call.peers.map((p) => {
       const d = this.dir.find((x) => x.name === p.name);
       const c = (d && d.color) || '#C9B6FF';
-      return { name: p.name, initials: d ? d.initials : ini(p.name), color: c, bg: c + '26', camBg: c + '40', muted: !p.mic, camOn: p.cam || p.sharing, hand: p.hand, speaking: !!p.speaking, videoKey: p.id };
+      return { name: p.name, initials: d ? d.initials : ini(p.name), color: c, bg: c + '26', camBg: c + '40', muted: !p.mic, camOn: p.sharing || (p.cam && !p.netPaused && !s.call.netDownPaused), netPaused: !!p.netPaused, hand: p.hand, speaking: !!p.speaking, videoKey: p.id };
     }) : null;
     const mi = this.state.meInfo || {};
     const me = { name: 'You', initials: mi.initials || 'Y', color: mi.color || '#F49AC1', bg: '#2B2A1E', camBg: '#3D3B29', muted: !s.mic, camOn: isVideo && (s.cam || s.sharing), you: true, videoKey: live ? 'local' : '' };
@@ -56,7 +56,7 @@ export function buildCallState(ctx) {
     }) : tiles;
     const ctl = (on, danger) => 'width:66px;height:60px;border-radius:16px;border:0;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;' + (danger ? 'background:#FF9B8A;color:#0F1714' : on ? 'background:#B8F36B;color:#0F1714' : 'background:var(--k-1D2A25,#1D2A25);color:var(--k-E8EFEA,#E8EFEA)');
     call = {
-      ...s.call, timer, isVideo, isVoice: !isVideo, count: big ? (s.call.total || all.length) : all.length, big, isMod, rows,
+      ...s.call, resumeVideo: () => callsW.resumeVideo(this), timer, isVideo, isVoice: !isVideo, count: big ? (s.call.total || all.length) : all.length, big, isMod, rows,
       moreRows: big && roster.length > 150 ? roster.length - 150 : 0, find: s.callFind || '',
       listening: big && s.call.canSpeak === false,
       limitNote: big && s.call.limit ? 'Up to ' + s.call.limit + ' people' : '',
