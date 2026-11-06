@@ -611,6 +611,8 @@ func (s *Service) Save(ctx context.Context, p *tenant.Principal, project, id uui
 				narrow = "View documents"
 			case len(ch) == 1 && ch["locked"]:
 				narrow = "Lock pages"
+			case len(ch) == 1 && ch["files"] && droppedFile(old, data):
+				narrow = "Remove attachments"
 			case len(ch) == 1 && ch["files"]:
 				narrow = "Attach to pages"
 			}
@@ -674,6 +676,12 @@ func (s *Service) Save(ctx context.Context, p *tenant.Principal, project, id uui
 			}
 			if !isNew && narrow != "View documents" && !pageAllowed(pages, id.String(), pr, p.Person, "edit") {
 				return httpx.Err(403, "page_restricted", "This page's restrictions do not let you change it.")
+			}
+			// taking a file off a page has its own right, whichever way the save arrives
+			if droppedFile(old, data) {
+				if err := authz.Require(ctx, tx, p.Person, "projects", "Remove attachments"); err != nil {
+					return err
+				}
 			}
 			oldR, _ := json.Marshal(old["restrict"])
 			newR, _ := json.Marshal(data["restrict"])
@@ -808,6 +816,23 @@ func checkLinks(ctx context.Context, tx pgx.Tx, project uuid.UUID, coll string, 
 	return nil
 }
 
+func droppedFile(old, next map[string]any) bool {
+	now := map[string]bool{}
+	list, _ := next["files"].([]any)
+	for _, f := range list {
+		b, _ := json.Marshal(f)
+		now[string(b)] = true
+	}
+	was, _ := old["files"].([]any)
+	for _, f := range was {
+		b, _ := json.Marshal(f)
+		if !now[string(b)] {
+			return true
+		}
+	}
+	return false
+}
+
 func contains(l []string, v string) bool {
 	for _, x := range l {
 		if x == v {
@@ -842,6 +867,19 @@ func (s *Service) Delete(ctx context.Context, p *tenant.Principal, project, id u
 				if !pageAllowed(pages, id.String(), pr, p.Person, "edit") {
 					return httpx.Err(403, "page_restricted", "This page's restrictions do not let you change it.")
 				}
+			}
+		case "risk":
+			err = authz.Require(ctx, tx, p.Person, "projects", "Delete risks")
+		case "activity":
+			err = authz.Require(ctx, tx, p.Person, "projects", "Delete activity")
+		case "milestone":
+			err = authz.Require(ctx, tx, p.Person, "projects", "Delete milestones")
+		case "sprint":
+			err = authz.Require(ctx, tx, p.Person, "projects", "Delete sprints")
+		case "page_comment":
+			// your own comment, with the right
+			if err = authz.Require(ctx, tx, p.Person, "projects", "Delete comments"); err == nil && (author == nil || *author != p.Person) {
+				err = httpx.ErrForbidden
 			}
 		default:
 			err = mayChange(ctx, tx, p, pr, coll, false, author)
@@ -1011,6 +1049,24 @@ func (s *Service) patchPlan(ctx context.Context, tx pgx.Tx, p *tenant.Principal,
 		return httpx.Bad("A workflow starts with an unfinished status and ends with a finished one.")
 	}
 	keys := map[string]int{}
+	var current []Status
+	var raw []byte
+	if err := tx.QueryRow(ctx, `select workflow from hub.projects where conversation_id=$1`, id).Scan(&raw); err != nil {
+		return err
+	}
+	_ = json.Unmarshal(raw, &current)
+	for _, st := range current {
+		kept := false
+		for _, x := range w {
+			kept = kept || x.Key == st.Key
+		}
+		if !kept {
+			if err := authz.Require(ctx, tx, p.Person, "projects", "Remove workflow statuses"); err != nil {
+				return err
+			}
+			break
+		}
+	}
 	for i := range w {
 		w[i].Name = strings.TrimSpace(w[i].Name)
 		if w[i].Name == "" || len(w[i].Name) > 40 || w[i].Key == "" || w[i].Cat < 0 || w[i].Cat > 3 || w[i].WIP < 0 {
