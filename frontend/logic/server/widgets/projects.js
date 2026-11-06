@@ -122,6 +122,14 @@ export async function moveReadablePlan(logic, srv, pid) {
   await reload(logic, srv, pid);
 }
 
+export async function removeProject(logic, srv, pid) {
+  await srv.request('DELETE', `/projects/${pid}`);
+  srv.projSnap.delete(pid);
+  srv.applyingProjects = true;
+  logic.setState((st) => ({ projectOpen: null, projects: st.projects.filter((p) => p.id !== pid) }));
+  srv.applyingProjects = false;
+}
+
 export async function closeSprint(logic, srv, pid, sprint) {
   await srv.request('POST', `/projects/${pid}/sprints/${sprint}/close`, {});
   await reload(logic, srv, pid);

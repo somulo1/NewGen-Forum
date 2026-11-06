@@ -307,3 +307,53 @@ func TestProjectsStaySeparate(t *testing.T) {
 		t.Fatalf("project B holds %d items", n)
 	}
 }
+
+func TestDeletingFromAProject(t *testing.T) {
+	e := testkit.New(t)
+	ownerU, slug := e.NewOrg("Olivia Owner")
+	o := e.Owner(ownerU)
+	amy := e.Join(ownerU, slug, "Amy", "hod")
+	for _, m := range []*testkit.Member{o, amy} {
+		m.Register(e)
+	}
+	key, _ := e2ee.NewConversationKey()
+	conv := e.MustDo(201, "POST", "/conversations", map[string]any{"kind": "project", "name": "D", "members": []string{amy.Person}, "keys": o.WrapFor(e, key, 1, o.Person, amy.Person)}, ownerU.Access)["id"].(string)
+	e.MustDo(201, "POST", "/projects", map[string]any{"conversation": conv, "start": "2026-01-01", "due": "2027-01-01"}, ownerU.Access)
+	id := func() string { return uuid.Must(uuid.NewV7()).String() }
+	put := func(item, coll string, d map[string]any) {
+		t.Helper()
+		e.MustDo(200, "PUT", "/projects/"+conv+"/items/"+item, map[string]any{"collection": coll, "data": d}, ownerU.Access)
+	}
+	del := func(item string) int {
+		c, _ := e.Do("DELETE", "/projects/"+conv+"/items/"+item, nil, ownerU.Access)
+		return c
+	}
+	ms, sp, task := id(), id(), id()
+	put(ms, "milestone", map[string]any{"name": "M", "iso": "2026-06-01"})
+	put(sp, "sprint", map[string]any{"name": "S", "start": "2026-02-01", "end": "2026-02-14", "milestone": ms})
+	put(task, "task", map[string]any{"title": "T", "sprint": sp})
+	if c := del(ms); c != 409 {
+		t.Fatalf("deleted a milestone in use: %d", c)
+	}
+	if c := del(sp); c != 204 {
+		t.Fatalf("sprint: %d", c)
+	}
+	for _, x := range e.MustDo(200, "GET", "/projects/"+conv+"/plan", nil, ownerU.Access)["items"].([]any) {
+		if m := x.(map[string]any); m["id"] == task && m["data"].(map[string]any)["sprint"] != "" {
+			t.Fatalf("the task did not return to the backlog: %v", m)
+		}
+	}
+	if c := del(ms); c != 204 {
+		t.Fatalf("milestone: %d", c)
+	}
+	if c := del(task); c != 204 {
+		t.Fatalf("task: %d", c)
+	}
+	if c, _ := e.Do("DELETE", "/projects/"+conv, nil, amy.Access); c != 403 {
+		t.Fatalf("deleted a project without the right: %d", c)
+	}
+	e.MustDo(204, "DELETE", "/projects/"+conv, nil, ownerU.Access)
+	if c, _ := e.Do("GET", "/projects/"+conv+"/plan", nil, ownerU.Access); c != 404 {
+		t.Fatalf("still there: %d", c)
+	}
+}

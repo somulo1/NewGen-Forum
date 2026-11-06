@@ -858,11 +858,67 @@ func (s *Service) Delete(ctx context.Context, p *tenant.Principal, project, id u
 				return httpx.Err(409, "in_use", "Other tasks sit under this one or depend on it. Change them first.")
 			}
 		}
+		if coll == "milestone" {
+			var used bool
+			if err := tx.QueryRow(ctx, `select exists (select 1 from hub.project_items where project_id=$1 and collection in ('sprint','task') and data->>'milestone' = $2)`, project, id.String()).Scan(&used); err != nil {
+				return err
+			}
+			if used {
+				return httpx.Err(409, "in_use", "Sprints or tasks still sit under this. Move or delete them first.")
+			}
+		}
+		if coll == "sprint" {
+			sprints, err := loadItems(ctx, tx, project, "sprint")
+			if err != nil {
+				return err
+			}
+			for _, sp := range sprints {
+				if closed, _ := sp.data["closed"].(bool); closed && sp.id == id {
+					return httpx.Err(409, "closed", "A closed sprint is kept, because velocity reads from it.")
+				}
+			}
+			// its work goes back to the backlog
+			tasks, err := loadItems(ctx, tx, project, "task")
+			if err != nil {
+				return err
+			}
+			for _, t := range tasks {
+				if text(t.data, "sprint") == id.String() {
+					t.data["sprint"] = ""
+					if err := s.writeBySystem(ctx, tx, p.Org, project, t, "sprint", id.String(), ""); err != nil {
+						return err
+					}
+				}
+			}
+		}
 		if _, err := tx.Exec(ctx, `insert into hub.project_item_history (org_id, item_id, project_id, person_id, who, field) values ($1,$2,$3,$4,$5,'deleted')`, p.Org, id, project, p.Person, p.Name); err != nil {
 			return err
 		}
 		_, err = tx.Exec(ctx, `delete from hub.project_items where id=$1`, id)
 		return err
+	})
+	if err == nil {
+		s.planChanged(ctx, p, project)
+	}
+	return err
+}
+
+// DeleteProject removes a project and its plan for good. The audit log keeps that it happened; the conversation stays, so its discussion is not lost.
+func (s *Service) DeleteProject(ctx context.Context, p *tenant.Principal, project uuid.UUID) error {
+	err := s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
+		pr, err := s.member(ctx, tx, p, project, true)
+		if err != nil {
+			return err
+		}
+		if err := authz.Require(ctx, tx, p.Person, "projects", "Delete project"); err != nil {
+			return err
+		}
+		for _, q := range []string{`delete from hub.project_item_history where project_id=$1`, `delete from hub.project_items where project_id=$1`, `delete from hub.projects where conversation_id=$1`} {
+			if _, err := tx.Exec(ctx, q, project); err != nil {
+				return err
+			}
+		}
+		return s.A.Audit(ctx, tx, p.Org, &p.Person, p.Name, "Deleted project "+pr.Code, "Projects", p.IP, map[string]any{"project": project})
 	})
 	if err == nil {
 		s.planChanged(ctx, p, project)
@@ -1038,6 +1094,17 @@ func (s *Service) planRoutes(r chi.Router, org func(func(http.ResponseWriter, *h
 			return err
 		}
 		if err := s.Live(r.Context(), p, id, item, in); err != nil {
+			return err
+		}
+		w.WriteHeader(204)
+		return nil
+	}))
+	r.Delete("/projects/{id}", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
+		id, err := ids(r, "id")
+		if err != nil {
+			return err
+		}
+		if err := s.DeleteProject(r.Context(), p, id); err != nil {
 			return err
 		}
 		w.WriteHeader(204)
