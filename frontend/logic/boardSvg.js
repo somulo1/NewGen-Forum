@@ -1,3 +1,4 @@
+import { MORE_SHAPES } from './boardShapesMore.js';
 // Whiteboards and diagrams, kept as data: shapes, connectors and pen strokes. The shape library and connector routing live here, so the
 // editor, pages and PDFs all draw the same picture.
 const esc = (t) => String(t ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -181,6 +182,7 @@ Object.assign(SHAPES, {
   clock: { label: 'Clock', group: 'Symbols', w: 70, h: 70, ...below({}), d: (w, h) => oval(w / 2, h / 2, w / 2, h / 2), more: (w, h) => `M${w / 2} ${h * 0.2}V${h / 2}L${w * 0.7} ${h * 0.62}` },
   bulb: { label: 'Idea', group: 'Symbols', w: 60, h: 85, ...below({}), d: (w, h) => `M${w * 0.32} ${h * 0.72}C${w * 0.28} ${h * 0.55} 0 ${h * 0.5} 0 ${h * 0.3}A${w / 2} ${h * 0.3} 0 0 1 ${w} ${h * 0.3}C${w} ${h * 0.5} ${w * 0.72} ${h * 0.55} ${w * 0.68} ${h * 0.72}Z`, more: (w, h) => `M${w * 0.34} ${h * 0.82}H${w * 0.66}M${w * 0.4} ${h * 0.92}H${w * 0.6}` }
 });
+Object.assign(SHAPES, MORE_SHAPES);
 export const SHAPE_GROUPS = [...new Set(Object.values(SHAPES).map((s) => s.group))].map((group) => ({ group, shapes: Object.entries(SHAPES).filter(([, s]) => s.group === group).map(([key, s]) => ({ key, ...s })) }));
 const specOf = (s) => SHAPES[s.t] || SHAPES.rect;
 export const nameOfShape = (t) => (SHAPES[t] || SHAPES.rect).label;
@@ -307,7 +309,7 @@ export function drawShape(s, bg) {
   const sp = specOf(s);
   const w = num(s.w), h = num(s.h);
   const size = Math.min(40, Math.max(9, num(s.size) || 14));
-  const lines = wrapText(s.text, w, size);
+  const lines = wrapText(s.text, sp.textBelow ? Math.max(w, 140) : w, size);   // a name below a small picture may be wider than it
   const y0 = sp.textTop ? 16 : sp.textHead ? 25 : sp.textBelow ? h + 14 : h / 2 - ((lines.length - 1) * size * 1.2) / 2;
   return {
     d: sp.d(w, h), more: sp.more ? sp.more(w, h) : '',
