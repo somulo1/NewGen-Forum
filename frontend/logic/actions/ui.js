@@ -25,8 +25,8 @@ export const uiActions = {
   panelMax() {
     const base = 640;
     if (this.state.section !== 'feed' || typeof window === 'undefined') return base;
-    const w = window.innerWidth;
-    if (w <= 900) return base;
+    if (window.innerWidth <= 900) return base;
+    const w = window.innerWidth / (window.__uiZ || 1);   // the interface may be scaled to fit
     const pad = Math.min(40, Math.max(16, w * 0.03)) + Math.min(8, Math.max(4, w * 0.005));
     return Math.max(320, Math.min(base, w - 240 - 24 - pad - 734));
   },
@@ -35,7 +35,7 @@ export const uiActions = {
     e.preventDefault();
     const startX = e.clientX, startW = this.state.pw;
     const move = (ev) => {
-      const w = Math.min(this.panelMax(), Math.max(320, startW + (startX - ev.clientX)));
+      const w = Math.min(this.panelMax(), Math.max(320, startW + (startX - ev.clientX) / (window.__uiZ || 1)));
       this.setState({ pw: w });
     };
     const up = () => {

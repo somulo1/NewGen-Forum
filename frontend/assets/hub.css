@@ -106,6 +106,7 @@ label:not([style*="height"]):not(:has(> svg)) > select,label:not([style*="height
 .hub-bubble{bottom:84px !important;right:14px !important}
 .hub-toast{top:72px !important;left:12px !important;right:12px !important;transform:none !important;width:auto !important;max-width:none !important}
 .hub-static{position:static !important;max-height:none !important;overflow:visible !important}
+@media print{html{zoom:1 !important}}
 .hub-callpanel{position:fixed !important;left:0;right:0;bottom:0;max-width:none !important;height:65vh;z-index:85;border-radius:18px 18px 0 0 !important;flex:none !important}
 .hub-cal{min-width:0 !important;font-size:11px}
 main h1{font-size:22px !important}

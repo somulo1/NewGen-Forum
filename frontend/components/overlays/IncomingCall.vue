@@ -18,7 +18,8 @@ export default {
     dragStart(e) {
       if (e.target.closest('button')) return;
       const el = this.$refs.card, r = el.getBoundingClientRect(), dx = e.clientX - r.left, dy = e.clientY - r.top;
-      const move = (m) => { this.pos = { x: Math.max(0, Math.min(window.innerWidth - r.width, m.clientX - dx)), y: Math.max(0, Math.min(window.innerHeight - r.height, m.clientY - dy)) }; };
+      const ui = window.__uiZ || 1;
+      const move = (m) => { this.pos = { x: Math.max(0, Math.min(window.innerWidth - r.width, m.clientX - dx)) / ui, y: Math.max(0, Math.min(window.innerHeight - r.height, m.clientY - dy)) / ui }; };
       const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
       window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
       e.preventDefault();

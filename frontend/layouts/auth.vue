@@ -1,6 +1,6 @@
 <!-- Layout for login, sign up and password reset: no sidebar, one centered card -->
 <template>
-  <div style="min-height: 100vh; box-sizing: border-box; padding: 24px 16px; background: #F2F6F3; color: #0F1714; font-family: 'DM Sans', system-ui, sans-serif; font-size: 14px; display: flex; align-items: center; justify-content: center">
+  <div style="min-height: calc(100vh / var(--ui-z, 1)); box-sizing: border-box; padding: 24px 16px; background: #F2F6F3; color: #0F1714; font-family: 'DM Sans', system-ui, sans-serif; font-size: 14px; display: flex; align-items: center; justify-content: center">
     <div style="width: 420px; max-width: 100%; display: flex; flex-direction: column; gap: 20px; align-items: stretch">
       <div style="display: flex; align-items: center; gap: 10px; justify-content: center">
         <span aria-hidden="true" style="width: 40px; height: 40px; border-radius: 12px; background: #B8F36B; color: #0F1714; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 20px">H</span>

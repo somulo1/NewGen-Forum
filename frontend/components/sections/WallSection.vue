@@ -220,7 +220,8 @@ export default {
       const width = Math.min(440, rr.width - 24);
       const left = Math.max(rr.left + 12, Math.min(br.right - width, rr.right - 12 - width));
       const room = Math.max(160, window.innerHeight - br.bottom - barH - 16);
-      this.panelPos = 'top:' + Math.round(br.bottom - pr.top + 8) + 'px;left:' + Math.round(left - pr.left) + 'px;width:' + Math.round(width) + 'px;max-height:' + Math.round(room) + 'px';
+      const ui = window.__uiZ || 1;
+      this.panelPos = 'top:' + Math.round((br.bottom - pr.top + 8) / ui) + 'px;left:' + Math.round((left - pr.left) / ui) + 'px;width:' + Math.round(width / ui) + 'px;max-height:' + Math.round(room / ui) + 'px';
     },
     submitMoment() { if (this.addMoment(this.momentCaption, this.momentBg, this.momentFile)) { this.momentCaption = ''; this.momentFile = null; } },
     submitWallPost() { if (this.onPost(this.postBg)) this.postBg = ''; },

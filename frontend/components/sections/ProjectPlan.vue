@@ -188,7 +188,7 @@ export default {
       this.dragKey = r.key; this.dragPx = 0; this.dragX = e.clientX;
       e.target.setPointerCapture(e.pointerId);
     },
-    barMove(e) { if (this.dragKey) { this.dragPx = e.clientX - this.dragX; if (Math.abs(this.dragPx) > 4) this.moved = true; } },
+    barMove(e) { if (this.dragKey) { this.dragPx = (e.clientX - this.dragX) / (window.__uiZ || 1); if (Math.abs(this.dragPx) > 4) this.moved = true; } },
     barUp(e, r) {
       const px = this.dragPx, moved = this.moved;
       this.dragKey = null; this.dragPx = 0; this.moved = false;
