@@ -39,9 +39,9 @@
   }
  },
  "GET /v1/projects": {
-  "summary": "My projects",
-  "description": "Projects I am part of.",
-  "access": "a role with Projects: View",
+  "summary": "Projects I can see",
+  "description": "With View own projects, the projects I am on. With View all projects, every project in the organization; those I am not on are read-only and carry name, about and team_names.",
+  "access": "a role with Projects: View, and View own projects or View all projects",
   "response": {
    "projects": [
     {
@@ -331,6 +331,11 @@
   "errors": {
    "404": "No such invoice"
   }
+ },
+ "GET /v1/settings/blocks": {
+  "summary": "What the organization has blocked",
+  "description": "Private chats, private and forum calls, and the community wall when switched off in Settings. The server refuses them whatever the rights say.",
+  "access": "anyone in the organization"
  },
  "GET /v1/settings/widgets": {
   "summary": "Home widget settings for the organization",

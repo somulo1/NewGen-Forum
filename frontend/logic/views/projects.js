@@ -4,7 +4,10 @@ import { CAT_COLORS, addDaysIso, boardTasks, openDeps, statusEntry, statusOf, st
 
 // renderVals step: projects. Project > milestone > sprint > task. Progress is always calculated from the tasks.
 export function buildProjects(ctx) {
-  const { badge, can, has, ini, pColor, s, set } = ctx;
+  const { badge, can: canBase, has, ini, pColor, s, set } = ctx;
+  // someone looking at a project they are not on (View all projects) changes nothing in it
+  const openedView = !!((s.projects || []).find((p) => p.id === s.projectOpen) || {}).viewOnly;
+  const can = (m, r) => canBase(m, r) && (!openedView || (m === 'projects' && /^(View|Export pages)/.test(r)) || r === 'Create project');
   const nowMs = Date.now();
   const dateOf = (d) => new Date(d + 'T00:00:00+03:00').getTime();
   const shortDate = (d) => new Date(d + 'T00:00:00+03:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
@@ -212,6 +215,7 @@ export function buildProjects(ctx) {
         } };
     }
     pj.taskForm = tform;
+    pj.viewOnly = !!cur_p.viewOnly;
     pj.plan = buildPlan.call(this, { s, can, me, today, cur_p, tools, shortDate, longDate, set, projectsW });
   } else {
     pj.taskForm = { open: false };

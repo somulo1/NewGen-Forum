@@ -18,6 +18,7 @@ import (
 	"hub/internal/e2ee"
 	"hub/internal/httpx"
 	"hub/internal/integrity"
+	"hub/internal/orgsettings"
 	"hub/internal/realtime"
 	"hub/internal/tenant"
 )
@@ -72,6 +73,9 @@ func (s *Service) Send(ctx context.Context, p *tenant.Principal, conv uuid.UUID,
 	err = s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
 		kind, _, _, epoch, err := s.lockConvNoLock(ctx, tx, p, conv)
 		if err != nil {
+			return err
+		}
+		if err := s.checkBlocked(ctx, tx, p.Org, kind); err != nil {
 			return err
 		}
 		if m, r := sendRight(kind, in.Type); m != "" {
@@ -152,7 +156,11 @@ func (s *Service) History(ctx context.Context, p *tenant.Principal, conv uuid.UU
 	var tampered []uuid.UUID
 	defer func() { reportTampering(context.WithoutCancel(ctx), s.A, p.Org, conv, tampered) }()
 	err := s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
-		if _, _, _, _, err := s.lockConvNoLock(ctx, tx, p, conv); err != nil {
+		kind, _, _, _, err := s.lockConvNoLock(ctx, tx, p, conv)
+		if err != nil {
+			return err
+		}
+		if err := s.checkBlocked(ctx, tx, p.Org, kind); err != nil {
 			return err
 		}
 		var first int
@@ -224,7 +232,11 @@ func (s *Service) Changes(ctx context.Context, p *tenant.Principal, conv uuid.UU
 	var tampered []uuid.UUID
 	defer func() { reportTampering(context.WithoutCancel(ctx), s.A, p.Org, conv, tampered) }()
 	err := s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
-		if _, _, _, _, err := s.lockConvNoLock(ctx, tx, p, conv); err != nil {
+		kind, _, _, _, err := s.lockConvNoLock(ctx, tx, p, conv)
+		if err != nil {
+			return err
+		}
+		if err := s.checkBlocked(ctx, tx, p.Org, kind); err != nil {
 			return err
 		}
 		var first int
@@ -313,6 +325,9 @@ func (s *Service) Delete(ctx context.Context, p *tenant.Principal, conv, id uuid
 		if err != nil {
 			return err
 		}
+		if err := s.checkBlocked(ctx, tx, p.Org, kind); err != nil {
+			return err
+		}
 		var sender uuid.UUID
 		var ctype string
 		if err := tx.QueryRow(ctx, `select sender_account, content_type from hub.messages where org_id=$1 and id=$2 and conversation_id=$3 and deleted_at is null`, p.Org, id, conv).Scan(&sender, &ctype); errors.Is(err, pgx.ErrNoRows) {
@@ -371,7 +386,7 @@ type ownRule struct{ module, edit, del, moderate string }
 
 var messageRules = map[string]ownRule{
 	"forum":  {"forums", "Edit own messages", "Delete own messages", "Moderate"},
-	"wall":   {"wall", "Edit own posts", "Delete own posts", "Moderate posts"},
+	"wall":   {"wall", "Edit own posts", "Delete own posts", "Delete others' posts"},
 	"dm":     {"chat", "Edit own messages", "Delete own messages", ""},
 	"ticket": {"tickets", "Edit own tickets", "Edit own tickets", ""},
 }
@@ -400,6 +415,24 @@ func (s *Service) checkEdit(ctx context.Context, tx pgx.Tx, p *tenant.Principal,
 	}
 	if rule, ok := messageRules[kind]; ok {
 		return authz.Require(ctx, tx, p.Person, rule.module, rule.edit)
+	}
+	return nil
+}
+
+// checkBlocked stops private chats or the wall when the organization has blocked them in its settings.
+func (s *Service) checkBlocked(ctx context.Context, tx pgx.Tx, org uuid.UUID, kind string) error {
+	if kind != "dm" && kind != "wall" {
+		return nil
+	}
+	b, err := orgsettings.BlocksOf(ctx, s.A, tx, org)
+	if err != nil {
+		return err
+	}
+	if kind == "dm" && b.BlockPrivateChats {
+		return httpx.Err(403, "blocked", "Private chats are switched off for this organization.")
+	}
+	if kind == "wall" && b.BlockWall {
+		return httpx.Err(403, "blocked", "The community wall is switched off for this organization.")
 	}
 	return nil
 }

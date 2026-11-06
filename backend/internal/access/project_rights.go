@@ -42,16 +42,31 @@ var projectRights = []struct{ Name, From string }{
 	{"Remove workflow statuses", "Manage workflow"},
 	{"Delete risks", "Manage team"},
 	{"Delete activity", ""},
+	{"View own projects", "View"},
+	{"View all projects", ""},
+}
+
+// wallRights are the same thing for the Community wall.
+var wallRights = []struct{ Name, From string }{
+	{"Hide posts", "View"},
+	{"Delete others' posts", "Moderate posts"},
 }
 
 // EnsureProjectRights is safe to run on every request: it does nothing once the rights exist.
 func EnsureProjectRights(ctx context.Context, tx pgx.Tx, org uuid.UUID, seal func(table, where string, args ...any) error) error {
-	var done, any bool
-	if err := tx.QueryRow(ctx, `select exists (select 1 from hub.rights where module='projects' and name=$1), exists (select 1 from hub.rights where module='projects')`, projectRights[len(projectRights)-1].Name).Scan(&done, &any); err != nil || done || !any {
+	if err := ensureRights(ctx, tx, org, "wall", wallRights, seal); err != nil {
 		return err
 	}
-	for i, r := range projectRights {
-		tag, err := tx.Exec(ctx, `insert into hub.rights (org_id, module, name, label, kind, sort, builtin) values ($1,'projects',$2,$2,$3,$4,true) on conflict do nothing`, org, r.Name, KindOf(r.Name), 20+i)
+	return ensureRights(ctx, tx, org, "projects", projectRights, seal)
+}
+
+func ensureRights(ctx context.Context, tx pgx.Tx, org uuid.UUID, module string, list []struct{ Name, From string }, seal func(table, where string, args ...any) error) error {
+	var done, any bool
+	if err := tx.QueryRow(ctx, `select exists (select 1 from hub.rights where module=$2 and name=$1), exists (select 1 from hub.rights where module=$2)`, list[len(list)-1].Name, module).Scan(&done, &any); err != nil || done || !any {
+		return err
+	}
+	for i, r := range list {
+		tag, err := tx.Exec(ctx, `insert into hub.rights (org_id, module, name, label, kind, sort, builtin) values ($1,$5,$2,$2,$3,$4,true) on conflict do nothing`, org, r.Name, KindOf(r.Name), 20+i, module)
 		if err != nil {
 			return err
 		}
@@ -59,21 +74,21 @@ func EnsureProjectRights(ctx context.Context, tx pgx.Tx, org uuid.UUID, seal fun
 			continue
 		}
 		for _, table := range []struct{ name, key string }{{"role_rights", "role_id"}, {"person_rights", "person_id"}, {"role_group_rights", "group_id"}} {
-			if _, err := tx.Exec(ctx, `insert into hub.`+table.name+` (org_id, `+table.key+`, module, right_name, allowed) select org_id, `+table.key+`, module, $1, allowed from hub.`+table.name+` where module='projects' and right_name=$2 on conflict do nothing`, r.Name, r.From); err != nil {
+			if _, err := tx.Exec(ctx, `insert into hub.`+table.name+` (org_id, `+table.key+`, module, right_name, allowed) select org_id, `+table.key+`, module, $1, allowed from hub.`+table.name+` where module=$3 and right_name=$2 on conflict do nothing`, r.Name, r.From, module); err != nil {
 				return err
 			}
 		}
 	}
-	if err := seal("rights", "org_id=$1 and module='projects'", org); err != nil {
+	if err := seal("rights", "org_id=$1 and module='"+module+"'", org); err != nil {
 		return err
 	}
-	if err := seal("role_rights", "org_id=$1 and module='projects'", org); err != nil {
+	if err := seal("role_rights", "org_id=$1 and module='"+module+"'", org); err != nil {
 		return err
 	}
-	if err := seal("person_rights", "org_id=$1 and module='projects'", org); err != nil {
+	if err := seal("person_rights", "org_id=$1 and module='"+module+"'", org); err != nil {
 		return err
 	}
-	if err := seal("role_group_rights", "org_id=$1 and module='projects'", org); err != nil {
+	if err := seal("role_group_rights", "org_id=$1 and module='"+module+"'", org); err != nil {
 		return err
 	}
 	return LinkLockedRoles(ctx, tx, org, seal)

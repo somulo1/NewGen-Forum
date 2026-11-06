@@ -3,7 +3,7 @@ import * as notificationsW from '~/logic/server/widgets/notifications.js';
 // Values and handlers the templates read through hubBindings: shell.
 export function valsShell(ctx) {
   const { denied, pageLoading, can, forums, go, myUnits, ticketDeskOk, allNotifs, call, callMiniStyle, cur, curDm, curSec, dmView, has, isDM, restoreCall, s, sendCall, set, showCallMini, showMeetingDock, showMeetingFull, showPanelCall } = ctx;
-  const pages = [['Home', 'home', true], ['Community wall', 'feed', true], ['Meetings & standups', 'meetings', has.sessions], ['Calendar', 'calendar', has.calendar], ['Communications', 'comms', has.comms],
+  const pages = [['Home', 'home', true], ['Community wall', 'feed', has.wall !== false], ['Meetings & standups', 'meetings', has.sessions], ['Calendar', 'calendar', has.calendar], ['Communications', 'comms', has.comms],
     ['My tickets', 'tickets', has.tickets], ['Ticket desk', 'ticketdesk', ticketDeskOk], ['Projects', 'projects', has.projects], ['Files', 'files', has.files], ['Secure share', 'share', has.secureshare],
     ['People', 'people', true], ['Approvals', 'approvals', true], ['Security & logs', 'security', can('security', 'View alerts') || can('security', 'View logs')], ['Roles & rights', 'roles', can('roles', 'View roles')],
     ['My profile', 'profile', true], ['Widgets', 'widgets', can('home', 'Open widgets page')]];
@@ -52,7 +52,7 @@ export function valsShell(ctx) {
       const st = (on) => 'flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border:0;background:transparent;cursor:pointer;font-family:inherit;color:' + (on ? 'var(--k-B8F36B,#B8F36B)' : 'var(--k-9DB0A6,#9DB0A6)') + ';font-weight:' + (on ? '600' : '500');
       const items = [
         { label: 'Home', icon: 'M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z', on: curSec === 'home', go: () => this.setState({ section: 'home', navOpen: false, ticketOpen: null, projectOpen: null }) },
-        { label: 'Wall', icon: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c2.5 2.6 3.7 5.6 3.7 9s-1.2 6.4-3.7 9c-2.5-2.6-3.7-5.6-3.7-9S9.5 5.6 12 3z', on: curSec === 'feed', go: () => this.setState({ section: 'feed', navOpen: false }) }
+        ...(has.wall === false ? [] : [{ label: 'Wall', icon: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c2.5 2.6 3.7 5.6 3.7 9s-1.2 6.4-3.7 9c-2.5-2.6-3.7-5.6-3.7-9S9.5 5.6 12 3z', on: curSec === 'feed', go: () => this.setState({ section: 'feed', navOpen: false }) }])
       ];
       if (has.chat) items.push({ label: 'Messages', icon: 'M4 5h16v11H9l-5 4z', on: isDM && (s.mode === 'docked'), dot: unread, go: () => { if (s.dms.length) this.openDm((s.dms.find((d) => d.unread) || s.dms[0]).with); else this.setState({ navOpen: true, dmsOpen: true, newDmOpen: true }); } });
       if (has.tickets) items.push({ label: 'Tickets', icon: 'M3 7h18v4a2 2 0 0 0 0 4v4H3v-4a2 2 0 0 0 0-4z', on: curSec === 'tickets', go: () => this.setState({ section: 'tickets', ticketOpen: null, navOpen: false }) });
@@ -61,6 +61,8 @@ export function valsShell(ctx) {
       return items.map((t) => ({ ...t, hasDot: !!t.dot, dot: t.dot || 0, style: st(t.on) }));
     })(),
     startInstant: () => this.startCall('video', 'Instant meeting', ((this.state.meInfo || {}).initials || 'M'), ((this.state.meInfo || {}).color || '#F49AC1'), []),
+    canVoiceCall: !(s.orgBlocks || {})[isDM ? 'blockPrivateVoice' : 'blockForumVoice'],
+    canVideoCall: !(s.orgBlocks || {})[isDM ? 'blockPrivateVideo' : 'blockForumVideo'],
     voiceCall: isDM ? () => this.startDmCall('voice', curDm.with, dmView.initials, dmView.color) : () => this.startCall('voice', cur.name, cur.initials, cur.color, [], 'forum', cur.id),
     videoCall: isDM ? () => this.startDmCall('video', curDm.with, dmView.initials, dmView.color) : () => this.startCall('video', cur.name, cur.initials, cur.color, [], 'forum', cur.id),
     endCall: () => this.endCall(),

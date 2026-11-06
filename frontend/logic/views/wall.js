@@ -65,10 +65,10 @@ export function buildWall(ctx) {
       menuItems: [
         { label: saved ? 'Unsave post' : 'Save post', run: () => this.setState((st) => ({ ...closeMenu, savedPosts: { ...st.savedPosts, [p.id]: !saved } })) },
         { label: 'Copy link', run: () => this.setState((st) => ({ ...closeMenu, shareNote: { ...st.shareNote, [p.id]: 'Link copied. Paste it anywhere in Hub.' } })) },
-        { label: 'Hide this post', run: () => { this.setState((st) => ({ ...closeMenu, hiddenPosts: { ...st.hiddenPosts, [p.id]: true } })); this.notify('Post hidden. It will not show on your wall.', '#9DB0A6'); } },
-        // anyone can delete their own post; someone with the "Moderate posts" right can delete anyone's. It leaves the wall at once and the
+        ...(!this.srv || can('wall', 'Hide posts') ? [{ label: 'Hide this post', run: () => { this.setState((st) => ({ ...closeMenu, hiddenPosts: { ...st.hiddenPosts, [p.id]: true } })); this.notify('Post hidden. It will not show on your wall.', '#9DB0A6'); } }] : []),
+        // "Delete own posts" lets someone delete what they wrote, "Delete others' posts" what anyone wrote. It leaves the wall at once and the
         // server erases it for good, with its pictures and videos, so the space is free straight away.
-        ...(mineP || (this.srv && can('wall', 'Moderate posts'))
+        ...((mineP && (!this.srv || can('wall', 'Delete own posts'))) || (this.srv && can('wall', "Delete others' posts"))
           ? [{ label: 'Delete post', danger: true, run: () => { this.setState(closeMenu); wallW.remove(this, this.srv, p.id).then(() => this.notify(mineP ? 'Your post was deleted.' : 'The post was deleted.', '#9DB0A6')).catch((e) => this.notify(e.message || 'The post could not be deleted.', '#FF9B8A')); } }]
           : []),
         ...(mineP ? [] : [{ label: 'Report post', danger: true, run: () => { this.setState(closeMenu); this.notify('Thanks. The post was reported to the moderators.', '#FFB86B'); } }])

@@ -1,8 +1,8 @@
 <!-- Diagrams and whiteboards: pick shapes from the library, drag between their connection points, bend connectors by their handles. -->
 <template>
 <div ref="anchor" style="min-width: 0">
-<Teleport to="body" :disabled="!full">
-<div ref="root" :class="['bd', { 'bd-full': full }, full && lightMode ? 'hub-light' : '']" tabindex="0" @keydown="onKey" @keyup="onKeyUp">
+<Teleport :to="target" :disabled="view === 'inline'">
+<div ref="root" :class="['bd', { 'bd-full': view === 'full', 'bd-page hub-fitpage': view === 'page' }, view === 'full' && lightMode ? 'hub-light' : '']" tabindex="0" @keydown="onKey" @keyup="onKeyUp">
 <div class="bd-top" role="toolbar" aria-label="Diagram tools">
 <button type="button" class="bd-btn bd-focus" @click="gallery = true">Sample diagrams</button>
 <button v-for="t in tools" :key="t.k" type="button" class="bd-btn" :aria-pressed="tool === t.k" :class="{ on: tool === t.k }" @click="tool = t.k">{{ t.l }}</button>
@@ -17,7 +17,7 @@
 <span class="bd-zoom" role="group" aria-label="Zoom"><button type="button" class="bd-btn" title="Zoom out (Ctrl and -)" aria-label="Zoom out" @click="setZoom(zoom - 0.1)">−</button><input type="range" min="20" max="300" step="10" aria-label="Zoom level" :value="Math.round(zoom * 100)" @input="setZoom($event.target.value / 100)"><button type="button" class="bd-btn" title="Zoom in (Ctrl and +)" aria-label="Zoom in" @click="setZoom(zoom + 0.1)">+</button><button type="button" class="bd-btn" title="Back to 100% (Ctrl and 0)" @click="setZoom(1)">{{ Math.round(zoom * 100) }}%</button><button type="button" class="bd-btn" title="Show the whole drawing" @click="fit">Fit</button></span>
 <button type="button" class="bd-btn" @click="exportSvg">SVG</button><button type="button" class="bd-btn" @click="exportPng">PNG</button>
 <button type="button" class="bd-btn" @click="libOpen = !libOpen">{{ libOpen ? 'Hide shapes' : 'Show shapes' }}</button>
-<button type="button" :class="['bd-btn', { 'bd-focus': !full }]" :title="full ? 'Back to the page (Esc)' : 'Draw on the whole screen'" @click="toggleFull">{{ full ? 'Exit focus' : 'Focus mode' }}</button>
+<span class="bd-views" role="group" aria-label="Drawing space"><button v-for="v in views" :key="v.k" type="button" class="bd-btn" :class="{ on: view === v.k }" :aria-pressed="view === v.k" :title="v.t" @click="setView(v.k)">{{ v.l }}</button></span>
 </div>
 
 <div v-if="hasSel && allLocked" class="bd-props bd-mut">Locked. Press Unlock to change it.</div>
@@ -127,7 +127,7 @@ export default {
   props: { modelValue: { type: String, default: '' } },
   emits: ['update:modelValue'],
   data() {
-    return { b: parseBoard(this.modelValue), libOpen: true, find: '', lightMode: false, panning: false, zoom: 1, grid: true, full: false, tool: 'select', placing: null, dragNew: null, sel: new Set(), hover: null, snap: null, drag: null, editing: null, past: [], future: [], clip: null, gallery: false, sampleFind: '', backgrounds: BOARD_BACKGROUNDS, groups: SHAPE_GROUPS, endTypes: END_TYPES, tools: [{ k: 'select', l: 'Select' }, { k: 'line', l: 'Line' }, { k: 'pen', l: 'Pen' }, { k: 'hand', l: 'Move view' }], penColor: '#333333' };
+    return { b: parseBoard(this.modelValue), libOpen: true, find: '', lightMode: false, panning: false, zoom: 1, grid: true, view: 'inline', target: 'body', views: [{ k: 'inline', l: 'In page', t: 'Draw inside the page (Esc returns here)' }, { k: 'page', l: 'Fit to page', t: 'Use the whole page area, with the menu still showing' }, { k: 'full', l: 'Full screen', t: 'Use the whole screen' }], tool: 'select', placing: null, dragNew: null, sel: new Set(), hover: null, snap: null, drag: null, editing: null, past: [], future: [], clip: null, gallery: false, sampleFind: '', backgrounds: BOARD_BACKGROUNDS, groups: SHAPE_GROUPS, endTypes: END_TYPES, tools: [{ k: 'select', l: 'Select' }, { k: 'line', l: 'Line' }, { k: 'pen', l: 'Pen' }, { k: 'hand', l: 'Move view' }], penColor: '#333333' };
   },
   computed: {
     box() { return boardBox(this.b); },
@@ -161,7 +161,7 @@ export default {
     hint() { if (this.placing) return 'Click the canvas to place ' + SHAPES[this.placing].label.toLowerCase() + '.'; if (this.tool === 'line') return 'Drag from one shape’s point to another’s, or draw a free line.'; if (this.tool === 'pen') return 'Draw freely.'; return 'Pick a shape, or drag one in. Hover a shape and drag from a green point to connect. Double-click to write.'; }
   },
   created() { this.touches = new Map(); this.pinch = null; },
-  beforeUnmount() { if (this.full) document.body.style.overflow = ''; },
+  beforeUnmount() { if (this.view === 'full') document.body.style.overflow = ''; },
   methods: {
     pos(e) { const r = this.$refs.svg.getBoundingClientRect(); return [(e.clientX - r.left) / this.zoom, (e.clientY - r.top) / this.zoom]; },
     g(v) { return this.grid ? Math.round(v / 10) * 10 : Math.round(v); },
@@ -192,11 +192,15 @@ export default {
       const r = this.$refs.scroller.getBoundingClientRect();
       this.setZoom(this.zoom * (e.deltaY < 0 ? 1.1 : 0.9), e.clientX - r.left, e.clientY - r.top);
     },
-    toggleFull() {
-      if (!this.full) this.lightMode = !!(this.$refs.anchor.closest('.hub-light') || document.querySelector('.hub-light'));
-      this.full = !this.full;
-      document.body.style.overflow = this.full ? 'hidden' : '';
-      this.$nextTick(() => this.$refs.root.focus({ preventScroll: true }));
+    // the same choice chats give: inside the page, the whole page area, or the whole screen
+    setView(k) {
+      if (k === 'full') this.lightMode = !!(this.$refs.anchor.closest('.hub-light') || document.querySelector('.hub-light'));
+      const main = document.querySelector('.hub-main');
+      this.target = k === 'page' && main && main.parentElement ? main.parentElement : 'body';
+      const usable = k !== 'page' || (main && main.parentElement);
+      this.view = usable ? k : 'full';
+      document.body.style.overflow = this.view === 'full' ? 'hidden' : '';
+      this.$nextTick(() => this.$refs.root && this.$refs.root.focus({ preventScroll: true }));
     },
     setShape(k, v) { if (!this.pendingEdit) { this.snapshot(); this.pendingEdit = true; setTimeout(() => { this.pendingEdit = false; }, 800); } this.selShapes.filter((s) => !s.locked).forEach((s) => { s[k] = v; }); if (this.editing && k === 'text') this.editing.text = v; this.commit(); },
     setLine(k, v) { if (!this.pendingEdit) { this.snapshot(); this.pendingEdit = true; setTimeout(() => { this.pendingEdit = false; }, 800); } this.selLine[k] = v; this.commit(); },
@@ -375,7 +379,7 @@ export default {
       if (c && (k === '=' || k === '+')) { e.preventDefault(); this.setZoom(this.zoom + 0.1); return; }
       if (c && k === '-') { e.preventDefault(); this.setZoom(this.zoom - 0.1); return; }
       if (c && k === '0') { e.preventDefault(); this.setZoom(1); return; }
-      if (k === 'escape' && this.full && !this.hasSel && !this.placing && this.tool === 'select') { this.toggleFull(); return; }
+      if (k === 'escape' && this.view !== 'inline' && !this.hasSel && !this.placing && this.tool === 'select') { this.setView('inline'); return; }
       if ((k === 'delete' || k === 'backspace') && this.hasSel) { e.preventDefault(); this.removeSel(); return; }
       if (c && k === 'z') { e.preventDefault(); if (e.shiftKey ? this.future.length : this.past.length) (e.shiftKey ? this.redo : this.undo)(); return; }
       if (c && k === 'y') { e.preventDefault(); if (this.future.length) this.redo(); return; }
@@ -402,6 +406,10 @@ export default {
 
 <style>
 .bd { display: flex; flex-direction: column; gap: 8px; min-width: 0; outline: none; color: var(--k-E8EFEA,#E8EFEA); }
+.bd-page { position: absolute; inset: 24px 12px 12px 12px; z-index: 30; box-sizing: border-box; padding: 10px; border-radius: 22px; border: 2px solid var(--k-6B7A72,#6B7A72); background: var(--k-0F1714,#0F1714); }
+.bd-page .bd-body { flex: 1; min-height: 0; flex-wrap: nowrap; }
+.bd-page .bd-lib, .bd-page .bd-canvas { height: 100%; max-height: none; }
+.bd-views { display: inline-flex; gap: 2px; padding: 2px; border-radius: 10px; background: var(--k-121B17,#121B17); }
 .bd-full { position: fixed; inset: 0; z-index: 3000; box-sizing: border-box; padding: 10px; background: var(--k-0F1714,#0F1714); }
 .bd-zoom { display: inline-flex; align-items: center; gap: 4px; }
 .bd-zoom input[type=range] { width: 90px; accent-color: var(--k-B8F36B,#B8F36B); }

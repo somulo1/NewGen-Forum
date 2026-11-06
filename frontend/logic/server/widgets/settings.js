@@ -36,6 +36,7 @@ export async function saveProfile(logic, srv, profile) {
 }
 export async function saveSecurity(logic, srv, security) {
   await srv.request('PUT', '/settings/security', security);
+  logic.setState({ orgBlocks: { blockPrivateChats: !!security.blockPrivateChats, blockPrivateVoice: !!security.blockPrivateVoice, blockPrivateVideo: !!security.blockPrivateVideo, blockForumVoice: !!security.blockForumVoice, blockForumVideo: !!security.blockForumVideo, blockWall: !!security.blockWall } });
   srv.maxVideoMB = Number(security.maxVideoMB) || 50;
   srv.emailDetails = security.emailDetails !== false;
   await load(logic, srv);

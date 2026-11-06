@@ -1,5 +1,5 @@
 <!-- Community wall -->
-<template><template v-if="show.feed">
+<template><div v-if="has.wall === false && show.feed" role="status" style="padding: 24px; border-radius: 16px; background: var(--k-1A2520,#1A2520); color: var(--k-C9D6CF,#C9D6CF); font-size: 14px">The community wall is switched off for this organization.</div><template v-else-if="show.feed">
 <div ref="wallRoot" :class="{ 'wall-narrow': narrow }" style="width: 100%; display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; justify-content: center">
 
 <div style="flex: 999 1 460px; max-width: 760px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
@@ -239,7 +239,7 @@ export default {
     pickMomentFile(e) { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) this.momentFile = f; },
     wish() { this.wishBirthday(); this.$nextTick(() => this.$refs.composer && this.$refs.composer.focus()); }
   },
-  ...hubBindings(["onActivityClick","me","meAv","wallBirthdays","pickEmojiWall","addMoment","momentForm","momentView","wpollView","openEventFromWall","wallAudience","wallAudiences","onAudience","wishBirthday","onlineList","trending","wallFilter","noTrending","addHashtag","canPostWall","cannotPostWall","draft","hasWFiles","moments","onDraftValue","onPost","onWallFiles","people","postBtnStyle","posts","show","wfiles"])
+  ...hubBindings(["has","onActivityClick","me","meAv","wallBirthdays","pickEmojiWall","addMoment","momentForm","momentView","wpollView","openEventFromWall","wallAudience","wallAudiences","onAudience","wishBirthday","onlineList","trending","wallFilter","noTrending","addHashtag","canPostWall","cannotPostWall","draft","hasWFiles","moments","onDraftValue","onPost","onWallFiles","people","postBtnStyle","posts","show","wfiles"])
 };
 </script>
 

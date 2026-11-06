@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"hash/fnv"
+	"hub/internal/orgsettings"
 	"net/http"
 	"strconv"
 	"strings"
@@ -100,6 +101,18 @@ func (m *Module) Start(ctx context.Context, p *tenant.Principal, in StartIn) (*E
 	right := map[string][2]string{"dm": {"chat", "Private calls"}, "forum": {"forums", "Start calls"}, "meeting": {"sessions", "Start meeting"}, "standup": {"sessions", "Start meeting"}, "project": {"sessions", "Start meeting"}}[in.Context]
 	if right[0] == "" {
 		return nil, httpx.Bad("Unknown kind of call.")
+	}
+	if err := m.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
+		b, err := orgsettings.BlocksOf(ctx, m.A, tx, p.Org)
+		if err != nil {
+			return err
+		}
+		if blocked := map[string]bool{"dm/voice": b.BlockPrivateVoice, "dm/video": b.BlockPrivateVideo, "forum/voice": b.BlockForumVoice, "forum/video": b.BlockForumVideo}[in.Context+"/"+in.Kind]; blocked {
+			return httpx.Err(403, "blocked", "These calls are switched off for this organization.")
+		}
+		return nil
+	}); err != nil {
+		return nil, err
 	}
 	if id, ok := m.runningRoom(ctx, p, in.Conversation, in.Context); ok {
 		return m.Join(ctx, p, id)
