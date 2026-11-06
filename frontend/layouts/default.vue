@@ -1,7 +1,7 @@
 <!-- App shell: header, sidebar, page slot, docked panel and every overlay. -->
 <template>
 <div class="dc-root" style="display: contents">
-<div :class="themeClass" :style="`height: 100vh; overflow: hidden; background: var(--k-0F1714,#0F1714); color: var(--k-E8EFEA,#E8EFEA); font-family: 'DM Sans', system-ui, sans-serif; font-size: 14px; display: flex; flex-direction: column; user-select: ${selectMode}`">
+<div :class="themeClass" :style="`height: calc(100vh / var(--ui-z, 1)); overflow: hidden; background: var(--k-0F1714,#0F1714); color: var(--k-E8EFEA,#E8EFEA); font-family: 'DM Sans', system-ui, sans-serif; font-size: 14px; display: flex; flex-direction: column; user-select: ${selectMode}`">
 
 <AppHeader />
 <PreviewBanner />

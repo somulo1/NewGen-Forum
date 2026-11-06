@@ -23,7 +23,8 @@ export default {
       if (!this.open) {
         const r = this.$refs.btn.getBoundingClientRect(), w = Math.min(340, window.innerWidth - 16);
         const fitsAbove = r.top > 340;
-        this.pos = { left: Math.max(8, Math.min(window.innerWidth - w - 8, r.left)), bottom: fitsAbove ? window.innerHeight - r.top + 6 : Math.max(8, window.innerHeight - 340 - 8), width: w };
+        const ui = window.__uiZ || 1;
+      this.pos = { left: Math.max(8, Math.min(window.innerWidth - w * ui - 8, r.left)) / ui, bottom: (fitsAbove ? window.innerHeight - r.top + 6 : Math.max(8, window.innerHeight - 340 * ui - 8)) / ui, width: w };
       }
       this.open = !this.open;
     },

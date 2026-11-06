@@ -163,7 +163,7 @@ export default {
   created() { this.touches = new Map(); this.pinch = null; },
   beforeUnmount() { if (this.view === 'full') document.body.style.overflow = ''; },
   methods: {
-    pos(e) { const r = this.$refs.svg.getBoundingClientRect(); return [(e.clientX - r.left) / this.zoom, (e.clientY - r.top) / this.zoom]; },
+    pos(e) { const r = this.$refs.svg.getBoundingClientRect(), z = this.zoom * (window.__uiZ || 1); return [(e.clientX - r.left) / z, (e.clientY - r.top) / z]; },
     g(v) { return this.grid ? Math.round(v / 10) * 10 : Math.round(v); },
     // the middle of a shape lands on the grid, whatever its size, so connectors between shapes in a row or column run straight
     gc(v, size) { return this.grid ? Math.round((v + size / 2) / 10) * 10 - size / 2 : Math.round(v); },
@@ -190,7 +190,8 @@ export default {
       if (!e.ctrlKey && !e.metaKey) return;
       e.preventDefault();
       const r = this.$refs.scroller.getBoundingClientRect();
-      this.setZoom(this.zoom * (e.deltaY < 0 ? 1.1 : 0.9), e.clientX - r.left, e.clientY - r.top);
+      const ui = window.__uiZ || 1;
+      this.setZoom(this.zoom * (e.deltaY < 0 ? 1.1 : 0.9), (e.clientX - r.left) / ui, (e.clientY - r.top) / ui);
     },
     // the same choice chats give: inside the page, the whole page area, or the whole screen
     setView(k) {
@@ -292,8 +293,8 @@ export default {
     },
     move(e) {
       if (this.touches.has(e.pointerId)) this.touches.set(e.pointerId, [e.clientX, e.clientY]);
-      if (this.pinch && this.touches.size === 2) { const [a, b] = [...this.touches.values()]; const r = this.$refs.scroller.getBoundingClientRect(); this.setZoom(this.pinch.z * (Math.hypot(a[0] - b[0], a[1] - b[1]) / this.pinch.d), (a[0] + b[0]) / 2 - r.left, (a[1] + b[1]) / 2 - r.top); return; }
-      if (this.drag && this.drag.type === 'pan') { const el = this.$refs.scroller; el.scrollLeft = this.drag.sl - (e.clientX - this.drag.cx); el.scrollTop = this.drag.st - (e.clientY - this.drag.cy); return; }
+      if (this.pinch && this.touches.size === 2) { const [a, b] = [...this.touches.values()]; const r = this.$refs.scroller.getBoundingClientRect(); this.setZoom(this.pinch.z * (Math.hypot(a[0] - b[0], a[1] - b[1]) / this.pinch.d), ((a[0] + b[0]) / 2 - r.left) / (window.__uiZ || 1), ((a[1] + b[1]) / 2 - r.top) / (window.__uiZ || 1)); return; }
+      if (this.drag && this.drag.type === 'pan') { const el = this.$refs.scroller; el.scrollLeft = this.drag.sl - (e.clientX - this.drag.cx) / (window.__uiZ || 1); el.scrollTop = this.drag.st - (e.clientY - this.drag.cy) / (window.__uiZ || 1); return; }
       const [x, y] = this.pos(e), d = this.drag;
       if (!d) { const s = this.shapeAt(x, y); this.hover = s ? s.id : null; return; }
       if (d.type === 'pen') { d.p.pts.push([Math.round(x), Math.round(y)]); return; }
