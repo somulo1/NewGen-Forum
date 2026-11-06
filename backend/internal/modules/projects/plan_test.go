@@ -402,3 +402,39 @@ func TestDeletingFromAProject(t *testing.T) {
 		t.Fatalf("still there: %d", c)
 	}
 }
+
+// A project team is only people whose role, or a right given to them, allows projects.
+func TestOnlyPeopleWithAccessCanJoinATeam(t *testing.T) {
+	e := testkit.New(t)
+	ownerU, slug := e.NewOrg("Olivia Owner")
+	o := e.Owner(ownerU)
+	amy := e.Join(ownerU, slug, "Amy", "hod")
+	ben := e.Join(ownerU, slug, "Ben", "hod")
+	for _, m := range []*testkit.Member{o, amy, ben} {
+		m.Register(e)
+	}
+	e.MustDo(204, "PUT", "/approvals/flows/f8", map[string]any{"levels": 0}, ownerU.Access)
+	e.MustDo(204, "PUT", "/approvals/flows/f2", map[string]any{"levels": 0}, ownerU.Access)
+	e.MustDo(200, "PUT", "/people/"+ben.Person+"/rights", map[string]any{"module": "projects", "right": "View", "allowed": false}, ownerU.Access)
+	has := func(id string) bool {
+		for _, x := range e.MustDo(200, "GET", "/projects/eligible", nil, ownerU.Access)["people"].([]any) {
+			if x == id {
+				return true
+			}
+		}
+		return false
+	}
+	if !has(amy.Person) || !has(o.Person) || has(ben.Person) {
+		t.Fatal("wrong people offered")
+	}
+	key, _ := e2ee.NewConversationKey()
+	bad := e.MustDo(201, "POST", "/conversations", map[string]any{"kind": "project", "name": "Bad", "members": []string{ben.Person}, "keys": o.WrapFor(e, key, 1, o.Person, ben.Person)}, ownerU.Access)["id"].(string)
+	if c, _ := e.Do("POST", "/projects", map[string]any{"conversation": bad, "start": "2026-01-01", "due": "2027-01-01"}, ownerU.Access); c != 400 {
+		t.Fatalf("a team with someone not allowed: %d", c)
+	}
+	// a right given personally lets them in
+	e.MustDo(200, "PUT", "/people/"+ben.Person+"/rights", map[string]any{"module": "projects", "right": "View", "allowed": true}, ownerU.Access)
+	if !has(ben.Person) {
+		t.Fatal("a person's own right was ignored")
+	}
+}

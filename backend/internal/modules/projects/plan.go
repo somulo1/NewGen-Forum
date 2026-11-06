@@ -964,6 +964,60 @@ func (s *Service) DeleteProject(ctx context.Context, p *tenant.Principal, projec
 	return err
 }
 
+// eligibleSQL: people who can be on a project: their role, or a right given to them personally, lets them view projects.
+const eligibleSQL = `select p.id from hub.people p
+	left join hub.person_roles pr on pr.person_id = p.id
+	left join hub.roles r on r.id = pr.role_id
+	left join hub.person_rights x on x.person_id = p.id and x.module = 'projects' and x.right_name = 'View'
+	where p.status = 'active' and (coalesce(r.locked, false) or coalesce(x.allowed, case when pr.role_id is null then null else hub.role_right(pr.role_id, 'projects', 'View') end, false))`
+
+// Eligible lists who may be chosen for a project team.
+func (s *Service) Eligible(ctx context.Context, p *tenant.Principal) ([]uuid.UUID, error) {
+	out := []uuid.UUID{}
+	err := s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
+		if err := s.ensureRights(ctx, tx, p.Org); err != nil {
+			return err
+		}
+		can, err := authz.Can(ctx, tx, p.Person, "projects", "Create project")
+		if err != nil {
+			return err
+		}
+		if !can {
+			if err := authz.Require(ctx, tx, p.Person, "projects", "Manage team"); err != nil {
+				return err
+			}
+		}
+		rs, err := tx.Query(ctx, eligibleSQL)
+		if err != nil {
+			return err
+		}
+		defer rs.Close()
+		for rs.Next() {
+			var id uuid.UUID
+			if err := rs.Scan(&id); err != nil {
+				return err
+			}
+			out = append(out, id)
+		}
+		return rs.Err()
+	})
+	return out, err
+}
+
+// checkTeam refuses a project whose conversation includes someone without access to projects.
+func checkTeam(ctx context.Context, tx pgx.Tx, conv uuid.UUID) error {
+	var name string
+	err := tx.QueryRow(ctx, `select p.first_name || ' ' || p.last_name from hub.conversation_members m join hub.people p on p.account_id = m.account_id
+		where m.conversation_id = $1 and m.left_at is null and p.id not in (`+eligibleSQL+`) limit 1`, conv).Scan(&name)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return httpx.Err(400, "not_eligible", name+" has no role or right that allows projects, so cannot join this team.")
+}
+
 // ImportItem is one record of an older encrypted plan, opened by a member's device.
 type ImportItem struct {
 	ID         uuid.UUID      `json:"id"`
@@ -1153,6 +1207,14 @@ func (s *Service) planRoutes(r chi.Router, org func(func(http.ResponseWriter, *h
 			return err
 		}
 		w.WriteHeader(204)
+		return nil
+	}))
+	r.Get("/projects/eligible", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
+		l, err := s.Eligible(r.Context(), p)
+		if err != nil {
+			return err
+		}
+		httpx.JSON(w, 200, map[string]any{"people": l})
 		return nil
 	}))
 	r.Delete("/projects/{id}", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {

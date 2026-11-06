@@ -966,5 +966,16 @@
   "access": "Delete project",
   "status": 204,
   "response": null
+ },
+ "GET /v1/projects/eligible": {
+  "summary": "Who may be chosen for a project team",
+  "description": "Active people whose role, or a right given to them personally, allows viewing projects.",
+  "access": "Create project or Manage team",
+  "status": 200,
+  "response": {
+   "people": [
+    "uuid"
+   ]
+  }
  }
 }

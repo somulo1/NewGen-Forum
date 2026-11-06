@@ -30,13 +30,15 @@ export function buildProjects(ctx) {
   const initialsOf = (n) => n.split(' ').map((x) => x[0]).join('').slice(0, 2);
   const openProjectForm = () => {
     if (!has.projects || !can('projects', 'Create project')) return;
+    if (this.srv) { this.setState({ projectEligible: null }); projectsW.eligible(this.srv).then((l) => this.setState({ projectEligible: l })).catch((e) => { this.setState({ projectEligible: [] }); this.notify(e.message || 'Could not load who can join.', '#FF9B8A'); }); }
     const start = today;
     this.setState({ projectForm: { name: '', goal: '', owner: this.srv ? this.srv.me.name : 'Samwel Okoth Omulo', method: 'agile', team: [this.srv ? this.srv.me.name : 'Samwel Okoth Omulo'], teamQuery: '', start, due: addDaysIso(start, 29), budget: '', err: '' } });
   };
   let projectForm = { open: false };
   if (s.projectForm && has.projects && can('projects', 'Create project')) {
     const f = s.projectForm;
-    const ownerOptions = [{ name: 'Samwel Okoth Omulo', color: '#C2185B' }].concat(this.dir.map((p) => ({ name: p.name, color: p.color })))
+    const allowed = this.srv && s.projectEligible ? new Set(s.projectEligible) : null;
+    const ownerOptions = (this.srv ? (allowed && allowed.has(this.srv.me.person) ? [{ name: this.srv.me.name, color: (s.meInfo || {}).color || '#C2185B' }] : []) : [{ name: 'Samwel Okoth Omulo', color: '#C2185B' }]).concat(this.dir.filter((p) => !this.srv || (allowed && allowed.has(p.uid))).map((p) => ({ name: p.name, color: p.color })))
       .filter((p, i, all) => all.findIndex((other) => other.name === p.name) === i);
     const owners = ownerOptions.map((p) => ({ v: p.name, l: p.name }));
     const setField = (key) => (e) => {
@@ -48,7 +50,7 @@ export function buildProjects(ctx) {
       });
     };
     projectForm = {
-      open: true, ...f, owners,
+      open: true, ...f, owners, loadingPeople: !!this.srv && !s.projectEligible,
       selectedTeam: f.team.map((name) => {
         const member = ownerOptions.find((p) => p.name === name) || { color: '#9DB0A6' };
         return { name, initials: ini(name), color: member.color, removable: name !== f.owner };

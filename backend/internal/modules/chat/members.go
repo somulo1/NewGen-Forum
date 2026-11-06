@@ -55,6 +55,18 @@ func (s *Service) AddMembers(ctx context.Context, p *tenant.Principal, id uuid.U
 		if err := s.myDevice(ctx, tx, p.Account, by); err != nil {
 			return err
 		}
+		if kind == "project" {
+			// a project's team is only people whose role or own rights allow projects
+			for _, person := range people {
+				ok, err := authz.Can(ctx, tx, person, "projects", "View")
+				if err != nil {
+					return err
+				}
+				if !ok {
+					return httpx.Err(400, "not_eligible", "That person has no role or right that allows projects, so cannot join this team.")
+				}
+			}
+		}
 		ms, err := s.resolve(ctx, tx, people)
 		if err != nil {
 			return err
