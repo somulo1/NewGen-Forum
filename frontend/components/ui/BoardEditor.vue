@@ -69,7 +69,7 @@
 <div v-if="!b.shapes.length && !b.lines.length && !b.pen.length" class="bd-empty"><button type="button" class="bd-btn bd-focus" @click="gallery = true">Start from a sample diagram</button></div>
 <div ref="scroller" class="bd-canvas" :style="`background: ${paperColor}`" @dragover.prevent @drop.prevent="onDrop" @wheel="onWheel">
 <div :style="`position: relative; width: ${W * zoom}px; height: ${H * zoom}px`">
-<svg ref="svg" :width="W * zoom" :height="H * zoom" :viewBox="`0 0 ${W} ${H}`" role="img" aria-label="Diagram canvas" :style="`display: block; touch-action: none; user-select: none; cursor: ${cursor}`" @pointerdown="down" @pointermove="move" @pointerup="up" @pointercancel="up" @dblclick="dbl">
+<svg ref="svg" :width="W * zoom" :height="H * zoom" :viewBox="`0 0 ${W} ${H}`" role="img" aria-label="Diagram canvas" :style="`display: block; touch-action: none; user-select: none; cursor: ${cursor}`" @pointerdown="down" @pointermove="move" @pointerup="up" @pointercancel="up">
 <defs v-html="pattern"></defs>
 <rect v-if="pattern" :width="W" :height="H" fill="url(#bd-bg)" pointer-events="none"/>
 <polyline v-for="p in b.pen" :key="p.id" :data-pen="p.id" fill="none" :stroke="p.color" :stroke-width="sel.has(p.id) ? 4 : 2" :points="p.pts.map((q) => q.join(',')).join(' ')"/>
@@ -255,11 +255,17 @@ export default {
       this.$refs.root.focus({ preventScroll: true });
       const [x, y] = this.pos(e), t = e.target, ds = t.dataset || {};
       this.$refs.svg.setPointerCapture(e.pointerId);
+      // double-clicks are seen here: once the pointer is captured, the browser's own double-click no longer names the shape
+      const hitId = ds.way !== undefined ? 'w' + ds.way : ds.line || (t.closest && t.closest('[data-shape]') ? t.closest('[data-shape]').getAttribute('data-shape') : '');
+      const now = Date.now();
+      const twice = hitId && this.lastHit === hitId && now - this.lastAt < 400;
+      this.lastHit = hitId; this.lastAt = now;
+      if (twice && !this.placing && this.tool === 'select' && e.button === 0) { this.lastHit = ''; this.pendingDbl = t; return; }   // acted on when the button is released: pressing moves focus, which would close the text box at once
       // two fingers: pinch to zoom
       this.touches.set(e.pointerId, [e.clientX, e.clientY]);
       if (this.touches.size === 2) { const [a, b] = [...this.touches.values()]; this.pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), z: this.zoom }; this.drag = null; return; }
       if (this.tool === 'hand' || this.panning || e.button === 1) { const el = this.$refs.scroller; this.drag = { type: 'pan', cx: e.clientX, cy: e.clientY, sl: el.scrollLeft, st: el.scrollTop }; return; }
-      if (this.placing) { this.addShape(this.placing, x, y); this.placing = null; return; }
+      if (this.placing) { this.writeNext = this.placing === 'text'; this.addShape(this.placing, x, y); this.placing = null; return; }
       if (this.tool === 'pen') { this.snapshot(); const p = { id: uid(), color: this.penColor, pts: [[Math.round(x), Math.round(y)]] }; this.b.pen.push(p); this.drag = { type: 'pen', p }; return; }
       if (ds.port) { const [sid, i] = ds.port.split(':'); this.drag = { type: 'newline', from: sid, fromPort: Number(i), x, y }; return; }
       if (this.tool === 'line') { this.drag = { type: 'newline', from: null, x1: x, y1: y, x, y }; return; }
@@ -320,6 +326,8 @@ export default {
       }
     },
     up(e) {
+      if (this.writeNext) { this.writeNext = false; const n = this.selShapes[0]; if (n) { this.editing = { x: n.x, y: n.y, w: Math.max(n.w, 80), h: Math.max(n.h, 40), text: n.text }; this.$nextTick(() => this.$refs.inline && this.$refs.inline.focus()); } return; }
+      if (this.pendingDbl) { const t = this.pendingDbl; this.pendingDbl = null; this.dbl({ target: t }); return; }
       if (e) this.touches.delete(e.pointerId);
       if (this.touches.size < 2) this.pinch = null;
       const d = this.drag;
