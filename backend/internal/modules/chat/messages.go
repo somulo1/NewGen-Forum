@@ -160,7 +160,11 @@ func (s *Service) History(ctx context.Context, p *tenant.Principal, conv uuid.UU
 		if err != nil {
 			return err
 		}
+		// a blocked forum still opens, for its members and calls, but shows no messages
 		if err := s.checkBlocked(ctx, tx, p.Org, kind); err != nil {
+			if kind == "forum" {
+				return nil
+			}
 			return err
 		}
 		var first int
@@ -236,7 +240,11 @@ func (s *Service) Changes(ctx context.Context, p *tenant.Principal, conv uuid.UU
 		if err != nil {
 			return err
 		}
+		// a blocked forum still opens, for its members and calls, but shows no messages
 		if err := s.checkBlocked(ctx, tx, p.Org, kind); err != nil {
+			if kind == "forum" {
+				return nil
+			}
 			return err
 		}
 		var first int
@@ -421,7 +429,7 @@ func (s *Service) checkEdit(ctx context.Context, tx pgx.Tx, p *tenant.Principal,
 
 // checkBlocked stops private chats or the wall when the organization has blocked them in its settings.
 func (s *Service) checkBlocked(ctx context.Context, tx pgx.Tx, org uuid.UUID, kind string) error {
-	if kind != "dm" && kind != "wall" {
+	if kind != "dm" && kind != "wall" && kind != "forum" {
 		return nil
 	}
 	b, err := orgsettings.BlocksOf(ctx, s.A, tx, org)
@@ -430,6 +438,9 @@ func (s *Service) checkBlocked(ctx context.Context, tx pgx.Tx, org uuid.UUID, ki
 	}
 	if kind == "dm" && b.BlockPrivateChats {
 		return httpx.Err(403, "blocked", "Private chats are switched off for this organization.")
+	}
+	if kind == "forum" && b.BlockForumChats {
+		return httpx.Err(403, "blocked", "Forum chats are switched off for this organization.")
 	}
 	if kind == "wall" && b.BlockWall {
 		return httpx.Err(403, "blocked", "The community wall is switched off for this organization.")
