@@ -4,6 +4,7 @@
 <Teleport to="body" :disabled="!full">
 <div ref="root" :class="['bd', { 'bd-full': full }, full && lightMode ? 'hub-light' : '']" tabindex="0" @keydown="onKey" @keyup="onKeyUp">
 <div class="bd-top" role="toolbar" aria-label="Diagram tools">
+<button type="button" class="bd-btn bd-focus" @click="gallery = true">Sample diagrams</button>
 <button v-for="t in tools" :key="t.k" type="button" class="bd-btn" :aria-pressed="tool === t.k" :class="{ on: tool === t.k }" @click="tool = t.k">{{ t.l }}</button>
 <span class="bd-sep"></span>
 <button type="button" class="bd-btn" :disabled="!past.length" @click="undo">Undo</button><button type="button" class="bd-btn" :disabled="!future.length" @click="redo">Redo</button>
@@ -41,6 +42,15 @@
 </div>
 <div v-else class="bd-props bd-mut">{{ hint }}</div>
 
+<div v-if="gallery" role="dialog" aria-modal="true" aria-label="Sample diagrams" class="bd-gallery" @click.self="gallery = false" @keydown.stop>
+<div class="bd-gallery-box">
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center"><strong style="flex: 1 1 200px; font-size: 16px">Start from a sample</strong><label class="bd-find" style="flex: 1 1 200px; margin: 0"><span class="bd-sr">Find a sample</span><input type="search" v-model="sampleFind" placeholder="Find a sample"></label><button type="button" class="bd-btn" @click="gallery = false">Close</button></div>
+<span class="bd-mut">Every sample is made of normal shapes and connectors, so you can move and change all of it. If you already have a drawing, the sample is added beside it.</span>
+<template v-for="g in sampleGroups" :key="g.group"><strong style="font-size: 13px">{{ g.group }}</strong>
+<div class="bd-gallery-grid"><button v-for="t in g.items" :key="t.name" type="button" @click="useSample(t)"><span class="bd-preview" v-html="t.preview"></span><span>{{ t.name }}</span></button></div></template>
+<span v-if="!sampleGroups.length" class="bd-mut">No sample has that name.</span>
+</div>
+</div>
 <div class="bd-body">
 <div v-if="libOpen" class="bd-lib" aria-label="Shape library">
 <label class="bd-find"><span class="bd-sr">Find a shape</span><input type="search" v-model="find" placeholder="Find a shape"></label>
@@ -56,6 +66,7 @@
 </details>
 </div>
 
+<div v-if="!b.shapes.length && !b.lines.length && !b.pen.length" class="bd-empty"><button type="button" class="bd-btn bd-focus" @click="gallery = true">Start from a sample diagram</button></div>
 <div ref="scroller" class="bd-canvas" :style="`background: ${paperColor}`" @dragover.prevent @drop.prevent="onDrop" @wheel="onWheel">
 <div :style="`position: relative; width: ${W * zoom}px; height: ${H * zoom}px`">
 <svg ref="svg" :width="W * zoom" :height="H * zoom" :viewBox="`0 0 ${W} ${H}`" role="img" aria-label="Diagram canvas" :style="`display: block; touch-action: none; user-select: none; cursor: ${cursor}`" @pointerdown="down" @pointermove="move" @pointerup="up" @pointercancel="up" @dblclick="dbl">
@@ -66,7 +77,7 @@
 <path :d="s.g.d" :fill="s.g.fill" :stroke="s.g.stroke" stroke-width="1.5"/>
 <path v-if="s.g.more" :d="s.g.more" fill="none" :stroke="s.g.moreStroke" stroke-width="1.5" pointer-events="none"/>
 <text v-if="s.locked" :x="s.w - 8" y="12" font-size="11" text-anchor="middle" pointer-events="none">🔒</text>
-<text v-for="(t, ti) in s.g.lines" :key="ti" :x="t.x" :y="t.y" text-anchor="middle" dominant-baseline="middle" :font-size="s.g.size" :fill="s.g.textColor" pointer-events="none">{{ t.t }}</text>
+<text v-for="(t, ti) in s.g.lines" :key="ti" :x="t.x" :y="t.y" :text-decoration="s.g.underline ? 'underline' : undefined" :text-anchor="s.g.side ? 'middle' : 'middle'" :transform="s.g.side ? `rotate(-90 ${t.x} ${s.h / 2})` : undefined" dominant-baseline="middle" :font-size="s.g.size" :fill="s.g.textColor" pointer-events="none">{{ t.t }}</text>
 </g>
 <g v-for="l in routed" :key="l.id">
 <path :d="l.r.d" fill="none" stroke="transparent" stroke-width="14" :data-line="l.id" style="cursor: pointer"/>
@@ -104,6 +115,7 @@
 </template>
 
 <script>
+import { BOARD_TEMPLATES } from '~/logic/boardTemplates.js';
 import { BOARD_BACKGROUNDS, SHAPES, SHAPE_GROUPS, boardBox, boardInk, boardPaper, boardPattern, boardSvg, drawShape, parseBoard, portsOf, routeLine } from '~/logic/boardSvg.js';
 
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -115,7 +127,7 @@ export default {
   props: { modelValue: { type: String, default: '' } },
   emits: ['update:modelValue'],
   data() {
-    return { b: parseBoard(this.modelValue), libOpen: true, find: '', lightMode: false, panning: false, zoom: 1, grid: true, full: false, tool: 'select', placing: null, dragNew: null, sel: new Set(), hover: null, snap: null, drag: null, editing: null, past: [], future: [], clip: null, backgrounds: BOARD_BACKGROUNDS, groups: SHAPE_GROUPS, endTypes: END_TYPES, tools: [{ k: 'select', l: 'Select' }, { k: 'line', l: 'Line' }, { k: 'pen', l: 'Pen' }, { k: 'hand', l: 'Move view' }], penColor: '#333333' };
+    return { b: parseBoard(this.modelValue), libOpen: true, find: '', lightMode: false, panning: false, zoom: 1, grid: true, full: false, tool: 'select', placing: null, dragNew: null, sel: new Set(), hover: null, snap: null, drag: null, editing: null, past: [], future: [], clip: null, gallery: false, sampleFind: '', backgrounds: BOARD_BACKGROUNDS, groups: SHAPE_GROUPS, endTypes: END_TYPES, tools: [{ k: 'select', l: 'Select' }, { k: 'line', l: 'Line' }, { k: 'pen', l: 'Pen' }, { k: 'hand', l: 'Move view' }], penColor: '#333333' };
   },
   computed: {
     box() { return boardBox(this.b); },
@@ -123,6 +135,11 @@ export default {
     W() { return Math.max(2400, this.box.x + this.box.w + 800); },
     H() { return Math.max(1600, this.box.y + this.box.h + 600); },
     shownGroups() { const q = this.find.trim().toLowerCase(); return q ? this.groups.map((g) => ({ ...g, shapes: g.shapes.filter((x) => x.label.toLowerCase().includes(q)) })).filter((g) => g.shapes.length) : this.groups; },
+    sampleGroups() {
+      const q = this.sampleFind.trim().toLowerCase();
+      const list = BOARD_TEMPLATES.filter((t) => !q || (t.name + ' ' + t.group).toLowerCase().includes(q));
+      return [...new Set(list.map((t) => t.group))].map((group) => ({ group, items: list.filter((t) => t.group === group).map((t) => ({ ...t, preview: boardSvg(JSON.stringify(t.board)) })) }));
+    },
     pattern() { return boardPattern(this.b.bg, 'bd-bg'); },
     paperColor() { return boardPaper(this.b.bg); },
     byId() { return new Map(this.b.shapes.map((s) => [s.id, s])); },
@@ -148,6 +165,8 @@ export default {
   methods: {
     pos(e) { const r = this.$refs.svg.getBoundingClientRect(); return [(e.clientX - r.left) / this.zoom, (e.clientY - r.top) / this.zoom]; },
     g(v) { return this.grid ? Math.round(v / 10) * 10 : Math.round(v); },
+    // the middle of a shape lands on the grid, whatever its size, so connectors between shapes in a row or column run straight
+    gc(v, size) { return this.grid ? Math.round((v + size / 2) / 10) * 10 - size / 2 : Math.round(v); },
     snapshot() { this.past.push(JSON.stringify(this.b)); if (this.past.length > 100) this.past.shift(); this.future = []; },
     commit() { this.$emit('update:modelValue', JSON.stringify(this.b)); },
     undo() { this.future.push(JSON.stringify(this.b)); this.b = JSON.parse(this.past.pop()); this.sel = new Set(); this.commit(); },
@@ -185,7 +204,7 @@ export default {
     addShape(key, x, y) {
       this.snapshot();
       const sp = SHAPES[key];
-      const s = { id: uid(), t: key, x: this.g(x - sp.w / 2), y: this.g(y - sp.h / 2), w: sp.w, h: sp.h, text: '', ...(sp.fill ? { color: sp.fill } : {}) };
+      const s = { id: uid(), t: key, x: this.gc(x - sp.w / 2, sp.w), y: this.gc(y - sp.h / 2, sp.h), w: sp.w, h: sp.h, text: '', ...(sp.fill ? { color: sp.fill } : {}) };
       this.b.shapes.push(s);
       this.sel = new Set([s.id]);
       this.commit();
@@ -198,6 +217,18 @@ export default {
       this.b.pen = this.b.pen.filter((p) => !on.has(p.id));
       this.b.lines = this.b.lines.filter((l) => l.locked || (!on.has(l.id) && !on.has(l.from) && !on.has(l.to)));
       this.sel = new Set(); this.commit();
+    },
+    // a sample is copied in with its own ids, beside whatever is already there
+    useSample(t) {
+      this.snapshot();
+      const dx = this.b.shapes.length || this.b.pen.length ? this.box.x + this.box.w + 60 : 40;
+      const map = new Map(), add = [];
+      t.board.shapes.forEach((s) => { const id = uid(); map.set(s.id, id); const n = { ...s, id, x: s.x + dx, y: s.y + 40 }; this.b.shapes.push(n); add.push(id); });
+      t.board.lines.forEach((l) => { const id = uid(); add.push(id); this.b.lines.push({ ...l, id, from: l.from ? map.get(l.from) : null, to: l.to ? map.get(l.to) : null, ...(l.from ? {} : { x1: l.x1 + dx, y1: l.y1 + 40 }), ...(l.to ? {} : { x2: l.x2 + dx, y2: l.y2 + 40 }), pts: [] }); });
+      this.sel = new Set();
+      this.gallery = false;
+      this.commit();
+      this.$nextTick(() => this.fit());
     },
     setBg(v) { this.snapshot(); this.b.bg = v; this.commit(); },
     toggleLock() { this.snapshot(); const v = !this.allLocked; this.selected.forEach((x) => { x.locked = v; }); this.commit(); },
@@ -234,7 +265,7 @@ export default {
       if (this.tool === 'line') { this.drag = { type: 'newline', from: null, x1: x, y1: y, x, y }; return; }
       if (ds.resize) { const s = this.selShapes[0]; this.snapshot(); this.drag = { type: 'resize', k: ds.resize, s, x0: x, y0: y, o: { x: s.x, y: s.y, w: s.w, h: s.h } }; return; }
       if (ds.way !== undefined) { this.snapshot(); this.drag = { type: 'way', i: Number(ds.way) }; return; }
-      if (ds.add !== undefined) { this.snapshot(); const pts = (this.selLine.pts || []).slice(); pts.splice(Number(ds.add), 0, [Math.round(x), Math.round(y)]); this.selLine.pts = pts; this.drag = { type: 'way', i: Number(ds.add) }; return; }
+      if (ds.add !== undefined) { this.snapshot(); const pts = (this.selLine.pts || []).slice(); pts.splice(Number(ds.add), 0, [this.g(x), this.g(y)]); this.selLine.pts = pts; this.drag = { type: 'way', i: Number(ds.add) }; return; }
       if (ds.end) { this.snapshot(); this.drag = { type: 'end', which: ds.end, x, y }; return; }
       if (ds.line) { this.sel = new Set([ds.line]); return; }
       const g = t.closest && t.closest('[data-shape]');
@@ -258,7 +289,7 @@ export default {
       if (d.type === 'pen') { d.p.pts.push([Math.round(x), Math.round(y)]); return; }
       if (d.type === 'move') {
         if (!d.moved && Math.hypot(x - d.x0, y - d.y0) > 3) { this.snapshot(); d.moved = true; }
-        if (d.moved) d.list.forEach((m) => { m.s.x = this.g(m.x + x - d.x0); m.s.y = this.g(m.y + y - d.y0); });
+        if (d.moved) d.list.forEach((m) => { m.s.x = this.gc(m.x + x - d.x0, m.s.w); m.s.y = this.gc(m.y + y - d.y0, m.s.h); });
         return;
       }
       if (d.type === 'resize') {
@@ -285,7 +316,7 @@ export default {
         const l = this.selLine, other = d.which === 'from' ? l.to : l.from;
         this.snap = this.nearPort(x, y, other);
         const set = d.which === 'from' ? ['from', 'fromPort', 'x1', 'y1'] : ['to', 'toPort', 'x2', 'y2'];
-        if (this.snap) { l[set[0]] = this.snap.shape; l[set[1]] = this.snap.port; } else { l[set[0]] = null; l[set[1]] = null; l[set[2]] = Math.round(x); l[set[3]] = Math.round(y); }
+        if (this.snap) { l[set[0]] = this.snap.shape; l[set[1]] = this.snap.port; } else { l[set[0]] = null; l[set[1]] = null; l[set[2]] = this.g(x); l[set[3]] = this.g(y); }
       }
     },
     up(e) {
@@ -300,7 +331,7 @@ export default {
         if ((t || far) && !(d.from && !t && !far)) {
           if (!d.from && !t && !far) return;
           this.snapshot();
-          const l = { id: uid(), from: d.from || null, fromPort: d.from ? d.fromPort : null, x1: Math.round(d.x1 || 0), y1: Math.round(d.y1 || 0), to: t ? t.shape : null, toPort: t ? t.port : null, x2: Math.round(d.x), y2: Math.round(d.y), kind: this.lastKind || 'elbow', end: 'arrow', pts: [] };
+          const l = { id: uid(), from: d.from || null, fromPort: d.from ? d.fromPort : null, x1: this.g(d.x1 || 0), y1: this.g(d.y1 || 0), to: t ? t.shape : null, toPort: t ? t.port : null, x2: this.g(d.x), y2: this.g(d.y), kind: this.lastKind || 'elbow', end: 'arrow', pts: [] };
           if (d.from && !t && Math.hypot(d.x - portsOf(this.byId.get(d.from))[d.fromPort].x, d.y - portsOf(this.byId.get(d.from))[d.fromPort].y) < 12) { this.past.pop(); return; }
           this.b.lines.push(l);
           this.sel = new Set([l.id]);
@@ -379,10 +410,18 @@ export default {
 .bd-btn.on { background: var(--k-22302A,#22302A); border-color: var(--k-B8F36B,#B8F36B); }
 .bd-btn:disabled { opacity: .4; cursor: default; }
 .bd-sel { height: 30px; padding: 0 6px; border-radius: 8px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-16201C,#16201C); color: var(--k-E8EFEA,#E8EFEA); font: inherit; font-size: 12px; }
+.bd-gallery { position: fixed; inset: 0; z-index: 3100; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(4,8,6,.65); }
+.bd-gallery-box { width: min(980px, 100%); max-height: 88vh; box-sizing: border-box; overflow-y: auto; padding: 18px; border-radius: 16px; border: 1px solid var(--k-34453D,#34453D); background: var(--k-16201C,#16201C); color: var(--k-E8EFEA,#E8EFEA); display: flex; flex-direction: column; gap: 10px; scrollbar-width: thin; }
+.bd-gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+.bd-gallery-grid button { display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--k-2A3832,#2A3832); border-radius: 10px; background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; font: inherit; font-size: 12px; text-align: left; }
+.bd-gallery-grid button:hover { border-color: var(--k-B8F36B,#B8F36B); }
+.bd-preview { display: flex; align-items: center; justify-content: center; height: 130px; overflow: hidden; border-radius: 6px; background: #fff; pointer-events: none; }
+.bd-preview svg { max-width: 100%; max-height: 130px; width: auto !important; height: auto !important; }
+.bd-empty { position: absolute; z-index: 2; left: 50%; top: 50%; transform: translate(-50%, -50%); }
 .bd-sep { width: 1px; height: 20px; margin: 0 2px; background: var(--k-2A3832,#2A3832); }
 .bd-mut { font-size: 12px; color: var(--k-9DB0A6,#9DB0A6); }
 .bd-check { display: inline-flex !important; flex-direction: row !important; align-items: center !important; width: auto !important; flex: none !important; gap: 4px !important; font-size: 12px; }
-.bd-body { display: flex; flex-wrap: wrap; gap: 8px; min-width: 0; }
+.bd-body { position: relative; display: flex; flex-wrap: wrap; gap: 8px; min-width: 0; }
 .bd-lib { flex: 0 1 236px; max-width: 100%; max-height: 72vh; box-sizing: border-box; overflow-y: auto; padding: 8px; border-radius: 10px; border: 1px solid var(--k-24322C,#24322C); background: var(--k-121B17,#121B17); scrollbar-width: thin; }
 .bd-find { display: block !important; margin-bottom: 6px; }
 .bd-find input { width: 100%; height: 32px; box-sizing: border-box; padding: 0 10px; border-radius: 8px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-16201C,#16201C); color: var(--k-E8EFEA,#E8EFEA); font: inherit; font-size: 12px; }
