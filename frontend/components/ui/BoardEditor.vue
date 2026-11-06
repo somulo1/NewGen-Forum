@@ -10,7 +10,7 @@
 <button type="button" class="bd-btn" :disabled="!past.length" @click="undo">Undo</button><button type="button" class="bd-btn" :disabled="!future.length" @click="redo">Redo</button>
 <button type="button" class="bd-btn" :disabled="!selShapes.length" @click="duplicate">Duplicate</button><button type="button" class="bd-btn" :disabled="!hasSel" @click="removeSel">Delete</button>
 <button type="button" class="bd-btn" :disabled="!hasSel" title="Ctrl+L" @click="toggleLock">{{ allLocked ? 'Unlock' : 'Lock' }}</button>
-<button type="button" class="bd-btn" :disabled="!selShapes.length" @click="order(1)">To front</button><button type="button" class="bd-btn" :disabled="!selShapes.length" @click="order(-1)">To back</button>
+<button type="button" class="bd-btn" :disabled="!selShapes.length" title="Ctrl+Shift+]" @click="order(1)">To front</button><button type="button" class="bd-btn" :disabled="!selShapes.length" title="Ctrl+]" @click="step(1)">Forward</button><button type="button" class="bd-btn" :disabled="!selShapes.length" title="Ctrl+[" @click="step(-1)">Backward</button><button type="button" class="bd-btn" :disabled="!selShapes.length" title="Ctrl+Shift+[" @click="order(-1)">To back</button>
 <span class="bd-sep"></span>
 <label class="bd-check">Background<select class="bd-sel" :value="b.bg" @change="setBg($event.target.value)"><option v-for="o in backgrounds" :key="o.v" :value="o.v">{{ o.l }}</option></select></label>
 <label class="bd-check"><input type="checkbox" v-model="grid">Snap</label>
@@ -248,6 +248,21 @@ export default {
     },
     duplicate() { this.copyOut(); this.paste(); },
     order(dir) { this.snapshot(); const on = this.b.shapes.filter((s) => this.sel.has(s.id)), rest = this.b.shapes.filter((s) => !this.sel.has(s.id)); this.b.shapes = dir > 0 ? rest.concat(on) : on.concat(rest); this.commit(); },
+    // one layer up or down, past the next shape that is not selected. Shapes keep their order among themselves.
+    step(dir) {
+      this.snapshot();
+      const l = this.b.shapes.slice(), on = (s) => this.sel.has(s.id);
+      if (dir > 0) { for (let i = l.length - 2; i >= 0; i--) if (on(l[i]) && !on(l[i + 1])) [l[i], l[i + 1]] = [l[i + 1], l[i]]; }
+      else { for (let i = 1; i < l.length; i++) if (on(l[i]) && !on(l[i - 1])) [l[i], l[i - 1]] = [l[i - 1], l[i]]; }
+      this.b.shapes = l; this.commit();
+    },
+    // Alt and click: the shape under the one selected here, to reach a shape covered by another
+    shapeBelow(x, y) {
+      const hits = this.b.shapes.filter((s) => x >= s.x && x <= s.x + s.w && y >= s.y && y <= s.y + s.h).reverse();
+      if (!hits.length) return null;
+      const i = hits.findIndex((s) => this.sel.has(s.id));
+      return hits[(i + 1) % hits.length];
+    },
     shapeAt(x, y, pad = 8) { for (let i = this.b.shapes.length - 1; i >= 0; i--) { const s = this.b.shapes[i]; if (x >= s.x - pad && x <= s.x + s.w + pad && y >= s.y - pad && y <= s.y + s.h + pad) return s; } return null; },
     nearPort(x, y, skip) {
       let best = null;
@@ -263,7 +278,7 @@ export default {
       // double-clicks are seen here: once the pointer is captured, the browser's own double-click no longer names the shape
       const hitId = ds.way !== undefined ? 'w' + ds.way : ds.line || (t.closest && t.closest('[data-shape]') ? t.closest('[data-shape]').getAttribute('data-shape') : '');
       const now = Date.now();
-      const twice = hitId && this.lastHit === hitId && now - this.lastAt < 400;
+      const twice = hitId && !e.altKey && this.lastHit === hitId && now - this.lastAt < 400;
       this.lastHit = hitId; this.lastAt = now;
       if (twice && !this.placing && this.tool === 'select' && e.button === 0) { this.lastHit = ''; this.pendingDbl = t; return; }   // acted on when the button is released: pressing moves focus, which would close the text box at once
       // two fingers: pinch to zoom
@@ -279,6 +294,7 @@ export default {
       if (ds.add !== undefined) { this.snapshot(); const pts = (this.selLine.pts || []).slice(); pts.splice(Number(ds.add), 0, [this.g(x), this.g(y)]); this.selLine.pts = pts; this.drag = { type: 'way', i: Number(ds.add) }; return; }
       if (ds.end) { this.snapshot(); this.drag = { type: 'end', which: ds.end, x, y }; return; }
       if (ds.line) { this.sel = new Set([ds.line]); return; }
+      if (e.altKey && this.tool === 'select') { const under = this.shapeBelow(x, y); if (under) { this.sel = new Set([under.id]); return; } }
       const g = t.closest && t.closest('[data-shape]');
       const id = g ? g.getAttribute('data-shape') : t.dataset && t.dataset.pen;
       if (id) {
@@ -388,6 +404,7 @@ export default {
       if (c && k === 'c') { this.copyOut(); return; }
       if (c && k === 'v') { e.preventDefault(); this.paste(); return; }
       if (c && k === 'd') { e.preventDefault(); this.duplicate(); return; }
+      if (c && (e.code === 'BracketRight' || e.code === 'BracketLeft') && this.selShapes.length) { e.preventDefault(); const d = e.code === 'BracketRight' ? 1 : -1; if (e.shiftKey) this.order(d); else this.step(d); return; }
       if (c && k === 'a') { e.preventDefault(); this.sel = new Set(this.b.shapes.map((s) => s.id)); return; }
       if (k === 'escape') { this.sel = new Set(); this.placing = null; this.tool = 'select'; return; }
       const step = { arrowleft: [-1, 0], arrowright: [1, 0], arrowup: [0, -1], arrowdown: [0, 1] }[k];
