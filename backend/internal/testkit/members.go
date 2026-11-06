@@ -188,3 +188,22 @@ func (e *Env) MakePlanLegacy(conv string) {
 		e.T.Fatal(err)
 	}
 }
+
+// RemoveRights makes the organization look as it did before these rights existed.
+func (e *Env) RemoveRights(slug, module string, names ...string) {
+	root, err := pgx.Connect(context.Background(), rootURL())
+	if err != nil {
+		e.T.Skip("superuser not reachable: ", err)
+	}
+	defer root.Close(context.Background())
+	_, _ = root.Exec(context.Background(), "set session_replication_role = replica")
+	org := e.OrgID(slug)
+	for _, table := range []string{"role_rights", "person_rights", "role_group_rights"} {
+		if _, err := root.Exec(context.Background(), `delete from hub.`+table+` where org_id=$1 and module=$2 and right_name = any($3)`, org, module, names); err != nil {
+			e.T.Fatal(err)
+		}
+	}
+	if _, err := root.Exec(context.Background(), `delete from hub.rights where org_id=$1 and module=$2 and name = any($3)`, org, module, names); err != nil {
+		e.T.Fatal(err)
+	}
+}

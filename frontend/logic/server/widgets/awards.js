@@ -52,6 +52,7 @@ export async function announce(logic, srv, a) {
     const poster = srv.awardPoster && srv.awardPoster[a.uid];   // the picture picked in the dialog, while this tab remembers it
     const when = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
     for (const target of a.targets) {
+      if (target === 'wall' && (logic.state.orgBlocks || {}).blockWall) continue;   // blocked: kept unclaimed, so it can still go out after unblocking
       try { await srv.request('POST', `/awards/${a.uid}/claim`, { target }); } catch (e) { continue; }   // someone else already did it
       try {
         if (target === 'wall') {

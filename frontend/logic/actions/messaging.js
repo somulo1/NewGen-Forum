@@ -32,6 +32,7 @@ export const messagingActions = {
   openDm(name) {
     // never open a chat with yourself (connected: your own name; the built-in sample's owner name only in the sample)
     if (!name || (this.srv ? name === this.srv.me.name : name === 'Samwel Okoth Omulo')) return;
+    if ((this.state.orgBlocks || {}).blockPrivateChats) { this.notify('Private chats are switched off for this organization.', '#FFB86B'); return; }
     const known = this.state.dms.find((d) => d.with === name);
     if (this.srv && known) dmsW.markRead(this, this.srv, known.id);
     this.setState((st) => {
