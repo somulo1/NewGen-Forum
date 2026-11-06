@@ -29,14 +29,15 @@ Temporary password for {{ userActions.name }}:
 </template>
 
 <script>
+import { askConfirm } from '~/logic/confirm.js';
 import { hubBindings } from '~/composables/useHub';
 
 export default {
   name: 'PeopleSection',
   ...hubBindings(["onb","structureEd","peopleSummary","peopleTable","show","userActions"]),
   methods: {
-    confirmUserDelete() {
-      if (window.confirm('Delete ' + this.userActions.name + ' from the people directory?')) this.userActions.remove();
+    async confirmUserDelete() {
+      if (await askConfirm({ title: 'Delete this person?', body: this.userActions.name + ' is deleted from the people directory.' })) this.userActions.remove();
     }
   }
 };

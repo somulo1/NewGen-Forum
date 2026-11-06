@@ -1,3 +1,4 @@
+import { askConfirm, confirmed } from '~/logic/confirm.js';
 import * as commsW from '~/logic/server/widgets/comms.js';
 // What each kind of communication asks for besides the title, summary and message. Each field has a label and a hint so the form
 // explains itself.
@@ -100,9 +101,10 @@ export function buildComms(ctx) {
   const canInsights = (type) => !!this.srv && can(MODULE_OF[type], 'View insights');
   // Repost: post a published item again to the places it went to, for people given the page's "Repost" right
   const canRepost = (c) => !!this.srv && c.status === 'Published' && can(MODULE_OF[c.type], 'Repost');
-  const repostNow = (c) => {
+  const repostNow = async (c) => {
     if (this._reposting) return;
-    if (typeof window !== 'undefined' && !window.confirm('Repost "' + c.title + '" to ' + ((c.to || []).join(', ') || 'the places it went to') + '? Everyone there gets it again.')) return;
+    if (!await askConfirm({ title: 'Repost this?', body: '"' + c.title + '" goes to ' + ((c.to || []).join(', ') || 'the places it went to') + ' again, and everyone there gets it again.', action: 'Repost' })) return;
+    if (this._reposting) return;
     this._reposting = true; this.forceUpdate();
     commsW.repost(this, this.srv, c)
       .then((r) => this.notify(r.pending >= r.sent ? c.type + ' reposted. It reaches ' + (r.sent === 1 ? 'its place' : 'all ' + r.sent + ' places') + ' once approved.' : c.type + ' reposted to ' + r.sent + (r.sent === 1 ? ' place' : ' places') + (r.skipped ? ' (' + r.skipped + ' you are not a member of were skipped)' : '') + '.', r.pending ? '#FFB86B' : '#B8F36B'))

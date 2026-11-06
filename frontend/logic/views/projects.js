@@ -1,6 +1,7 @@
 import * as projectsW from '~/logic/server/widgets/projects.js';
 import { buildPlan } from '~/logic/views/projectPlan.js';
 import { CAT_COLORS, addDaysIso, boardTasks, openDeps, statusEntry, statusOf, stepOf, wfOf, defaultTaskDue, mayEditTask, mayMoveTask, milestoneTimeline, nextSprintName, normalizeProject, sprintDefaults, sprintTimeline, taskContext, todayIso as isoToday, validateMilestone, validateSprint, validateTask } from '~/logic/projects.js';
+import { askConfirm, confirmed } from '~/logic/confirm.js';
 
 // renderVals step: projects. Project > milestone > sprint > task. Progress is always calculated from the tasks.
 export function buildProjects(ctx) {
@@ -339,8 +340,7 @@ export function buildProjects(ctx) {
       canDeleteTask: can('projects', 'Delete tasks') && !!tt.id,
       deleteTask: () => {
         if (tp.tasks.some((x) => x.parent === tt.id || (x.deps || []).includes(tt.id))) { this.notify('Other tasks sit under this one or depend on it. Change them first.', '#FFB86B'); return; }
-        if (!window.confirm('Delete "' + tt.title + '"?')) return;
-        this.setState((st) => ({ taskOpen: null, taskEdit: null, taskMove: null, projects: st.projects.map((p) => (p.id === tp.id ? { ...p, tasks: p.tasks.filter((x) => x.id !== tt.id) } : p)) }));
+        askConfirm({ title: 'Delete this task?', body: '"' + tt.title + '" is deleted for good.' }).then((ok) => { if (ok) this.setState((st) => ({ taskOpen: null, taskEdit: null, taskMove: null, projects: st.projects.map((p) => (p.id === tp.id ? { ...p, tasks: p.tasks.filter((x) => x.id !== tt.id) } : p)) })); });
       },
       showChanges: can('projects', 'View change history'),
       changes: (tt.changes || []).filter((c) => !['col', 'assignee', 'secondary_id', 'kind'].includes(c.field) || c.field === 'kind').slice().reverse().map((c) => {

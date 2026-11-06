@@ -2,6 +2,7 @@ import { decorate, expandMacros, pageHtml, pageText, lineDiff } from '~/logic/pa
 import { boardDataUrl, boardSvg } from '~/logic/boardSvg.js';
 import { parseExport } from '~/logic/confluenceImport.js';
 import { CAT_COLORS, addDaysIso, criticalPath, doneAt, isoMs, openDeps, statusEntry, wfOf } from '~/logic/projects.js';
+import { askConfirm, confirmed } from '~/logic/confirm.js';
 
 // The open project's plan views: backlog or work breakdown, timeline, reports, documents and settings. Edits go into state.projects, and the
 // projects widget writes them to the server like every other project change.
@@ -208,14 +209,14 @@ export function buildPlan(ctx) {
       diff: shownDiff ? lineDiff(pageText(shownDiff.old), pageText(shownDiff.new)) : null, closeDiff: () => this.setState({ pageDiff: null }),
       files: (cur.files || []).map((f, i) => ({ key: i, name: f.name, open: () => (this.srv ? projectsW.openAttachment(this.srv, f.ref).catch((e) => this.notify(e.message || 'Could not open it.', '#FF9B8A')) : null), remove: () => updPage(cur.id, (y) => ({ ...y, files: y.files.filter((_, j) => j !== i) })) })),
       onFile: (e) => { const list = Array.from(e.target.files || []); e.target.value = ''; if (!this.srv) return; const id = cur.id; Promise.all(list.map((f) => projectsW.attach(this.srv, pid, f))).then((added) => { updPage(id, (y) => ({ ...y, files: (y.files || []).concat(added) })); this.notify(added.length + ' file' + (added.length === 1 ? '' : 's') + ' attached.', '#B8F36B'); }).catch((x) => this.notify(x.message || 'Could not attach the file.', '#FF9B8A')); },
-      comments: comments.map((c) => ({ quote: c.quote || '', resolved: !!c.resolved, toggleResolved: () => patch((x) => ({ ...x, comments: x.comments.map((y) => (y.id === c.id ? { ...y, resolved: !y.resolved } : y)) })), id: c.id, who: c.who, text: c.text, when: c.createdAt ? fmt(c.createdAt) : 'Just now', mine: c.who === me && may('Delete comments'), remove: () => patch((x) => ({ ...x, comments: x.comments.filter((y) => y.id !== c.id) })) })),
+      comments: comments.map((c) => ({ quote: c.quote || '', resolved: !!c.resolved, toggleResolved: () => patch((x) => ({ ...x, comments: x.comments.map((y) => (y.id === c.id ? { ...y, resolved: !y.resolved } : y)) })), id: c.id, who: c.who, text: c.text, when: c.createdAt ? fmt(c.createdAt) : 'Just now', mine: c.who === me && may('Delete comments'), remove: confirmed({ title: 'Delete this comment?', body: 'It is deleted for good.' }, () => patch((x) => ({ ...x, comments: x.comments.filter((y) => y.id !== c.id) }))) })),
       comment: s.pageComment || '', onComment: (e) => this.setState({ pageComment: e.target.value }),
       addComment: () => { const text = (this.state.pageComment || '').trim(); if (!text) return; const quote = this.state.pageQuote || ''; this.setState({ pageComment: '', pageQuote: '' }); patch((x) => ({ ...x, comments: (x.comments || []).concat([{ page: cur.id, who: me, text, quote, resolved: false }]) })); },
       exportDoc: () => download(safeName(cur.title) + '.doc', '<html><head><meta charset="utf-8"></head><body><h1>' + cur.title.replace(/</g, '&lt;') + '</h1>' + pageHtml(cur.body || '') + '</body></html>', 'application/msword'),
       exportHtml: () => download(safeName(cur.title) + '.html', '<!doctype html><meta charset="utf-8"><title>' + cur.title.replace(/</g, '&lt;') + '</title><h1>' + cur.title.replace(/</g, '&lt;') + '</h1>' + pageHtml(cur.body || ''), 'text/html'),
       copy: () => this.setState({ pageDraft: { pid, id: '', kind: cur.kind || '', paper: cur.paper || 'theme', title: 'Copy of ' + cur.title, body: cur.body || '', parent: cur.parent || '', labels: (cur.labels || []).join(', '), err: '' } }),
       edit: () => this.setState({ pageDraft: { pid, id: cur.id, kind: cur.kind || '', paper: cur.paper || 'theme', seed: cur.body || '', title: cur.title, body: cur.body || '', parent: cur.parent || '', labels: (cur.labels || []).join(', '), err: '' }, pageDiff: null }),
-      remove: () => { if (pages.some((x) => x.parent === cur.id)) { this.notify('Move or delete the pages under this one first.', '#FFB86B'); return; } this.setState({ pageOpen: null }); patch((x) => ({ ...x, pages: x.pages.filter((y) => y.id !== cur.id), comments: (x.comments || []).filter((y) => y.page !== cur.id) })); } } : null,
+      remove: () => { if (pages.some((x) => x.parent === cur.id)) { this.notify('Move or delete the pages under this one first.', '#FFB86B'); return; } askConfirm({ title: 'Delete this page?', body: '"' + cur.title + '" and its comments are deleted for good.' }).then((ok) => { if (!ok) return; this.setState({ pageOpen: null }); patch((x) => ({ ...x, pages: x.pages.filter((y) => y.id !== cur.id), comments: (x.comments || []).filter((y) => y.page !== cur.id) })); }); } } : null,
     papers: [{ v: 'theme', l: 'Follow dark or light mode' }, { v: 'white', l: 'Whiteboard' }, { v: 'graph', l: 'Graph paper' }, { v: 'dots', l: 'Dotted' }, { v: 'lined', l: 'Lined' }, { v: 'black', l: 'Blackboard' }],
     canImport: may('Import pages') && !!this.srv, importing: s.pageImport || { busy: false, text: '', problems: [] },
     importFile: (e) => {
@@ -265,10 +266,8 @@ export function buildPlan(ctx) {
       remove: () => change((l) => l.filter((_, j) => j !== i)) })),
     add: () => change((l) => { const n = l.slice(); n.splice(Math.max(0, n.length - 1), 0, { key: 's' + Date.now(), name: 'New status', cat: 1 }); return n; }),
     canDeleteProject: may('Delete project') && !!this.srv,
-    deleteProject: () => {
-      const typed = window.prompt('This deletes "' + p.name + '" with its tasks, sprints, milestones, documents and history, for good. Type the project code (' + p.code + ') to confirm.');
-      if (typed === null) return;
-      if (typed.trim() !== p.code) { this.notify('That code does not match, so nothing was deleted.', '#FFB86B'); return; }
+    deleteProject: async () => {
+      if (!await askConfirm({ title: 'Delete this project?', body: '"' + p.name + '" is deleted for good, with its tasks, sprints, milestones, documents and history. This cannot be undone.', action: 'Delete project', typed: p.code })) return;
       projectsW.removeProject(this, this.srv, pid).then(() => this.notify('Project deleted.', '#B8F36B')).catch((e) => this.notify(e.message || 'Could not delete the project.', '#FF9B8A'));
     },
     cancel: () => this.setState({ wfDraft: null }),

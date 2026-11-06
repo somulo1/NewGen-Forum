@@ -20,6 +20,7 @@
 </template>
 
 <script>
+import { askConfirm } from '~/logic/confirm.js';
 import { hubBindings } from '~/composables/useHub';
 const REVEAL = 88;
 export default {
@@ -40,7 +41,7 @@ export default {
       if (d.on) this.open = d.dx < -REVEAL / 2 ? r.id : '';
       this.drag = null;
     },
-    async remove(r) { await this.run(() => r.remove()); this.open = ''; },
+    async remove(r) { if (!await askConfirm({ title: 'Delete this call?', body: 'It is deleted from the history for good.' })) return; await this.run(() => r.remove()); this.open = ''; },
     async clearAllNow() { await this.run(() => this.callHistory.clearAll()); this.confirmAll = false; },
     async run(job) {
       if (this.busy) return;

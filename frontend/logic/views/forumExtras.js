@@ -1,6 +1,7 @@
 import { FORUM_ROLES, MY_FORUM_ROLE, MY_NAME, agoLabel, chatAllowed, defaultPolicy, policySummary, pollCount, pollTotal } from '~/logic/polls.js';
 import { richTextHtml } from '~/logic/richText.js';
 import * as forumsW from '~/logic/server/widgets/forums.js';
+import { askConfirm, confirmed } from '~/logic/confirm.js';
 
 // renderVals step: forumExtras. Polls, forum chat rules and private-chat privacy for whatever is open in the chat panel.
 export function buildForumExtras(ctx) {
@@ -68,7 +69,7 @@ export function buildForumExtras(ctx) {
             barStyle: 'height:100%;width:' + pct + '%;background:' + (mine ? '#B8F36B' : 'var(--k-3F524A,#3F524A)') + ';border-radius:3px;transition:width .6s ease',
             vote: () => this.votePoll(p.id, o.id) };
         }),
-        canControl: canManage || p.by === 'You', lockLabel: p.locked ? 'Allow voting' : 'Block voting', toggleLock: () => this.togglePollLock(p.id), remove: () => this.deletePoll(p.id),
+        canControl: canManage || p.by === 'You', lockLabel: p.locked ? 'Allow voting' : 'Block voting', toggleLock: () => this.togglePollLock(p.id), remove: confirmed({ title: 'Delete this poll?', body: 'The poll and its votes are deleted for good.' }, () => this.deletePoll(p.id)),
         blockedCount: p.blocked.length, menuOpen: s.pollMenu === p.id, toggleMenu: () => this.setState((st) => ({ pollMenu: st.pollMenu === p.id ? null : p.id })),
         voters: p.live ? [] : people.map((m) => { const b = p.blocked.indexOf(m.name) !== -1; return { name: m.name, initials: m.initials, color: m.color, blocked: b, label: b ? 'Unblock' : 'Block from voting', toggle: () => this.toggleBlockVoter(p.id, m.name) }; }) };
     }) };

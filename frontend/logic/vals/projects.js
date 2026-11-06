@@ -1,3 +1,4 @@
+import { askConfirm, confirmed } from '~/logic/confirm.js';
 import * as foldersW from '../server/widgets/folders.js';
 // Values and handlers the templates read through hubBindings: projects.
 export function valsProjects(ctx) {
@@ -16,7 +17,7 @@ export function valsProjects(ctx) {
     showFolderList: s.section === 'files' && !cur_f,
     showFolderView: s.section === 'files' && !!cur_f,
     closeFolder: set({ folder: null }),
-    deleteFile: (f) => { if (this.srv && f.fileId) foldersW.remove(this, this.srv, f).then(() => this.notify('File deleted.', '#B8F36B')).catch((e) => this.notify(e.message || 'Could not delete it.', '#FF9B8A')); },
+    deleteFile: async (f) => { if (!await askConfirm({ title: 'Delete this file?', body: '"' + (f.name || 'This file') + '" is deleted for good.' })) return; if (this.srv && f.fileId) foldersW.remove(this, this.srv, f).then(() => this.notify('File deleted.', '#B8F36B')).catch((e) => this.notify(e.message || 'Could not delete it.', '#FF9B8A')); },
     shareFile: (f) => { if (this.srv && f.fileId) foldersW.share(this.srv, f).then((r) => this.notify(r.pending ? 'Link sent for approval.' : 'Link copied (works for 24 hours).', '#B8F36B')).catch((e) => this.notify(e.message || 'Could not share it.', '#FF9B8A')); },
     openFile: (f) => { if (this.srv && f.fileId) foldersW.open(this.srv, f).catch((e) => this.notify(e.message || 'Could not open it.', '#FF9B8A')); },
     uploadToFolder: (e) => {

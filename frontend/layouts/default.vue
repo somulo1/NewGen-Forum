@@ -60,6 +60,7 @@
 <CallFeedback />
 
 <AlertDialog />
+<ConfirmCard />
 
 <EtrDocument />
 
