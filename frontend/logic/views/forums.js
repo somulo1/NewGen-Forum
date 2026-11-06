@@ -3,6 +3,7 @@ import { richTextHtml, mentionLinker } from '~/logic/richText.js';
 import { noteText, notesConnected, isMine, permLabel } from '~/logic/noteText.js';
 import * as forumsW from '~/logic/server/widgets/forums.js';
 import * as presenceW from '~/logic/server/presence.js';
+import { askConfirm } from '~/logic/confirm.js';
 // "Amy is typing…", "Amy and Ben are typing…", "3 people are typing…"
 const typingLine = (names) => (!names || !names.length ? '' : names.length === 1 ? names[0] + ' is typing…' : names.length === 2 ? names[0] + ' and ' + names[1] + ' are typing…' : names.length + ' people are typing…');
 // renderVals step: forums. Receives the names built by earlier steps and returns the ones later steps need.
@@ -81,7 +82,7 @@ export function buildForums(ctx) {
     openActions: (event) => { event.preventDefault(); this.setState({ messageMenu: key }); },
     closeActions: () => this.setState({ messageMenu: null }),
     deleteForMe: () => this.setState((st) => ({ hiddenChatMessages: { ...st.hiddenChatMessages, [key]: true }, messageMenu: null })),
-    deleteForEveryone: deleteForEveryone ? () => { deleteForEveryone(); this.setState({ messageMenu: null }); } : null
+    deleteForEveryone: deleteForEveryone ? () => { this.setState({ messageMenu: null }); askConfirm({ title: 'Delete this message?', body: 'It is deleted for everyone, for good.' }).then((ok) => { if (ok) deleteForEveryone(); }); } : null
   });
   const fStyle = (m) => (m.who === 'Sam' || m.who === 'You'
     ? { ...m, who: 'You', mine: true, rowStyle: 'display:flex;gap:10px;flex-direction:row-reverse', bubbleStyle: 'max-width:78%;min-width:0;padding:7px 12px;border-radius:14px 4px 14px 14px;background:var(--k-2C3D34,#2C3D34)' }

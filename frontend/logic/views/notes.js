@@ -3,6 +3,7 @@
 // and if the sender stops sharing (or removes the Notes widget from Home) they lose access until it is shared / added again.
 import { noteText as plain, notesConnected, isMine, permLabel } from '~/logic/noteText.js';
 import * as notesW from '~/logic/server/widgets/notes.js';
+import { askConfirm, confirmed } from '~/logic/confirm.js';
 
 export function buildNotes(ctx) {
   const { s, forumsData } = ctx;
@@ -18,7 +19,7 @@ export function buildNotes(ctx) {
   const card = (n) => { const b = bookOf(n.book); return { id: n.id, body: plain(n.body).slice(0, 400), kindTag: 'NOTE', meta: when(n.updated) + ' · ' + b.name, title: n.title || 'Untitled', preview: plain(n.body).split('\n').filter((l) => l.trim()).slice(0, 4).join('\n'), when: when(n.updated), pinned: n.pinned, color: b.color, bookName: b.name,
     open: () => set({ noteEdit: editOf(n) }),
     togglePin: () => this.setState((st) => ({ notes: st.notes.map((x) => (x.id === n.id ? { ...x, pinned: !x.pinned } : x)) })),
-    remove: () => { this.setState((st) => ({ notes: st.notes.filter((x) => x.id !== n.id), noteEdit: null })); flash('Note deleted.'); } }; };
+    remove: confirmed({ title: 'Delete this note?', body: 'It is deleted for good.' }, () => { this.setState((st) => ({ notes: st.notes.filter((x) => x.id !== n.id), noteEdit: null })); flash('Note deleted.'); }) }; };
   const sorted = (list) => list.slice().sort((a, b) => (b.pinned - a.pinned) || (b.updated - a.updated));
   const books = s.noteBooks.map((b) => { const list = sorted(mine.filter((n) => n.book === b.id)); return { id: b.id, name: b.name, color: b.color, count: list.length, updated: list.length ? when(Math.max(...list.map((n) => n.updated))) : 'empty', samples: list.slice(0, 3).map((n, i) => ({ title: n.title || firstLine(n.body), kind: 'NOTE', color: b.color, h: ['88px', '72px', '80px'][i] })), open: () => set({ noteBook: b.id, noteQ: '' }) }; });
   const cur = s.noteBook ? s.noteBooks.find((b) => b.id === s.noteBook) : null;
@@ -82,7 +83,7 @@ export function buildNotes(ctx) {
       else { const id = this.srv ? notesW.newId() : 'n' + Date.now(); this.setState((st) => ({ notes: [{ id, book: ed.book, title, body: ed.body, updated: Date.now(), pinned: false }].concat(st.notes), noteEdit: { id, book: ed.book, title, body: ed.body, orig: { title, body: ed.body, book: ed.book }, err: '' } })); }
       flash(incoming ? 'Saved. ' + cur0.owner + ' will see your changes.' : 'Saved.');
     },
-    remove: ed.id && !incoming ? () => { this.setState((st) => ({ notes: st.notes.filter((x) => x.id !== ed.id), added: Object.fromEntries(Object.entries(st.added).map(([k, v]) => [k, v.filter((m) => ![].concat(m.file || []).some((f) => f.noteId === ed.id))])), noteEdit: null })); flash('Note deleted.'); } : null,
+    remove: ed.id && !incoming ? async () => { if (!await askConfirm({ title: 'Delete this note?', body: 'It is deleted for good.' })) return; this.setState((st) => ({ notes: st.notes.filter((x) => x.id !== ed.id), added: Object.fromEntries(Object.entries(st.added).map(([k, v]) => [k, v.filter((m) => ![].concat(m.file || []).some((f) => f.noteId === ed.id))])), noteEdit: null })); flash('Note deleted.'); } : null,
     disconnect: incoming ? () => { if (this.srv) { notesW.leave(this, this.srv, cur0).then(() => { set({ noteEdit: null }); flash('Removed from your files. ' + cur0.owner + ' has to share it again.'); }).catch((e) => flash(e.message || 'Could not remove it.')); return; } this.setState((st) => ({ notes: st.notes.filter((x) => x.id !== ed.id), noteEdit: null })); flash('Removed from your files. ' + cur0.owner + ' has to share it again.'); } : null,
     canShare: !!cur0 && !incoming,
     share: { open: !!sp && !!cur0 && !incoming, toggle: () => set({ noteShare: sp ? null : { kind: 'person', to: '', perm: 'view', err: '' } }),
@@ -97,7 +98,7 @@ export function buildNotes(ctx) {
   const noteCard = (n, extra) => ({ id: n.id, title: n.title || 'Untitled', preview: plain(n.body).split('\n').filter((l) => l.trim()).slice(0, 5).join('\n'), when: when(n.updated), color: '#FFD66B',
     open: () => (connected ? set({ section: 'notes', noteBook: null, noteEdit: editOf(n) }) : this.notify('Notes is disconnected. Add the My notes widget to Home to open notes.', '#FFB86B')), ...extra });
   const sharedIn = sorted(s.notes.filter((n) => !isMine(n))).map((n) => noteCard(n, { by: n.owner, access: n.access, accessLabel: permLabel(n.access), canEdit: n.access === 'edit',
-    remove: () => { if (this.srv) { notesW.leave(this, this.srv, n).then(() => flash('Removed from your files. ' + n.owner + ' has to share it again.')).catch((e) => flash(e.message || 'Could not remove it.')); return; } this.setState((st) => ({ notes: st.notes.filter((x) => x.id !== n.id), noteEdit: st.noteEdit && st.noteEdit.id === n.id ? null : st.noteEdit })); flash('Removed from your files. ' + n.owner + ' has to share it again.'); } }));
+    remove: async () => { if (!await askConfirm({ title: 'Remove from your files?', body: n.owner + ' has to share it again for you to get it back.', action: 'Remove' })) return; if (this.srv) { notesW.leave(this, this.srv, n).then(() => flash('Removed from your files. ' + n.owner + ' has to share it again.')).catch((e) => flash(e.message || 'Could not remove it.')); return; } this.setState((st) => ({ notes: st.notes.filter((x) => x.id !== n.id), noteEdit: st.noteEdit && st.noteEdit.id === n.id ? null : st.noteEdit })); flash('Removed from your files. ' + n.owner + ' has to share it again.'); } }));
   const sharedOut = mine.flatMap((n) => (n.shares || []).map((sh) => noteCard(n, { shareId: sh.id, to: shareLabel(sh), accessLabel: permLabel(sh.perm), live: connected, stop: () => stopShare(n, sh) })));
   const sharedNotes = { in: sharedIn, out: sharedOut, hasIn: sharedIn.length > 0, hasOut: sharedOut.length > 0, connected, disconnected: !connected };
 

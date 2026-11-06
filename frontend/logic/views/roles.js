@@ -1,5 +1,6 @@
 import { shareUrl } from '~/logic/shareOut.js';
 import * as approvalsW from '~/logic/server/widgets/approvals.js';
+import { askConfirm, confirmed } from '~/logic/confirm.js';
 // renderVals step: roles. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildRoles(ctx) {
   const { badge, flowById, ini, modEnabled, modInfo, pColor, rKey, rightOf, rightsDef, roleDefs, s, set, tabS, toggleRight } = ctx;
@@ -133,10 +134,10 @@ export function buildRoles(ctx) {
     }));
     const picked = g.rows.filter(({ rq }) => sel[rq.uid]).map(({ rq }) => rq);
     const all = g.rows.map(({ rq }) => rq);
-    const run = (approve) => {
+    const run = async (approve) => {
       if (!this.srv) return;
       const targets = picked.length ? picked : all;   // nothing ticked: all of them
-      if (!approve && !picked.length && typeof window !== 'undefined' && !window.confirm('Reject all ' + all.length + ' rights in this request?')) return;
+      if (!approve && !picked.length && !await askConfirm({ title: 'Reject this request?', body: 'All ' + all.length + ' rights in this request are rejected.', action: 'Reject all' })) return;
       const comment = ((s.apNote || {})[g.key] || '').trim();
       this.setState((st) => ({ apBusy: { ...(st.apBusy || {}), [g.key]: true } }));
       approvalsW.decideMany(this, this.srv, targets, approve, comment).then((failed) => {
@@ -167,9 +168,9 @@ export function buildRoles(ctx) {
         toggle: () => this.setState((st) => ({ apSel: { ...(st.apSel || {}), [sk]: !(st.apSel || {})[sk] } })) };
     });
     const picked = its.filter((i) => i.checked);
-    const run = (approve) => {
+    const run = async (approve) => {
       if (!this.srv) return;
-      if (!approve && !picked.length && typeof window !== 'undefined' && !window.confirm('Reject all ' + its.length + ' rights in ' + rq.id + '?')) return;
+      if (!approve && !picked.length && !await askConfirm({ title: 'Reject this request?', body: 'All ' + its.length + ' rights in ' + rq.id + ' are rejected.', action: 'Reject all' })) return;
       const comment = ((s.apNote || {})[key] || '').trim();
       this.setState((st) => ({ apBusy: { ...(st.apBusy || {}), [key]: true } }));
       approvalsW.decideItems(this, this.srv, rq, approve, comment, picked.map((i) => i.itemId)).then(() => {

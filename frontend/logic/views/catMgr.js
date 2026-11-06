@@ -1,5 +1,6 @@
 import * as orgW from '~/logic/server/widgets/org.js';
 import { catsFor } from '~/logic/ticketRouting.js';
+import { askConfirm, confirmed } from '~/logic/confirm.js';
 
 // renderVals step: catMgr. Ticket categories for whatever is open: a unit dashboard, or the ticket desk.
 export function buildCatMgr(ctx) {
@@ -41,6 +42,6 @@ export function buildCatMgr(ctx) {
     usingDefaults: !own.length && !working, startOwn: () => this.startOwnCats(key, defaultCats),
     note: own.length ? 'Tickets sent here can only use these categories. Each has its own TAT and priority, and its members take new tickets automatically until you delink them.' : 'No categories of its own yet, so the organization defaults apply. Create your own to set TATs, priorities and who always takes them.',
     rows: list.map((c) => ({ id: c.id, name: c.name, tat: c.tat, prio: c.prio, custom: c.custom,       summary: c.members.slice(0, 3).map(person), extra: Math.max(0, c.members.length - 3), count: c.members.length, manage: () => this.openCatEdit(c.id, c.members),
-      setTat: (e) => { const v = Number(e.target.value); if (v > 0) this.setCatField(key, c.id, { tat: v }); }, setPrio: (e) => this.setCatField(key, c.id, { prio: e.target.value }), remove: () => this.removeCat(key, c.id) })),
+      setTat: (e) => { const v = Number(e.target.value); if (v > 0) this.setCatField(key, c.id, { tat: v }); }, setPrio: (e) => this.setCatField(key, c.id, { prio: e.target.value }), remove: confirmed({ title: 'Delete this category?', body: '"' + (c.name || '') + '" is deleted.' }, () => this.removeCat(key, c.id)) })),
     draft: { name: d.name, tat: d.tat, prio: d.prio, err: d.err, hasErr: !!d.err, onName: (e) => this.setCatDraft({ name: e.target.value }), onTat: (e) => this.setCatDraft({ tat: e.target.value }), onPrio: (e) => this.setCatDraft({ prio: e.target.value }), add: () => this.addUnitCat(key) } } };
 }

@@ -1,5 +1,6 @@
 import * as calendarW from '~/logic/server/widgets/calendar.js';
 import { clockNow, stateOf, canJoin as joinable, untilNextChange } from '~/logic/schedule.js';
+import { askConfirm, confirmed } from '~/logic/confirm.js';
 // renderVals step: calendar. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildCalendar(ctx) {
   const { C, chip, corePeople, dowOf, fmtDay, has, isoAdd, personOf, s, set, todayISO } = ctx;
@@ -71,7 +72,7 @@ export function buildCalendar(ctx) {
       canClose: isMine(e) && !ended(e, s.calSel), closeLabel: e.type === 'Task' ? 'Mark done' : 'Close',
       closeIt: () => { calendarW.update(this, this.srv, e, { closedDates: (e.closedDates || []).concat([s.calSel]) }).catch((x) => this.notify(x.message, '#FF9B8A')); this.notify('"' + e.title + '" ' + (e.type === 'Task' ? 'marked done.' : 'closed.'), '#7CC4FF'); },
       canRemove: isMine(e) && !ended(e, s.calSel), removeLabel: 'Cancel',
-      remove: () => { calendarW.remove(this, this.srv, e).catch((x) => this.notify(x.message, '#FF9B8A')); this.notify(e.type === 'Task' ? '"' + e.title + '" marked done.' : '"' + e.title + '" cancelled. Participants were told.', '#7CC4FF'); }
+      remove: async () => { if (e.type !== 'Task' && !await askConfirm({ title: 'Cancel this event?', body: '"' + e.title + '" is cancelled and participants are told.', action: 'Cancel event' })) return; calendarW.remove(this, this.srv, e).catch((x) => this.notify(x.message, '#FF9B8A')); this.notify(e.type === 'Task' ? '"' + e.title + '" marked done.' : '"' + e.title + '" cancelled. Participants were told.', '#7CC4FF'); }
     }))
   };
   cal.noAgenda = cal.agenda.length === 0;

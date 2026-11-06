@@ -2,6 +2,7 @@ import * as forumsW from '~/logic/server/widgets/forums.js';
 import { shareUrl } from '~/logic/shareOut.js';
 import * as wallW from '~/logic/server/widgets/wall.js';
 import { richTextHtml, mentionLinker, hashtagsOf, linkHashtags } from '~/logic/richText.js';
+import { askConfirm, confirmed } from '~/logic/confirm.js';
 // renderVals step: wall. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildWall(ctx) {
   const { can, flowById, forumsData, makeRequest, openPersonName, s } = ctx;
@@ -69,7 +70,7 @@ export function buildWall(ctx) {
         // "Delete own posts" lets someone delete what they wrote, "Delete others' posts" what anyone wrote. It leaves the wall at once and the
         // server erases it for good, with its pictures and videos, so the space is free straight away.
         ...((mineP && (!this.srv || can('wall', 'Delete own posts'))) || (this.srv && can('wall', "Delete others' posts"))
-          ? [{ label: 'Delete post', danger: true, run: () => { this.setState(closeMenu); wallW.remove(this, this.srv, p.id).then(() => this.notify(mineP ? 'Your post was deleted.' : 'The post was deleted.', '#9DB0A6')).catch((e) => this.notify(e.message || 'The post could not be deleted.', '#FF9B8A')); } }]
+          ? [{ label: 'Delete post', danger: true, run: () => { this.setState(closeMenu); askConfirm({ title: 'Delete this post?', body: 'It is deleted for good, with its comments, likes, pictures and videos.', action: 'Delete post' }).then((ok) => (ok ? wallW.remove(this, this.srv, p.id) : Promise.reject({ cancelled: true }))).then(() => this.notify(mineP ? 'Your post was deleted.' : 'The post was deleted.', '#9DB0A6')).catch((e) => { if (!e || !e.cancelled) this.notify((e && e.message) || 'The post could not be deleted.', '#FF9B8A'); }); } }]
           : []),
         ...(mineP ? [] : [{ label: 'Report post', danger: true, run: () => { this.setState(closeMenu); this.notify('Thanks. The post was reported to the moderators.', '#FFB86B'); } }])
       ],

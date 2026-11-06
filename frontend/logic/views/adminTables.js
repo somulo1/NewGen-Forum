@@ -1,5 +1,6 @@
 import * as rolesW from '~/logic/server/widgets/roles.js';
 import { LEVEL_LABEL, catsFor, levelsOf } from '~/logic/ticketRouting.js';
+import { askConfirm, confirmed } from '~/logic/confirm.js';
 
 // renderVals step: adminTables. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildAdminTables(ctx) {
@@ -100,7 +101,7 @@ export function buildAdminTables(ctx) {
     rows: visibleRoles.map((r) => { const mods = Object.keys(rightsDef).filter(modEnabled); let on = 0, tot = 0; mods.forEach((m) => rightsDef[m].forEach((x) => { tot++; if (rightOf(r.id, m, x)) on++; })); const pc = tot ? Math.round(on / tot * 100) : 0;
       return { tint: r.id === roleCur.id ? '#B8F36B' : '', cells: [C.t(r.name + (r.isDefault ? ' · default' : '') + (r.locked ? ' · owner' : ''), { strong: true, sub: r.desc, fv: r.name }), C.t(roleScope[r.id] || 'Whole organization'), C.t(String(r.count)), C.bar(pc, pc > 80 ? '#FFB86B' : '#B8F36B', on + ' / ' + tot),
         C.a([{ label: 'Edit rights', kind: 'primary', run: () => this.setState({ roleSel: r.id, rolesTab: 'rights' }) }, { label: 'Members', run: () => this.setState({ roleSel: r.id, rolesTab: 'members' }) }]
-          .concat(!r.locked && !r.count ? [{ label: 'Delete', kind: 'danger', run: () => rolesW.deleteRole(this, srv, r.id).then(() => this.notify('Role deleted.', '#B8F36B')).catch(fail) }] : []))] }; }) };
+          .concat(!r.locked && !r.count ? [{ label: 'Delete', kind: 'danger', run: confirmed({ title: 'Delete this role?', body: 'The role "' + r.name + '" is deleted.' }, () => rolesW.deleteRole(this, srv, r.id).then(() => this.notify('Role deleted.', '#B8F36B')).catch(fail)) }] : []))] }; }) };
   // Rights grouped by what they let a person do: see a page, create, edit, delete, export, approve a level, manage.
   const KIND_LABEL = { view: 'See / open', create: 'Create / send', edit: 'Edit / update', delete: 'Delete', export: 'Export', approve: 'Approve', manage: 'Manage', other: 'Other' };
   const kindOptions = ((s.catalog && s.catalog.kinds) || Object.keys(KIND_LABEL)).map((k) => ({ v: k, l: KIND_LABEL[k] || k }));
@@ -114,7 +115,7 @@ export function buildAdminTables(ctx) {
     const meta = (rightMeta[m] || {})[x] || {};
     rightsRows.push({ cells: [C.t(modInfo[m][0], { fv: modInfo[m][0] }), C.t(meta.label || x, { strong: true }), C.t(KIND_LABEL[meta.kind] || 'Other', { fv: KIND_LABEL[meta.kind] || 'Other' }),
       C.chk(mk ? mk.allowed : rightOf(roleCur.id, m, x), () => toggleRight(roleCur.id, m, x), { disabled: !!roleCur.locked || !roleCur.id, pending: pend || !!mk, label: roleCur.name + ': ' + modInfo[m][0] + ' · ' + x }),
-      C.a(meta.builtin === false ? [{ label: 'Remove right', kind: 'danger', run: () => rolesW.removeRight(this, srv, m, x).then(() => this.notify('Right removed.', '#B8F36B')).catch(fail) }] : [])] });
+      C.a(meta.builtin === false ? [{ label: 'Remove right', kind: 'danger', run: confirmed({ title: 'Remove this right?', body: '"' + x + '" is removed from every role that has it.', action: 'Remove right' }, () => rolesW.removeRight(this, srv, m, x).then(() => this.notify('Right removed.', '#B8F36B')).catch(fail)) }] : [])] });
   }));
   // the rights marked for this role, waiting to be sent as one approval
   const marked = Object.entries(s.rightsMarks || {}).filter(([, v]) => v.role === roleCur.id);
@@ -153,14 +154,14 @@ export function buildAdminTables(ctx) {
       return { cells: [C.p(n, { sub: d ? d.title : (s.meInfo || {}).title || '', fv: n }),
         C.t(d ? d.dept : (s.meInfo || {}).dept || '', {}),
         C.sel(roleCur.id, roleOpts, (e) => assignRole(n, e.target.value), { fv: roleCur.name, label: 'Role for ' + n, minWidth: '170px', disabled: mine }),
-        C.a([{ label: 'Remove from role', kind: 'danger', disabled: mine, run: () => assignRole(n, '') }])] };
+        C.a([{ label: 'Remove from role', kind: 'danger', disabled: mine, run: confirmed({ title: 'Remove from this role?', body: n + ' loses this role and the rights it gives.', action: 'Remove' }, () => assignRole(n, '')) }])] };
     }) };
   const nr = s.newRole || { name: '', desc: '', err: '' };
   const setNr = (patch) => this.setState((st) => ({ newRole: { ...st.newRole, ...patch, err: '' } }));
   const roleBar = { name: roleCur.name, desc: roleCur.desc, scope: roleScope[roleCur.id] || 'Whole organization', count: roleMembers.length, options: visibleRoles.map((r) => ({ v: r.id, l: r.name })), value: roleCur.id, addOpts: roleAddOpts, locked: !!roleCur.locked,
     hasRole: !!roleCur.id, isDefault: !!roleCur.isDefault, canDelete: !!roleCur.id && !roleCur.locked && !roleCur.count,
     toggleDefault: () => rolesW.updateRole(this, srv, roleCur.id, { default: !roleCur.isDefault }).then(() => this.notify(roleCur.isDefault ? 'New people no longer get a role automatically.' : roleCur.name + ' is now the role new people get.', '#B8F36B')).catch(fail),
-    remove: () => rolesW.deleteRole(this, srv, roleCur.id).then(() => this.notify('Role deleted.', '#B8F36B')).catch(fail),
+    remove: confirmed({ title: 'Delete this role?', body: 'The role "' + (roleCur && roleCur.name) + '" is deleted.' }, () => rolesW.deleteRole(this, srv, roleCur.id).then(() => this.notify('Role deleted.', '#B8F36B')).catch(fail)),
     editName: nr.editing ? nr.editName : roleCur.name, editDesc: nr.editing ? nr.editDesc : roleCur.desc, editing: !!nr.editing,
     startEdit: () => this.setState((st) => ({ newRole: { ...st.newRole, editing: true, editName: roleCur.name, editDesc: roleCur.desc } })),
     onEditName: (e) => setNr({ editName: e.target.value }), onEditDesc: (e) => setNr({ editDesc: e.target.value }),
