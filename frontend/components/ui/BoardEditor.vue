@@ -1,6 +1,8 @@
 <!-- Diagrams and whiteboards: pick shapes from the library, drag between their connection points, bend connectors by their handles. -->
 <template>
-<div ref="root" :class="['bd', { 'bd-full': full }]" tabindex="0" @keydown="onKey">
+<div ref="anchor" style="min-width: 0">
+<Teleport to="body" :disabled="!full">
+<div ref="root" :class="['bd', { 'bd-full': full }, full && lightMode ? 'hub-light' : '']" tabindex="0" @keydown="onKey" @keyup="onKeyUp">
 <div class="bd-top" role="toolbar" aria-label="Diagram tools">
 <button v-for="t in tools" :key="t.k" type="button" class="bd-btn" :aria-pressed="tool === t.k" :class="{ on: tool === t.k }" @click="tool = t.k">{{ t.l }}</button>
 <span class="bd-sep"></span>
@@ -9,10 +11,12 @@
 <button type="button" class="bd-btn" :disabled="!hasSel" title="Ctrl+L" @click="toggleLock">{{ allLocked ? 'Unlock' : 'Lock' }}</button>
 <button type="button" class="bd-btn" :disabled="!selShapes.length" @click="order(1)">To front</button><button type="button" class="bd-btn" :disabled="!selShapes.length" @click="order(-1)">To back</button>
 <span class="bd-sep"></span>
-<label class="bd-check"><input type="checkbox" v-model="grid">Grid</label>
-<button type="button" class="bd-btn" aria-label="Zoom out" @click="setZoom(zoom - 0.1)">−</button><span class="bd-mut">{{ Math.round(zoom * 100) }}%</span><button type="button" class="bd-btn" aria-label="Zoom in" @click="setZoom(zoom + 0.1)">+</button>
+<label class="bd-check">Background<select class="bd-sel" :value="b.bg" @change="setBg($event.target.value)"><option v-for="o in backgrounds" :key="o.v" :value="o.v">{{ o.l }}</option></select></label>
+<label class="bd-check"><input type="checkbox" v-model="grid">Snap</label>
+<span class="bd-zoom" role="group" aria-label="Zoom"><button type="button" class="bd-btn" title="Zoom out (Ctrl and -)" aria-label="Zoom out" @click="setZoom(zoom - 0.1)">−</button><input type="range" min="20" max="300" step="10" aria-label="Zoom level" :value="Math.round(zoom * 100)" @input="setZoom($event.target.value / 100)"><button type="button" class="bd-btn" title="Zoom in (Ctrl and +)" aria-label="Zoom in" @click="setZoom(zoom + 0.1)">+</button><button type="button" class="bd-btn" title="Back to 100% (Ctrl and 0)" @click="setZoom(1)">{{ Math.round(zoom * 100) }}%</button><button type="button" class="bd-btn" title="Show the whole drawing" @click="fit">Fit</button></span>
 <button type="button" class="bd-btn" @click="exportSvg">SVG</button><button type="button" class="bd-btn" @click="exportPng">PNG</button>
-<button type="button" class="bd-btn" @click="full = !full">{{ full ? 'Exit full screen' : 'Full screen' }}</button>
+<button type="button" class="bd-btn" @click="libOpen = !libOpen">{{ libOpen ? 'Hide shapes' : 'Show shapes' }}</button>
+<button type="button" :class="['bd-btn', { 'bd-focus': !full }]" :title="full ? 'Back to the page (Esc)' : 'Draw on the whole screen'" @click="toggleFull">{{ full ? 'Exit focus' : 'Focus mode' }}</button>
 </div>
 
 <div v-if="hasSel && allLocked" class="bd-props bd-mut">Locked. Press Unlock to change it.</div>
@@ -38,23 +42,25 @@
 <div v-else class="bd-props bd-mut">{{ hint }}</div>
 
 <div class="bd-body">
-<div class="bd-lib" aria-label="Shape library">
-<details v-for="(g, gi) in groups" :key="g.group" open>
+<div v-if="libOpen" class="bd-lib" aria-label="Shape library">
+<label class="bd-find"><span class="bd-sr">Find a shape</span><input type="search" v-model="find" placeholder="Find a shape"></label>
+<span v-if="!shownGroups.length" class="bd-mut" style="padding: 6px">No shape has that name.</span>
+<details v-for="g in shownGroups" :key="g.group" open>
 <summary>{{ g.group }}</summary>
 <div class="bd-lib-grid">
 <button v-for="x in g.shapes" :key="x.key" type="button" :class="{ on: placing === x.key }" :title="x.label" :aria-label="x.label" draggable="true" @dragstart="dragNew = x.key" @click="placing = placing === x.key ? null : x.key">
-<svg :viewBox="`-10 -10 ${x.w + 20} ${x.h + (x.textBelow ? 30 : 20)}`" width="36" height="28" aria-hidden="true"><path :d="x.d(x.w, x.h)" :fill="x.noBox || x.invisibleBox ? 'none' : '#DCEBFA'" :stroke="x.noBox ? 'currentColor' : x.invisibleBox || x.noBorder ? 'none' : '#555'" stroke-width="4"/><path v-if="x.more" :d="x.more(x.w, x.h)" fill="none" stroke="#555" stroke-width="4"/></svg>
+<svg :viewBox="`-10 -10 ${x.w + 20} ${x.h + (x.textBelow ? 30 : 20)}`" width="38" height="28" aria-hidden="true"><path :d="x.d(x.w, x.h)" class="bd-ico" :fill="x.noBox || x.invisibleBox ? 'none' : undefined" :stroke="x.invisibleBox || x.noBorder ? 'none' : undefined" :stroke-dasharray="x.noBox ? '10 8' : undefined" stroke-width="5"/><path v-if="x.more" :d="x.more(x.w, x.h)" fill="none" stroke="currentColor" stroke-width="5"/></svg>
 <span>{{ x.label }}</span>
 </button>
 </div>
 </details>
 </div>
 
-<div ref="scroller" class="bd-canvas" @dragover.prevent @drop.prevent="onDrop">
+<div ref="scroller" class="bd-canvas" :style="`background: ${paperColor}`" @dragover.prevent @drop.prevent="onDrop" @wheel="onWheel">
 <div :style="`position: relative; width: ${W * zoom}px; height: ${H * zoom}px`">
 <svg ref="svg" :width="W * zoom" :height="H * zoom" :viewBox="`0 0 ${W} ${H}`" role="img" aria-label="Diagram canvas" :style="`display: block; touch-action: none; user-select: none; cursor: ${cursor}`" @pointerdown="down" @pointermove="move" @pointerup="up" @pointercancel="up" @dblclick="dbl">
-<defs><pattern id="bd-grid" width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="#D5DAD7"/></pattern></defs>
-<rect v-if="grid" :width="W" :height="H" fill="url(#bd-grid)" pointer-events="none"/>
+<defs v-html="pattern"></defs>
+<rect v-if="pattern" :width="W" :height="H" fill="url(#bd-bg)" pointer-events="none"/>
 <polyline v-for="p in b.pen" :key="p.id" :data-pen="p.id" fill="none" :stroke="p.color" :stroke-width="sel.has(p.id) ? 4 : 2" :points="p.pts.map((q) => q.join(',')).join(' ')"/>
 <g v-for="s in drawn" :key="s.id" :data-shape="s.id" :transform="`translate(${s.x} ${s.y})`" style="cursor: move">
 <path :d="s.g.d" :fill="s.g.fill" :stroke="s.g.stroke" stroke-width="1.5"/>
@@ -65,8 +71,8 @@
 <g v-for="l in routed" :key="l.id">
 <path :d="l.r.d" fill="none" stroke="transparent" stroke-width="14" :data-line="l.id" style="cursor: pointer"/>
 <path :d="l.r.d" fill="none" :stroke="sel.has(l.id) ? '#1F6FB5' : l.r.color" :stroke-width="l.r.width" :stroke-dasharray="l.r.dash" pointer-events="none"/>
-<path v-for="(g, gi) in l.r.glyphs" :key="gi" :d="g.d" :stroke="sel.has(l.id) ? '#1F6FB5' : l.r.color" stroke-width="1.5" :fill="g.fill === 'line' ? (sel.has(l.id) ? '#1F6FB5' : l.r.color) : g.fill === 'white' ? '#fff' : 'none'" pointer-events="none"/>
-<text v-if="l.r.label" :x="l.r.mid.x" :y="l.r.mid.y" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#111" stroke="#fff" stroke-width="4" paint-order="stroke" pointer-events="none">{{ l.r.label }}</text>
+<path v-for="(g, gi) in l.r.glyphs" :key="gi" :d="g.d" :stroke="sel.has(l.id) ? '#1F6FB5' : l.r.color" stroke-width="1.5" :fill="g.fill === 'line' ? (sel.has(l.id) ? '#1F6FB5' : l.r.color) : g.fill === 'white' ? paperColor : 'none'" pointer-events="none"/>
+<text v-if="l.r.label" :x="l.r.mid.x" :y="l.r.mid.y" text-anchor="middle" dominant-baseline="middle" font-size="12" :fill="b.bg === 'black' ? '#E8EFEA' : '#111'" :stroke="paperColor" stroke-width="4" paint-order="stroke" pointer-events="none">{{ l.r.label }}</text>
 </g>
 <!-- handles of the selected connector -->
 <template v-if="selLine && selRoute && !selLine.locked">
@@ -93,10 +99,12 @@
 </div>
 </div>
 </div>
+</Teleport>
+</div>
 </template>
 
 <script>
-import { SHAPES, SHAPE_GROUPS, boardSvg, drawShape, parseBoard, portsOf, routeLine } from '~/logic/boardSvg.js';
+import { BOARD_BACKGROUNDS, SHAPES, SHAPE_GROUPS, boardBox, boardInk, boardPaper, boardPattern, boardSvg, drawShape, parseBoard, portsOf, routeLine } from '~/logic/boardSvg.js';
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 const END_TYPES = [{ v: 'none', l: 'None' }, { v: 'arrow', l: 'Arrow' }, { v: 'open', l: 'Open arrow' }, { v: 'triangle', l: 'Hollow triangle' }, { v: 'diamond', l: 'Filled diamond' }, { v: 'odiamond', l: 'Hollow diamond' }, { v: 'circle', l: 'Circle' }, { v: 'one', l: 'One (crow’s foot)' }, { v: 'many', l: 'Many (crow’s foot)' }, { v: 'zeromany', l: 'Zero or many' }];
@@ -107,27 +115,36 @@ export default {
   props: { modelValue: { type: String, default: '' } },
   emits: ['update:modelValue'],
   data() {
-    return { b: parseBoard(this.modelValue), W: 2400, H: 1600, zoom: 1, grid: true, full: false, tool: 'select', placing: null, dragNew: null, sel: new Set(), hover: null, snap: null, drag: null, editing: null, past: [], future: [], clip: null, groups: SHAPE_GROUPS, endTypes: END_TYPES, tools: [{ k: 'select', l: 'Select' }, { k: 'line', l: 'Line' }, { k: 'pen', l: 'Pen' }], penColor: '#333333' };
+    return { b: parseBoard(this.modelValue), libOpen: true, find: '', lightMode: false, panning: false, zoom: 1, grid: true, full: false, tool: 'select', placing: null, dragNew: null, sel: new Set(), hover: null, snap: null, drag: null, editing: null, past: [], future: [], clip: null, backgrounds: BOARD_BACKGROUNDS, groups: SHAPE_GROUPS, endTypes: END_TYPES, tools: [{ k: 'select', l: 'Select' }, { k: 'line', l: 'Line' }, { k: 'pen', l: 'Pen' }, { k: 'hand', l: 'Move view' }], penColor: '#333333' };
   },
   computed: {
+    box() { return boardBox(this.b); },
+    // the sheet grows with the drawing, so there is always room to keep going
+    W() { return Math.max(2400, this.box.x + this.box.w + 800); },
+    H() { return Math.max(1600, this.box.y + this.box.h + 600); },
+    shownGroups() { const q = this.find.trim().toLowerCase(); return q ? this.groups.map((g) => ({ ...g, shapes: g.shapes.filter((x) => x.label.toLowerCase().includes(q)) })).filter((g) => g.shapes.length) : this.groups; },
+    pattern() { return boardPattern(this.b.bg, 'bd-bg'); },
+    paperColor() { return boardPaper(this.b.bg); },
     byId() { return new Map(this.b.shapes.map((s) => [s.id, s])); },
     hasSel() { return this.sel.size > 0; },
     selected() { return [...this.b.shapes, ...this.b.lines, ...this.b.pen].filter((x) => this.sel.has(x.id)); },
     allLocked() { const l = this.selected; return l.length > 0 && l.every((x) => x.locked); },
     selShapes() { return this.b.shapes.filter((s) => this.sel.has(s.id)); },
     selLine() { return this.sel.size === 1 ? this.b.lines.find((l) => this.sel.has(l.id)) || null : null; },
-    selRoute() { return this.selLine ? routeLine(this.selLine, this.byId) : null; },
-    drawn() { return this.b.shapes.map((s) => ({ ...s, g: drawShape(s) })); },
-    routed() { return this.b.lines.filter((l) => (!l.from || this.byId.has(l.from)) && (!l.to || this.byId.has(l.to))).map((l) => ({ id: l.id, r: routeLine(l, this.byId) })); },
+    selRoute() { return this.selLine ? routeLine(this.selLine, this.byId, boardInk(this.b.bg)) : null; },
+    drawn() { return this.b.shapes.map((s) => ({ ...s, g: drawShape(s, this.b.bg) })); },
+    routed() { return this.b.lines.filter((l) => (!l.from || this.byId.has(l.from)) && (!l.to || this.byId.has(l.to))).map((l) => ({ id: l.id, r: routeLine(l, this.byId, boardInk(this.b.bg)) })); },
     resizeHandles() { const s = this.selShapes[0]; return HANDLES.map(([k, fx, fy, c]) => ({ k, c, x: s.x + fx * s.w, y: s.y + fy * s.h })); },
     linking() { return this.tool === 'line' || (this.drag && (this.drag.type === 'newline' || this.drag.type === 'end')); },
     portShapes() {
       const l = this.linking ? this.b.shapes : this.b.shapes.filter((s) => s.id === this.hover || (this.sel.size === 1 && this.sel.has(s.id)));
       return this.drag && this.drag.type !== 'newline' && this.drag.type !== 'end' ? [] : l.map((s) => ({ id: s.id, ports: portsOf(s) }));
     },
-    cursor() { return this.placing ? 'copy' : this.tool === 'pen' ? 'crosshair' : this.tool === 'line' ? 'crosshair' : 'default'; },
+    cursor() { if (this.panning || this.tool === 'hand') return this.drag && this.drag.type === 'pan' ? 'grabbing' : 'grab'; return this.placing ? 'copy' : this.tool === 'pen' ? 'crosshair' : this.tool === 'line' ? 'crosshair' : 'default'; },
     hint() { if (this.placing) return 'Click the canvas to place ' + SHAPES[this.placing].label.toLowerCase() + '.'; if (this.tool === 'line') return 'Drag from one shape’s point to another’s, or draw a free line.'; if (this.tool === 'pen') return 'Draw freely.'; return 'Pick a shape, or drag one in. Hover a shape and drag from a green point to connect. Double-click to write.'; }
   },
+  created() { this.touches = new Map(); this.pinch = null; },
+  beforeUnmount() { if (this.full) document.body.style.overflow = ''; },
   methods: {
     pos(e) { const r = this.$refs.svg.getBoundingClientRect(); return [(e.clientX - r.left) / this.zoom, (e.clientY - r.top) / this.zoom]; },
     g(v) { return this.grid ? Math.round(v / 10) * 10 : Math.round(v); },
@@ -135,7 +152,33 @@ export default {
     commit() { this.$emit('update:modelValue', JSON.stringify(this.b)); },
     undo() { this.future.push(JSON.stringify(this.b)); this.b = JSON.parse(this.past.pop()); this.sel = new Set(); this.commit(); },
     redo() { this.past.push(JSON.stringify(this.b)); this.b = JSON.parse(this.future.pop()); this.sel = new Set(); this.commit(); },
-    setZoom(z) { this.zoom = Math.min(3, Math.max(0.3, Math.round(z * 10) / 10)); },
+    // keeps the point under (cx, cy) in the same place on screen
+    setZoom(z, cx, cy) {
+      const el = this.$refs.scroller, old = this.zoom;
+      const next = Math.min(3, Math.max(0.2, Math.round(z * 100) / 100));
+      const px = cx === undefined ? el.clientWidth / 2 : cx, py = cy === undefined ? el.clientHeight / 2 : cy;
+      const wx = (el.scrollLeft + px) / old, wy = (el.scrollTop + py) / old;
+      this.zoom = next;
+      this.$nextTick(() => { el.scrollLeft = wx * next - px; el.scrollTop = wy * next - py; });
+    },
+    fit() {
+      const el = this.$refs.scroller, b = this.box;
+      const z = Math.min(1.5, Math.max(0.2, Math.min(el.clientWidth / b.w, el.clientHeight / b.h)));
+      this.zoom = Math.floor(z * 100) / 100;
+      this.$nextTick(() => { el.scrollLeft = b.x * this.zoom; el.scrollTop = b.y * this.zoom; });
+    },
+    onWheel(e) {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      const r = this.$refs.scroller.getBoundingClientRect();
+      this.setZoom(this.zoom * (e.deltaY < 0 ? 1.1 : 0.9), e.clientX - r.left, e.clientY - r.top);
+    },
+    toggleFull() {
+      if (!this.full) this.lightMode = !!(this.$refs.anchor.closest('.hub-light') || document.querySelector('.hub-light'));
+      this.full = !this.full;
+      document.body.style.overflow = this.full ? 'hidden' : '';
+      this.$nextTick(() => this.$refs.root.focus({ preventScroll: true }));
+    },
     setShape(k, v) { if (!this.pendingEdit) { this.snapshot(); this.pendingEdit = true; setTimeout(() => { this.pendingEdit = false; }, 800); } this.selShapes.filter((s) => !s.locked).forEach((s) => { s[k] = v; }); if (this.editing && k === 'text') this.editing.text = v; this.commit(); },
     setLine(k, v) { if (!this.pendingEdit) { this.snapshot(); this.pendingEdit = true; setTimeout(() => { this.pendingEdit = false; }, 800); } this.selLine[k] = v; this.commit(); },
     reverse() { this.snapshot(); const l = this.selLine; [l.from, l.to] = [l.to, l.from]; [l.fromPort, l.toPort] = [l.toPort, l.fromPort]; [l.x1, l.x2] = [l.x2, l.x1]; [l.y1, l.y2] = [l.y2, l.y1]; l.pts = (l.pts || []).slice().reverse(); this.commit(); },
@@ -156,6 +199,7 @@ export default {
       this.b.lines = this.b.lines.filter((l) => l.locked || (!on.has(l.id) && !on.has(l.from) && !on.has(l.to)));
       this.sel = new Set(); this.commit();
     },
+    setBg(v) { this.snapshot(); this.b.bg = v; this.commit(); },
     toggleLock() { this.snapshot(); const v = !this.allLocked; this.selected.forEach((x) => { x.locked = v; }); this.commit(); },
     copyOut() { const on = this.sel; this.clip = JSON.stringify({ shapes: this.b.shapes.filter((s) => on.has(s.id)), lines: this.b.lines.filter((l) => on.has(l.from) && on.has(l.to)) }); },
     paste() {
@@ -180,6 +224,10 @@ export default {
       this.$refs.root.focus({ preventScroll: true });
       const [x, y] = this.pos(e), t = e.target, ds = t.dataset || {};
       this.$refs.svg.setPointerCapture(e.pointerId);
+      // two fingers: pinch to zoom
+      this.touches.set(e.pointerId, [e.clientX, e.clientY]);
+      if (this.touches.size === 2) { const [a, b] = [...this.touches.values()]; this.pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), z: this.zoom }; this.drag = null; return; }
+      if (this.tool === 'hand' || this.panning || e.button === 1) { const el = this.$refs.scroller; this.drag = { type: 'pan', cx: e.clientX, cy: e.clientY, sl: el.scrollLeft, st: el.scrollTop }; return; }
       if (this.placing) { this.addShape(this.placing, x, y); this.placing = null; return; }
       if (this.tool === 'pen') { this.snapshot(); const p = { id: uid(), color: this.penColor, pts: [[Math.round(x), Math.round(y)]] }; this.b.pen.push(p); this.drag = { type: 'pen', p }; return; }
       if (ds.port) { const [sid, i] = ds.port.split(':'); this.drag = { type: 'newline', from: sid, fromPort: Number(i), x, y }; return; }
@@ -202,6 +250,9 @@ export default {
       this.drag = { type: 'marquee', x0: x, y0: y, x, y };
     },
     move(e) {
+      if (this.touches.has(e.pointerId)) this.touches.set(e.pointerId, [e.clientX, e.clientY]);
+      if (this.pinch && this.touches.size === 2) { const [a, b] = [...this.touches.values()]; const r = this.$refs.scroller.getBoundingClientRect(); this.setZoom(this.pinch.z * (Math.hypot(a[0] - b[0], a[1] - b[1]) / this.pinch.d), (a[0] + b[0]) / 2 - r.left, (a[1] + b[1]) / 2 - r.top); return; }
+      if (this.drag && this.drag.type === 'pan') { const el = this.$refs.scroller; el.scrollLeft = this.drag.sl - (e.clientX - this.drag.cx); el.scrollTop = this.drag.st - (e.clientY - this.drag.cy); return; }
       const [x, y] = this.pos(e), d = this.drag;
       if (!d) { const s = this.shapeAt(x, y); this.hover = s ? s.id : null; return; }
       if (d.type === 'pen') { d.p.pts.push([Math.round(x), Math.round(y)]); return; }
@@ -237,10 +288,12 @@ export default {
         if (this.snap) { l[set[0]] = this.snap.shape; l[set[1]] = this.snap.port; } else { l[set[0]] = null; l[set[1]] = null; l[set[2]] = Math.round(x); l[set[3]] = Math.round(y); }
       }
     },
-    up() {
+    up(e) {
+      if (e) this.touches.delete(e.pointerId);
+      if (this.touches.size < 2) this.pinch = null;
       const d = this.drag;
       this.drag = null;
-      if (!d) return;
+      if (!d || d.type === 'pan') return;
       if (d.type === 'newline') {
         const t = this.snap; this.snap = null;
         const far = d.from || Math.hypot(d.x - d.x1, d.y - d.y1) > 8;
@@ -279,6 +332,11 @@ export default {
     onKey(e) {
       if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
       const c = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
+      if (k === ' ') { e.preventDefault(); this.panning = true; return; }
+      if (c && (k === '=' || k === '+')) { e.preventDefault(); this.setZoom(this.zoom + 0.1); return; }
+      if (c && k === '-') { e.preventDefault(); this.setZoom(this.zoom - 0.1); return; }
+      if (c && k === '0') { e.preventDefault(); this.setZoom(1); return; }
+      if (k === 'escape' && this.full && !this.hasSel && !this.placing && this.tool === 'select') { this.toggleFull(); return; }
       if ((k === 'delete' || k === 'backspace') && this.hasSel) { e.preventDefault(); this.removeSel(); return; }
       if (c && k === 'z') { e.preventDefault(); if (e.shiftKey ? this.future.length : this.past.length) (e.shiftKey ? this.redo : this.undo)(); return; }
       if (c && k === 'y') { e.preventDefault(); if (this.future.length) this.redo(); return; }
@@ -291,6 +349,7 @@ export default {
       const step = { arrowleft: [-1, 0], arrowright: [1, 0], arrowup: [0, -1], arrowdown: [0, 1] }[k];
       if (step && this.selShapes.length) { e.preventDefault(); this.snapshot(); const n = e.shiftKey ? 20 : 2; this.selShapes.filter((s) => !s.locked).forEach((s) => { s.x += step[0] * n; s.y += step[1] * n; }); this.commit(); }
     },
+    onKeyUp(e) { if (e.key === ' ') this.panning = false; },
     save(name, url) { const a = document.createElement('a'); a.href = url; a.download = name; a.click(); },
     exportSvg() { const u = URL.createObjectURL(new Blob([boardSvg(JSON.stringify(this.b))], { type: 'image/svg+xml' })); this.save('diagram.svg', u); setTimeout(() => URL.revokeObjectURL(u), 2000); },
     exportPng() {
@@ -304,7 +363,11 @@ export default {
 
 <style>
 .bd { display: flex; flex-direction: column; gap: 8px; min-width: 0; outline: none; color: var(--k-E8EFEA,#E8EFEA); }
-.bd-full { position: fixed; inset: 0; z-index: 2000; padding: 12px; background: var(--k-0F1714,#0F1714); }
+.bd-full { position: fixed; inset: 0; z-index: 3000; box-sizing: border-box; padding: 10px; background: var(--k-0F1714,#0F1714); }
+.bd-zoom { display: inline-flex; align-items: center; gap: 4px; }
+.bd-zoom input[type=range] { width: 90px; accent-color: var(--k-B8F36B,#B8F36B); }
+.bd-btn.bd-focus { background: #B8F36B; border-color: #B8F36B; color: #0F1714; font-weight: 600; }
+.bd-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .bd-top, .bd-props { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; }
 .bd-props { min-height: 40px; padding: 6px 10px; border-radius: 10px; background: var(--k-121B17,#121B17); font-size: 12px; }
 .bd-props label { display: inline-flex !important; flex-direction: row !important; align-items: center !important; width: auto !important; flex: none !important; gap: 4px !important; color: var(--k-9DB0A6,#9DB0A6); }
@@ -315,17 +378,22 @@ export default {
 .bd-btn { min-height: 30px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; font: inherit; font-size: 12px; }
 .bd-btn.on { background: var(--k-22302A,#22302A); border-color: var(--k-B8F36B,#B8F36B); }
 .bd-btn:disabled { opacity: .4; cursor: default; }
+.bd-sel { height: 30px; padding: 0 6px; border-radius: 8px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-16201C,#16201C); color: var(--k-E8EFEA,#E8EFEA); font: inherit; font-size: 12px; }
 .bd-sep { width: 1px; height: 20px; margin: 0 2px; background: var(--k-2A3832,#2A3832); }
 .bd-mut { font-size: 12px; color: var(--k-9DB0A6,#9DB0A6); }
 .bd-check { display: inline-flex !important; flex-direction: row !important; align-items: center !important; width: auto !important; flex: none !important; gap: 4px !important; font-size: 12px; }
 .bd-body { display: flex; flex-wrap: wrap; gap: 8px; min-width: 0; }
-.bd-lib { flex: 1 1 190px; max-width: 100%; max-height: 72vh; overflow-y: auto; padding: 6px; border-radius: 10px; background: var(--k-121B17,#121B17); scrollbar-width: thin; }
-.bd-lib summary { cursor: pointer; padding: 4px; font-size: 12px; font-weight: 700; }
-.bd-lib-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 4px; }
-.bd-lib-grid button { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 5px 2px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: grab; font: inherit; font-size: 10px; line-height: 1.15; }
-.bd-lib-grid button:hover, .bd-lib-grid button.on { border-color: var(--k-B8F36B,#B8F36B); background: var(--k-22302A,#22302A); }
-.bd-canvas { flex: 999 1 400px; min-width: 0; height: 72vh; overflow: auto; border: 1px solid var(--k-2A3832,#2A3832); border-radius: 10px; background: #fff; scrollbar-width: thin; }
-.bd-full .bd-body { flex: 1; min-height: 0; }
+.bd-lib { flex: 0 1 236px; max-width: 100%; max-height: 72vh; box-sizing: border-box; overflow-y: auto; padding: 8px; border-radius: 10px; border: 1px solid var(--k-24322C,#24322C); background: var(--k-121B17,#121B17); scrollbar-width: thin; }
+.bd-find { display: block !important; margin-bottom: 6px; }
+.bd-find input { width: 100%; height: 32px; box-sizing: border-box; padding: 0 10px; border-radius: 8px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-16201C,#16201C); color: var(--k-E8EFEA,#E8EFEA); font: inherit; font-size: 12px; }
+.bd-lib summary { position: sticky; top: -8px; z-index: 1; cursor: pointer; padding: 6px 4px; font-size: 12px; font-weight: 700; color: var(--k-C9D6CF,#C9D6CF); background: var(--k-121B17,#121B17); }
+.bd-lib-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding-bottom: 6px; }
+.bd-lib-grid button { display: flex; flex-direction: column; align-items: center; gap: 3px; min-height: 58px; padding: 6px 2px; border: 1px solid var(--k-24322C,#24322C); border-radius: 8px; background: var(--k-16201C,#16201C); color: var(--k-E8EFEA,#E8EFEA); cursor: grab; font: inherit; font-size: 10px; line-height: 1.15; text-align: center; }
+.bd-lib-grid button:hover { border-color: var(--k-9DB0A6,#9DB0A6); background: var(--k-22302A,#22302A); }
+.bd-lib-grid button.on { border: 2px solid var(--k-B8F36B,#B8F36B); background: var(--k-22302A,#22302A); }
+.bd-ico { fill: #7CC4FF40; stroke: currentColor; }
+.bd-canvas { flex: 999 1 400px; min-width: 0; height: 72vh; overflow: auto; border: 1px solid var(--k-2A3832,#2A3832); border-radius: 10px; scrollbar-width: thin; }
+.bd-full .bd-body { flex: 1; min-height: 0; flex-wrap: nowrap; }
 .bd-full .bd-lib, .bd-full .bd-canvas { height: 100%; max-height: none; }
 .bd-canvas::-webkit-scrollbar, .bd-lib::-webkit-scrollbar { display: block; width: 8px; height: 8px; }
 .bd-canvas::-webkit-scrollbar-thumb, .bd-lib::-webkit-scrollbar-thumb { background: #9aa; border-radius: 4px; }
