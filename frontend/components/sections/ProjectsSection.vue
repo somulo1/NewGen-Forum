@@ -30,7 +30,7 @@
 <UserAvatar :name="member.name" :initials="member.initials" :color="member.color" :size="26" :font-size="9"/>
 {{ member.name }}
 </label>
-<span v-if="!projectForm.teamResults.length" style="display: block; padding: 12px; color: var(--k-9DB0A6,#9DB0A6); font-size: 13px">No people match that search.</span>
+<span v-if="!projectForm.teamResults.length" style="display: block; padding: 12px; color: var(--k-9DB0A6,#9DB0A6); font-size: 13px">{{ projectForm.loadingPeople ? 'Loading who can join…' : 'Only people whose role or own rights allow projects appear here.' }}</span>
 </div>
 <span style="font-size: 11px; color: var(--k-9DB0A6,#9DB0A6)">Select multiple people. The project manager is always included.</span>
 </div>

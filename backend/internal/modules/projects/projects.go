@@ -124,6 +124,9 @@ func (s *Service) Create(ctx context.Context, p *tenant.Principal, in CreateIn) 
 		if kind != "project" || creator != p.Account {
 			return httpx.Bad("Create the project conversation first.")
 		}
+		if err := checkTeam(ctx, tx, in.Conversation); err != nil {
+			return err
+		}
 		var n int
 		if err := tx.QueryRow(ctx, `insert into hub.counters (org_id, name, value) values ($1,'project',1) on conflict (org_id, name) do update set value = hub.counters.value + 1 returning value`, p.Org).Scan(&n); err != nil {
 			return err

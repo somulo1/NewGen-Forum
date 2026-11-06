@@ -130,6 +130,9 @@ export async function removeProject(logic, srv, pid) {
   srv.applyingProjects = false;
 }
 
+// who may be chosen for a project team (their role or own rights allow projects)
+export const eligible = (srv) => srv.request('GET', '/projects/eligible').then((r) => r.people || []);
+
 export async function closeSprint(logic, srv, pid, sprint) {
   await srv.request('POST', `/projects/${pid}/sprints/${sprint}/close`, {});
   await reload(logic, srv, pid);
