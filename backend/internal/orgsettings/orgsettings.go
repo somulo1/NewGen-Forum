@@ -37,6 +37,7 @@ type Blocks struct {
 	BlockPrivateChats bool `json:"blockPrivateChats"`
 	BlockPrivateVoice bool `json:"blockPrivateVoice"`
 	BlockPrivateVideo bool `json:"blockPrivateVideo"`
+	BlockForumChats   bool `json:"blockForumChats"`
 	BlockForumVoice   bool `json:"blockForumVoice"`
 	BlockForumVideo   bool `json:"blockForumVideo"`
 	BlockWall         bool `json:"blockWall"`

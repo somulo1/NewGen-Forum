@@ -20,6 +20,7 @@ export function buildForumExtras(ctx) {
   const chatGate = isDM
     ? (priv.blocked ? { allowed: false, reason: 'You blocked ' + curDm.with + '. Unblock them to send messages.' } : { allowed: true, reason: '' })
     : liveF ? forumsW.mayPost(liveF.rules, this.srv.me.person, this.srv.me.role, roleNm) : chatAllowed(policy, MY_NAME, myRole);
+  if (!isDM && (s.orgBlocks || {}).blockForumChats) { chatGate.allowed = false; chatGate.reason = 'Forum chats are switched off for this organization.'; }
   this._chatGate = chatGate;
 
   const canManage = !isDM && (myRole === 'Admin' || myRole === 'Moderator' || can('forums', 'Moderate'));

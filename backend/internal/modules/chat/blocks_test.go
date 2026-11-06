@@ -65,6 +65,28 @@ func TestOrganizationBlocksAndDeletingOthersPosts(t *testing.T) {
 	if c, _ := e.Do("GET", "/conversations/"+dm+"/messages", nil, a.Access); c != 403 {
 		t.Fatalf("read a private chat: %d", c)
 	}
+	forum := e.MustDo(201, "POST", "/conversations", map[string]any{"kind": "forum", "name": "Team", "members": []string{a.Person}, "keys": o.WrapFor(e, key, 1, o.Person, a.Person)}, ownerU.Access)["id"].(string)
+	say := func() int {
+		id := uuid.Must(uuid.NewV7()).String()
+		c, _ := e.Do("POST", "/conversations/"+forum+"/messages", map[string]any{"id": id, "epoch": 1, "device": o.DevID, "type": "text", "envelope": o.Seal(org, forum, id, 1, key, "hi")}, ownerU.Access)
+		return c
+	}
+	if c := say(); c != 201 {
+		t.Fatalf("forum message before the block: %d", c)
+	}
+	sec["blockForumChats"] = true
+	e.MustDo(204, "PUT", "/settings/security", sec, ownerU.Access)
+	if c := say(); c != 403 {
+		t.Fatalf("forum message while blocked: %d", c)
+	}
+	if n := len(e.MustDo(200, "GET", "/conversations/"+forum+"/messages", nil, a.Access)["messages"].([]any)); n != 0 {
+		t.Fatalf("a blocked forum showed %d messages", n)
+	}
+	sec["blockForumChats"] = false
+	e.MustDo(204, "PUT", "/settings/security", sec, ownerU.Access)
+	if n := len(e.MustDo(200, "GET", "/conversations/"+forum+"/messages", nil, a.Access)["messages"].([]any)); n != 1 {
+		t.Fatalf("messages after unblocking: %d", n)
+	}
 	// unblocking brings everything back
 	for _, k := range []string{"blockWall", "blockPrivateChats"} {
 		sec[k] = false

@@ -86,7 +86,7 @@ export function buildForums(ctx) {
   const fStyle = (m) => (m.who === 'Sam' || m.who === 'You'
     ? { ...m, who: 'You', mine: true, rowStyle: 'display:flex;gap:10px;flex-direction:row-reverse', bubbleStyle: 'max-width:78%;min-width:0;padding:7px 12px;border-radius:14px 4px 14px 14px;background:var(--k-2C3D34,#2C3D34)' }
     : { ...m, mine: false, rowStyle: 'display:flex;gap:10px', bubbleStyle: 'flex:1;min-width:0;padding:7px 12px;border-radius:4px 12px 12px 12px;background:var(--k-1A2520,#1A2520)' });
-  const forumMessages = baseMsgs.slice().reverse().concat(addedHere).map((message) => {
+  const forumMessages = ((s.orgBlocks || {}).blockForumChats ? [] : baseMsgs.slice().reverse().concat(addedHere)).map((message) => {
     const key = 'forum:' + cur.id + ':' + message.id;
     const source = message.source;
     const canDeleteForEveryone = (message.who === 'Sam' || message.who === 'You') && (addedSource.includes(source) || !!source.mid);
