@@ -316,6 +316,7 @@ func TestDeletingFromAProject(t *testing.T) {
 	for _, m := range []*testkit.Member{o, amy} {
 		m.Register(e)
 	}
+	e.MustDo(204, "PUT", "/approvals/flows/f2", map[string]any{"levels": 0}, ownerU.Access)
 	key, _ := e2ee.NewConversationKey()
 	conv := e.MustDo(201, "POST", "/conversations", map[string]any{"kind": "project", "name": "D", "members": []string{amy.Person}, "keys": o.WrapFor(e, key, 1, o.Person, amy.Person)}, ownerU.Access)["id"].(string)
 	e.MustDo(201, "POST", "/projects", map[string]any{"conversation": conv, "start": "2026-01-01", "due": "2027-01-01"}, ownerU.Access)
@@ -348,6 +349,50 @@ func TestDeletingFromAProject(t *testing.T) {
 	}
 	if c := del(task); c != 204 {
 		t.Fatalf("task: %d", c)
+	}
+	// every deletion answers to its own right
+	e.MustDo(204, "PUT", "/approvals/flows/f8", map[string]any{"levels": 0}, ownerU.Access)
+	for right, coll := range map[string]string{"Delete milestones": "milestone", "Delete sprints": "sprint", "Delete tasks": "task", "Delete pages": "page"} {
+		item := id()
+		put(item, coll, map[string]any{"title": "X", "name": "X", "iso": "2026-06-01", "start": "2026-02-01", "end": "2026-02-14"})
+		e.MustDo(200, "PUT", "/people/"+amy.Person+"/rights", map[string]any{"module": "projects", "right": right, "allowed": false}, ownerU.Access)
+		if c, _ := e.Do("DELETE", "/projects/"+conv+"/items/"+item, nil, amy.Access); c != 403 {
+			t.Fatalf("deleted a %s without %q: %d", coll, right, c)
+		}
+		e.MustDo(200, "PUT", "/people/"+amy.Person+"/rights", map[string]any{"module": "projects", "right": right, "allowed": true}, ownerU.Access)
+		if c, _ := e.Do("DELETE", "/projects/"+conv+"/items/"+item, nil, amy.Access); c != 204 {
+			t.Fatalf("could not delete a %s with %q: %d", coll, right, c)
+		}
+	}
+	off := func(right string) {
+		e.MustDo(200, "PUT", "/people/"+amy.Person+"/rights", map[string]any{"module": "projects", "right": right, "allowed": false}, ownerU.Access)
+	}
+	// a risk, an attachment and a workflow status each answer to their own right
+	risk := id()
+	put(risk, "risk", map[string]any{"text": "R", "level": "Low"})
+	off("Delete risks")
+	if c, _ := e.Do("DELETE", "/projects/"+conv+"/items/"+risk, nil, amy.Access); c != 403 {
+		t.Fatalf("deleted a risk: %d", c)
+	}
+	act := id()
+	e.MustDo(200, "PUT", "/projects/"+conv+"/items/"+act, map[string]any{"collection": "activity", "data": map[string]any{"text": "A"}}, amy.Access)
+	if c, _ := e.Do("DELETE", "/projects/"+conv+"/items/"+act, nil, amy.Access); c != 403 {
+		t.Fatalf("deleted activity without the right: %d", c)
+	}
+	pg := id()
+	file := map[string]any{"name": "f.pdf", "ref": "x"}
+	put(pg, "page", map[string]any{"title": "Files", "body": "", "files": []any{file}})
+	off("Remove attachments")
+	if c, _ := e.Do("PUT", "/projects/"+conv+"/items/"+pg, map[string]any{"collection": "page", "data": map[string]any{"title": "Files", "body": "", "files": []any{}}}, amy.Access); c != 403 {
+		t.Fatalf("removed an attachment: %d", c)
+	}
+	if c, _ := e.Do("PUT", "/projects/"+conv+"/items/"+pg, map[string]any{"collection": "page", "data": map[string]any{"title": "Edited", "body": "new", "files": []any{}}}, amy.Access); c != 403 {
+		t.Fatalf("removed an attachment inside an edit: %d", c)
+	}
+	off("Remove workflow statuses")
+	short := []map[string]any{{"key": "todo", "name": "To do", "cat": 0}, {"key": "doing", "name": "In progress", "cat": 1}, {"key": "done", "name": "Done", "cat": 3}}
+	if c, _ := e.Do("PATCH", "/projects/"+conv, map[string]any{"workflow": short}, amy.Access); c != 403 {
+		t.Fatalf("removed a status: %d", c)
 	}
 	if c, _ := e.Do("DELETE", "/projects/"+conv, nil, amy.Access); c != 403 {
 		t.Fatalf("deleted a project without the right: %d", c)

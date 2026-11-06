@@ -122,7 +122,14 @@
     "Export pages",
     "Import pages",
     "Restrict pages",
-    "Delete project"
+    "Delete project",
+    "Delete milestones",
+    "Delete sprints",
+    "Delete comments",
+    "Remove attachments",
+    "Remove workflow statuses",
+    "Delete risks",
+    "Delete activity"
    ]
   },
   {

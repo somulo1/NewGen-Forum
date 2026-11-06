@@ -132,7 +132,13 @@
     "Lock pages",
     "Restrict pages",
     "Comment on pages",
-    "Attach to pages"
+    "Attach to pages",
+    "Delete milestones",
+    "Delete sprints",
+    "Delete comments",
+    "Remove attachments",
+    "Remove workflow statuses",
+    "Delete risks"
    ],
    "files": [
     "View",
@@ -297,7 +303,13 @@
     "Lock pages",
     "Restrict pages",
     "Comment on pages",
-    "Attach to pages"
+    "Attach to pages",
+    "Delete milestones",
+    "Delete sprints",
+    "Delete comments",
+    "Remove attachments",
+    "Remove workflow statuses",
+    "Delete risks"
    ],
    "files": [
     "View",
@@ -413,7 +425,9 @@
     "Edit pages",
     "Delete pages",
     "Comment on pages",
-    "Attach to pages"
+    "Attach to pages",
+    "Delete comments",
+    "Remove attachments"
    ],
    "files": [
     "View",
@@ -516,7 +530,9 @@
     "Edit pages",
     "Delete pages",
     "Comment on pages",
-    "Attach to pages"
+    "Attach to pages",
+    "Delete comments",
+    "Remove attachments"
    ],
    "files": [
     "View",
@@ -613,7 +629,9 @@
     "Edit pages",
     "Delete pages",
     "Comment on pages",
-    "Attach to pages"
+    "Attach to pages",
+    "Delete comments",
+    "Remove attachments"
    ],
    "files": [
     "View",
@@ -712,7 +730,9 @@
     "Edit pages",
     "Delete pages",
     "Comment on pages",
-    "Attach to pages"
+    "Attach to pages",
+    "Delete comments",
+    "Remove attachments"
    ],
    "files": [
     "View",
@@ -817,7 +837,9 @@
     "Edit pages",
     "Delete pages",
     "Comment on pages",
-    "Attach to pages"
+    "Attach to pages",
+    "Delete comments",
+    "Remove attachments"
    ],
    "files": [
     "View",
@@ -921,7 +943,9 @@
     "Edit pages",
     "Delete pages",
     "Comment on pages",
-    "Attach to pages"
+    "Attach to pages",
+    "Delete comments",
+    "Remove attachments"
    ],
    "files": [
     "View",
