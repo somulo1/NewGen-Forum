@@ -255,6 +255,9 @@ func (s *Service) Create(ctx context.Context, p *tenant.Principal, in CreateIn) 
 	var out *Conversation
 	existed := false
 	err = s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
+		if err := s.checkBlocked(ctx, tx, p.Org, in.Kind); err != nil {
+			return err
+		}
 		if rule.module != "" {
 			if err := authz.Require(ctx, tx, p.Person, rule.module, rule.right); err != nil {
 				return err

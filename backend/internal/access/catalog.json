@@ -44,7 +44,9 @@
     "Approve level 2",
     "Approve level 3",
     "Edit own posts",
-    "Delete own posts"
+    "Delete own posts",
+    "Hide posts",
+    "Delete others' posts"
    ]
   },
   {
@@ -129,7 +131,9 @@
     "Remove attachments",
     "Remove workflow statuses",
     "Delete risks",
-    "Delete activity"
+    "Delete activity",
+    "View own projects",
+    "View all projects"
    ]
   },
   {

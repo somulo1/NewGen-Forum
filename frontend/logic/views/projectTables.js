@@ -1,7 +1,8 @@
 import * as projectsW from '~/logic/server/widgets/projects.js';
 // renderVals step: projectTables. Milestone and sprint tables for the open project, built from the project's own tasks.
 export function buildProjectTables(ctx) {
-  const { C, can, canEditT, canMs, cur_p, pj, projTools, s } = ctx;
+  const { C, can: canBase, canEditT, canMs, cur_p, pj, projTools, s } = ctx;
+  const can = (m, r) => canBase(m, r) && !(cur_p && cur_p.viewOnly);
   if (!cur_p) return {};
   const { tl, spl, openMsClose, openMsReopen, openSprint, openTaskForm, longDate, shortDate } = projTools;
   const msColor = { done: '#B8F36B', ready: '#B8F36B', late: '#FF9B8A', next: '#FFB86B', upcoming: '#9DB0A6' };

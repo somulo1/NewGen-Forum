@@ -12,6 +12,7 @@ export async function load(logic, srv) {
   const patch = {};
   PERSONAL.forEach((k) => { if (prefs[k] !== undefined) patch[k] = prefs[k]; });
   try { patch.wcfg = await srv.request('GET', '/settings/widgets'); } catch (e) { /* not allowed to see it */ }
+  try { patch.orgBlocks = await srv.request('GET', '/settings/blocks'); } catch (e) { /* the server still refuses what is blocked */ }
   patch.widgetsReady = true;   // the home page may now decide which widgets to show
   logic.setState(patch);
   watch(logic, srv);
@@ -41,6 +42,7 @@ function watch(logic, srv) {
   // what the organization has set, as the server holds it (also after someone else changed it)
   async function reloadCfg() {
     try { const w = await srv.request('GET', '/settings/widgets'); saved.wcfg = JSON.stringify(w); logic.setState({ wcfg: w }); } catch (e) { /* keeps what it has */ }
+    try { logic.setState({ orgBlocks: await srv.request('GET', '/settings/blocks') }); } catch (e) { /* keeps what it has */ }
   }
   // another administrator switched widgets on or off: it shows here now, without a reload
   if (srv.rt) srv.rt.on('widgets.changed', (ev) => { if (ev && ev.actor === srv.me.person) return; reloadCfg(); });

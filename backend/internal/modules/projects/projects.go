@@ -51,6 +51,10 @@ type Project struct {
 	CreatedAt time.Time       `json:"created_at"`
 	Method    string          `json:"method"` // agile | waterfall | hybrid
 	Workflow  json.RawMessage `json:"workflow"`
+	Member    bool            `json:"member"`         // on the team; otherwise the person only looks at it (View all projects)
+	Name      string          `json:"name,omitempty"` // for those not on the team, who cannot open its conversation
+	About     string          `json:"about,omitempty"`
+	TeamNames []string        `json:"team_names,omitempty"`
 	Imported  bool            `json:"plan_imported"` // false: an older encrypted plan a member's device still has to move over
 }
 
@@ -179,19 +183,40 @@ func (s *Service) Mine(ctx context.Context, p *tenant.Principal) ([]*Project, er
 		if err := authz.Require(ctx, tx, p.Person, "projects", "View"); err != nil {
 			return err
 		}
-		rs, err := tx.Query(ctx, sel+` where exists (select 1 from hub.conversation_members m where m.conversation_id = p.conversation_id and m.account_id=$1 and m.left_at is null) order by p.created_at desc`, p.Account)
+		// View all projects: every project, to look at. View own projects: the ones on the person's teams.
+		all, err := authz.Can(ctx, tx, p.Person, "projects", "View all projects")
 		if err != nil {
 			return err
 		}
-		defer rs.Close()
+		own, err := authz.Can(ctx, tx, p.Person, "projects", "View own projects")
+		if err != nil {
+			return err
+		}
+		if !all && !own {
+			return nil
+		}
+		q := sel + ` where exists (select 1 from hub.conversation_members m where m.conversation_id = p.conversation_id and m.account_id=$1 and m.left_at is null) order by p.created_at desc`
+		args := []any{p.Account}
+		if all {
+			q, args = sel+` order by p.created_at desc`, nil
+		}
+		rs, err := tx.Query(ctx, q, args...)
+		if err != nil {
+			return err
+		}
 		for rs.Next() {
 			x, err := scan(rs)
 			if err != nil {
+				rs.Close()
 				return err
 			}
 			out = append(out, x)
 		}
-		return rs.Err()
+		rs.Close()
+		if err := rs.Err(); err != nil {
+			return err
+		}
+		return s.fillViewers(ctx, tx, p, out)
 	})
 	return out, err
 }
@@ -230,6 +255,14 @@ func (s *Service) Update(ctx context.Context, p *tenant.Principal, id uuid.UUID,
 		}
 		if err != nil {
 			return err
+		}
+		// looking at a project (View all projects) gives no say in it
+		var onTeam bool
+		if err := tx.QueryRow(ctx, `select exists (select 1 from hub.conversation_members where conversation_id=$1 and account_id=$2 and left_at is null)`, id, p.Account).Scan(&onTeam); err != nil {
+			return err
+		}
+		if !onTeam {
+			return httpx.ErrNotFound
 		}
 		onlyPlan := in.Status == nil && in.Due == nil && in.Budget == nil && in.Sync == nil && in.Owner == nil
 		if cur.Owner != p.Person && !onlyPlan {

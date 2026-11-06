@@ -15,6 +15,7 @@ import (
 
 	"hub/internal/access"
 	"hub/internal/authz"
+	"hub/internal/crypto"
 	"hub/internal/httpx"
 	"hub/internal/integrity"
 	"hub/internal/notify"
@@ -85,8 +86,21 @@ func (s *Service) member(ctx context.Context, tx pgx.Tx, p *tenant.Principal, id
 func (s *Service) Plan(ctx context.Context, p *tenant.Principal, id uuid.UUID) ([]Item, []Change, error) {
 	items, changes := []Item{}, []Change{}
 	err := s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
-		if _, err := s.member(ctx, tx, p, id, false); err != nil {
+		_, err := s.member(ctx, tx, p, id, false)
+		if err != nil && !errors.Is(err, httpx.ErrNotFound) {
 			return err
+		}
+		onTeam := err == nil
+		all, err := authz.Can(ctx, tx, p.Person, "projects", "View all projects")
+		if err != nil {
+			return err
+		}
+		own, err := authz.Can(ctx, tx, p.Person, "projects", "View own projects")
+		if err != nil {
+			return err
+		}
+		if !all && !(onTeam && own) {
+			return httpx.ErrNotFound
 		}
 		if err := authz.Require(ctx, tx, p.Person, "projects", "View"); err != nil {
 			return err
@@ -100,6 +114,9 @@ func (s *Service) Plan(ctx context.Context, p *tenant.Principal, id uuid.UUID) (
 			return err
 		}
 		pr, err := scan(tx.QueryRow(ctx, sel+` where p.conversation_id=$1`, id))
+		if errors.Is(err, pgx.ErrNoRows) {
+			return httpx.ErrNotFound
+		}
 		if err != nil {
 			return err
 		}
@@ -962,6 +979,54 @@ func (s *Service) DeleteProject(ctx context.Context, p *tenant.Principal, projec
 		s.planChanged(ctx, p, project)
 	}
 	return err
+}
+
+// fillViewers marks which projects the person is on, and gives those they are not on what their conversation would have told them.
+func (s *Service) fillViewers(ctx context.Context, tx pgx.Tx, p *tenant.Principal, list []*Project) error {
+	dek, _, err := s.A.OrgDEK(ctx, tx, p.Org)
+	if err != nil {
+		return err
+	}
+	for _, x := range list {
+		if err := tx.QueryRow(ctx, `select exists (select 1 from hub.conversation_members where conversation_id=$1 and account_id=$2 and left_at is null)`, x.ID, p.Account).Scan(&x.Member); err != nil {
+			return err
+		}
+		if x.Member {
+			continue
+		}
+		var name, about []byte
+		if err := tx.QueryRow(ctx, `select name_enc, about_enc from hub.conversations where id=$1`, x.ID).Scan(&name, &about); err != nil {
+			return err
+		}
+		open := func(col string, ct []byte) string {
+			if len(ct) == 0 {
+				return ""
+			}
+			b, err := crypto.FieldOpen(dek, crypto.Context{Org: p.Org.String(), Table: "conversations", Column: col, RowID: x.ID.String()}, ct)
+			if err != nil {
+				return ""
+			}
+			return string(b)
+		}
+		x.Name, x.About = open("name_enc", name), open("about_enc", about)
+		rs, err := tx.Query(ctx, `select pe.first_name || ' ' || pe.last_name from hub.conversation_members m join hub.people pe on pe.account_id = m.account_id where m.conversation_id=$1 and m.left_at is null order by 1`, x.ID)
+		if err != nil {
+			return err
+		}
+		for rs.Next() {
+			var n string
+			if err := rs.Scan(&n); err != nil {
+				rs.Close()
+				return err
+			}
+			x.TeamNames = append(x.TeamNames, n)
+		}
+		rs.Close()
+		if err := rs.Err(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // eligibleSQL: people who can be on a project: their role, or a right given to them personally, lets them view projects.

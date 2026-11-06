@@ -188,6 +188,7 @@ func (m *Module) SetSecurity(ctx context.Context, p *tenant.Principal, in orgset
 		// every server applies the new inactivity limit on the next request
 		m.A.Rdb.Set(ctx, "idle:"+p.Org.String(), strconv.Itoa(orgsettings.SessionMinutes(in.Session)), 10*time.Minute)
 		orgsettings.ForgetIdle(p.Org)
+		m.A.Publish(ctx, realtime.Event{Type: "widgets.changed", Channel: realtime.OrgChannel(p.Org), Org: p.Org.String(), Actor: p.Person.String()})
 	}
 	return err
 }
@@ -572,6 +573,19 @@ func (m *Module) Private(r chi.Router) {
 			return err
 		}
 		httpx.JSON(w, 200, a)
+		return nil
+	}))
+	r.Get("/settings/blocks", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
+		var out orgsettings.Blocks
+		err := m.A.DB.WithOrg(r.Context(), p.Org, func(tx pgx.Tx) error {
+			var e error
+			out, e = orgsettings.BlocksOf(r.Context(), m.A, tx, p.Org)
+			return e
+		})
+		if err != nil {
+			return err
+		}
+		httpx.JSON(w, 200, out)
 		return nil
 	}))
 	r.Get("/settings/widgets", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {

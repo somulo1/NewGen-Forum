@@ -83,7 +83,9 @@
     "Share outside Hub",
     "Moderate posts",
     "Edit own posts",
-    "Delete own posts"
+    "Delete own posts",
+    "Hide posts",
+    "Delete others' posts"
    ],
    "forums": [
     "View",
@@ -138,7 +140,8 @@
     "Delete comments",
     "Remove attachments",
     "Remove workflow statuses",
-    "Delete risks"
+    "Delete risks",
+    "View own projects"
    ],
    "files": [
     "View",
@@ -255,7 +258,9 @@
     "Share outside Hub",
     "Moderate posts",
     "Edit own posts",
-    "Delete own posts"
+    "Delete own posts",
+    "Hide posts",
+    "Delete others' posts"
    ],
    "forums": [
     "View",
@@ -309,7 +314,8 @@
     "Delete comments",
     "Remove attachments",
     "Remove workflow statuses",
-    "Delete risks"
+    "Delete risks",
+    "View own projects"
    ],
    "files": [
     "View",
@@ -389,7 +395,8 @@
     "Comment",
     "Share outside Hub",
     "Edit own posts",
-    "Delete own posts"
+    "Delete own posts",
+    "Hide posts"
    ],
    "forums": [
     "View",
@@ -427,7 +434,8 @@
     "Comment on pages",
     "Attach to pages",
     "Delete comments",
-    "Remove attachments"
+    "Remove attachments",
+    "View own projects"
    ],
    "files": [
     "View",
@@ -500,7 +508,8 @@
     "Comment",
     "Share outside Hub",
     "Edit own posts",
-    "Delete own posts"
+    "Delete own posts",
+    "Hide posts"
    ],
    "forums": [
     "View",
@@ -532,7 +541,8 @@
     "Comment on pages",
     "Attach to pages",
     "Delete comments",
-    "Remove attachments"
+    "Remove attachments",
+    "View own projects"
    ],
    "files": [
     "View",
@@ -600,7 +610,8 @@
     "Comment",
     "Share outside Hub",
     "Edit own posts",
-    "Delete own posts"
+    "Delete own posts",
+    "Hide posts"
    ],
    "forums": [
     "View",
@@ -631,7 +642,8 @@
     "Comment on pages",
     "Attach to pages",
     "Delete comments",
-    "Remove attachments"
+    "Remove attachments",
+    "View own projects"
    ],
    "files": [
     "View",
@@ -699,7 +711,8 @@
     "Comment",
     "Share outside Hub",
     "Edit own posts",
-    "Delete own posts"
+    "Delete own posts",
+    "Hide posts"
    ],
    "forums": [
     "View",
@@ -732,7 +745,8 @@
     "Comment on pages",
     "Attach to pages",
     "Delete comments",
-    "Remove attachments"
+    "Remove attachments",
+    "View own projects"
    ],
    "files": [
     "View",
@@ -805,7 +819,8 @@
     "Comment",
     "Share outside Hub",
     "Edit own posts",
-    "Delete own posts"
+    "Delete own posts",
+    "Hide posts"
    ],
    "forums": [
     "View",
@@ -839,7 +854,8 @@
     "Comment on pages",
     "Attach to pages",
     "Delete comments",
-    "Remove attachments"
+    "Remove attachments",
+    "View own projects"
    ],
    "files": [
     "View",
@@ -912,7 +928,8 @@
     "Comment",
     "Share outside Hub",
     "Edit own posts",
-    "Delete own posts"
+    "Delete own posts",
+    "Hide posts"
    ],
    "forums": [
     "View",
@@ -945,7 +962,8 @@
     "Comment on pages",
     "Attach to pages",
     "Delete comments",
-    "Remove attachments"
+    "Remove attachments",
+    "View own projects"
    ],
    "files": [
     "View",

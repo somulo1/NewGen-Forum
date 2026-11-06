@@ -29,6 +29,24 @@ type Security struct {
 	// UserQuotaMB is how much each person may store in total (files, attachments, photos), in MB; "0" means no limit.
 	// One person can be given a different amount (hub.storage_quotas).
 	UserQuotaMB string `json:"userQuotaMB"`
+	Blocks
+}
+
+// Blocks are what the organization has switched off for everyone. Rights cannot give them back.
+type Blocks struct {
+	BlockPrivateChats bool `json:"blockPrivateChats"`
+	BlockPrivateVoice bool `json:"blockPrivateVoice"`
+	BlockPrivateVideo bool `json:"blockPrivateVideo"`
+	BlockForumVoice   bool `json:"blockForumVoice"`
+	BlockForumVideo   bool `json:"blockForumVideo"`
+	BlockWall         bool `json:"blockWall"`
+}
+
+// BlocksOf reads what the organization has blocked.
+func BlocksOf(ctx context.Context, a *app.App, tx pgx.Tx, org uuid.UUID) (Blocks, error) {
+	var sec Security
+	err := Get(ctx, a, tx, org, "security", &sec)
+	return sec.Blocks, err
 }
 
 // SessionChoices are the inactivity limits an administrator can pick, in minutes: 15, 30 and 45 minutes, 1, 2, 5, 12 and

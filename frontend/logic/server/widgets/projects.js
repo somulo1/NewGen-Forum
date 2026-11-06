@@ -61,13 +61,14 @@ async function importLegacy(srv, row, force = false) {
 }
 
 async function mapProject(srv, row) {
-  if (!row.plan_imported && !(await importLegacy(srv, row))) {
+  const viewer = row.member === false;   // View all projects: to look at, without being on the team
+  if (!viewer && !row.plan_imported && !(await importLegacy(srv, row))) {
     const old = await mapLegacy(srv, row);
     const unread = old.tasks.filter((t) => old.unreadIds.has(t.id)).length + old.milestones.filter((m) => old.unreadIds.has(m.id)).length + old.sprints.filter((x) => old.unreadIds.has(x.id)).length;
     return normalizeProject({ ...old, tasks: old.tasks.filter((t) => !old.unreadIds.has(t.id)), milestones: old.milestones.filter((m) => !old.unreadIds.has(m.id)), sprints: old.sprints.filter((x) => !old.unreadIds.has(x.id)), method: row.method, workflow: row.workflow, stuck: { unread }, unreadable: undefined, times: undefined, unreadIds: undefined, pages: [] });
   }
-  if (srv.rt) srv.rt.sub(row.id);   // live changes and co-editing arrive on the project's channel
-  const conv = await srv.vault.conversation(row.id, true);
+  if (srv.rt && !viewer) srv.rt.sub(row.id);   // live changes and co-editing arrive on the project's channel
+  const conv = viewer ? { name: row.name, about: row.about, members: (row.team_names || []).map((name) => ({ name })) } : await srv.vault.conversation(row.id, true);
   const { items, changes } = await srv.request('GET', `/projects/${row.id}/plan`);
   const changesOf = new Map();
   (changes || []).forEach((c) => { if (!changesOf.has(c.item)) changesOf.set(c.item, []); changesOf.get(c.item).push(c); });
@@ -78,7 +79,7 @@ async function mapProject(srv, row) {
     return { ...t, key: row.code + '-' + x.ref, primary: (t.assignee && nameOf(srv, t.assignee)) || t.primary || '', secondary: (t.secondary_id && nameOf(srv, t.secondary_id)) || t.secondary || '', start: t.start || '', due: t.due || row.due || '', desc: t.desc || '', links: t.links || [], tickets: t.tickets || [], history: t.history || [] };
   });
   const p = {
-    id: row.id, name: conv.name || row.code, code: row.code, color: row.color, owner: row.owner_name || nameOf(srv, row.owner), team: (conv.members || []).map((m) => (m.person === srv.me.person ? srv.me.name : m.name)), members: (conv.members || []).map((m) => ({ person: m.person, name: m.person === srv.me.person ? srv.me.name : m.name })), status: row.status, goal: conv.about || '',
+    viewOnly: viewer, id: row.id, name: conv.name || row.code, code: row.code, color: row.color, owner: row.owner_name || nameOf(srv, row.owner), team: (conv.members || []).map((m) => (m.person === srv.me.person ? srv.me.name : m.name)), members: (conv.members || []).map((m) => ({ person: m.person, name: m.person === srv.me.person ? srv.me.name : m.name })), status: row.status, goal: conv.about || '',
     start: row.start || '', due: row.due || '', budget: row.budget_pct || 0, sync: row.sync || 'Not synced', tickets: row.links || [], method: row.method || 'agile', workflow: row.workflow,
     milestones: of('milestone').map(base), sprints: of('sprint').map(base), tasks, risks: of('risk').map(base), pages: of('page').map(base), comments: of('page_comment').map(base),
     activity: of('activity').reverse().map((x) => ({ ...base(x), time: ago(x.created_at) }))
@@ -199,6 +200,7 @@ const SPEC = {
 };
 
 async function syncProject(logic, srv, prev, next) {
+  if (next.viewOnly) return;   // not on the team: nothing to save
   const id = next.id;
   if (!srv.projIds) srv.projIds = new Map();
   const tr = (x) => (isUuid(x) ? x : srv.projIds.get(x));
