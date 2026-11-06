@@ -1,6 +1,6 @@
 <!-- Word-style rich text editor for notes. Pasted Word / web / Excel content keeps its bold, headings, lists, colours and tables. -->
 <template>
-<div class="nr-wrap" @click="onDocClick">
+<div :class="['nr-wrap', paper ? 'nr-themed nr-p-' + paper : '']" @click="onDocClick">
 <div v-if="editor && editable" class="nr-bar" role="toolbar" aria-label="Formatting" @mousedown="keepFocus">
 <div class="nr-grp">
 <button type="button" class="nr-b" title="Undo (Ctrl+Z)" aria-label="Undo" :disabled="!can('undo')" @click="run(c => c.undo())">↶</button>
@@ -96,7 +96,7 @@ import Subscript from '@tiptap/extension-subscript';
 import Superscript from '@tiptap/extension-superscript';
 import { TaskList, TaskItem } from '@tiptap/extension-list';
 
-const props = defineProps({ modelValue: { type: String, default: '' }, editable: { type: Boolean, default: true }, live: { type: Object, default: null }, liveSeed: { type: String, default: '' }, macros: { type: Boolean, default: false } });
+const props = defineProps({ modelValue: { type: String, default: '' }, editable: { type: Boolean, default: true }, live: { type: Object, default: null }, liveSeed: { type: String, default: '' }, macros: { type: Boolean, default: false }, paper: { type: String, default: '' } });
 const emit = defineEmits(['update:modelValue', 'ref', 'comment']);
 
 // A picture lives inside the note or page itself, as data: nothing is fetched from elsewhere unless it was pasted as a web address.
@@ -314,4 +314,30 @@ watch(() => props.modelValue, (v) => { const e = editor.value; if (!props.live &
 .nr-doc .ProseMirror .selectedCell::after { content: ''; position: absolute; inset: 0; background: rgba(224, 185, 58, 0.3); pointer-events: none; }
 .nr-doc .ProseMirror .column-resize-handle { position: absolute; right: -2px; top: 0; bottom: -2px; width: 4px; background: #E0B93A; pointer-events: none; }
 .nr-doc .ProseMirror.resize-cursor { cursor: col-resize; }
+
+/* Project pages: the toolbar follows dark and light mode, and the page sits on the chosen background. The notebook keeps its paper. */
+.nr-themed { --ink: var(--k-E8EFEA,#E8EFEA); --soft: var(--k-C9D6CF,#C9D6CF); --edge: var(--k-34453D,#34453D); --tint: var(--k-22302A,#22302A); }
+.nr-themed .nr-bar { background: var(--k-121B17,#121B17); border-color: var(--k-2A3832,#2A3832); }
+.nr-themed .nr-grp { border-color: var(--k-2A3832,#2A3832); }
+.nr-themed .nr-tbl { border-top-color: var(--k-2A3832,#2A3832); }
+.nr-themed .nr-b, .nr-themed .nr-emoji button { color: var(--k-E8EFEA,#E8EFEA) !important; }
+.nr-themed .nr-b:hover:not(:disabled), .nr-themed .nr-emoji button:hover { background: var(--k-22302A,#22302A) !important; }
+.nr-themed .nr-b.on { background: var(--k-B8F36B,#B8F36B); color: #0F1714 !important; }
+.nr-themed .nr-s { background: var(--k-16201C,#16201C); color: var(--k-E8EFEA,#E8EFEA); border-color: var(--k-2A3832,#2A3832); }
+.nr-themed .nr-grid-pop { background: var(--k-16201C,#16201C); border-color: var(--k-2A3832,#2A3832); }
+.nr-themed .nr-grid-lbl { color: var(--k-9DB0A6,#9DB0A6); }
+.nr-themed .nr-doc { padding: 14px 16px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background-color: var(--page, var(--k-121B17,#121B17)); }
+.nr-themed:not(.nr-p-theme):not(.nr-p-black) { --ink: #1E2522; --soft: #4A5550; --edge: #B8C2BD; --tint: #E7ECE9; --page: #FFFFFF; }
+.nr-p-black { --ink: #EEF3F0; --soft: #C2CDC7; --edge: #46534D; --tint: #2B3631; --page: #1B2420; }
+.nr-p-graph .nr-doc { background-image: linear-gradient(#CFE0EE 1px, transparent 1px), linear-gradient(90deg, #CFE0EE 1px, transparent 1px); background-size: 24px 24px; }
+.nr-p-dots .nr-doc { background-image: radial-gradient(#B4BEB9 1.2px, transparent 1.3px); background-size: 20px 20px; }
+.nr-p-lined .nr-doc { background-image: linear-gradient(transparent 25px, #CFE0EE 26px); background-size: 100% 26px; }
+.nr-themed .nr-doc > .ProseMirror, .nr-themed .nr-doc .ProseMirror h1, .nr-themed .nr-doc .ProseMirror h2, .nr-themed .nr-doc .ProseMirror h3, .nr-themed .nr-doc .ProseMirror h4 { color: var(--ink); }
+.nr-themed .nr-doc .ProseMirror blockquote { color: var(--soft); }
+.nr-themed .nr-doc .ProseMirror code, .nr-themed .nr-doc .ProseMirror th { background: var(--tint); }
+.nr-themed .nr-doc .ProseMirror pre code { background: transparent; }
+.nr-themed .nr-doc .ProseMirror td, .nr-themed .nr-doc .ProseMirror th { border-color: var(--edge); }
+.nr-themed .nr-doc .ProseMirror hr { border-top-color: var(--edge); }
+.nr-themed .nr-doc .ProseMirror p.is-editor-empty:first-child::before { color: var(--soft); }
+.nr-p-theme .nr-doc .ProseMirror a, .nr-p-theme .nr-doc .ProseMirror [data-ref], .nr-p-black .nr-doc .ProseMirror a, .nr-p-black .nr-doc .ProseMirror [data-ref] { color: var(--k-7CC4FF,#7CC4FF); }
 </style>

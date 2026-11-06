@@ -58,7 +58,17 @@ export const SHAPES = {
 export const SHAPE_GROUPS = [...new Set(Object.values(SHAPES).map((s) => s.group))].map((group) => ({ group, shapes: Object.entries(SHAPES).filter(([, s]) => s.group === group).map(([key, s]) => ({ key, ...s })) }));
 const specOf = (s) => SHAPES[s.t] || SHAPES.rect;
 
-export const parseBoard = (body) => { try { const b = JSON.parse(body || '{}'); return { shapes: b.shapes || [], lines: b.lines || [], pen: b.pen || [] }; } catch (e) { return { shapes: [], lines: [], pen: [] }; } };
+export const parseBoard = (body) => { try { const b = JSON.parse(body || '{}'); return { bg: b.bg || 'white', shapes: b.shapes || [], lines: b.lines || [], pen: b.pen || [] }; } catch (e) { return { bg: 'white', shapes: [], lines: [], pen: [] }; } };
+
+// the sheet a diagram is drawn on
+export const BOARD_BACKGROUNDS = [{ v: 'white', l: 'Whiteboard' }, { v: 'graph', l: 'Graph paper' }, { v: 'dots', l: 'Dotted' }, { v: 'lined', l: 'Lined' }, { v: 'black', l: 'Blackboard' }];
+export const boardPattern = (bg, id) => ({
+  graph: `<pattern id="${id}" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M20 0H0V20" fill="none" stroke="#CFE0EE"/></pattern>`,
+  dots: `<pattern id="${id}" width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1.1" fill="#B4BEB9"/></pattern>`,
+  lined: `<pattern id="${id}" width="20" height="28" patternUnits="userSpaceOnUse"><path d="M0 27.5H20" stroke="#CFE0EE"/></pattern>`
+}[bg] || '');
+export const boardInk = (bg) => (bg === 'black' ? '#E8EFEA' : '#555555');
+export const boardPaper = (bg) => (bg === 'black' ? '#1B2420' : '#FFFFFF');
 export const centre = (s) => ({ x: num(s.x) + num(s.w) / 2, y: num(s.y) + num(s.h) / 2 });
 
 export function portsOf(s) {
@@ -118,7 +128,7 @@ function glyph(p, ang, type) {
 }
 
 // everything needed to draw one connector
-export function routeLine(l, byId) {
+export function routeLine(l, byId, ink = '#555555') {
   const e = ends(l, byId);
   const { a, z } = e;
   const pts = (l.pts || []).map(([x, y]) => [num(x), num(y)]);
@@ -147,7 +157,7 @@ export function routeLine(l, byId) {
   const mid = n % 2 ? { x: path[mi][0], y: path[mi][1] } : { x: (path[mi][0] + path[mi + 1][0]) / 2, y: (path[mi][1] + path[mi + 1][1]) / 2 };
   // the hollow points that make a new bend when dragged
   const adds = control.slice(0, -1).map((p, i) => ({ at: i, x: !pts.length && kind !== 'straight' ? mid.x : (p[0] + control[i + 1][0]) / 2, y: !pts.length && kind !== 'straight' ? mid.y : (p[1] + control[i + 1][1]) / 2 }));
-  return { d, a, z, mid, glyphs, adds, pts, dash: l.dash === 'dashed' ? '8 6' : l.dash === 'dotted' ? '2 5' : '', color: col(l.color, '#555555'), width: Math.min(8, Math.max(1, num(l.width) || 2)), label: l.label || '' };
+  return { d, a, z, mid, glyphs, adds, pts, dash: l.dash === 'dashed' ? '8 6' : l.dash === 'dotted' ? '2 5' : '', color: col(l.color, ink), width: Math.min(8, Math.max(1, num(l.width) || 2)), label: l.label || '' };
 }
 
 export function wrapText(text, w, size = 14) {
@@ -166,7 +176,7 @@ export function wrapText(text, w, size = 14) {
 }
 
 // how one shape draws: fill and line colours resolved, its text placed
-export function drawShape(s) {
+export function drawShape(s, bg) {
   const sp = specOf(s);
   const w = num(s.w), h = num(s.h);
   const size = Math.min(40, Math.max(9, num(s.size) || 14));
@@ -176,7 +186,7 @@ export function drawShape(s) {
     d: sp.d(w, h), more: sp.more ? sp.more(w, h) : '',
     fill: sp.noBox || sp.invisibleBox ? 'transparent' : col(s.color, sp.fill || '#DCEBFA'),
     stroke: sp.noBox || sp.invisibleBox || sp.noBorder ? 'transparent' : col(s.stroke, '#555555'),
-    moreStroke: col(s.stroke, '#555555'), textColor: col(s.textColor, '#111111'), size,
+    moreStroke: col(s.stroke, boardInk(bg)), textColor: col(s.textColor, bg === 'black' && (sp.noBox || sp.invisibleBox || sp.noBorder) ? '#E8EFEA' : '#111111'), size,
     lines: lines.map((t, i) => ({ t, x: w / 2, y: y0 + i * size * 1.2 }))
   };
 }
@@ -200,15 +210,15 @@ export function boardSvg(body) {
   const lineParts = [];
   b.lines.forEach((l) => {
     if ((l.from && !byId.get(l.from)) || (l.to && !byId.get(l.to))) return;
-    const r = routeLine(l, byId);
+    const r = routeLine(l, byId, boardInk(b.bg));
     lineParts.push('<path d="' + esc(r.d) + '" fill="none" stroke="' + r.color + '" stroke-width="' + r.width + '"' + (r.dash ? ' stroke-dasharray="' + r.dash + '"' : '') + '/>');
-    r.glyphs.forEach((g) => lineParts.push('<path d="' + esc(g.d) + '" stroke="' + r.color + '" stroke-width="1.5" fill="' + (g.fill === 'line' ? r.color : g.fill === 'white' ? '#fff' : 'none') + '"/>'));
-    if (r.label) lineParts.push('<text x="' + r.mid.x + '" y="' + r.mid.y + '" text-anchor="middle" dominant-baseline="middle" font-family="sans-serif" font-size="12" fill="#111" stroke="#fff" stroke-width="4" paint-order="stroke">' + esc(r.label) + '</text>');
+    r.glyphs.forEach((g) => lineParts.push('<path d="' + esc(g.d) + '" stroke="' + r.color + '" stroke-width="1.5" fill="' + (g.fill === 'line' ? r.color : g.fill === 'white' ? boardPaper(b.bg) : 'none') + '"/>'));
+    if (r.label) lineParts.push('<text x="' + r.mid.x + '" y="' + r.mid.y + '" text-anchor="middle" dominant-baseline="middle" font-family="sans-serif" font-size="12" fill="' + (b.bg === 'black' ? '#E8EFEA' : '#111') + '" stroke="' + boardPaper(b.bg) + '" stroke-width="4" paint-order="stroke">' + esc(r.label) + '</text>');
   });
   b.shapes.forEach((s) => {
-    const g = drawShape(s);
+    const g = drawShape(s, b.bg);
     parts.push('<g transform="translate(' + num(s.x) + ' ' + num(s.y) + ')"><path d="' + esc(g.d) + '" fill="' + g.fill + '" stroke="' + g.stroke + '"/>' + (g.more ? '<path d="' + esc(g.more) + '" fill="none" stroke="' + g.moreStroke + '"/>' : '') + g.lines.map((t) => '<text x="' + t.x + '" y="' + t.y + '" text-anchor="middle" dominant-baseline="middle" font-family="sans-serif" font-size="' + g.size + '" fill="' + g.textColor + '">' + esc(t.t) + '</text>').join('') + '</g>');
   });
-  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="' + [box.x, box.y, box.w, box.h].join(' ') + '" width="' + Math.round(box.w) + '" height="' + Math.round(box.h) + '" style="max-width:100%;height:auto;background:#fff;border-radius:8px">' + parts.join('') + lineParts.join('') + '</svg>';
+  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="' + [box.x, box.y, box.w, box.h].join(' ') + '" width="' + Math.round(box.w) + '" height="' + Math.round(box.h) + '" style="max-width:100%;height:auto;background:' + boardPaper(b.bg) + ';border-radius:8px"><defs>' + boardPattern(b.bg, 'bgp') + '</defs>' + (boardPattern(b.bg, 'bgp') ? '<rect x="' + box.x + '" y="' + box.y + '" width="' + box.w + '" height="' + box.h + '" fill="url(#bgp)"/>' : '<rect x="' + box.x + '" y="' + box.y + '" width="' + box.w + '" height="' + box.h + '" fill="' + boardPaper(b.bg) + '"/>') + parts.join('') + lineParts.join('') + '</svg>';
 }
 export const boardDataUrl = (body) => 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(boardSvg(body));
