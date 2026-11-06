@@ -61,7 +61,7 @@ export function buildHomeWidgets(ctx) {
   const recent = (iso) => iso && (new Date(todayISO + 'T12:00:00+03:00') - new Date(iso + 'T12:00:00+03:00')) / 86400000 <= 14;
   const newJoiners = (this.dir || []).filter((p) => recent(p.joined)).sort((a, b) => (a.joined < b.joined ? 1 : -1)).slice(0, 3).map((p) => ({ name: p.name, role: [p.title, p.dept].filter(Boolean).join(' · '), initials: p.initials, color: p.color }));
   const itemsFor = {
-    chat: s.dms.slice(0, 4).map((d) => { const pr = this.dir.find((x) => x.name === d.with) || { initials: ini(d.with), color: '#C9B6FF' }; const last = d.msgs[d.msgs.length - 1];
+    chat: (has.chat ? s.dms : []).slice(0, 4).map((d) => { const pr = this.dir.find((x) => x.name === d.with) || { initials: ini(d.with), color: '#C9B6FF' }; const last = d.msgs[d.msgs.length - 1];
       return { name: d.with, initials: pr.initials, color: pr.color, unread: d.unread, hasUnread: d.unread > 0, last: last ? (last.from === 'me' ? 'You: ' : '') + (last.text || 'Sent a file') : 'Say hello', open: () => this.openDm(d.with) }; }),
     announcements: s.comms.filter((c) => c.type === 'Announcement' && c.status === 'Published').slice(0, 3).map((c) => ({ id: c.id, tag: (c.byDept || 'News').split(' ')[0], title: c.title, meta: c.by + ' · ' + fmtDay(c.date), ackLabel: c.iRead ? 'Read' : 'Mark read', ackStyle: pillBtn(!!c.iRead), ack: () => commsW.markRead(this, this.srv, c) })),
     events: calendarW.upcomingEvents(s.events, todayISO).map((e) => ({ id: e.id, mon: new Date(e.date + 'T12:00:00+03:00').toLocaleDateString('en-GB', { month: 'short', timeZone: 'Africa/Nairobi' }).toUpperCase(), day: String(Number(e.date.slice(8, 10))), title: e.title,

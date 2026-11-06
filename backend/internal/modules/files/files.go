@@ -239,8 +239,13 @@ func (s *Service) Download(ctx context.Context, p *tenant.Principal, id uuid.UUI
 		if err := authz.Require(ctx, tx, p.Person, "files", "View"); err != nil {
 			return err
 		}
-		return tx.QueryRow(ctx, `select f.blob_key from hub.files f join hub.conversation_members m on m.conversation_id = f.folder_id and m.account_id=$2 and m.left_at is null and m.first_epoch <= f.epoch
-			where f.id=$1 and f.status='ready'`, id, p.Account).Scan(&key)
+		// someone looking at a project (View all projects) can fetch its files. They stay encrypted: only a page they may read holds the key.
+		all, err := authz.Can(ctx, tx, p.Person, "projects", "View all projects")
+		if err != nil {
+			return err
+		}
+		return tx.QueryRow(ctx, `select f.blob_key from hub.files f join hub.conversations c on c.id = f.folder_id
+			where f.id=$1 and f.status='ready' and (($3 and c.kind='project') or exists (select 1 from hub.conversation_members m where m.conversation_id = f.folder_id and m.account_id=$2 and m.left_at is null and m.first_epoch <= f.epoch))`, id, p.Account, all).Scan(&key)
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return httpx.ErrNotFound

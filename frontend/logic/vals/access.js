@@ -10,7 +10,7 @@ export function valsAccess(ctx) {
     canWidgetsPage: can('home', 'Open widgets page'), canManageWidgets: can('home', 'Add & remove widgets'),
     canRaise: can('tickets', 'Raise'),
     canCreateProject: can('projects', 'Create project'),
-    canPostWall: can('wall', 'Post'), cannotPostWall: !can('wall', 'Post'),
+    canPostWall: can('wall', 'Post') && has.wall !== false, cannotPostWall: !can('wall', 'Post') || has.wall === false,
     previewOptions: (s.serverRoles || []).map((r) => ({ v: r.id, l: r.name + (r.id === s.myRole ? ' (you)' : '') })),
     previewing: !!s.myRole && s.actingRole !== s.myRole, actingRole: s.actingRole, actingRoleName: roleNames[s.actingRole] || s.actingRole,
     setActingRole: (e) => { const v = e.target.value; this.setState({ actingRole: v }); if (v !== s.myRole) this.notify('Previewing Hub as ' + (roleNames[v] || v) + '.', '#FFD66B'); },

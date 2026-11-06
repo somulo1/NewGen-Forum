@@ -13,10 +13,12 @@ export const callsActions = {
 
   startCall(mode, title, initials, color, people, context, ref, dir) {
     if (this.callBusy()) return;
+    const blocks = this.state.orgBlocks || {};
+    if (dir !== 'in' && ((context === 'dm' && blocks[mode === 'video' ? 'blockPrivateVideo' : 'blockPrivateVoice']) || (context === 'forum' && blocks[mode === 'video' ? 'blockForumVideo' : 'blockForumVoice']))) { this.notify('These calls are switched off for this organization.', '#FFB86B'); return; }
     clearInterval(this._ct);
     this._ct = setInterval(() => this.forceUpdate(), 1000);
     const ns = { call: { mode: mode, title: title, initials: initials, color: color, start: Date.now(), people: people || null, context: context || null, ref: ref || null, dir: dir || 'out' }, callMode: 'docked', personOpen: null, mic: true, callOff: {}, cam: mode === 'video', sharing: false, hand: false, rec: false, callPanel: null, menu: false };
-    if ((context === 'dm' || context === 'forum') && this.state.mode !== 'docked' && this.state.mode !== 'full' && this.state.mode !== 'page') ns.mode = 'docked';
+    if ((context === 'forum' || (context === 'dm' && !blocks.blockPrivateChats)) && this.state.mode !== 'docked' && this.state.mode !== 'full' && this.state.mode !== 'page') ns.mode = 'docked';
     this.setState(ns);
     this.showCallChat(context, ref);
     if (this.srv) {
@@ -44,7 +46,7 @@ export const callsActions = {
   startDmCall(kind, name, initials, color, dir) {
     if (this.callBusy()) return;
     if ((this.state.dmPrivacy[name] || {}).blocked) { this.logCall({ ctx: 'dm', ref: name, kind: kind === 'video' ? 'video' : 'voice', dir: 'blocked' }); this.notify('You blocked ' + name + '. Unblock them to call.', '#FFB86B'); return; }
-    this.openDm(name);
+    if (!(this.state.orgBlocks || {}).blockPrivateChats) this.openDm(name);
     this.startCall(kind, 'Private call with ' + name, initials, color, [name], 'dm', name, dir);
   },
 

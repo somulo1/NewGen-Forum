@@ -29,6 +29,7 @@ export function buildAccess(ctx) {
     chat: W.indexOf('chat') !== -1, calendar: W.indexOf('calendar') !== -1, memos: W.indexOf('memos') !== -1, newsletter: W.indexOf('newsletter') !== -1, announcements: W.indexOf('announcements') !== -1
   };
   const orgBlocks = s.orgBlocks || {};
+  has.privateCalls = has.chat;   // private calls can stay on when private chats are blocked
   if (orgBlocks.blockPrivateChats) has.chat = false;
   if (orgBlocks.blockWall) has.wall = false;
   has.jobposts = W.indexOf('jobposts') !== -1 || has.memos || has.newsletter || has.announcements;   // job posts come with communications

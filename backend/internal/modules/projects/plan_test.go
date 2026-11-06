@@ -1,7 +1,11 @@
 package projects_test
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -471,7 +475,29 @@ func TestViewOwnAndViewAllProjects(t *testing.T) {
 	right := func(m *testkit.Member, name string, on bool) {
 		e.MustDo(200, "PUT", "/people/"+m.Person+"/rights", map[string]any{"module": "projects", "right": name, "allowed": on}, ownerU.Access)
 	}
+	raw := func(method, path string, body []byte, token string) int {
+		req, _ := http.NewRequest(method, e.Srv.URL+"/v1"+path, bytes.NewReader(body))
+		req.Header.Set("Authorization", "Bearer "+token)
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		_, _ = io.Copy(io.Discard, res.Body)
+		return res.StatusCode
+	}
+	fid := uuid.Must(uuid.NewV7()).String()
+	e.MustDo(201, "POST", "/folders/"+conv+"/files", map[string]any{"id": fid, "epoch": 1, "device": o.DevID, "envelope": o.Seal(e.OrgID(slug), conv, fid, 1, key, `{"name":"a.txt"}`)}, ownerU.Access)
+	if c := raw("PUT", "/files/"+fid+"/content", make([]byte, 2000), ownerU.Access); c != 200 {
+		t.Fatalf("upload: %d", c)
+	}
+	if c := raw("GET", "/files/"+fid+"/content", nil, ben.Access); c != 404 {
+		t.Fatalf("file read off the team: %d", c)
+	}
 	right(ben, "View all projects", true)
+	if c := raw("GET", "/files/"+fid+"/content", nil, ben.Access); c != 200 {
+		t.Fatalf("a viewer cannot open project files: %d", c)
+	}
 	l := list(ben)
 	if len(l) != 1 || l[0].(map[string]any)["member"] != false || l[0].(map[string]any)["name"] != "Secret plan" || len(l[0].(map[string]any)["team_names"].([]any)) != 2 {
 		t.Fatalf("all: %v", l)
@@ -488,5 +514,21 @@ func TestViewOwnAndViewAllProjects(t *testing.T) {
 	right(amy, "View own projects", false)
 	if len(list(amy)) != 0 {
 		t.Fatal("own projects still listed without the right")
+	}
+}
+
+// An organization made before these rights gets them on its next sign-in, and each role keeps what it could do.
+func TestOlderOrganizationGetsTheNewRights(t *testing.T) {
+	e := testkit.New(t)
+	ownerU, slug := e.NewOrg("Olivia Owner")
+	amy := e.Join(ownerU, slug, "Amy", "hod")
+	e.RemoveRights(slug, "wall", "Hide posts", "Delete others' posts")
+	e.RemoveRights(slug, "projects", "View own projects", "View all projects")
+	rights := e.MustDo(200, "GET", "/me", nil, amy.Access)
+	raw := fmt.Sprint(rights)
+	for _, want := range []string{"Hide posts", "View own projects"} {
+		if !strings.Contains(raw, want) {
+			t.Fatalf("%q missing after upgrade: %s", want, raw[:200])
+		}
 	}
 }

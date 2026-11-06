@@ -57,7 +57,20 @@ func TestOrganizationBlocksAndDeletingOthersPosts(t *testing.T) {
 	}
 	sec["blockPrivateChats"] = true
 	e.MustDo(204, "PUT", "/settings/security", sec, ownerU.Access)
-	if c, _ := e.Do("POST", "/conversations", map[string]any{"kind": "dm", "members": []string{a.Person}, "keys": o.WrapFor(e, key, 1, o.Person, a.Person)}, ownerU.Access); c != 403 {
-		t.Fatalf("started a private chat: %d", c)
+	dm := e.MustDo(201, "POST", "/conversations", map[string]any{"kind": "dm", "members": []string{a.Person}, "keys": o.WrapFor(e, key, 1, o.Person, a.Person)}, ownerU.Access)["id"].(string)
+	mid := uuid.Must(uuid.NewV7()).String()
+	if c, _ := e.Do("POST", "/conversations/"+dm+"/messages", map[string]any{"id": mid, "epoch": 1, "device": o.DevID, "type": "text", "envelope": o.Seal(org, dm, mid, 1, key, "hi")}, ownerU.Access); c != 403 {
+		t.Fatalf("sent a private message: %d", c)
+	}
+	if c, _ := e.Do("GET", "/conversations/"+dm+"/messages", nil, a.Access); c != 403 {
+		t.Fatalf("read a private chat: %d", c)
+	}
+	// unblocking brings everything back
+	for _, k := range []string{"blockWall", "blockPrivateChats"} {
+		sec[k] = false
+	}
+	e.MustDo(204, "PUT", "/settings/security", sec, ownerU.Access)
+	if _, c := post(o, ownerU.Access); c != 201 {
+		t.Fatalf("post after unblocking: %d", c)
 	}
 }
