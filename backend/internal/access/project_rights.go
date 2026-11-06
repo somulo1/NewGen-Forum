@@ -34,6 +34,7 @@ var projectRights = []struct{ Name, From string }{
 	{"Export pages", "Export"},
 	{"Import pages", "Create pages"},
 	{"Restrict pages", "Lock pages"},
+	{"Delete project", ""},
 }
 
 // EnsureProjectRights is safe to run on every request: it does nothing once the rights exist.

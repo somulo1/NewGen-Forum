@@ -148,6 +148,7 @@
 </div>
 <span v-if="plan.settings.err" role="alert" style="font-size: 13px; color: var(--k-FF9B8A,#FF9B8A)">{{ plan.settings.err }}</span>
 <div v-if="plan.settings.canEdit" style="display: flex; flex-wrap: wrap; gap: 8px"><button type="button" class="pp-btn" @click="plan.settings.add">Add a status</button><template v-if="plan.settings.dirty"><button type="button" class="pp-btn pp-primary" @click="plan.settings.save">Save workflow</button><button type="button" class="pp-btn" @click="plan.settings.cancel">Cancel</button></template></div>
+<div v-if="plan.settings.canDeleteProject" style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding-top: 10px; border-top: 1px solid var(--k-4A2A2A,#4A2A2A)"><span class="pp-mut" style="flex: 1 1 240px">Deleting this project removes its whole plan and documents for good. Its discussion stays.</span><button type="button" class="pp-btn" style="color: var(--k-FF9B8A,#FF9B8A); border-color: var(--k-6A3A34,#6A3A34)" @click="plan.settings.deleteProject">Delete project</button></div>
 </template>
 </section>
 </template>

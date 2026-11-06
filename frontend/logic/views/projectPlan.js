@@ -263,6 +263,13 @@ export function buildPlan(ctx) {
       down: () => change((l) => { const n = l.slice(); [n[i + 1], n[i]] = [n[i], n[i + 1]]; return n; }),
       remove: () => change((l) => l.filter((_, j) => j !== i)) })),
     add: () => change((l) => { const n = l.slice(); n.splice(Math.max(0, n.length - 1), 0, { key: 's' + Date.now(), name: 'New status', cat: 1 }); return n; }),
+    canDeleteProject: may('Delete project') && !!this.srv,
+    deleteProject: () => {
+      const typed = window.prompt('This deletes "' + p.name + '" with its tasks, sprints, milestones, documents and history, for good. Type the project code (' + p.code + ') to confirm.');
+      if (typed === null) return;
+      if (typed.trim() !== p.code) { this.notify('That code does not match, so nothing was deleted.', '#FFB86B'); return; }
+      projectsW.removeProject(this, this.srv, pid).then(() => this.notify('Project deleted.', '#B8F36B')).catch((e) => this.notify(e.message || 'Could not delete the project.', '#FF9B8A'));
+    },
     cancel: () => this.setState({ wfDraft: null }),
     save: () => {
       const l = wd.list;
@@ -279,7 +286,7 @@ export function buildPlan(ctx) {
     }
   };
 
-  const tabs = [['overview', 'Overview', null], ['board', 'Board', null], ['backlog', waterfall ? 'Phases' : 'Backlog & sprints', waterfall ? tools.tl.length : backlog.length], ['timeline', 'Timeline', null, 'View timeline'], ['reports', 'Reports', null, 'View reports'], ['docs', 'Documents', pages.length, 'View documents'], ['settings', 'Type & workflow', null, null, true]].filter(([, , , need, cfg]) => (!need || may(need)) && (!cfg || may('Manage workflow') || may('Change project type')));
+  const tabs = [['overview', 'Overview', null], ['board', 'Board', null], ['backlog', waterfall ? 'Phases' : 'Backlog & sprints', waterfall ? tools.tl.length : backlog.length], ['timeline', 'Timeline', null, 'View timeline'], ['reports', 'Reports', null, 'View reports'], ['docs', 'Documents', pages.length, 'View documents'], ['settings', 'Type & workflow', null, null, true]].filter(([, , , need, cfg]) => (!need || may(need)) && (!cfg || may('Manage workflow') || may('Change project type') || may('Delete project')));
   const stuck = p.stuck ? { unread: p.stuck.unread, move: () => projectsW.moveReadablePlan(this, this.srv, pid).then(() => this.notify('The plan was moved. It can be changed again.', '#B8F36B')).catch((e) => this.notify(e.message || 'Could not move the plan.', '#FF9B8A')) } : null;
   return {
     stuck,

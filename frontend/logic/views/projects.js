@@ -330,6 +330,12 @@ export function buildProjects(ctx) {
       taskOpts: tp.tasks.filter((x) => x.id && x.id !== tt.id).map((x) => ({ v: x.id, l: (x.key ? x.key + ' · ' : '') + x.title })),
       waitingOn: openDeps(tp, tt).map((x) => x.title), isBlocked: tt.col !== 3 && openDeps(tp, tt).length > 0,
       subtasks: tp.tasks.filter((x) => x.parent && x.parent === tt.id).map((x) => ({ title: x.title, key: x.key || '', status: statusEntry(tp, x).name, open: () => this.setState({ taskOpen: { pid: tp.id, ti: tp.tasks.indexOf(x) }, taskEdit: null }) })),
+      canDeleteTask: can('projects', 'Delete tasks') && !!tt.id,
+      deleteTask: () => {
+        if (tp.tasks.some((x) => x.parent === tt.id || (x.deps || []).includes(tt.id))) { this.notify('Other tasks sit under this one or depend on it. Change them first.', '#FFB86B'); return; }
+        if (!window.confirm('Delete "' + tt.title + '"?')) return;
+        this.setState((st) => ({ taskOpen: null, taskEdit: null, taskMove: null, projects: st.projects.map((p) => (p.id === tp.id ? { ...p, tasks: p.tasks.filter((x) => x.id !== tt.id) } : p)) }));
+      },
       showChanges: can('projects', 'View change history'),
       changes: (tt.changes || []).filter((c) => !['col', 'assignee', 'secondary_id', 'kind'].includes(c.field) || c.field === 'kind').slice().reverse().map((c) => {
         const names = { title: 'Title', desc: 'Description', objective: 'Objective', status: 'Status', sprint: 'Sprint', milestone: 'Phase', due: 'Due date', start: 'Start date', primary: 'Owner', secondary: 'Second owner', points: 'Story points', parent: 'Parent', deps: 'Depends on', kind: 'Type', tickets: 'Linked tickets', links: 'Links' };

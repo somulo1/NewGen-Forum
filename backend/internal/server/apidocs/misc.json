@@ -959,5 +959,12 @@
   },
   "status": 204,
   "response": null
+ },
+ "DELETE /v1/projects/{id}": {
+  "summary": "Delete a project and its plan for good",
+  "description": "The audit log keeps that it happened, and the conversation stays.",
+  "access": "Delete project",
+  "status": 204,
+  "response": null
  }
 }
