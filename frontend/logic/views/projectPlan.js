@@ -170,6 +170,39 @@ export function buildPlan(ctx) {
     compare: () => this.setState({ pageDiff: { id: cur.id, at: c.at } }),
     restore: () => this.setState({ pageDraft: { pid, id: cur.id, kind: cur.kind || '', paper: cur.paper || 'theme', seed: cur.body || '', title: cur.title, parent: cur.parent || '', body: c.old || '', labels: (cur.labels || []).join(', '), err: '' }, pageDiff: null }) }));
   const shownDiff = cur && s.pageDiff && s.pageDiff.id === cur.id ? bodyChanges.find((c) => c.at === s.pageDiff.at) : null;
+  // what changed on a diagram, in words, from one version to the next
+  const boardChanges = (a, b) => {
+    const pa = (() => { try { return JSON.parse(a || '{}'); } catch (e) { return {}; } })(), pb = (() => { try { return JSON.parse(b || '{}'); } catch (e) { return {}; } })();
+    const out = [], A = new Map((pa.shapes || []).map((x) => [x.id, x])), B = new Map((pb.shapes || []).map((x) => [x.id, x]));
+    const name = (x) => (x.text ? '"' + String(x.text).slice(0, 30) + '"' : 'a ' + (x.t || 'shape'));
+    let moved = 0;
+    B.forEach((x, id) => { const o = A.get(id); if (!o) { out.push('Added ' + name(x)); return; }
+      if ((o.text || '') !== (x.text || '')) out.push('Text changed: ' + name(o) + ' → ' + name(x));
+      if (o.t !== x.t) out.push(name(x) + ' became a ' + x.t);
+      if ((o.color || '') !== (x.color || '') || (o.fill || '') !== (x.fill || '')) out.push('Colour changed on ' + name(x));
+      if (o.x !== x.x || o.y !== x.y || o.w !== x.w || o.h !== x.h) moved++; });
+    A.forEach((x, id) => { if (!B.has(id)) out.push('Removed ' + name(x)); });
+    if (moved) out.push(moved + (moved === 1 ? ' shape moved or resized' : ' shapes moved or resized'));
+    const la = new Set((pa.lines || []).map((l) => l.id)), lb = new Set((pb.lines || []).map((l) => l.id));
+    const addL = [...lb].filter((x) => !la.has(x)).length, delL = [...la].filter((x) => !lb.has(x)).length;
+    if (addL) out.push(addL + (addL === 1 ? ' connector added' : ' connectors added'));
+    if (delL) out.push(delL + (delL === 1 ? ' connector removed' : ' connectors removed'));
+    const ordA = (pa.shapes || []).map((x) => x.id).filter((id) => B.has(id)).join(), ordB = (pb.shapes || []).map((x) => x.id).filter((id) => A.has(id)).join();
+    if (ordA !== ordB) out.push('Shapes moved to the front or back');
+    if ((pa.bg || 'white') !== (pb.bg || 'white')) out.push('Background changed');
+    if ((pa.pen || []).length !== (pb.pen || []).length) out.push('Drawing changed');
+    return out.length ? out : ['Small changes only, such as a connector bend'];
+  };
+  const side = (body) => (cur && cur.kind === 'board' ? { isBoard: true, html: boardSvg(body || '') } : { isBoard: false, body: body || '' });
+  const compare = shownDiff ? {
+    key: shownDiff.at, title: cur.title,
+    left: { label: 'Before', sub: 'The version you can restore', ...side(shownDiff.old) },
+    right: { label: 'After', sub: (shownDiff.who || 'Someone') + ', ' + fmt(shownDiff.at), ...side(shownDiff.new) },
+    changes: cur.kind === 'board' ? boardChanges(shownDiff.old, shownDiff.new) : null,
+    lines: cur.kind === 'board' ? null : lineDiff(pageText(shownDiff.old), pageText(shownDiff.new)),
+    canRestore: (versions.find((v) => v.key === shownDiff.at) || {}).restore || null,
+    close: () => this.setState({ pageDiff: null })
+  } : null;
   const allLabels = [...new Set(pages.flatMap((x) => x.labels || []))].sort();
   const mePerson = this.srv ? this.srv.me.person : me;
   const comments = cur ? (p.comments || []).filter((c) => c.page === cur.id) : [];
@@ -206,7 +239,7 @@ export function buildPlan(ctx) {
       children: pages.filter((x) => x.parent === cur.id).map((x) => ({ id: x.id, title: x.title, open: () => openPage(x) })),
       watching: (cur.watchers || []).includes(mePerson), toggleWatch: () => updPage(cur.id, (y) => ({ ...y, watchers: (y.watchers || []).includes(mePerson) ? y.watchers.filter((w) => w !== mePerson) : (y.watchers || []).concat([mePerson]) })),
       toggleLock: () => updPage(cur.id, (y) => ({ ...y, locked: !y.locked })),
-      diff: shownDiff ? lineDiff(pageText(shownDiff.old), pageText(shownDiff.new)) : null, closeDiff: () => this.setState({ pageDiff: null }),
+      compare,
       files: (cur.files || []).map((f, i) => ({ key: i, name: f.name, open: () => (this.srv ? projectsW.openAttachment(this.srv, f.ref).catch((e) => this.notify(e.message || 'Could not open it.', '#FF9B8A')) : null), remove: () => updPage(cur.id, (y) => ({ ...y, files: y.files.filter((_, j) => j !== i) })) })),
       onFile: (e) => { const list = Array.from(e.target.files || []); e.target.value = ''; if (!this.srv) return; const id = cur.id; Promise.all(list.map((f) => projectsW.attach(this.srv, pid, f))).then((added) => { updPage(id, (y) => ({ ...y, files: (y.files || []).concat(added) })); this.notify(added.length + ' file' + (added.length === 1 ? '' : 's') + ' attached.', '#B8F36B'); }).catch((x) => this.notify(x.message || 'Could not attach the file.', '#FF9B8A')); },
       comments: comments.map((c) => ({ quote: c.quote || '', resolved: !!c.resolved, toggleResolved: () => patch((x) => ({ ...x, comments: x.comments.map((y) => (y.id === c.id ? { ...y, resolved: !y.resolved } : y)) })), id: c.id, who: c.who, text: c.text, when: c.createdAt ? fmt(c.createdAt) : 'Just now', mine: c.who === me && may('Delete comments'), remove: confirmed({ title: 'Delete this comment?', body: 'It is deleted for good.' }, () => patch((x) => ({ ...x, comments: x.comments.filter((y) => y.id !== c.id) }))) })),
