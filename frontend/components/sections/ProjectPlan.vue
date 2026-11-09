@@ -83,7 +83,7 @@
 <!-- Documents -->
 <template v-if="plan.isDocs">
 <div style="display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start">
-<div style="flex: 1 1 220px; min-width: 0; display: flex; flex-direction: column; gap: 6px">
+<div v-if="!(plan.docs.page && plan.docs.page.compare)" style="flex: 1 1 220px; min-width: 0; display: flex; flex-direction: column; gap: 6px">
 <label style="display: flex; flex-direction: column; font-size: 12px"><span class="pp-sr">Search pages</span><input type="search" :value="plan.docs.query" @input="plan.docs.onQuery" placeholder="Search pages" class="pp-input"></label>
 <div v-if="plan.docs.labels.length" style="display: flex; flex-wrap: wrap; gap: 4px"><button v-for="l in plan.docs.labels" :key="l.name" type="button" class="pp-mini" :aria-pressed="l.on" :style="l.on ? 'width: auto; padding: 0 8px; background: var(--k-22302A,#22302A)' : 'width: auto; padding: 0 8px'" @click="l.pick">{{ l.name }}</button></div>
 <span v-if="!plan.docs.list.length" class="pp-mut">No pages found.</span>

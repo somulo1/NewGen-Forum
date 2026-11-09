@@ -25,11 +25,23 @@ export async function load(logic, srv) {
     return {
       id: c.ref, uid: c.id, type: c.type, title: pl ? pl.title : '(sealed)', summary: pl ? pl.summary || '' : '', body: pl ? pl.body || '' : '', fields: pl && pl.fields ? pl.fields : {}, files: pl && pl.files ? pl.files : [], by: c.by_name, byDept: dept,
       date: dayOf(c.published_at || c.created_at), at: c.published_at || c.created_at, to: pl && pl.to ? pl.to : [],
+      batch: c.batch || c.id, sealed: !pl,
       status: c.status === 'Pending approval' ? 'Awaiting approval' : c.status, read: Math.min(100, Math.round((c.read / Math.max(1, total)) * 100)), iRead: !!c.i_read
     };
   }));
-  rows.sort((a, b) => (a.at < b.at ? 1 : -1));
-  logic.setState({ comms: rows });
+  // one communication sent to several places is stored once per place (same batch): it is listed once
+  const byBatch = new Map();
+  rows.forEach((r) => { if (!byBatch.has(r.batch)) byBatch.set(r.batch, []); byBatch.get(r.batch).push(r); });
+  const list = [...byBatch.values()].map((copies) => {
+    const main = copies.find((x) => !x.sealed) || copies[0];
+    const statuses = new Set(copies.map((x) => x.status));
+    return { ...main, copies: copies.length,
+      status: statuses.size === 1 ? main.status : statuses.has('Awaiting approval') ? 'Awaiting approval' : main.status,
+      read: Math.max(...copies.map((x) => x.read)), iRead: copies.some((x) => x.iRead),
+      at: copies.map((x) => x.at).sort().reverse()[0], date: dayOf(copies.map((x) => x.at).sort().reverse()[0]) };
+  });
+  list.sort((a, b) => (a.at < b.at ? 1 : -1));
+  logic.setState({ comms: list });
 }
 
 export async function markRead(logic, srv, c) {

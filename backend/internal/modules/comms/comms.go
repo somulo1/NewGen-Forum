@@ -54,6 +54,7 @@ type Comm struct {
 	PublishedAt  *time.Time `json:"published_at,omitempty"`
 	Read         int        `json:"read"`
 	IRead        bool       `json:"i_read"`
+	Batch        *uuid.UUID `json:"batch,omitempty"` // the sends made together, one per place
 }
 
 type SendIn struct {
@@ -206,13 +207,13 @@ func (s *Service) applyPublish(ctx context.Context, tx pgx.Tx, a approvals.Appli
 	return nil
 }
 
-const sel = `select c.id, c.ref, c.type, c.status, c.by_person, p.first_name || ' ' || p.last_name, c.conversation_id, c.message_id, c.created_at, c.published_at,
+const sel = `select c.id, c.ref, c.type, c.status, c.by_person, p.first_name || ' ' || p.last_name, c.conversation_id, c.message_id, c.created_at, c.published_at, c.batch,
 	(select count(*) from hub.comm_reads r where r.comm_id = c.id), exists (select 1 from hub.comm_reads r where r.comm_id = c.id and r.person_id = $1)
 	from hub.comms c join hub.people p on p.id = c.by_person`
 
 func scan(r pgx.Row) (*Comm, error) {
 	x := &Comm{}
-	err := r.Scan(&x.ID, &x.Ref, &x.Type, &x.Status, &x.By, &x.ByName, &x.Conversation, &x.Message, &x.CreatedAt, &x.PublishedAt, &x.Read, &x.IRead)
+	err := r.Scan(&x.ID, &x.Ref, &x.Type, &x.Status, &x.By, &x.ByName, &x.Conversation, &x.Message, &x.CreatedAt, &x.PublishedAt, &x.Batch, &x.Read, &x.IRead)
 	return x, err
 }
 
