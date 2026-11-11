@@ -374,8 +374,8 @@ func TestTicketRolesHeadWorkerAndRaiser(t *testing.T) {
 		}
 		return e.MustDo(200, "GET", "/org/units/"+it+"/dashboard"+q, nil, ownerU.Access)["parts"].(map[string]any)["tickets"].(map[string]any)
 	}
-	// performance: received and still open, not escalated -> not yet counted as done
-	if p := part(""); p["received"].(float64) != 1 || p["ok"].(float64) != 0 {
+	// performance: received and still open within its time -> waiting, not judged either way yet
+	if p := part(""); p["received"].(float64) != 0 || p["waiting"].(float64) != 1 {
 		t.Fatalf("before escalating: %v", p)
 	}
 	if c := act(wes, map[string]any{"do": "escalate"}); c != 200 {

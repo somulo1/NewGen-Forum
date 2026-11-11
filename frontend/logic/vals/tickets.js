@@ -85,7 +85,7 @@ export function valsTickets(ctx) {
       if (!name || !cur_t || name === cur_t.handler) return;
       ticketsW.assign(this, this.srv, cur_t, name).then(() => { if (ts.notify.assigned) this.notify(cur_t.id + (cur_t.handler ? ' handed over to ' : ' assigned to ') + name + '. They have been notified.', '#7CC4FF', cur_t.id); }).catch((x) => this.notify(x.message || 'Could not hand it over.', '#FF9B8A'));
     },
-    ntOpen: s.ntOpen, nt: s.nt, ntCats, ntPrios,
+    ntOpen: s.ntOpen, nt: s.nt, ntCats, ntPrios, ntForm: ctx.ntForm,
     toggleNewTicket: () => this.setState((st) => ({ ntOpen: !st.ntOpen })),
     ntSetTitle: (e) => { const v = e.target.value; this.setState((st) => ({ nt: { ...st.nt, title: v } })); },
     ntAttach: (e) => { const list = this.capFiles((this.state.nt.files || []).length, Array.from(e.target.files || [])).map((f) => this.fileInfo(f)); e.target.value = ''; this.setState((st) => ({ nt: { ...st.nt, files: (st.nt.files || []).concat(list) } })); },
@@ -96,9 +96,9 @@ export function valsTickets(ctx) {
       const nt = this.state.nt;
       const cat = ntCatSel;
       if (!nt.title.trim()) return;
-      this.setState((st) => ({ ntOpen: false, nt: { title: '', cat: st.nt.cat, prio: 'Medium', desc: '', files: [], toType: st.nt.toType, toName: st.nt.toName } }));
-      ticketsW.raise(this, this.srv, nt, { name: cat.name, prio: cat.custom ? cat.prio : nt.prio }, ntTargets)
-        .then((t) => { this.setState({ ticketOpen: t.id }); this.notify(t.id + ' raised in ' + cat.name + ' and sent to ' + (ntTargets.type === 'desk' ? 'the ticket desk' : ntTargets.name) + '. TAT ' + (cat.custom ? cat.tat + ' hours' : tatText(cat.name)) + (t.handler ? '. Assigned to ' + t.handler : '') + '.', '#7CC4FF', t.id); })
+      this.setState((st) => ({ ntOpen: false, nt: { title: '', cat: st.nt.cat, prio: 'Medium', desc: '', files: [], toType: st.nt.toType, toName: st.nt.toName, kind: 'ticket' } }));
+      ticketsW.raise(this, this.srv, nt, { name: cat.name, prio: ntTargets.priority }, ntTargets)
+        .then((t) => { this.setState({ ticketOpen: t.id }); this.notify((ntTargets.kind === 'request' ? 'Business request ' : '') + t.id + ' raised in ' + cat.name + ' and sent to ' + (ntTargets.type === 'desk' ? 'the ticket desk' : ntTargets.name) + '. TAT ' + (cat.custom ? cat.tat + ' hours' : tatText(cat.name)) + (t.handler ? '. Assigned to ' + t.handler : '') + '.', '#7CC4FF', t.id); })
         .catch((e) => this.notify(e.message || 'Could not raise the ticket.', '#FF9B8A'));
     }
   };

@@ -72,13 +72,9 @@ func TestUnitDashboardIsBuiltFromRealRecords(t *testing.T) {
 	if tk["dir"] != "Escalated" {
 		t.Fatalf("ticket direction: %v", tk)
 	}
-	reqs := d["requests"].([]any)
-	dirs := map[string]bool{}
-	for _, r := range reqs {
-		dirs[r.(map[string]any)["dir"].(string)] = r.(map[string]any)["subject"] != ""
-	}
-	if len(reqs) != 2 || !dirs["Received"] || !dirs["Sent"] {
-		t.Fatalf("want one request received (waiting for the HR Manager) and one sent (her memo): %v", reqs)
+	// business requests come only from the request form now (see TestBusinessRequestsComeFromTheForm), never from approvals
+	if reqs := d["requests"].([]any); len(reqs) != 0 {
+		t.Fatalf("approvals listed as business requests: %v", reqs)
 	}
 	comms := d["comms"].([]any)
 	if len(comms) != 1 || comms[0].(map[string]any)["dir"] != "Sent" || comms[0].(map[string]any)["message"] != mid {
@@ -133,5 +129,38 @@ func TestSectorDashboardRollsUpAndWaitsForOpenTickets(t *testing.T) {
 		if tk["waiting"].(float64) != 1 || tk["received"].(float64) != 0 || d["measured"].(float64) != 0 {
 			t.Fatalf("unit %s: tickets %v measured %v", unit, tk, d["measured"])
 		}
+	}
+}
+
+// A business request is raised like a ticket, to a department only, and shows under the department's business requests.
+func TestBusinessRequestsComeFromTheForm(t *testing.T) {
+	e := testkit.New(t)
+	ownerU, slug := e.NewOrg("Olivia Owner")
+	o := e.Owner(ownerU)
+	e.MustDo(204, "PUT", "/approvals/flows/f11", map[string]any{"levels": 0}, ownerU.Access)
+	e.Levels(ownerU, map[string]string{"sector": "", "department": "sector"})
+	sector := e.MustDo(201, "POST", "/org/units", map[string]any{"kind": "sector", "name": "Central"}, ownerU.Access)["id"].(string)
+	dept := e.MustDo(201, "POST", "/org/units", map[string]any{"kind": "department", "name": "Finance", "parent_id": sector}, ownerU.Access)["id"].(string)
+	amy := e.Join(ownerU, slug, "Amy", "staff")
+	for _, m := range []*testkit.Member{o, amy} {
+		m.Register(e)
+	}
+	conv := func() string {
+		key, _ := e2ee.NewConversationKey()
+		return e.MustDo(201, "POST", "/conversations", map[string]any{"kind": "ticket", "members": []string{o.Person}, "keys": amy.WrapFor(e, key, 1, amy.Person, o.Person)}, amy.Access)["id"].(string)
+	}
+	if c, _ := e.Do("POST", "/tickets", map[string]any{"conversation": conv(), "category": "Hardware", "to_type": "sector", "to_ref": sector, "kind": "request"}, amy.Access); c != 400 {
+		t.Fatalf("a business request to a sector: %d", c)
+	}
+	tk := e.MustDo(201, "POST", "/tickets", map[string]any{"conversation": conv(), "category": "Hardware", "to_type": "department", "to_ref": dept, "kind": "request", "priority": "High"}, amy.Access)
+	if tk["kind"] != "request" || tk["priority"] != "Low" { // Hardware is 48 hours: beyond a day is low priority, whatever was asked
+		t.Fatalf("request: kind %v priority %v", tk["kind"], tk["priority"])
+	}
+	d := e.MustDo(200, "GET", "/org/units/"+dept+"/dashboard", nil, ownerU.Access)
+	if len(d["requests"].([]any)) != 1 || len(d["tickets"].([]any)) != 0 {
+		t.Fatalf("department: %d requests, %d tickets", len(d["requests"].([]any)), len(d["tickets"].([]any)))
+	}
+	if s := e.MustDo(200, "GET", "/org/units/"+sector+"/dashboard", nil, ownerU.Access); len(s["requests"].([]any)) != 0 {
+		t.Fatal("a sector lists business requests it received")
 	}
 }

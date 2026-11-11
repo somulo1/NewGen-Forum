@@ -121,7 +121,8 @@ export function buildOrg(ctx) {
     if (!full) return out;
     const titleOfComm = (c) => ((s.comms || []).find((x) => x.id === c.ref) || {}).title || c.type + ' ' + c.ref;
     out.comms = full.comms.map((c) => ({ date: c.date, dir: c.dir, type: c.type, subject: titleOfComm(c), cp: c.cp, status: c.status, ok: c.ok, ref: c.ref, uid: c.id, fromServer: true }));
-    out.reqs = full.requests.map((q) => ({ ...q, fromServer: true, real: q }));
+    // business requests are raised from the ticket form: each one opens on the ticket page
+    out.reqs = full.requests.map((q) => { const st = (tickets || []).find((y) => y.id === q.ref); return { ...q, id: q.ref, uid: q.id, title: st ? st.title : q.subject, fromServer: true, real: q }; });
     out.tks = full.tickets.map((x) => { const st = (tickets || []).find((y) => y.id === x.ref); return { id: x.ref, uid: x.id, date: x.date, dir: x.dir, title: st ? st.title : x.category + ' ticket', cp: x.cp, status: x.status, ok: x.ok, real: null, fromServer: true }; });
     return out;
   };
@@ -266,7 +267,11 @@ export function buildOrg(ctx) {
         { label: 'Tickets', parts: [{ n: cnt(D.tks, 'Received'), l: 'Received', color: '#7CC4FF' }, { n: cnt(D.tks, 'Sent'), l: 'Sent', color: '#C9B6FF' }, { n: cnt(D.tks, 'Escalated'), l: 'Escalated', color: '#FF9B8A' }] },
         { label: 'Projects', parts: [{ n: ps.length, l: 'Active', color: '#E8EFEA' }, { n: ps.filter((p) => p.status !== 'On track').length, l: 'Need attention', color: '#FFB86B' }] }
       ],
-      isCats: ouTab === 'cats',
+      isCats: ouTab === 'cats', isComms: ouTab === 'comms',
+      // received and sent communications are kept apart; anyone allowed can send one from here to any other department, unit, branch or sector
+      commDirs: ['Received', 'Sent'].map((d) => ({ label: d, count: D.comms.filter((x) => (d === 'Sent' ? x.dir === 'Sent' : x.dir !== 'Sent')).length, on: (s.ouCommDir || 'Received') === d, pick: () => this.setState({ ouCommDir: d }) })),
+      commSend: [['Memo', 'memos', 'Send memos'], ['Announcement', 'announcements', 'Post'], ['Newsletter', 'newsletter', 'Publish newsletters']].filter(([ty, m, r]) => has[m] && can(m, r)).map(([ty]) => ({ label: 'New ' + ty.toLowerCase(),
+        run: () => this.setState({ cmOpen: true, cmd: { type: ty, title: '', summary: '', body: '', fields: {}, files: [], wall: false, forum: '', forumSel: {}, sel: {} } }) })),
       target: tg, setTarget: (e) => { const v = Math.max(50, Math.min(100, Number(e.target.value) || 95)); if (this.srv) { orgW.setTarget(this, this.srv, key, v).catch((err) => this.notify(err.message || 'Could not save the threshold.', '#FF9B8A')); return; } this.setState((x) => ({ targets: { ...x.targets, [key]: v } })); },
       perf: D.perf, perfText: D.perf == null ? '—' : D.perf + '%', perfColor: perfColor(D.perf, tg), perfNote: D.perf == null ? 'Nothing due yet in this period' : D.perf >= tg ? 'Target met' : (tg - D.perf) + ' points below target',
       breakdown: [mk('Communications acknowledged on time', D.pc, recvNote(D.comms, D.wc)), mk('Business requests resolved on time', D.pr, recvNote(D.reqs, D.wr)), mk('Tickets resolved on time', D.pt, recvNote(D.tks, D.wt))],
@@ -274,7 +279,7 @@ export function buildOrg(ctx) {
         style: 'min-height:44px;padding:0 16px;border:0;background:transparent;cursor:pointer;font-size:14px;white-space:nowrap;font-family:inherit;border-bottom:2px solid ' + (ouTab === k ? '#B8F36B' : 'transparent') + ';color:' + (ouTab === k ? 'var(--k-E8EFEA,#E8EFEA)' : 'var(--k-9DB0A6,#9DB0A6)') + ';font-weight:' + (ouTab === k ? '600' : '500') }))
     };
     // Small performance cards for the top card of the dashboard.
-    const ouOff = (l) => (/Ticket/.test(l) && !has.tickets) || (/Project/.test(l) && !has.projects);
+    const ouOff = (l) => (/Ticket/.test(l) && !has.tickets) || (/Project/.test(l) && !has.projects) || (/Business request/.test(l) && (t !== 'departments' || !has.tickets));
     ou.kpis = ou.kpis.filter((k) => !ouOff(k.label)); ou.tabs = ou.tabs.filter((k) => !ouOff(k.label)); ou.breakdown = ou.breakdown.filter((k) => !ouOff(k.label));
     ou.perfTiles = [{ label: 'Overall', pct: D.perf, pctText: D.perf == null ? '—' : D.perf + '%', color: perfColor(D.perf, tg), note: D.perf == null ? 'Nothing due yet' : D.perf >= tg ? 'Target ' + tg + '% met' : (tg - D.perf) + ' pts below ' + tg + '%' }].concat(ou.breakdown.map((b) => ({ label: b.label.replace(/ (acknowledged|resolved) on time/, ''), pct: b.pct, pctText: b.pctText, color: b.color, note: b.detail })));
     // A ticket opens on the same page as My tickets. Demo tickets are created on first view so every status, comment and handover works.
@@ -335,10 +340,10 @@ export function buildOrg(ctx) {
     ou.recInfo = recInfo; ou.recColor = recColor;
     const dirCell = (d) => C.b(d, dirC[d]);
     if (ouTab === 'comms') ouTable = { id: 'ou-c-' + key, pageSize: 10, minWidth: '900px', cols: [{ label: 'Date', filter: 'date' }, { label: 'Direction', filter: 'select' }, { label: 'Type', filter: 'select' }, { label: 'Subject', filter: 'text' }, { label: 'From / to', filter: 'text' }, { label: 'Status', filter: 'select' }, { label: '', align: 'right' }],
-      rows: D.comms.slice().sort((a, b) => b.date.localeCompare(a.date)).map((c) => { const ri = recInfo(false, c, D.comms.indexOf(c)); return { cells: [C.t(fmtDay(c.date), { fv: c.date, nowrap: true }), dirCell(c.dir), C.t(c.type), C.t(c.subject, { strong: true }), C.t(c.cp), C.b(ri.label, recColor(ri)), C.a([{ label: 'View', kind: 'primary', run: setItem('comms', D.comms.indexOf(c)) }])] }; }) };
-    if (ouTab === 'reqs') ouTable = { id: 'ou-r-' + key, pageSize: 10, minWidth: '940px', cols: [{ label: 'Ref', filter: 'text' }, { label: 'Date', filter: 'date' }, { label: 'Direction', filter: 'select' }, { label: 'Request', filter: 'text' }, { label: 'With', filter: 'select' }, { label: 'Status', filter: 'select' }, { label: '', align: 'right' }],
-      rows: D.reqs.slice().sort((a, b) => b.date.localeCompare(a.date)).map((c) => { const ri = recInfo(true, c, 0); return { tint: c.status === 'Overdue' && !s.ouRecs['req:' + c.ref] ? '#FF9B8A' : '', cells: [C.t(c.ref, { mono: true }), C.t(fmtDay(c.date), { fv: c.date, nowrap: true }), dirCell(c.dir), C.t(c.subject, { strong: true }), C.t(c.cp), C.b(ri.label, recColor(ri)),
-        C.a([{ label: 'View', kind: 'primary', run: setItem('reqs', c.ref) }].concat(c.dir === 'Received' && !c.fromServer && !ri.closed && ri.step < 3 ? [{ label: 'Escalate', kind: 'danger', run: () => this.notify(c.ref + ' escalated to the ' + (has.branches ? 'branch manager' : 'head of department') + '.', '#FF9B8A') }] : []))] }; }) };
+      rows: D.comms.filter((c) => ((s.ouCommDir || 'Received') === 'Sent' ? c.dir === 'Sent' : c.dir !== 'Sent')).sort((a, b) => b.date.localeCompare(a.date)).map((c) => { const ri = recInfo(false, c, D.comms.indexOf(c)); return { cells: [C.t(fmtDay(c.date), { fv: c.date, nowrap: true }), dirCell(c.dir), C.t(c.type), C.t(c.subject, { strong: true }), C.t(c.cp), C.b(ri.label, recColor(ri)), C.a([{ label: 'View', kind: 'primary', run: setItem('comms', D.comms.indexOf(c)) }])] }; }) };
+    if (ouTab === 'reqs') ouTable = { id: 'ou-r-' + key, pageSize: 10, minWidth: '900px', cols: [{ label: 'Request', filter: 'text' }, { label: 'Date', filter: 'date' }, { label: 'Direction', filter: 'select' }, { label: 'Title', filter: 'text' }, { label: 'With', filter: 'select' }, { label: 'Status', filter: 'select' }, { label: '', align: 'right' }],
+      rows: D.reqs.slice().sort((a, b) => b.date.localeCompare(a.date)).map((c) => ({ tint: c.status === 'Overdue' ? '#FF9B8A' : '', cells: [C.t(c.ref, { mono: true }), C.t(fmtDay(c.date), { fv: c.date, nowrap: true }), dirCell(c.dir), C.t(c.title || c.subject, { strong: true, sub: c.subject }), C.t(c.cp), C.b(c.status, stC(c.status)),
+        C.a(c.uid ? [{ label: 'View', kind: 'primary', run: openTicketPage(c) }] : [])] })) };
     if (ouTab === 'tks') ouTable = { id: 'ou-t-' + key, pageSize: 10, minWidth: '900px', cols: [{ label: 'Ticket', filter: 'text' }, { label: 'Date', filter: 'date' }, { label: 'Direction', filter: 'select' }, { label: 'Title', filter: 'text' }, { label: 'With', filter: 'select' }, { label: 'Status', filter: 'select' }, { label: '', align: 'right' }],
       rows: D.tks.slice().sort((a, b) => b.date.localeCompare(a.date)).map((c) => ({ tint: c.status === 'Overdue' ? '#FF9B8A' : '', cells: [C.t(c.id, { mono: true }), C.t(fmtDay(c.date), { fv: c.date, nowrap: true }), dirCell(c.dir), C.t(c.title, { strong: true }), C.t(c.cp), C.b(c.status, stC(c.status)),
         C.a([{ label: 'View', kind: 'primary', run: openTicketPage(c) }])] })) };

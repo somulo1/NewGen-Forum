@@ -268,107 +268,14 @@ func (s *Service) Dashboard(ctx context.Context, p *tenant.Principal, id uuid.UU
 			return err
 		}
 
-		// ---- approval requests ----
-		rs, err = tx.Query(ctx, `
-			select r.id, r.seq, r.title_enc, r.level, r.status, r.created_at, r.decided_at, f.levels, array[]::text[],
-			  r.requester in `+um+`,
-			  exists (select 1 from hub.approval_steps s where s.request_id = r.id and s.approver in `+um+`),
-			  exists (select 1 from hub.people pe left join hub.person_roles pr on pr.person_id = pe.id left join hub.roles ro on ro.id = pr.role_id
-			     where pe.id in `+um+` and r.status = 'Pending' and pe.status = 'active' and (coalesce(ro.locked,false) or coalesce(
-			        (select x.allowed from hub.person_rights x where x.person_id = pe.id and x.module = f.module and x.right_name = 'Approve level ' || r.level),
-			        case when pr.role_id is null then null else hub.role_right(pr.role_id, f.module, 'Approve level ' || r.level) end, false))),
-			  coalesce(dx.name, ''), rq.first_name || ' ' || rq.last_name
-			from hub.approval_requests r join hub.approval_flows f on f.key = r.flow_key
-			join hub.people rq on rq.id = r.requester left join hub.org_units dx on dx.id = rq.department_id
-			where r.created_at > $2 and r.status <> 'Cancelled'
-			  and (r.requester in `+um+` or exists (select 1 from hub.approval_steps s where s.request_id = r.id and s.approver in `+um+`)
-			       or exists (select 1 from hub.people pe left join hub.person_roles pr on pr.person_id = pe.id left join hub.roles ro on ro.id = pr.role_id
-			            where pe.id in `+um+` and r.status = 'Pending' and pe.status = 'active' and (coalesce(ro.locked,false) or coalesce(
-			        (select x.allowed from hub.person_rights x where x.person_id = pe.id and x.module = f.module and x.right_name = 'Approve level ' || r.level),
-			        case when pr.role_id is null then null else hub.role_right(pr.role_id, f.module, 'Approve level ' || r.level) end, false))))
-			order by r.created_at desc limit 200`, id, since)
-		if err != nil {
-			return err
-		}
-		var reqIDs []uuid.UUID
-		for rs.Next() {
-			var r ReqRow
-			var seq int
-			var enc []byte
-			var created time.Time
-			var decided *time.Time
-			var sent, decidedHere, waitingHere bool
-			var dept, status string
-			if err := rs.Scan(&r.ID, &seq, &enc, &r.Level, &status, &created, &decided, &r.Levels, &r.Approvers, &sent, &decidedHere, &waitingHere, &dept, &r.By); err != nil {
-				rs.Close()
-				return err
-			}
-			r.Ref, r.Date = fmt.Sprintf("AP-%d", seq), created.UTC().Format("2006-01-02")
-			r.Levels = max(1, r.Levels)
-			if b, err := crypto.FieldOpen(dek, crypto.Context{Org: p.Org.String(), Table: "approval_requests", Column: "title_enc", RowID: r.ID.String()}, enc); err == nil {
-				r.Subject = string(b)
-			}
-			r.Closed = status != "Pending"
-			if sent {
-				r.Dir, r.Counterparty = "Sent", "Approvers"
-			} else {
-				r.Dir, r.Counterparty = "Received", dept
-			}
-			age := time.Since(created)
-			if decided != nil {
-				age = decided.Sub(created)
-			}
-			switch {
-			case status == "Pending" && age > ontimeWait:
-				r.Status, r.OK = "Overdue", false
-			case status == "Pending":
-				r.Status, r.OK, r.Pending = "In progress", false, true
-			case age > ontimeWait:
-				r.Status, r.OK = "Resolved late", false
-			default:
-				r.Status, r.OK = "Resolved on time", true
-			}
-			if status == "Rejected" {
-				r.Status = "Rejected"
-			}
-			r.History = []ReqStep{}
-			d.Requests = append(d.Requests, r)
-			reqIDs = append(reqIDs, r.ID)
-		}
-		rs.Close()
-		if err := rs.Err(); err != nil {
-			return err
-		}
-		if len(reqIDs) > 0 {
-			at := make(map[uuid.UUID]int, len(reqIDs))
-			for i, id := range reqIDs {
-				at[id] = i
-			}
-			ss, err := tx.Query(ctx, `select s.request_id, s.level, pe.first_name || ' ' || pe.last_name, s.decision, s.created_at from hub.approval_steps s join hub.people pe on pe.id = s.approver where s.request_id = any($1) order by s.request_id, s.level`, reqIDs)
-			if err != nil {
-				return err
-			}
-			for ss.Next() {
-				var rid uuid.UUID
-				var st ReqStep
-				var when time.Time
-				if err := ss.Scan(&rid, &st.Level, &st.Who, &st.Decision, &when); err != nil {
-					ss.Close()
-					return err
-				}
-				st.At = when.UTC().Format(time.RFC3339)
-				if i, ok := at[rid]; ok {
-					d.Requests[i].History = append(d.Requests[i].History, st)
-				}
-			}
-			ss.Close()
-		}
+		// ---- business requests: raised from the ticket form to a department (tickets marked as requests, read with them below) ----
 
 		// ---- tickets ----
 		// a ticket sent to this unit or to any unit under it (a sector's branches, a branch's departments) is work this unit received
 		rs, err = tx.Query(ctx, `
 			with recursive below(id) as (select $1::uuid union select u.id from hub.org_units u join below on u.parent_id = below.id)
-			select t.conversation_id, t.ref, t.created_at, t.category, t.priority, t.step, t.late, t.escalated, t.due_at, t.solved_at,
+			select t.conversation_id, t.ref, t.created_at, t.category, t.priority, t.step, t.late, t.escalated, t.due_at, t.solved_at, t.kind = 'request',
+			  coalesce(rp.first_name || ' ' || rp.last_name, ''),
 			  (select min(e.at) from hub.ticket_events e where e.ticket_id = t.conversation_id and e.kind = 'event' and e.text like 'Escalated%'),
 			  ($2::text <> '' and t.to_ref in (select id from below)), coalesce(rdx.name, ''), t.to_type, coalesce(tu.name, '')
 			from hub.tickets t join hub.people rp on rp.id = t.raised_by left join hub.org_units rdx on rdx.id = rp.department_id
@@ -384,8 +291,9 @@ func (s *Service) Dashboard(ctx context.Context, p *tenant.Principal, id uuid.UU
 			var created time.Time
 			var late, esc, here bool
 			var due, solved, escAt *time.Time
-			var rdept, toType, toName string
-			if err := rs.Scan(&r.ID, &r.Ref, &created, &r.Category, &r.Priority, &r.Step, &late, &esc, &due, &solved, &escAt, &here, &rdept, &toType, &toName); err != nil {
+			var rdept, toType, toName, raiser string
+			var isReq *bool
+			if err := rs.Scan(&r.ID, &r.Ref, &created, &r.Category, &r.Priority, &r.Step, &late, &esc, &due, &solved, &isReq, &raiser, &escAt, &here, &rdept, &toType, &toName); err != nil {
 				rs.Close()
 				return err
 			}
@@ -420,6 +328,15 @@ func (s *Service) Dashboard(ctx context.Context, p *tenant.Principal, id uuid.UU
 				} else {
 					r.Counterparty = "Ticket desk"
 				}
+			}
+			if isReq != nil && *isReq {
+				// only a department receives business requests; elsewhere they are what its people sent
+				if d.Unit.Kind != "department" && r.Dir != "Sent" {
+					continue
+				}
+				d.Requests = append(d.Requests, ReqRow{ID: r.ID, Ref: r.Ref, Date: r.Date, Dir: r.Dir, Subject: r.Category, Status: r.Status, OK: r.OK, Pending: r.Pending,
+					Counterparty: r.Counterparty, By: raiser, Approvers: []string{}, History: []ReqStep{}, Closed: r.Step >= 3})
+				continue
 			}
 			d.Tickets = append(d.Tickets, r)
 		}
@@ -468,9 +385,9 @@ func (s *Service) Dashboard(ctx context.Context, p *tenant.Principal, id uuid.UU
 	count("comms", n, ok)
 	n, ok = 0, 0
 	for _, r := range d.Requests {
-		if r.Dir == "Received" && r.Pending {
+		if r.Dir != "Sent" && r.Pending {
 			waiting++
-		} else if r.Dir == "Received" {
+		} else if r.Dir != "Sent" {
 			n++
 			if r.OK {
 				ok++

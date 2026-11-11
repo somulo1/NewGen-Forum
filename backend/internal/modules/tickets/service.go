@@ -56,6 +56,7 @@ type Category struct {
 type Ticket struct {
 	ID           uuid.UUID   `json:"id"` // = its conversation
 	Ref          string      `json:"ref"`
+	Kind         string      `json:"kind"` // "request" for a business request, "ticket" otherwise
 	Category     string      `json:"category"`
 	Priority     string      `json:"priority"`
 	Step         int         `json:"step"`
@@ -109,6 +110,7 @@ type CreateIn struct {
 	ToType       string     `json:"to_type"`
 	ToRef        *uuid.UUID `json:"to_ref"`
 	Sync         string     `json:"sync"`
+	Kind         string     `json:"kind"` // "request" for a business request (to a department only); empty for a ticket
 	// At backdates the ticket (history loading only; not settable over HTTP).
 	At *time.Time `json:"-"`
 	// Details is what emails may say about the ticket. It is only written into emails, never stored.
@@ -132,6 +134,17 @@ func (s *Service) eventAt(ctx context.Context, tx pgx.Tx, org, ticket uuid.UUID,
 }
 
 // categoriesFor finds the categories that apply to a receiving unit, falling back to the desk's.
+// PriorityOf is the priority a turnaround time gives: within 8 hours High, within 24 hours Medium, anything longer Low.
+func PriorityOf(tatHours int) string {
+	switch {
+	case tatHours <= 8:
+		return "High"
+	case tatHours <= 24:
+		return "Medium"
+	}
+	return "Low"
+}
+
 func (s *Service) category(ctx context.Context, tx pgx.Tx, toType string, toRef *uuid.UUID, name string) (*Category, error) {
 	c := &Category{}
 	row := tx.QueryRow(ctx, `select id, unit_type, unit_ref, name, tat_hours, priority, members from hub.ticket_categories
@@ -159,6 +172,15 @@ func (s *Service) Create(ctx context.Context, p *tenant.Principal, in CreateIn) 
 	}
 	if in.ToType != "desk" && in.ToRef == nil {
 		return nil, httpx.Bad("Choose who receives it.")
+	}
+	if in.Kind != "" && in.Kind != "request" && in.Kind != "ticket" {
+		return nil, httpx.Bad("Choose a ticket or a business request.")
+	}
+	if in.Kind == "ticket" {
+		in.Kind = ""
+	}
+	if in.Kind == "request" && in.ToType != "department" {
+		return nil, httpx.Bad("Business requests go to a department.")
 	}
 	var err error
 	if in.Title, err = cleanText(in.Title, maxTitle, "The subject"); err != nil {
@@ -188,9 +210,8 @@ func (s *Service) Create(ctx context.Context, p *tenant.Principal, in CreateIn) 
 		if cat == nil {
 			return httpx.Bad("That category does not exist for this recipient.")
 		}
-		if in.Priority == "" {
-			in.Priority = cat.Priority
-		}
+		// priority follows how fast the department promised to resolve it: what is due within a working day is urgent
+		in.Priority = PriorityOf(cat.TAT)
 		cfg, err := s.config(ctx, tx)
 		if err != nil {
 			return err
@@ -224,8 +245,8 @@ func (s *Service) Create(ctx context.Context, p *tenant.Principal, in CreateIn) 
 		if handler != nil {
 			step, since = 1, &now
 		}
-		if _, err := tx.Exec(ctx, `insert into hub.tickets (org_id, conversation_id, ref, category, priority, step, raised_by, handler, handler_since, to_type, to_ref, tat_hours, due_at, sync, created_at)
-			values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`, p.Org, in.Conversation, ref, cat.Name, in.Priority, step, p.Person, handler, since, in.ToType, in.ToRef, cat.TAT, due, in.Sync, now); err != nil {
+		if _, err := tx.Exec(ctx, `insert into hub.tickets (org_id, conversation_id, ref, category, priority, step, raised_by, handler, handler_since, to_type, to_ref, tat_hours, due_at, sync, created_at, kind)
+			values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,nullif($16,''))`, p.Org, in.Conversation, ref, cat.Name, in.Priority, step, p.Person, handler, since, in.ToType, in.ToRef, cat.TAT, due, in.Sync, now, in.Kind); err != nil {
 			return err
 		}
 		if err := s.A.Sign.Seal(ctx, tx, "tickets", "conversation_id=$1", in.Conversation); err != nil {
@@ -236,7 +257,11 @@ func (s *Service) Create(ctx context.Context, p *tenant.Principal, in CreateIn) 
 				return err
 			}
 		}
-		if err := s.eventAt(ctx, tx, p.Org, in.Conversation, p, "event", "Raised the ticket", &now); err != nil {
+		raisedText := "Raised the ticket"
+		if in.Kind == "request" {
+			raisedText = "Raised the business request"
+		}
+		if err := s.eventAt(ctx, tx, p.Org, in.Conversation, p, "event", raisedText, &now); err != nil {
 			return err
 		}
 		if handler != nil {
@@ -289,14 +314,14 @@ func (s *Service) pickHandler(ctx context.Context, tx pgx.Tx, c *Category) (*uui
 	return nil, rs.Err()
 }
 
-const ticketSelect = `select t.conversation_id, t.ref, t.category, t.priority, t.step, t.hold, t.raised_by, coalesce(rp.first_name || ' ' || rp.last_name,''), t.handler, coalesce(hp.first_name || ' ' || hp.last_name,''),
+const ticketSelect = `select t.conversation_id, t.ref, coalesce(t.kind, 'ticket'), t.category, t.priority, t.step, t.hold, t.raised_by, coalesce(rp.first_name || ' ' || rp.last_name,''), t.handler, coalesce(hp.first_name || ' ' || hp.last_name,''),
 	t.handler_since, t.to_type, t.to_ref, t.tat_hours, t.due_at, t.solved_at, t.escalated, t.late, t.sync, t.created_at, t.hold_since,
 	coalesce((select array_agg(person_id) from hub.ticket_assignees a where a.ticket_id = t.conversation_id), '{}'), t.closed_at, t.rating, t.auto_closed
 	from hub.tickets t join hub.people rp on rp.id = t.raised_by left join hub.people hp on hp.id = t.handler`
 
 func scanTicket(r pgx.Row) (*Ticket, error) {
 	t := &Ticket{}
-	err := r.Scan(&t.ID, &t.Ref, &t.Category, &t.Priority, &t.Step, &t.Hold, &t.RaisedBy, &t.RaisedByName, &t.Handler, &t.HandlerName, &t.HandlerSince, &t.ToType, &t.ToRef, &t.TATHours, &t.DueAt, &t.SolvedAt, &t.Escalated, &t.Late, &t.Sync, &t.CreatedAt, &t.holdSince, &t.Assignees, &t.ClosedAt, &t.Rating, &t.AutoClosed)
+	err := r.Scan(&t.ID, &t.Ref, &t.Kind, &t.Category, &t.Priority, &t.Step, &t.Hold, &t.RaisedBy, &t.RaisedByName, &t.Handler, &t.HandlerName, &t.HandlerSince, &t.ToType, &t.ToRef, &t.TATHours, &t.DueAt, &t.SolvedAt, &t.Escalated, &t.Late, &t.Sync, &t.CreatedAt, &t.holdSince, &t.Assignees, &t.ClosedAt, &t.Rating, &t.AutoClosed)
 	if t.Assignees == nil {
 		t.Assignees = []uuid.UUID{}
 	}

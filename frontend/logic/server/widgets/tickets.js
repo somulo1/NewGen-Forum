@@ -175,7 +175,7 @@ export async function raise(logic, srv, nt, cat, target) {
     const fs = await srv.vault.seal(conv.id, { name: up.name, meta: up.meta, type: up.type, isImg: up.isImg, isVideo: up.isVideo, fileId: up.fileId, key: up.key });
     await srv.request('POST', `/conversations/${conv.id}/messages`, { ...fs, type: 'text' });
   }
-  await srv.request('POST', '/tickets', { conversation: conv.id, title: nt.title, description: nt.desc || '', category: cat.name, priority: cat.prio || nt.prio, to_type: toType, to_ref: toRef,
+  await srv.request('POST', '/tickets', { conversation: conv.id, title: nt.title, description: nt.desc || '', category: cat.name, priority: cat.prio || nt.prio, to_type: toType, to_ref: toRef, kind: target.kind === 'request' ? 'request' : 'ticket',
     // emails about this ticket may show these (only sent when the organization allows details in emails; files are never included)
     ...(srv.emailDetails !== false ? { details: { title: nt.title, description: nt.desc || '', files: (nt.files || []).length } } : {}) });
   return reload(logic, srv, conv.id);
