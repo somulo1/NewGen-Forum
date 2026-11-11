@@ -132,3 +132,9 @@ main h1{font-size:22px !important}
   animation: hub-busy-spin 0.7s linear infinite;
 }
 @keyframes hub-busy-spin { to { transform: rotate(360deg); } }
+
+/* Home widgets: rows of equal-width cards. Every card in a row is as tall as the tallest, so tops and bottoms line up however much
+   each holds, and a card's buttons sit at its bottom. Cards never stretch wider than two fit side by side on a phone. */
+.home-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:16px;align-items:stretch}
+.home-grid>.home-widget{height:100%}
+.home-grid>.home-widget>button:last-child,.home-grid>.home-widget>div:last-child:not(:has(>:not(button))){margin-top:auto}

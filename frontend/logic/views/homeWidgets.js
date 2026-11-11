@@ -157,7 +157,7 @@ export function buildHomeWidgets(ctx) {
     shareIdle: true,
     makeShare: () => this.setState({ section: 'share' }),
     resetShare: () => this.setState({ section: 'share' }),
-    cardStyle: 'break-inside:avoid;margin:0 0 16px;box-sizing:border-box;width:100%;padding:18px;border-radius:18px;background:var(--k-16201C,#16201C);display:flex;flex-direction:column;gap:14px;border:' + (s.customize ? '1px dashed var(--k-4A5C54,#4A5C54)' : '1px solid var(--k-24322C,#24322C)'),
+    cardStyle: 'box-sizing:border-box;width:100%;min-width:0;padding:18px;border-radius:18px;background:var(--k-16201C,#16201C);display:flex;flex-direction:column;gap:14px;border:' + (s.customize ? '1px dashed var(--k-4A5C54,#4A5C54)' : '1px solid var(--k-24322C,#24322C)'),
     remove: () => removeWidget(id),
     moveUp: () => this.setState((st) => {
       const w = st.widgets.slice(); const k = w.indexOf(id);

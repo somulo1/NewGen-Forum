@@ -41,7 +41,7 @@
 </section>
 </template>
 <div style="padding: 16px; border: 1px solid var(--k-2A3832,#2A3832); border-radius: 20px; background: transparent">
-<div style="columns: 300px; column-gap: 16px">
+<div class="home-grid">
 <template v-for="(w, w__i) in widgets" :key="w__i">
 <section class="home-widget" :aria-label="w.title" :style="w.cardStyle + (w.hidden ? ';opacity: 0.5' : '')">
 <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px">
