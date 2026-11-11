@@ -153,7 +153,7 @@ function build(logic, srv, items) {
       headline: m.sender_account === me ? ((logic.state.profile || {}).headline || '') : (p ? (p.headline || '') : ''),   // what they wrote about themselves, shown under their name
       meta: (isComm ? commLabel : (pl.department || (p ? p.dept : '') || 'Everyone')) + ' · ' + ago(m.created_at),
       text: isComm ? (pl.title || '') + (pl.summary ? '\n' + pl.summary : '') + (pl.body ? '\n' + pl.body : '') : (pl.text || ''), postBg: pl.postBg || undefined,
-      likes: likes.length - (mineLike ? 1 : 0), extra: 0, shares: kids(m.id, 'share').length,
+      likes: likes.length - (mineLike ? 1 : 0), likers: likes.filter((x) => x.m.sender_account !== me).map((x) => ({ uid: x.m.sender_person || '', name: who(x.m) })), extra: 0, shares: kids(m.id, 'share').length,
       photoLabel: pl.photo ? pl.photo.label : undefined, photoBg: pl.photo ? pl.photo.bg : undefined,
       comments: comments(m.id), media,
       pollData: pl.poll ? { opts: pl.poll.map((o) => ({ id: o.id, label: o.label, votes: votes.filter((v) => v.pl.option === o.id && v.m.sender_account !== me).length })) } : undefined,

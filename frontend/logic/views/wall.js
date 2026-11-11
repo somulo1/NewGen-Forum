@@ -80,6 +80,10 @@ export function buildWall(ctx) {
       poll: userPoll ? userPoll.list : poll,
       pollNote: userPoll ? (userPoll.tot + (userPoll.tot === 1 ? ' vote' : ' votes') + (s.pollVotes[p.id] ? ' · thanks for voting' : ' · tap an option to vote')) : s.vote ? total + ' votes · thanks for voting' : 'Tap an option to vote · closes Friday',
       likes: p.likes + (liked ? 1 : 0),
+      likesLabel: (p.likes + (liked ? 1 : 0)) + ((p.likes + (liked ? 1 : 0)) === 1 ? ' like' : ' likes'),
+      // the first few people who liked it, shown as small avatars (you first when you liked it)
+      likers: (liked ? [{ uid: (this.srv && this.srv.me.person) || '', name: (this.srv && this.srv.me.name) || 'You', self: true }] : []).concat(p.likers || []).slice(0, 3),
+      likersTitle: (liked ? ['You'] : []).concat((p.likers || []).map((x) => x.name)).join(', '),
       commentsOpen: !!s.commentsOpen[p.id],
       replyingAny: !!s.replyFor && s.replyFor.indexOf(p.id + ':') === 0,
       toggleComments: () => this.setState((st) => ({ commentsOpen: { ...st.commentsOpen, [p.id]: !st.commentsOpen[p.id] }, replyFor: null })),
