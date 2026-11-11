@@ -180,6 +180,8 @@ export async function raise(logic, srv, nt, cat, target) {
     await srv.request('POST', `/conversations/${conv.id}/messages`, { ...fs, type: 'text' });
   }
   await srv.request('POST', '/tickets', { conversation: conv.id, title: nt.title, description: nt.desc || '', category: cat.name, priority: cat.prio || nt.prio, to_type: toType, to_ref: toRef, kind: target.kind === 'request' || target.kind === 'communication' ? target.kind : 'ticket',
+    // sent from a place's dashboard: on that place's behalf
+    ...(target.from ? { from_ref: srv.structure[target.from.level].get(target.from.name) } : {}),
     // emails about this ticket may show these (only sent when the organization allows details in emails; files are never included)
     ...(srv.emailDetails !== false ? { details: { title: nt.title, description: nt.desc || '', files: (nt.files || []).length } } : {}) });
   return reload(logic, srv, conv.id);

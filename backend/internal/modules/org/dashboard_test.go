@@ -338,7 +338,19 @@ func TestPlacesSendEachOtherCommunications(t *testing.T) {
 	if c, _ := e.Do("POST", "/tickets", map[string]any{"conversation": conv, "to_type": "desk", "kind": "communication"}, amy.Access); c != 400 {
 		t.Fatalf("a communication to the ticket desk: %d", c)
 	}
-	cm := e.MustDo(201, "POST", "/tickets", map[string]any{"conversation": conv, "to_type": "branch", "to_ref": br, "kind": "communication", "title": "Stock count dates"}, amy.Access)
+	// a communication is sent on a place's behalf, by someone who belongs to it and may open its dashboard
+	if c, _ := e.Do("POST", "/tickets", map[string]any{"conversation": conv, "to_type": "branch", "to_ref": br, "kind": "communication"}, amy.Access); c != 400 {
+		t.Fatalf("a communication from nobody: %d", c)
+	}
+	if c, _ := e.Do("POST", "/tickets", map[string]any{"conversation": conv, "to_type": "branch", "to_ref": br, "kind": "communication", "from_ref": fin}, amy.Access); c != 403 {
+		t.Fatalf("sent for Finance without its dashboard: %d", c)
+	}
+	e.MustDo(204, "PUT", "/approvals/flows/f8", map[string]any{"levels": 0}, ownerU.Access)
+	e.MustDo(200, "PUT", "/people/"+amy.Person+"/rights", map[string]any{"module": "departments", "right": "View dashboard", "allowed": true}, ownerU.Access)
+	if c, _ := e.Do("POST", "/tickets", map[string]any{"conversation": conv, "category": "Hardware", "to_type": "branch", "to_ref": br, "from_ref": fin}, amy.Access); c != 400 {
+		t.Fatalf("a ticket on a place's behalf: %d", c)
+	}
+	cm := e.MustDo(201, "POST", "/tickets", map[string]any{"conversation": conv, "to_type": "branch", "to_ref": br, "kind": "communication", "title": "Stock count dates", "from_ref": fin}, amy.Access)
 	if cm["kind"] != "communication" || cm["tat_hours"].(float64) != 12 || cm["priority"] != "Medium" {
 		t.Fatalf("communication: %v %v %v", cm["kind"], cm["tat_hours"], cm["priority"])
 	}
@@ -355,6 +367,9 @@ func TestPlacesSendEachOtherCommunications(t *testing.T) {
 	}
 	if b := dirs(br); len(b) != 1 || b[0] != "Received" {
 		t.Fatalf("branch: %v", b)
+	}
+	if c := e.MustDo(200, "GET", "/org/units/"+br+"/dashboard", nil, ownerU.Access)["comms"].([]any)[0].(map[string]any); c["from"] != "Finance" || c["from_unit"] != true {
+		t.Fatalf("from: %v %v", c["from"], c["from_unit"])
 	}
 	if f := dirs(fin); len(f) != 1 || f[0] != "Sent" {
 		t.Fatalf("finance: %v", f)

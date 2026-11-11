@@ -1,4 +1,5 @@
-<!-- How I did this month in each place I belong to: only my own figures, whatever my rights. -->
+<!-- How I did this month in each place I belong to: only my own figures, whatever my rights. It counts what was assigned to me
+     (tickets, business requests, and communications places send each other), resolved or escalated on within the turnaround. -->
 <template>
 <section v-if="places.length || loading" aria-label="My performance" style="padding: 16px 20px; border-radius: 18px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 12px">
 <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><strong style="flex: 1 1 auto; font-size: 15px">My performance</strong>
@@ -30,9 +31,9 @@ export default {
     },
     cards(pl) {
       const m = pl.me, col = (p, n) => (!n ? '#9DB0A6' : p >= 95 ? '#B8F36B' : p >= 85 ? '#FFB86B' : '#FF9B8A');
-      const card = (label, part) => ({ label, value: part.received ? part.pct + '%' : '—', color: col(part.pct, part.received), note: part.ok + ' on time of ' + part.received + (part.waiting ? ' · ' + part.waiting + ' not due yet' : '') });
+      const card = (label, part) => ({ label, value: part.received ? part.pct + '%' : '—', color: col(part.pct, part.received), note: part.received + part.waiting ? part.ok + ' resolved or escalated on time of ' + part.received + (part.waiting ? ' · ' + part.waiting + ' not due yet' : '') : 'none assigned' });
       return [{ label: 'Overall', value: m.measured ? m.perf + '%' : '—', color: col(m.perf, m.measured), note: m.measured ? 'from ' + m.measured + ' decided' : 'Nothing due yet' },
-        card('Tickets', m.tickets), ...(pl.unit.kind === 'department' ? [card('Business requests', m.requests)] : []), card('Communications opened', m.comms)];
+        card('Tickets', m.tickets), ...(pl.unit.kind === 'department' ? [card('Business requests', m.requests)] : []), card('Communications', m.comms)];
     }
   }
 };

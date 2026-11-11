@@ -136,10 +136,10 @@ export function buildOrg(ctx) {
     if (!full) return out;
     const titleOfComm = (c) => ((s.comms || []).find((x) => x.id === c.ref) || {}).title || c.type + ' ' + c.ref;
     // communications here are the ones places send each other (kept like tickets): each opens on the ticket page
-    out.comms = full.comms.map((c) => { const st = (tickets || []).find((y) => y.id === c.ref); return { id: c.ref, uid: c.id, date: c.date, dir: c.dir, type: c.type, subject: st ? st.title : 'Communication', cp: c.cp, status: c.status, ok: c.ok, open: !!c.open, assignee: c.assignee || '', fromServer: true }; });
+    out.comms = full.comms.map((c) => { const st = (tickets || []).find((y) => y.id === c.ref); return { id: c.ref, uid: c.id, date: c.date, dir: c.dir, type: c.type, subject: st ? st.title : 'Communication', cp: c.cp, status: c.status, ok: c.ok, open: !!c.open, assignee: c.assignee || '', from: c.from || '', fromUnit: !!c.from_unit, fromServer: true }; });
     // business requests are raised from the ticket form: each one opens on the ticket page
-    out.reqs = full.requests.map((q) => { const st = (tickets || []).find((y) => y.id === q.ref); return { ...q, id: q.ref, uid: q.id, title: st ? st.title : q.subject, fromServer: true, real: q }; });
-    out.tks = full.tickets.map((x) => { const st = (tickets || []).find((y) => y.id === x.ref); return { id: x.ref, uid: x.id, date: x.date, dir: x.dir, title: st ? st.title : x.category + ' ticket', cp: x.cp, status: x.status, ok: x.ok, open: !!x.open, assignee: x.assignee || '', real: null, fromServer: true }; });
+    out.reqs = full.requests.map((q) => { const st = (tickets || []).find((y) => y.id === q.ref); return { ...q, id: q.ref, uid: q.id, title: st ? st.title : q.subject, fromUnit: !!q.from_unit, fromServer: true, real: q }; });
+    out.tks = full.tickets.map((x) => { const st = (tickets || []).find((y) => y.id === x.ref); return { id: x.ref, uid: x.id, date: x.date, dir: x.dir, title: st ? st.title : x.category + ' ticket', cp: x.cp, status: x.status, ok: x.ok, open: !!x.open, assignee: x.assignee || '', from: x.from || '', fromUnit: !!x.from_unit, real: null, fromServer: true }; });
     out.people = full.people || [];
     return out;
   };
@@ -236,6 +236,33 @@ export function buildOrg(ctx) {
     const unitRow = this.srv ? (this.srv.unitList || []).find((x) => x.id === ouRec.id) : null;
     const headNames = ((unitRow && unitRow.heads) || []).map((h) => h.name);
     const dirC = { Received: '#7CC4FF', Sent: '#C9B6FF', Escalated: '#FF9B8A' };
+    // the form a place uses to send a communication or a business request to another place, on its own behalf
+    const sendForm = () => {
+      const f = s.ouSend && s.ouSend.key === key ? s.ouSend : null;
+      if (!f) return null;
+      const set = (patch) => this.setState((st) => ({ ouSend: { ...st.ouSend, ...patch, err: '' } }));
+      const levels = f.kind === 'request' ? ['departments'] : ['departments', 'units', 'branches', 'sectors'].filter((l) => has[l]);
+      const level = levels.indexOf(f.toType) !== -1 ? f.toType : levels[0];
+      const places = (O[level] || []).filter((r) => !(level === t && r.id === ouRec.id));   // never to itself
+      const place = places.find((r) => r.name === f.toName) || null;
+      const tatMap = f.kind === 'request' ? (s.requestTat || {}) : (s.commTat || {});
+      const tat = place ? (tatMap[level + ':' + place.name] || (f.kind === 'request' ? 72 : 48)) : 0;
+      return { isRequest: f.kind === 'request', title: f.kind === 'request' ? 'New business request from ' + ouRec.name : 'New communication from ' + ouRec.name,
+        levels: levels.map((l) => ({ v: l, l: typeName[l] })), level, onLevel: (e) => set({ toType: e.target.value, toName: '' }),
+        places: places.map((r) => r.name), place: place ? place.name : '', onPlace: (e) => set({ toName: e.target.value }),
+        subject: f.title, onSubject: (e) => set({ title: e.target.value }), details: f.desc, onDetails: (e) => set({ desc: e.target.value }),
+        tatNote: place ? place.name + ' deals with ' + (f.kind === 'request' ? 'business requests' : 'communications') + ' within ' + tat + ' hours, from when it arrives.' : '',
+        err: f.err || '', busy: !!f.busy, close: () => this.setState({ ouSend: null }),
+        submit: () => {
+          if (!place) { set({ err: 'Choose where to send it.' }); return; }
+          if (!f.title.trim()) { set({ err: 'Give it a subject.' }); return; }
+          this.setState((st) => ({ ouSend: { ...st.ouSend, busy: true } }));
+          ticketsW.raise(this, this.srv, { title: f.title.trim(), desc: f.desc || '', files: [] }, { name: f.kind === 'request' ? 'Business request' : 'Communication' },
+            { type: level, name: place.name, kind: f.kind, from: { level: t, name: ouRec.name } })
+            .then(() => { this.setState({ ouSend: null }); this.notify((f.kind === 'request' ? 'Business request' : 'Communication') + ' sent to ' + place.name + ' from ' + ouRec.name + '.', '#B8F36B'); orgW.ensure(this, this.srv, key, true); })
+            .catch((e) => this.setState((st) => ({ ouSend: { ...st.ouSend, busy: false, err: e.message || 'It could not be sent.' } })));
+        } };
+    };
     const kindTat = (kind, stateKey, def, what) => {
       const cur = (s[stateKey] || {})[t + ':' + ouRec.name] || def;
       const mine = !!(this.srv && unitRow && (unitRow.heads || []).some((h) => h.id === this.srv.me.person));
@@ -310,7 +337,8 @@ export function buildOrg(ctx) {
       commDirs: ['Received', 'Escalated', 'Sent'].map((d) => ({ label: d, count: D.comms.filter((x) => x.dir === d).length, on: (s.ouCommDir || 'Received') === d, pick: () => this.setState({ ouCommDir: d }) })),
       // places write to each other here (two-way). Memos, announcements and newsletters go out from the Communications page instead.
       commSend: (has.tickets ? [['communication', 'New communication']].concat(has.departments ? [['request', 'New business request']] : []) : []).map(([k, l]) => ({ label: l,
-        run: () => this.setState((st) => ({ section: 'tickets', ticketOpen: null, ntOpen: true, nt: { title: '', cat: '', prio: 'Medium', desc: '', files: [], toType: (st.nt || {}).toType, toName: '', kind: k } })) })),
+        run: () => this.setState({ ouSend: { key, kind: k, toType: k === 'request' ? 'departments' : '', toName: '', title: '', desc: '', busy: false, err: '' } }) })),
+      send: sendForm(),
       target: tg, setTarget: (e) => { const v = Math.max(50, Math.min(100, Number(e.target.value) || 95)); if (this.srv) { orgW.setTarget(this, this.srv, key, v).catch((err) => this.notify(err.message || 'Could not save the threshold.', '#FF9B8A')); return; } this.setState((x) => ({ targets: { ...x.targets, [key]: v } })); },
       perf: D.perf, perfText: D.perf == null ? '—' : D.perf + '%', perfColor: perfColor(D.perf, tg), perfNote: D.perf == null ? 'Nothing due yet in this period' : D.perf >= tg ? 'Target met' : (tg - D.perf) + ' points below target',
       breakdown: [mk('Communications acknowledged on time', D.pc, recvNote(D.comms, D.wc)), mk('Business requests resolved on time', D.pr, recvNote(D.reqs, D.wr)), mk('Tickets resolved on time', D.pt, recvNote(D.tks, D.wt))],
@@ -380,24 +408,24 @@ export function buildOrg(ctx) {
     const dirCell = (d) => C.b(d, dirC[d]);
     // what still needs doing comes first (newest first), then what is done: the open ones fill the first page
     const byOpenThenNew = (a, b) => (b.open ? 1 : 0) - (a.open ? 1 : 0) || b.date.localeCompare(a.date);
-    if (ouTab === 'comms') ouTable = { id: 'ou-c-' + key, pageSize: 10, minWidth: '900px', cols: [{ label: 'Ref', filter: 'text' }, { label: 'Date', filter: 'date' }, { label: 'Direction', filter: 'select' }, { label: 'Subject', filter: 'text' }, { label: 'With', filter: 'select' }, { label: 'Assigned to', filter: 'select' }, { label: 'Status', filter: 'select' }, { label: 'Action', align: 'right' }],
-      rows: D.comms.filter((c) => c.dir === (s.ouCommDir || 'Received')).sort(byOpenThenNew).map((c) => ({ tint: c.status === 'Overdue' ? '#FF9B8A' : '', cells: [C.t(c.id || '', { mono: true }), C.t(fmtDay(c.date), { fv: c.date, nowrap: true }), dirCell(c.dir), C.t(c.subject, { strong: true }), C.t(c.cp), C.t(c.assignee || 'Not assigned yet', { fv: c.assignee || '' }), C.b(c.status, stC(c.status)),
+    if (ouTab === 'comms') ouTable = { id: 'ou-c-' + key, pageSize: 10, minWidth: '900px', cols: [{ label: 'Ref', filter: 'text' }, { label: 'Date', filter: 'date' }, { label: 'Direction', filter: 'select' }, { label: 'From', filter: 'select' }, { label: 'Subject', filter: 'text' }, { label: 'With', filter: 'select' }, { label: 'Assigned to', filter: 'select' }, { label: 'Status', filter: 'select' }, { label: 'Action', align: 'right' }],
+      rows: D.comms.filter((c) => c.dir === (s.ouCommDir || 'Received')).sort(byOpenThenNew).map((c) => ({ tint: c.status === 'Overdue' ? '#FF9B8A' : '', cells: [C.t(c.id || '', { mono: true }), C.t(fmtDay(c.date), { fv: c.date, nowrap: true }), dirCell(c.dir), C.t(c.from || '', { sub: c.fromUnit ? 'from the place' : c.from ? 'from a person' : '', fv: c.from || '' }), C.t(c.subject, { strong: true }), C.t(c.cp), C.t(c.assignee || 'Not assigned yet', { fv: c.assignee || '' }), C.b(c.status, stC(c.status)),
         C.a(c.uid && c.fromServer ? [{ label: 'View', kind: 'primary', run: openTicketPage(c) }] : [])] })) };
-    if (ouTab === 'reqs') ouTable = { id: 'ou-r-' + key, pageSize: 10, minWidth: '900px', cols: [{ label: 'Request', filter: 'text' }, { label: 'Date', filter: 'date' }, { label: 'Direction', filter: 'select' }, { label: 'Title', filter: 'text' }, { label: 'With', filter: 'select' }, { label: 'Assigned to', filter: 'select' }, { label: 'Status', filter: 'select' }, { label: 'Action', align: 'right' }],
-      rows: D.reqs.slice().sort(byOpenThenNew).map((c) => ({ tint: c.status === 'Overdue' ? '#FF9B8A' : '', cells: [C.t(c.ref, { mono: true }), C.t(fmtDay(c.date), { fv: c.date, nowrap: true }), dirCell(c.dir), C.t(c.title || c.subject, { strong: true, sub: c.subject }), C.t(c.cp), C.t(c.assignee || 'Not assigned yet', { fv: c.assignee || '' }), C.b(c.status, stC(c.status)),
+    if (ouTab === 'reqs') ouTable = { id: 'ou-r-' + key, pageSize: 10, minWidth: '900px', cols: [{ label: 'Request', filter: 'text' }, { label: 'Date', filter: 'date' }, { label: 'Direction', filter: 'select' }, { label: 'From', filter: 'select' }, { label: 'Title', filter: 'text' }, { label: 'With', filter: 'select' }, { label: 'Assigned to', filter: 'select' }, { label: 'Status', filter: 'select' }, { label: 'Action', align: 'right' }],
+      rows: D.reqs.slice().sort(byOpenThenNew).map((c) => ({ tint: c.status === 'Overdue' ? '#FF9B8A' : '', cells: [C.t(c.ref, { mono: true }), C.t(fmtDay(c.date), { fv: c.date, nowrap: true }), dirCell(c.dir), C.t(c.from || '', { sub: c.fromUnit ? 'from the place' : c.from ? 'from a person' : '', fv: c.from || '' }), C.t(c.title || c.subject, { strong: true, sub: c.subject }), C.t(c.cp), C.t(c.assignee || 'Not assigned yet', { fv: c.assignee || '' }), C.b(c.status, stC(c.status)),
         C.a(c.uid ? [{ label: 'View', kind: 'primary', run: openTicketPage(c) }] : [])] })) };
-    if (ouTab === 'tks') ouTable = { id: 'ou-t-' + key, pageSize: 10, minWidth: '900px', cols: [{ label: 'Ticket', filter: 'text' }, { label: 'Date', filter: 'date' }, { label: 'Direction', filter: 'select' }, { label: 'Title', filter: 'text' }, { label: 'With', filter: 'select' }, { label: 'Assigned to', filter: 'select' }, { label: 'Status', filter: 'select' }, { label: 'Action', align: 'right' }],
-      rows: D.tks.filter((c) => c.dir === (s.ouTkDir || 'Received')).sort(byOpenThenNew).map((c) => ({ tint: c.status === 'Overdue' ? '#FF9B8A' : '', cells: [C.t(c.id, { mono: true }), C.t(fmtDay(c.date), { fv: c.date, nowrap: true }), dirCell(c.dir), C.t(c.title, { strong: true }), C.t(c.cp), C.t(c.assignee || 'Not assigned yet', { fv: c.assignee || '' }), C.b(c.status, stC(c.status)),
+    if (ouTab === 'tks') ouTable = { id: 'ou-t-' + key, pageSize: 10, minWidth: '900px', cols: [{ label: 'Ticket', filter: 'text' }, { label: 'Date', filter: 'date' }, { label: 'Direction', filter: 'select' }, { label: 'From', filter: 'select' }, { label: 'Title', filter: 'text' }, { label: 'With', filter: 'select' }, { label: 'Assigned to', filter: 'select' }, { label: 'Status', filter: 'select' }, { label: 'Action', align: 'right' }],
+      rows: D.tks.filter((c) => c.dir === (s.ouTkDir || 'Received')).sort(byOpenThenNew).map((c) => ({ tint: c.status === 'Overdue' ? '#FF9B8A' : '', cells: [C.t(c.id, { mono: true }), C.t(fmtDay(c.date), { fv: c.date, nowrap: true }), dirCell(c.dir), C.t(c.from || '', { sub: c.fromUnit ? 'from the place' : c.from ? 'from a person' : '', fv: c.from || '' }), C.t(c.title, { strong: true }), C.t(c.cp), C.t(c.assignee || 'Not assigned yet', { fv: c.assignee || '' }), C.b(c.status, stC(c.status)),
         C.a([{ label: 'View', kind: 'primary', run: openTicketPage(c) }])] })) };
     // the people placed in this part (and everyone the part's own record lists), with their profile one click away
     // each person's results in the period: what they worked on, resolved or passed on within the turnaround, out of what was decided
     if (ouTab === 'people') {
       const pc = (part) => (part && part.received ? part.pct + '%' : '—');
-      const frac = (part) => (part ? part.ok + ' of ' + part.received + (part.waiting ? ' · ' + part.waiting + ' not due yet' : '') : '');
+      const frac = (part) => (!part || !(part.received + part.waiting) ? 'none assigned' : part.ok + ' of ' + part.received + (part.waiting ? ' · ' + part.waiting + ' not due yet' : ''));
       const who = s.ouPerson || '';
       const list = (D.people || []).filter((m) => !who || m.id === who);
-      ouTable = { id: 'ou-p-' + key, pageSize: 15, minWidth: '820px', emptyText: 'Nobody is placed here yet.',
-        cols: [{ label: 'Person', filter: 'text' }, { label: 'Tickets on time', align: 'right' }, ...(t === 'departments' ? [{ label: 'Business requests on time', align: 'right' }] : []), { label: 'Communications opened in time', align: 'right' }, { label: 'Overall', align: 'right' }],
+      ouTable = { id: 'ou-p-' + key, pageSize: 15, minWidth: '820px', emptyText: 'Nobody here was assigned a ticket, business request or communication in this period.',
+        cols: [{ label: 'Person', filter: 'text' }, { label: 'Tickets on time', align: 'right' }, ...(t === 'departments' ? [{ label: 'Business requests on time', align: 'right' }] : []), { label: 'Communications on time', align: 'right' }, { label: 'Overall', align: 'right' }],
         rows: list.map((m) => ({ cells: [C.t(m.name, { strong: true, sub: m.title }), C.t(pc(m.tickets), { sub: frac(m.tickets), fv: m.tickets.pct }), ...(t === 'departments' ? [C.t(pc(m.requests), { sub: frac(m.requests), fv: m.requests.pct })] : []), C.t(pc(m.comms), { sub: frac(m.comms), fv: m.comms.pct }),
           C.b(m.measured ? m.perf + '%' : '—', perfColor(m.measured ? m.perf : null, tg), { fv: m.measured ? m.perf : -1 })] })) };
     }

@@ -111,6 +111,10 @@ type CreateIn struct {
 	ToRef        *uuid.UUID `json:"to_ref"`
 	Sync         string     `json:"sync"`
 	Kind         string     `json:"kind"` // "request" for a business request (to a department only); empty for a ticket
+	// FromType/FromRef: the place it is sent on behalf of, from that place's dashboard (a communication always is); empty when a person
+	// raises it for themselves
+	FromType string     `json:"from_type"`
+	FromRef  *uuid.UUID `json:"from_ref"`
 	// At backdates the ticket (history loading only; not settable over HTTP).
 	At *time.Time `json:"-"`
 	// Details is what emails may say about the ticket. It is only written into emails, never stored.
@@ -262,6 +266,15 @@ func (s *Service) Create(ctx context.Context, p *tenant.Principal, in CreateIn) 
 	if in.Kind == "communication" && (in.ToType == "desk" || in.ToRef == nil) {
 		return nil, httpx.Bad("A communication goes to a department, unit, branch or sector.")
 	}
+	if in.Kind == "communication" && in.FromRef == nil {
+		return nil, httpx.Bad("A communication is sent from a department, unit, branch or sector dashboard.")
+	}
+	if in.FromRef != nil && in.Kind == "" {
+		return nil, httpx.Bad("Tickets are raised by people, not on behalf of a place.")
+	}
+	if in.FromRef != nil && in.ToRef != nil && *in.FromRef == *in.ToRef {
+		return nil, httpx.Bad("Choose another place to send it to.")
+	}
 	if in.Kind == "ticket" {
 		in.Kind = ""
 	}
@@ -288,6 +301,23 @@ func (s *Service) Create(ctx context.Context, p *tenant.Principal, in CreateIn) 
 		}
 		if kind != "ticket" || creator != p.Account {
 			return httpx.Bad("Create the ticket conversation first.")
+		}
+		if in.FromRef != nil {
+			// only someone who belongs to the place (or heads it) and may open its dashboard sends on its behalf
+			var fromKind string
+			var placed bool
+			if err := tx.QueryRow(ctx, `select u.kind, exists (select 1 from hub.people pe where pe.id=$2 and $1 in (pe.department_id, pe.unit_id, pe.branch_id, pe.sector_id))
+				from hub.org_units u where u.id=$1`, *in.FromRef, p.Person).Scan(&fromKind, &placed); err != nil {
+				return httpx.Bad("That place does not exist.")
+			}
+			if !placed {
+				return httpx.Err(403, "not_member", "You can only send on behalf of a place you belong to.")
+			}
+			mod := map[string]string{"department": "departments", "unit": "units", "branch": "branches", "sector": "sectors"}[fromKind]
+			if err := authz.Require(ctx, tx, p.Person, mod, "View dashboard"); err != nil {
+				return err
+			}
+			in.FromType = fromKind
 		}
 		if in.Kind == "request" || in.Kind == "communication" {
 			in.Category = KindCategory(in.Kind) // its turnaround is the one the receiving place set for these
@@ -337,8 +367,8 @@ func (s *Service) Create(ctx context.Context, p *tenant.Principal, in CreateIn) 
 		if handler != nil {
 			step, since = 1, &now
 		}
-		if _, err := tx.Exec(ctx, `insert into hub.tickets (org_id, conversation_id, ref, category, priority, step, raised_by, handler, handler_since, to_type, to_ref, tat_hours, due_at, sync, created_at, kind)
-			values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,nullif($16,''))`, p.Org, in.Conversation, ref, cat.Name, in.Priority, step, p.Person, handler, since, in.ToType, in.ToRef, cat.TAT, due, in.Sync, now, in.Kind); err != nil {
+		if _, err := tx.Exec(ctx, `insert into hub.tickets (org_id, conversation_id, ref, category, priority, step, raised_by, handler, handler_since, to_type, to_ref, tat_hours, due_at, sync, created_at, kind, from_type, from_ref)
+			values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,nullif($16,''),nullif($17,''),$18)`, p.Org, in.Conversation, ref, cat.Name, in.Priority, step, p.Person, handler, since, in.ToType, in.ToRef, cat.TAT, due, in.Sync, now, in.Kind, in.FromType, in.FromRef); err != nil {
 			return err
 		}
 		if err := s.A.Sign.Seal(ctx, tx, "tickets", "conversation_id=$1", in.Conversation); err != nil {

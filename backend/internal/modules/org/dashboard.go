@@ -39,6 +39,8 @@ type CommRow struct {
 	Assignee     string     `json:"assignee"`
 	AssigneeID   *uuid.UUID `json:"assignee_id,omitempty"`
 	Open         bool       `json:"open"`
+	From         string     `json:"from"`
+	FromUnit     bool       `json:"from_unit"`
 }
 
 type ReqStep struct {
@@ -61,7 +63,9 @@ type ReqRow struct {
 	By           string     `json:"by"`
 	Assignee     string     `json:"assignee"`
 	AssigneeID   *uuid.UUID `json:"assignee_id,omitempty"`
-	Open         bool       `json:"open"` // still with this place, not resolved or passed on
+	Open         bool       `json:"open"`      // still with this place, not resolved or passed on
+	From         string     `json:"from"`      // the place it was sent on behalf of, or the person who raised it
+	FromUnit     bool       `json:"from_unit"` // sent from a place's dashboard, not by a person for themselves
 	Level        int        `json:"level"`
 	Levels       int        `json:"levels"`
 	Approvers    []string   `json:"approvers"`
@@ -83,7 +87,9 @@ type TicketRow struct {
 	Counterparty string     `json:"cp"`
 	Assignee     string     `json:"assignee"`
 	AssigneeID   *uuid.UUID `json:"assignee_id,omitempty"`
-	Open         bool       `json:"open"` // still with this place, not resolved or passed on
+	Open         bool       `json:"open"`      // still with this place, not resolved or passed on
+	From         string     `json:"from"`      // the place it was sent on behalf of, or the person who raised it
+	FromUnit     bool       `json:"from_unit"` // sent from a place's dashboard, not by a person for themselves
 }
 
 type ProjectRow struct {
@@ -99,8 +105,9 @@ type Part struct {
 	Waiting  int `json:"waiting"` // received but still open and within time
 }
 
-// MemberPerf is how one person in the unit did in the period: the tickets, business requests and communications they worked on
-// (resolved or passed on within the place's turnaround, out of those decided).
+// MemberPerf is how one person in the unit did in the period: the tickets, business requests and communications (the ones places
+// send each other from their dashboards, not organization-wide memos) assigned to them, resolved or escalated on within the
+// place's turnaround, out of those decided. Only people who were assigned something are listed.
 type MemberPerf struct {
 	ID       uuid.UUID `json:"id"`
 	Name     string    `json:"name"`
@@ -284,15 +291,18 @@ func (s *Service) Dashboard(ctx context.Context, p *tenant.Principal, id uuid.UU
 			  select true as here, s.ticket_id, s.received_at as at, s.left_at, s.outcome, s.on_time, s.due_at, s.handler from stays s where s.received_at > $2
 			  union all
 			  select false, t.conversation_id, t.created_at, null, null, null, null, null::uuid from hub.tickets t
-			  where t.raised_by in `+um+` and t.created_at > $2
+			  -- sent by its people for themselves, or by anyone on this place's behalf (from its dashboard)
+			  where ((t.raised_by in `+um+` and t.from_ref is null) or t.from_ref in (select id from below)) and t.created_at > $2
 			    -- where it first went (the first stay; for older tickets, where they are now) is not this unit
 			    and not coalesce(coalesce((select h.unit_ref from hub.ticket_hops h where h.ticket_id = t.conversation_id order by h.received_at limit 1), t.to_ref) in (select id from below), false)
 			)
 			select x.here, t.conversation_id, t.ref, x.at, t.category, t.priority, t.step, t.due_at, t.solved_at, x.left_at, x.outcome, x.on_time, x.due_at,
 			  coalesce(t.kind, 'ticket'), coalesce(rp.first_name || ' ' || rp.last_name, ''), coalesce(rdx.name, ''), t.to_type, coalesce(tu.name, ''),
 			  -- who works on it: for a stay that ended, whoever had it then; otherwise whoever has it now
-			  case when x.left_at is not null then x.handler else t.handler end, coalesce(hp.first_name || ' ' || hp.last_name, '')
+			  case when x.left_at is not null then x.handler else t.handler end, coalesce(hp.first_name || ' ' || hp.last_name, ''),
+			  coalesce(fu.name, '')
 			from rows x join hub.tickets t on t.conversation_id = x.ticket_id
+			left join hub.org_units fu on fu.id = t.from_ref
 			left join hub.people hp on hp.id = (case when x.left_at is not null then x.handler else t.handler end)
 			join hub.people rp on rp.id = t.raised_by left join hub.org_units rdx on rdx.id = rp.department_id
 			left join hub.org_units tu on tu.id = t.to_ref
@@ -310,12 +320,17 @@ func (s *Service) Dashboard(ctx context.Context, p *tenant.Principal, id uuid.UU
 			var outcome *string
 			var onTime *bool
 			var kind string
-			var raiser, rdept, toType, toName string
-			if err := rs.Scan(&here, &r.ID, &r.Ref, &at, &r.Category, &r.Priority, &r.Step, &due, &solved, &left, &outcome, &onTime, &stayDue, &kind, &raiser, &rdept, &toType, &toName, &r.AssigneeID, &r.Assignee); err != nil {
+			var raiser, rdept, toType, toName, fromUnit string
+			if err := rs.Scan(&here, &r.ID, &r.Ref, &at, &r.Category, &r.Priority, &r.Step, &due, &solved, &left, &outcome, &onTime, &stayDue, &kind, &raiser, &rdept, &toType, &toName, &r.AssigneeID, &r.Assignee, &fromUnit); err != nil {
 				rs.Close()
 				return err
 			}
 			r.Date = at.UTC().Format("2006-01-02")
+			// who it is from: the place it was sent on behalf of, or the person who raised it
+			r.From, r.FromUnit = raiser, fromUnit != ""
+			if r.FromUnit {
+				r.From, rdept = fromUnit, fromUnit
+			}
 			where := toName
 			if where == "" {
 				where = "Ticket desk"
@@ -350,7 +365,7 @@ func (s *Service) Dashboard(ctx context.Context, p *tenant.Principal, id uuid.UU
 			_ = stayDue
 			_ = solved
 			if kind == "communication" {
-				d.Comms = append(d.Comms, CommRow{ID: r.ID, Ref: r.Ref, Type: "Communication", Date: r.Date, Dir: r.Dir, Status: r.Status, OK: r.OK, Pending: r.Pending,
+				d.Comms = append(d.Comms, CommRow{ID: r.ID, Ref: r.Ref, Type: "Communication", Date: r.Date, Dir: r.Dir, Status: r.Status, OK: r.OK, Pending: r.Pending, From: r.From, FromUnit: r.FromUnit,
 					Counterparty: r.Counterparty, Conversation: r.ID, Assignee: r.Assignee, AssigneeID: r.AssigneeID, Open: r.Dir != "Sent" && (r.Pending || r.Status == "Overdue")})
 				continue
 			}
@@ -360,7 +375,7 @@ func (s *Service) Dashboard(ctx context.Context, p *tenant.Principal, id uuid.UU
 					continue
 				}
 				d.Requests = append(d.Requests, ReqRow{ID: r.ID, Ref: r.Ref, Date: r.Date, Dir: r.Dir, Subject: r.Category, Status: r.Status, OK: r.OK, Pending: r.Pending,
-					Counterparty: r.Counterparty, By: raiser, Assignee: r.Assignee, AssigneeID: r.AssigneeID, Open: r.Pending || r.Status == "Overdue", Approvers: []string{}, History: []ReqStep{}, Closed: r.Step >= 3})
+					Counterparty: r.Counterparty, By: raiser, From: r.From, FromUnit: r.FromUnit, Assignee: r.Assignee, AssigneeID: r.AssigneeID, Open: r.Pending || r.Status == "Overdue", Approvers: []string{}, History: []ReqStep{}, Closed: r.Step >= 3})
 				continue
 			}
 			r.Open = r.Dir != "Sent" && (r.Pending || r.Status == "Overdue")
@@ -494,6 +509,14 @@ func (s *Service) Dashboard(ctx context.Context, p *tenant.Principal, id uuid.UU
 		n, ok := m.Tickets.Received+m.Requests.Received+m.Comms.Received, m.Tickets.OK+m.Requests.OK+m.Comms.OK
 		m.Perf, m.Measured = pct(ok, n), n
 	}
+	// only people who were given something to work on: without any, there is nothing to measure them by
+	assigned := d.People[:0]
+	for _, m := range d.People {
+		if m.Tickets.Received+m.Tickets.Waiting+m.Requests.Received+m.Requests.Waiting+m.Comms.Received+m.Comms.Waiting > 0 {
+			assigned = append(assigned, m)
+		}
+	}
+	d.People = assigned
 	_ = strings.TrimSpace
 	return d, nil
 }

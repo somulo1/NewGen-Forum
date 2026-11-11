@@ -236,7 +236,8 @@ export function buildAdminTables(ctx) {
   // a business request goes to a department only; a ticket to any level the organization uses
   const canRequest = tLevels.indexOf('departments') !== -1;
   const canComm = tLevels.length > 0;   // communications go between departments, units, branches and sectors
-  const ntKind = s.nt.kind === 'request' && canRequest ? 'request' : s.nt.kind === 'communication' && canComm ? 'communication' : 'ticket';
+  // a person raises tickets and business requests here; communications are sent from a place's dashboard
+  const ntKind = s.nt.kind === 'request' && canRequest ? 'request' : 'ticket';
   const ntType = ntKind === 'request' ? 'departments' : tLevels.indexOf(s.nt.toType) !== -1 ? s.nt.toType : (tLevels[0] || 'desk');
   const ntRecs = ntType === 'desk' ? [] : (O[ntType] || []);
   const ntName = ntRecs.some((r) => r.name === s.nt.toName) ? s.nt.toName : (ntRecs[0] ? ntRecs[0].name : '');
@@ -252,7 +253,7 @@ export function buildAdminTables(ctx) {
   const ntForm = {
     kind: ntKind, canRequest, isRequest: ntKind === 'request',
     title: { request: 'Raise a business request', communication: 'Send a communication', ticket: 'Raise a new ticket' }[ntKind], submitLabel: { request: 'Send request', communication: 'Send communication', ticket: 'Raise ticket' }[ntKind],
-    kinds: canComm ? [['ticket', 'Ticket']].concat(canRequest ? [['request', 'Business request']] : []).concat([['communication', 'Communication']]).map(([k, l]) => ({ k, label: l, on: ntKind === k, pick: () => this.setState((x) => ({ nt: { ...x.nt, kind: k, cat: '' } })) })) : [],
+    kinds: canRequest ? [['ticket', 'Ticket'], ['request', 'Business request']].map(([k, l]) => ({ k, label: l, on: ntKind === k, pick: () => this.setState((x) => ({ nt: { ...x.nt, kind: k, cat: '' } })) })) : [],
     typeOptions: ntKind === 'request' ? [] : tLevels.map((l) => ({ value: l, label: LEVEL_LABEL[l] })),
     onType: (e) => { const v = e.target.value; this.setState((x) => ({ nt: { ...x.nt, toType: v, toName: '', cat: '' } })); },
     recOptions: ntRecs.map((r) => r.name), recLabel: ntType === 'desk' ? '' : LEVEL_LABEL[ntType],

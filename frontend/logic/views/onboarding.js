@@ -107,7 +107,8 @@ function buildStructureEd(s, can) {
   const parentOpts = parentChoices(curKind);
   const parent = parentOpts.some((o) => o.id === se.parent) ? se.parent : '';
   // the roles that can head a unit (the role is what gives its holders their rights)
-  const roleChoices = (s.serverRoles || []).filter((r) => r.id && !r.locked).map((r) => ({ key: r.id, name: r.name }));
+  // every role can head a place (the Owner role too)
+  const roleChoices = (s.serverRoles || []).filter((r) => r.id).map((r) => ({ key: r.id, name: r.name }));
   const levels = KS.map((K) => {
     const list = have(K.kind).sort((a, b) => a.name.localeCompare(b.name));
     const sel = (se.sel[K.kind] || []).filter((id) => list.some((u) => u.id === id));
