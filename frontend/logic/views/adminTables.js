@@ -245,7 +245,8 @@ export function buildAdminTables(ctx) {
   const ntCats = ntCatList.map((c) => ({ label: c.name + ' · ' + c.tat + 'h' + (c.custom ? ' · ' + c.prio + ' priority' : ''), pick: () => this.setState((x) => ({ nt: { ...x.nt, cat: c.name } })), style: chip(ntCatSel.name === c.name) }));
   // priority follows the turnaround the receiving unit set for the category: within 8 hours High, within 24 Medium, longer Low
   const prioOf = (tat) => (tat <= 8 ? 'High' : tat <= 24 ? 'Medium' : 'Low');
-  const ntPriority = ntCatSel ? prioOf(Number(ntCatSel.tat) || 0) : 'Medium';
+  const reqTat = ntKind === 'request' ? ((s.requestTat || {})[ntType + ':' + ntName] || 72) : 0;
+  const ntPriority = ntKind === 'request' ? prioOf(reqTat) : ntCatSel ? prioOf(Number(ntCatSel.tat) || 0) : 'Medium';
   const ownCats = (s.unitCats[ntType + ':' + ntName] || []).length > 0;
   const ntForm = {
     kind: ntKind, canRequest, isRequest: ntKind === 'request', title: ntKind === 'request' ? 'Raise a business request' : 'Raise a new ticket', submitLabel: ntKind === 'request' ? 'Send request' : 'Raise ticket',
@@ -254,11 +255,12 @@ export function buildAdminTables(ctx) {
     onType: (e) => { const v = e.target.value; this.setState((x) => ({ nt: { ...x.nt, toType: v, toName: '', cat: '' } })); },
     recOptions: ntRecs.map((r) => r.name), recLabel: ntType === 'desk' ? '' : LEVEL_LABEL[ntType],
     onRec: (e) => { const v = e.target.value; this.setState((x) => ({ nt: { ...x.nt, toType: ntType, toName: v, cat: '' } })); },
+    showCats: ntKind !== 'request', requestNote: ntKind === 'request' ? ntName + ' deals with business requests within ' + reqTat + ' hours.' : '',
     catOptions: ntCatList.map((c) => ({ value: c.name, label: c.name + ' · resolved within ' + c.tat + 'h' })), cat: ntCatSel ? ntCatSel.name : '',
     onCat: (e) => { const v = e.target.value; this.setState((x) => ({ nt: { ...x.nt, cat: v } })); },
     catNote: ntType === 'desk' ? '' : ownCats ? 'The categories ' + ntName + ' handles.' : ntName + ' has not set its own categories yet, so the general ones are shown.',
     priority: ntPriority, priorityColor: ntPriority === 'High' ? '#FF9B8A' : ntPriority === 'Medium' ? '#FFB86B' : '#9DB0A6',
-    priorityNote: ntCatSel ? 'Set by the ' + ntCatSel.tat + '-hour turnaround of ' + ntCatSel.name + '. Within 8 hours is high, within 24 hours medium, longer is low.' : ''
+    priorityNote: ntKind === 'request' ? 'Within 8 hours is high, within 24 hours medium, longer is low.' : ntCatSel ? 'Set by the ' + ntCatSel.tat + '-hour turnaround of ' + ntCatSel.name + '. Within 8 hours is high, within 24 hours medium, longer is low.' : ''
   };
   const ntTargets = { hasLevels: tLevels.length > 0, multiple: tLevels.length > 1, type: ntType, name: ntName, kind: ntKind, priority: ntPriority,
     types: tLevels.map((l) => ({ label: LEVEL_LABEL[l], pick: () => this.setState((x) => ({ nt: { ...x.nt, toType: l, toName: '' } })), style: chip(ntType === l) })),

@@ -110,6 +110,9 @@ func (s *Service) SaveCategory(ctx context.Context, p *tenant.Principal, id *uui
 	if c.Name == "" || len(c.Name) > 60 || c.TAT < 1 || c.TAT > 24*90 {
 		return nil, httpx.Bad("Give the category a name and a TAT between 1 hour and 90 days.")
 	}
+	if strings.EqualFold(c.Name, RequestCategory) {
+		return nil, httpx.Bad("That name is kept for business requests. A department sets their turnaround on its dashboard.")
+	}
 	if c.Priority == "" {
 		c.Priority = "Medium"
 	}

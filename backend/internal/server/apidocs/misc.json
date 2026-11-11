@@ -337,6 +337,11 @@
   "description": "Closing the rating card without rating: the call is not offered for rating to this person again.",
   "access": "anyone in the organization"
  },
+ "PUT /v1/tickets/request-tat": {
+  "summary": "Set a department's business request turnaround",
+  "description": "How long the department takes to deal with a business request, 1 to 2160 hours (3 months). Its priority follows: within 8 hours High, within 24 Medium, longer Low.",
+  "access": "the department's head, or Tickets: Set up ticket categories"
+ },
  "GET /v1/settings/blocks": {
   "summary": "What the organization has blocked",
   "description": "Private chats, private and forum calls, and the community wall when switched off in Settings. The server refuses them whatever the rights say.",

@@ -101,6 +101,21 @@ func (s *Service) Private(r chi.Router) {
 		httpx.JSON(w, 200, map[string]any{"categories": l})
 		return nil
 	}))
+	// {"department": id, "hours": 1-2160}: how long a department takes to deal with business requests
+	r.Put("/tickets/request-tat", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
+		var in struct {
+			Department uuid.UUID `json:"department"`
+			Hours      int       `json:"hours"`
+		}
+		if err := httpx.Decode(r, &in, 1<<10); err != nil {
+			return err
+		}
+		if err := s.SetRequestTAT(r.Context(), p, in.Department, in.Hours); err != nil {
+			return err
+		}
+		w.WriteHeader(204)
+		return nil
+	}))
 	r.Post("/tickets/categories", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
 		var c Category
 		if err := httpx.Decode(r, &c, 8<<10); err != nil {

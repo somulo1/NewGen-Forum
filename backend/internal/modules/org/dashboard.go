@@ -277,10 +277,10 @@ func (s *Service) Dashboard(ctx context.Context, p *tenant.Principal, id uuid.UU
 			select t.conversation_id, t.ref, t.created_at, t.category, t.priority, t.step, t.late, t.escalated, t.due_at, t.solved_at, t.kind = 'request',
 			  coalesce(rp.first_name || ' ' || rp.last_name, ''),
 			  (select min(e.at) from hub.ticket_events e where e.ticket_id = t.conversation_id and e.kind = 'event' and e.text like 'Escalated%'),
-			  ($2::text <> '' and t.to_ref in (select id from below)), coalesce(rdx.name, ''), t.to_type, coalesce(tu.name, '')
+			  coalesce($2::text <> '' and t.to_ref in (select id from below), false), coalesce(t.escalated_from && array(select id from below), false), coalesce(rdx.name, ''), t.to_type, coalesce(tu.name, '')
 			from hub.tickets t join hub.people rp on rp.id = t.raised_by left join hub.org_units rdx on rdx.id = rp.department_id
 			left join hub.org_units tu on tu.id = t.to_ref
-			where t.created_at > $3 and (t.to_ref in (select id from below) or t.raised_by in `+um+`)
+			where t.created_at > $3 and (t.to_ref in (select id from below) or t.raised_by in `+um+` or t.escalated_from && array(select id from below))
 			order by t.created_at desc limit 300`, id, d.Unit.Kind, since)
 		if err != nil {
 			return err
@@ -289,11 +289,11 @@ func (s *Service) Dashboard(ctx context.Context, p *tenant.Principal, id uuid.UU
 		for rs.Next() {
 			var r TicketRow
 			var created time.Time
-			var late, esc, here bool
+			var late, esc, here, passedOn bool
 			var due, solved, escAt *time.Time
 			var rdept, toType, toName, raiser string
 			var isReq *bool
-			if err := rs.Scan(&r.ID, &r.Ref, &created, &r.Category, &r.Priority, &r.Step, &late, &esc, &due, &solved, &isReq, &raiser, &escAt, &here, &rdept, &toType, &toName); err != nil {
+			if err := rs.Scan(&r.ID, &r.Ref, &created, &r.Category, &r.Priority, &r.Step, &late, &esc, &due, &solved, &isReq, &raiser, &escAt, &here, &passedOn, &rdept, &toType, &toName); err != nil {
 				rs.Close()
 				return err
 			}
@@ -317,10 +317,15 @@ func (s *Service) Dashboard(ctx context.Context, p *tenant.Principal, id uuid.UU
 				r.Status = "Escalated on time"
 			}
 			switch {
-			case here && esc:
-				r.Dir, r.Counterparty = "Escalated", rdept
+			// Received: with this unit now (raised by its own people too, and escalated to it). Escalated: this unit passed it on.
+			// Sent: its people raised it to someone else.
 			case here:
 				r.Dir, r.Counterparty = "Received", rdept
+			case passedOn:
+				r.Dir, r.Counterparty = "Escalated", toName
+				if toName == "" {
+					r.Counterparty = "Ticket desk"
+				}
 			default:
 				r.Dir = "Sent"
 				if toName != "" {

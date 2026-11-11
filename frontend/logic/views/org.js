@@ -267,7 +267,19 @@ export function buildOrg(ctx) {
         { label: 'Tickets', parts: [{ n: cnt(D.tks, 'Received'), l: 'Received', color: '#7CC4FF' }, { n: cnt(D.tks, 'Sent'), l: 'Sent', color: '#C9B6FF' }, { n: cnt(D.tks, 'Escalated'), l: 'Escalated', color: '#FF9B8A' }] },
         { label: 'Projects', parts: [{ n: ps.length, l: 'Active', color: '#E8EFEA' }, { n: ps.filter((p) => p.status !== 'On track').length, l: 'Need attention', color: '#FFB86B' }] }
       ],
-      isCats: ouTab === 'cats', isComms: ouTab === 'comms',
+      isCats: ouTab === 'cats', isComms: ouTab === 'comms', isTks: ouTab === 'tks', isReqs: ouTab === 'reqs',
+      // tickets this unit has (received, its own people's included), passed on, and sent out
+      tkDirs: ['Received', 'Escalated', 'Sent'].map((d) => ({ label: d, count: D.tks.filter((x) => x.dir === d).length, on: (s.ouTkDir || 'Received') === d, pick: () => this.setState({ ouTkDir: d }) })),
+      // how long this department takes to deal with a business request; its head (or whoever sets up ticket categories) changes it
+      reqTat: t === 'departments' ? (() => {
+        const cur = (s.requestTat || {})['departments:' + ouRec.name] || 72;
+        const mine = !!(this.srv && unitRow && (unitRow.heads || []).some((h) => h.id === this.srv.me.person));
+        const draft = s.ouReqTat && s.ouReqTat.key === key ? s.ouReqTat.v : String(cur);
+        return { hours: cur, label: cur % 24 === 0 ? (cur / 24) + (cur === 24 ? ' day' : ' days') + ' (' + cur + ' hours)' : cur + ' hours', canSet: !!this.srv && (mine || can('tickets', 'Set up ticket categories')), draft,
+          onInput: (e) => this.setState({ ouReqTat: { key, v: e.target.value } }),
+          save: () => { const h = Math.round(Number(draft)); if (!(h >= 1 && h <= 2160)) { this.notify('Choose between 1 hour and 2160 hours (3 months).', '#FFB86B'); return; }
+            ticketsW.setRequestTat(this, this.srv, ouRec.name, h).then(() => { this.setState({ ouReqTat: null }); this.notify('Business requests to ' + ouRec.name + ' are now due within ' + h + ' hours.', '#B8F36B'); }).catch((e) => this.notify(e.message || 'Could not save it.', '#FF9B8A')); } };
+      })() : null,
       // received and sent communications are kept apart; anyone allowed can send one from here to any other department, unit, branch or sector
       commDirs: ['Received', 'Sent'].map((d) => ({ label: d, count: D.comms.filter((x) => (d === 'Sent' ? x.dir === 'Sent' : x.dir !== 'Sent')).length, on: (s.ouCommDir || 'Received') === d, pick: () => this.setState({ ouCommDir: d }) })),
       commSend: [['Memo', 'memos', 'Send memos'], ['Announcement', 'announcements', 'Post'], ['Newsletter', 'newsletter', 'Publish newsletters']].filter(([ty, m, r]) => has[m] && can(m, r)).map(([ty]) => ({ label: 'New ' + ty.toLowerCase(),
@@ -345,7 +357,7 @@ export function buildOrg(ctx) {
       rows: D.reqs.slice().sort((a, b) => b.date.localeCompare(a.date)).map((c) => ({ tint: c.status === 'Overdue' ? '#FF9B8A' : '', cells: [C.t(c.ref, { mono: true }), C.t(fmtDay(c.date), { fv: c.date, nowrap: true }), dirCell(c.dir), C.t(c.title || c.subject, { strong: true, sub: c.subject }), C.t(c.cp), C.b(c.status, stC(c.status)),
         C.a(c.uid ? [{ label: 'View', kind: 'primary', run: openTicketPage(c) }] : [])] })) };
     if (ouTab === 'tks') ouTable = { id: 'ou-t-' + key, pageSize: 10, minWidth: '900px', cols: [{ label: 'Ticket', filter: 'text' }, { label: 'Date', filter: 'date' }, { label: 'Direction', filter: 'select' }, { label: 'Title', filter: 'text' }, { label: 'With', filter: 'select' }, { label: 'Status', filter: 'select' }, { label: '', align: 'right' }],
-      rows: D.tks.slice().sort((a, b) => b.date.localeCompare(a.date)).map((c) => ({ tint: c.status === 'Overdue' ? '#FF9B8A' : '', cells: [C.t(c.id, { mono: true }), C.t(fmtDay(c.date), { fv: c.date, nowrap: true }), dirCell(c.dir), C.t(c.title, { strong: true }), C.t(c.cp), C.b(c.status, stC(c.status)),
+      rows: D.tks.filter((c) => c.dir === (s.ouTkDir || 'Received')).sort((a, b) => b.date.localeCompare(a.date)).map((c) => ({ tint: c.status === 'Overdue' ? '#FF9B8A' : '', cells: [C.t(c.id, { mono: true }), C.t(fmtDay(c.date), { fv: c.date, nowrap: true }), dirCell(c.dir), C.t(c.title, { strong: true }), C.t(c.cp), C.b(c.status, stC(c.status)),
         C.a([{ label: 'View', kind: 'primary', run: openTicketPage(c) }])] })) };
     // the people placed in this part (and everyone the part's own record lists), with their profile one click away
     if (ouTab === 'members') ouTable = { id: 'ou-m-' + key, pageSize: 15, minWidth: '640px', emptyText: 'Nobody is in this ' + typeName[t].toLowerCase() + ' yet. Add people from Organization structure.', cols: [{ label: 'Person', filter: 'text' }, { label: 'Job title', filter: 'text' }, { label: 'Status', filter: 'select' }, { label: '', align: 'right' }],

@@ -134,6 +134,55 @@ func (s *Service) eventAt(ctx context.Context, tx pgx.Tx, org, ticket uuid.UUID,
 }
 
 // categoriesFor finds the categories that apply to a receiving unit, falling back to the desk's.
+// RequestCategory holds a department's turnaround for business requests (one per department, set by its head). It is kept with
+// the ticket categories but never offered as a ticket category.
+const RequestCategory = "Business request"
+
+// DefaultRequestTAT applies until a department sets its own: three working days.
+const DefaultRequestTAT = 72
+
+// SetRequestTAT sets how long a department takes to deal with a business request, from 1 hour to 3 months (2160 hours). Its head
+// may set it, and so may anyone who can set up ticket categories.
+func (s *Service) SetRequestTAT(ctx context.Context, p *tenant.Principal, dept uuid.UUID, hours int) error {
+	if hours < 1 || hours > 24*90 {
+		return httpx.Bad("Choose a turnaround between 1 hour and 3 months (2160 hours).")
+	}
+	return s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
+		var kind string
+		if err := tx.QueryRow(ctx, `select kind from hub.org_units where id=$1`, dept).Scan(&kind); err != nil || kind != "department" {
+			return httpx.ErrNotFound
+		}
+		head, err := isHead(ctx, tx, p.Person, &Ticket{ToType: "department", ToRef: &dept})
+		if err != nil {
+			return err
+		}
+		if !head {
+			if err := authz.Require(ctx, tx, p.Person, "tickets", "Set up ticket categories"); err != nil {
+				return err
+			}
+		}
+		var id uuid.UUID
+		err = tx.QueryRow(ctx, `select id from hub.ticket_categories where unit_type='department' and unit_ref=$1 and name=$2`, dept, RequestCategory).Scan(&id)
+		switch {
+		case errors.Is(err, pgx.ErrNoRows):
+			id = app.NewID()
+			if _, err := tx.Exec(ctx, `insert into hub.ticket_categories (org_id, id, unit_type, unit_ref, name, tat_hours, priority) values ($1,$2,'department',$3,$4,$5,$6)`, p.Org, id, dept, RequestCategory, hours, PriorityOf(hours)); err != nil {
+				return err
+			}
+		case err != nil:
+			return err
+		default:
+			if _, err := tx.Exec(ctx, `update hub.ticket_categories set tat_hours=$2, priority=$3, `+integrity.Bump+` where id=$1`, id, hours, PriorityOf(hours)); err != nil {
+				return err
+			}
+		}
+		if err := s.A.Sign.Seal(ctx, tx, "ticket_categories", "id=$1", id); err != nil {
+			return err
+		}
+		return s.A.Audit(ctx, tx, p.Org, &p.Person, p.Name, fmt.Sprintf("Set the business request turnaround to %d hours", hours), "Tickets", p.IP, map[string]any{"department": dept, "hours": hours})
+	})
+}
+
 // PriorityOf is the priority a turnaround time gives: within 8 hours High, within 24 hours Medium, anything longer Low.
 func PriorityOf(tatHours int) string {
 	switch {
@@ -203,9 +252,15 @@ func (s *Service) Create(ctx context.Context, p *tenant.Principal, in CreateIn) 
 		if kind != "ticket" || creator != p.Account {
 			return httpx.Bad("Create the ticket conversation first.")
 		}
+		if in.Kind == "request" {
+			in.Category = RequestCategory // its turnaround is the one the department set for business requests
+		}
 		cat, err := s.category(ctx, tx, in.ToType, in.ToRef, in.Category)
 		if err != nil {
 			return err
+		}
+		if cat == nil && in.Kind == "request" {
+			cat = &Category{UnitType: in.ToType, UnitRef: in.ToRef, Name: RequestCategory, TAT: DefaultRequestTAT, Members: []uuid.UUID{}}
 		}
 		if cat == nil {
 			return httpx.Bad("That category does not exist for this recipient.")
@@ -721,7 +776,8 @@ func (s *Service) Act(ctx context.Context, p *tenant.Principal, id uuid.UUID, a 
 					dest = "the " + a.ToType + " " + name
 					args = append(args, a.ToType, a.ToRef)
 				}
-				set += fmt.Sprintf(", to_type=$%d, to_ref=$%d", len(args)-1, len(args))
+				// remember the unit it leaves (the right side reads the row before this change)
+				set += fmt.Sprintf(", escalated_from=case when to_ref is null then escalated_from else array_append(coalesce(escalated_from, '{}'), to_ref) end, to_type=$%d, to_ref=$%d", len(args)-1, len(args))
 			}
 			if a.Category != "" {
 				tt, tr := cur.ToType, cur.ToRef

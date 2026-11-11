@@ -62,12 +62,15 @@ async function loadSettings(logic, srv) {
   const dayH = Math.max(1, (hm(cfg.end) - hm(cfg.start)) / 60);
   const cats = categories.filter((c) => c.unit_type === 'desk').map((c) => (c.tat_hours % dayH === 0 ? { name: c.name, tat: c.tat_hours / dayH, unit: 'days' } : { name: c.name, tat: c.tat_hours, unit: 'hours' }));
   const unitCats = {};
+  // a department's business request turnaround is kept with its categories but is not a ticket category
+  const requestTat = {};
   categories.filter((c) => c.unit_type !== 'desk').forEach((c) => {
     const key = TYPE[c.unit_type] + ':' + (srv.unitName.get(c.unit_ref) || '');
+    if (c.name === 'Business request') { requestTat[key] = c.tat_hours; return; }
     (unitCats[key] = unitCats[key] || []).push({ id: c.id, name: c.name, tat: c.tat_hours, prio: c.priority, members: (c.members || []).map((id) => srv.nameOf.get(id)).filter(Boolean) });
   });
   srv.ticketCats = categories;
-  logic.setState((st) => ({ tset: { ...st.tset, cats, start: cfg.start, end: cfg.end, pause: cfg.pause, notify: cfg.notify, nearPct: cfg.nearPct, escalate: cfg.escalate }, unitCats }));
+  logic.setState((st) => ({ tset: { ...st.tset, cats, start: cfg.start, end: cfg.end, pause: cfg.pause, notify: cfg.notify, nearPct: cfg.nearPct, escalate: cfg.escalate }, unitCats, requestTat }));
 }
 const hm = (v) => { const p = String(v || '0:0').split(':'); return (Number(p[0]) || 0) * 60 + (Number(p[1]) || 0); };
 
@@ -182,12 +185,18 @@ export async function raise(logic, srv, nt, cat, target) {
 }
 
 // ---- settings: a unit's own categories (the "Ticket categories" table) ----
+// how long a department takes to deal with business requests (its head sets it), 1 hour to 3 months
+export async function setRequestTat(logic, srv, deptName, hours) {
+  await srv.request('PUT', '/tickets/request-tat', { department: srv.structure.departments.get(deptName), hours });
+  await load(logic, srv);
+}
+
 export async function saveUnitCats(logic, srv, key, rows) {
   const [level, ...rest] = key.split(':');
   const unitName = rest.join(':');
   const unitType = TYPE_BACK[level] || 'desk';
   const unitRef = unitType === 'desk' ? null : srv.structure[level].get(unitName);
-  const existing = (srv.ticketCats || []).filter((c) => c.unit_type === unitType && (c.unit_ref || null) === unitRef);
+  const existing = (srv.ticketCats || []).filter((c) => c.unit_type === unitType && (c.unit_ref || null) === unitRef && c.name !== 'Business request');
   const keep = new Set();
   for (const r of rows) {
     const body = { unit_type: unitType, unit_ref: unitRef || undefined, name: r.name, tat_hours: Math.max(1, Math.round(Number(r.tat) || 1)), priority: r.prio || 'Medium', members: (r.members || []).map((n) => (n === 'Sam' ? srv.me.person : srv.personOf.get(n))).filter(Boolean) };

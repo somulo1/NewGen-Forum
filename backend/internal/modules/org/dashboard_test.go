@@ -69,7 +69,8 @@ func TestUnitDashboardIsBuiltFromRealRecords(t *testing.T) {
 		t.Fatalf("tickets: %v", d["tickets"])
 	}
 	tk := d["tickets"].([]any)[0].(map[string]any)
-	if tk["dir"] != "Escalated" {
+	// escalated to the desk and then back to Finance: it is with Finance again, so Finance has it as received
+	if tk["dir"] != "Received" {
 		t.Fatalf("ticket direction: %v", tk)
 	}
 	// business requests come only from the request form now (see TestBusinessRequestsComeFromTheForm), never from approvals
@@ -162,5 +163,46 @@ func TestBusinessRequestsComeFromTheForm(t *testing.T) {
 	}
 	if s := e.MustDo(200, "GET", "/org/units/"+sector+"/dashboard", nil, ownerU.Access); len(s["requests"].([]any)) != 0 {
 		t.Fatal("a sector lists business requests it received")
+	}
+}
+
+// A department sets how long business requests take, up to 3 months; a ticket it escalates stays on its dashboard as escalated.
+func TestRequestTurnaroundAndEscalatedTickets(t *testing.T) {
+	e := testkit.New(t)
+	ownerU, slug := e.NewOrg("Olivia Owner")
+	o := e.Owner(ownerU)
+	e.MustDo(204, "PUT", "/approvals/flows/f11", map[string]any{"levels": 0}, ownerU.Access)
+	e.Levels(ownerU, map[string]string{"department": ""})
+	fin := e.MustDo(201, "POST", "/org/units", map[string]any{"kind": "department", "name": "Finance"}, ownerU.Access)["id"].(string)
+	amy := e.Join(ownerU, slug, "Amy", "staff")
+	for _, m := range []*testkit.Member{o, amy} {
+		m.Register(e)
+	}
+	if c, _ := e.Do("PUT", "/tickets/request-tat", map[string]any{"department": fin, "hours": 2161}, ownerU.Access); c != 400 {
+		t.Fatalf("over 3 months: %d", c)
+	}
+	if c, _ := e.Do("PUT", "/tickets/request-tat", map[string]any{"department": fin, "hours": 6}, amy.Access); c != 403 {
+		t.Fatalf("staff set the turnaround: %d", c)
+	}
+	e.MustDo(204, "PUT", "/tickets/request-tat", map[string]any{"department": fin, "hours": 6}, ownerU.Access)
+	conv := func() string {
+		key, _ := e2ee.NewConversationKey()
+		return e.MustDo(201, "POST", "/conversations", map[string]any{"kind": "ticket", "members": []string{o.Person}, "keys": amy.WrapFor(e, key, 1, amy.Person, o.Person)}, amy.Access)["id"].(string)
+	}
+	rq := e.MustDo(201, "POST", "/tickets", map[string]any{"conversation": conv(), "to_type": "department", "to_ref": fin, "kind": "request"}, amy.Access)
+	if rq["tat_hours"].(float64) != 6 || rq["priority"] != "High" {
+		t.Fatalf("request: tat %v priority %v", rq["tat_hours"], rq["priority"])
+	}
+	// a ticket to Finance, escalated by the owner to the desk: Finance still sees it, as escalated
+	tk := conv()
+	e.MustDo(201, "POST", "/tickets", map[string]any{"conversation": tk, "category": "Hardware", "to_type": "department", "to_ref": fin}, amy.Access)
+	e.MustDo(200, "POST", "/tickets/"+tk+"/act", map[string]any{"do": "escalate", "to_type": "desk", "why": "Needs the IT desk"}, ownerU.Access)
+	d := e.MustDo(200, "GET", "/org/units/"+fin+"/dashboard", nil, ownerU.Access)
+	var dirs []string
+	for _, x := range d["tickets"].([]any) {
+		dirs = append(dirs, x.(map[string]any)["dir"].(string))
+	}
+	if len(dirs) != 1 || dirs[0] != "Escalated" {
+		t.Fatalf("finance tickets: %v", dirs)
 	}
 }
