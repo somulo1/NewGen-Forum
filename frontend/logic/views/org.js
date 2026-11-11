@@ -445,15 +445,19 @@ export function buildOrg(ctx) {
       const seen = {}; const all = [];
       mem.forEach((p) => { seen[p.id] = 1; all.push({ p: p, m: perfBy[p.id] }); });
       (D.people || []).forEach((m) => { if (!seen[m.id]) all.push({ p: { id: m.id, name: m.name, title: m.title }, m: m }); });
+      const headIds = ((unitRow && unitRow.heads) || []).map((h) => h.id);
+      const headTitle = { departments: 'HOD', sectors: 'Sector manager', branches: 'Branch coordinator', units: 'Portfolio Lead officer' }[t] || 'Head';
+      const isHd = (x) => headIds.indexOf(x.p.id) !== -1;
+      (unitRow && unitRow.heads || []).forEach((h) => { if (!all.some((x) => x.p.id === h.id)) all.push({ p: { id: h.id, name: h.name, title: h.title }, m: perfBy[h.id] }); });
       const rank = (x) => (x.m ? (x.m.measured ? 2 : 1) : 0);
-      all.sort((x, y) => rank(y) - rank(x) || (rank(x) === 2 ? y.m.perf - x.m.perf : 0) || String(x.p.name).localeCompare(String(y.p.name)));
+      all.sort((x, y) => isHd(y) - isHd(x) || rank(y) - rank(x) || (rank(x) === 2 ? y.m.perf - x.m.perf : 0) || String(x.p.name).localeCompare(String(y.p.name)));
       const dash = (on) => C.t('—', { sub: on ? 'none assigned' : '', fv: -1 });
       ouTable = { id: 'ou-m-' + key, pageSize: 15, minWidth: '980px', emptyText: 'Nobody is in this ' + typeName[t].toLowerCase() + ' yet. Add people from Organization structure.',
-        cols: [{ label: 'Person', filter: 'text' }, { label: 'Status', filter: 'select' }, { label: 'Tickets on time', align: 'right' }, ...(t === 'departments' ? [{ label: 'Business requests on time', align: 'right' }] : []), { label: 'Communications on time', align: 'right' }, { label: 'Overall', align: 'right' }, { label: '', align: 'right' }],
-        rows: all.map(({ p, m }) => ({ cells: [C.p(p.name, { sub: p.title || p.email || '', fv: p.name }), C.t(p.status || 'Available'),
+        cols: [{ label: 'Person', filter: 'text' }, { label: 'Role / status', filter: 'select' }, { label: 'Tickets on time', align: 'right' }, ...(t === 'departments' ? [{ label: 'Business requests on time', align: 'right' }] : []), { label: 'Communications on time', align: 'right' }, { label: 'Overall', align: 'right' }, { label: '', align: 'right' }],
+        rows: all.map((x) => { const p = x.p, m = x.m, hd = isHd(x); return { tint: hd ? '#B8F36B' : '', cells: [C.p(p.name, { sub: (hd ? headTitle + ' · ' : '') + (p.title || p.email || ''), fv: p.name }), hd ? C.b(headTitle, '#B8F36B') : C.t(p.status || 'Available'),
           m ? C.t(pc(m.tickets), { sub: frac(m.tickets), fv: m.tickets.pct }) : dash(true), ...(t === 'departments' ? [m ? C.t(pc(m.requests), { sub: frac(m.requests), fv: m.requests.pct }) : dash(true)] : []), m ? C.t(pc(m.comms), { sub: frac(m.comms), fv: m.comms.pct }) : dash(true),
           m && m.measured ? C.b(m.perf + '%', perfColor(m.perf, tg), { fv: m.perf }) : C.t('—', { fv: -1 }),
-          C.a([{ label: 'Profile', kind: 'primary', run: () => this.setState({ personOpen: p.id }) }])] })) };
+          C.a([{ label: 'Profile', kind: 'primary', run: () => this.setState({ personOpen: p.id }) }])] }; }) };
     }
     if (ouTab === 'projects') ouTable = { id: 'ou-p-' + key, pageSize: 10, minWidth: '760px', emptyText: 'No projects for this ' + typeName[t].toLowerCase() + ' yet.', cols: [{ label: 'Project', filter: 'text' }, { label: 'Status', filter: 'select' }, { label: 'Progress' }, { label: 'Due', filter: 'date' }, { label: '', align: 'right' }],
       rows: ps.map((p) => ({ cells: [C.t(p.name, { strong: true, sub: 'Led by ' + p.owner }), C.b(p.status, p.statusColor), C.bar(p.progress, p.statusColor), C.t(p.dueLabel, { fv: p.due, nowrap: true }), C.a([{ label: 'View', kind: 'primary', run: p.open }])] })) };
