@@ -207,11 +207,12 @@ export function buildOrg(ctx) {
   const allUnits = levels.reduce((acc, t) => acc.concat(O[t].map((r) => ({ type: t, r: r }))), []);
   const unitPerf = {};
   allUnits.forEach((u) => { unitPerf[u.type + ':' + u.r.id] = unitData(u.type, u.r); });
-  const myUnits = ['departments', 'branches', 'sectors', 'units'].filter((t) => has[t] && can(t, 'View dashboard') && recOf(t, O.mine[t])).map((t) => {
+  // the dashboards I may open, in this order, shown near the top of the sidebar as My department, My sector, My branch, My unit
+  const myUnits = ['departments', 'sectors', 'branches', 'units'].filter((t) => has[t] && can(t, 'View dashboard') && recOf(t, O.mine[t])).map((t) => {
     const r = recOf(t, O.mine[t]);
     const key = t + ':' + r.id;
     const on = s.section === 'orgunit' && s.ou === key;
-    return { name: r.name, type: typeName[t], typeLower: typeName[t].toLowerCase(), short: shortOf(r.name), color: typeTint[t], key: key, perf: unitPerf[key].perf, open: openOu(t, r.id),
+    return { name: r.name, type: typeName[t], typeLower: typeName[t].toLowerCase(), navLabel: 'My ' + typeName[t].toLowerCase(), on, short: shortOf(r.name), color: typeTint[t], key: key, perf: unitPerf[key].perf, open: openOu(t, r.id),
       style: 'display:flex;align-items:center;gap:10px;width:100%;min-height:46px;padding:4px 10px;border:0;border-radius:10px;cursor:pointer;color:var(--k-E8EFEA,#E8EFEA);font-family:inherit;background:' + (on ? 'var(--k-22302A,#22302A)' : 'transparent') };
   });
   const roleNameOf = (id) => refName(id);

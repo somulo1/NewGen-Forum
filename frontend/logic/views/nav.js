@@ -14,6 +14,10 @@ export function buildNav(ctx) {
   const labels = { meetings: 'Meetings & standups', projects: 'Projects', calendar: 'Calendar', comms: 'Communications', structure: 'Organization structure', orgedit: 'Manage organization structure', orgunit: 'Organization dashboards', tickets: 'My tickets', ticketdesk: 'Ticket desk', files: 'Files', share: 'Secure share', security: 'Security & logs', roles: 'Roles & rights', widgets: 'Widgets', settings: 'Organization settings', notes: 'Notes' };
   // Why a page can't open: its feature is not switched on (404-style), or the role lacks the right (403).
   const denied = pending || secOk(s.section) ? null : { label: labels[s.section] || 'this page', reason: secNeeds[s.section] && !has[secNeeds[s.section]] || (s.section === 'ticketdesk' && (!has.tickets || has.structure)) ? 'off' : 'rights' };
+  // plain nav styles, for items built elsewhere (the dashboards of the places I belong to)
+  nav.itemOn = navBase + 'background:var(--k-22302A,#22302A);color:var(--k-E8EFEA,#E8EFEA);font-weight:600';
+  nav.itemOff = navBase + 'background:transparent;color:var(--k-C9D6CF,#C9D6CF)';
+  nav.canOrgStructure = secOk('orgedit');
   sections.forEach((k) => {
     const on = curSec === k;
     nav[k] = navBase + (on ? 'background:var(--k-22302A,#22302A);color:var(--k-E8EFEA,#E8EFEA);font-weight:600' : 'background:transparent;color:var(--k-C9D6CF,#C9D6CF)');
