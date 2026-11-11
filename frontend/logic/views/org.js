@@ -342,7 +342,7 @@ export function buildOrg(ctx) {
       reqDirs: ['Received', 'Escalated', 'Sent'].map((d) => ({ label: d, count: D.reqs.filter((x) => x.dir === d).length, on: (s.ouReqDir || 'Received') === d, pick: () => this.setState({ ouReqDir: d }) })),
       commDirs: ['Received', 'Escalated', 'Sent'].map((d) => ({ label: d, count: D.comms.filter((x) => x.dir === d).length, on: (s.ouCommDir || 'Received') === d, pick: () => this.setState({ ouCommDir: d }) })),
       // places write to each other here (two-way). Memos, announcements and newsletters go out from the Communications page instead.
-      commSend: (has.tickets ? [['communication', 'New communication']].concat(has.departments ? [['request', 'New business request']] : []) : []).map(([k, l]) => ({ label: l,
+      commSend: (has.tickets ? [['communication', 'New communication']].concat(t === 'departments' && can('departments', 'View dashboard') ? [['request', 'New business request']] : []) : []).map(([k, l]) => ({ label: l,
         run: () => this.setState({ ouSend: { key, kind: k, toType: k === 'request' ? 'departments' : '', toName: '', title: '', desc: '', files: [], busy: false, err: '' } }) })),
       send: sendForm(),
       target: tg, setTarget: (e) => { const v = Math.max(50, Math.min(100, Number(e.target.value) || 95)); if (this.srv) { orgW.setTarget(this, this.srv, key, v).catch((err) => this.notify(err.message || 'Could not save the threshold.', '#FF9B8A')); return; } this.setState((x) => ({ targets: { ...x.targets, [key]: v } })); },

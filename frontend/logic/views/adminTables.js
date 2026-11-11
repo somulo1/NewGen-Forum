@@ -234,7 +234,8 @@ export function buildAdminTables(ctx) {
   const rolesView = { isRoles: s.rolesTab === 'roles', isRights: s.rolesTab === 'rights', isMembers: s.rolesTab === 'members', isReporting: s.rolesTab === 'reporting', isFlows: s.rolesTab === 'flows', isGroups: s.rolesTab === 'groups' };
   const tLevels = levelsOf(has);
   // a business request goes to a department only; a ticket to any level the organization uses
-  const canRequest = tLevels.indexOf('departments') !== -1;
+  // business requests are departmental: only people with access to departments send them
+  const canRequest = tLevels.indexOf('departments') !== -1 && (!this.srv || can('departments', 'View dashboard'));
   const canComm = tLevels.length > 0;   // communications go between departments, units, branches and sectors
   // a person raises tickets and business requests here; communications are sent from a place's dashboard
   const ntKind = s.nt.kind === 'request' && canRequest ? 'request' : 'ticket';

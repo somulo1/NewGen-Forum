@@ -286,6 +286,9 @@ func (s *Service) Create(ctx context.Context, p *tenant.Principal, in CreateIn) 
 	if in.Kind == "request" && in.ToType != "department" {
 		return nil, httpx.Bad("Business requests go to a department.")
 	}
+	if in.Kind == "request" && in.FromRef != nil && in.FromType != "" && in.FromType != "department" {
+		return nil, httpx.Bad("Business requests are sent from a department.")
+	}
 	var err error
 	if in.Title, err = cleanText(in.Title, maxTitle, "The subject"); err != nil {
 		return nil, err
@@ -307,6 +310,12 @@ func (s *Service) Create(ctx context.Context, p *tenant.Principal, in CreateIn) 
 		if kind != "ticket" || creator != p.Account {
 			return httpx.Bad("Create the ticket conversation first.")
 		}
+		// business requests are a departmental matter: only people with access to departments send them
+		if in.Kind == "request" {
+			if err := authz.Require(ctx, tx, p.Person, "departments", "View dashboard"); err != nil {
+				return httpx.Err(403, "no_department_access", "Only people with access to departments can send business requests.")
+			}
+		}
 		if in.FromRef != nil {
 			// only someone who belongs to the place (or heads it) and may open its dashboard sends on its behalf
 			var fromKind string
@@ -323,6 +332,9 @@ func (s *Service) Create(ctx context.Context, p *tenant.Principal, in CreateIn) 
 				return err
 			}
 			in.FromType = fromKind
+			if in.Kind == "request" && fromKind != "department" {
+				return httpx.Bad("Business requests are sent from a department.")
+			}
 		}
 		if in.Kind == "request" || in.Kind == "communication" {
 			in.Category = KindCategory(in.Kind) // its turnaround is the one the receiving place set for these

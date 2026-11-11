@@ -155,6 +155,11 @@ func TestBusinessRequestsComeFromTheForm(t *testing.T) {
 	if c, _ := e.Do("POST", "/tickets", map[string]any{"conversation": conv(), "category": "Hardware", "to_type": "sector", "to_ref": sector, "kind": "request"}, amy.Access); c != 400 {
 		t.Fatalf("a business request to a sector: %d", c)
 	}
+	if c, _ := e.Do("POST", "/tickets", map[string]any{"conversation": conv(), "to_type": "department", "to_ref": dept, "kind": "request"}, amy.Access); c != 403 {
+		t.Fatalf("a business request without access to departments: %d", c)
+	}
+	e.MustDo(204, "PUT", "/approvals/flows/f8", map[string]any{"levels": 0}, ownerU.Access)
+	e.MustDo(200, "PUT", "/people/"+amy.Person+"/rights", map[string]any{"module": "departments", "right": "View dashboard", "allowed": true}, ownerU.Access)
 	tk := e.MustDo(201, "POST", "/tickets", map[string]any{"conversation": conv(), "category": "Hardware", "to_type": "department", "to_ref": dept, "kind": "request", "priority": "High"}, amy.Access)
 	if tk["kind"] != "request" || tk["priority"] != "Low" { // Hardware is 48 hours: beyond a day is low priority, whatever was asked
 		t.Fatalf("request: kind %v priority %v", tk["kind"], tk["priority"])
@@ -165,6 +170,13 @@ func TestBusinessRequestsComeFromTheForm(t *testing.T) {
 	}
 	if s := e.MustDo(200, "GET", "/org/units/"+sector+"/dashboard", nil, ownerU.Access); len(s["requests"].([]any)) != 0 {
 		t.Fatal("a sector lists business requests it received")
+	}
+	// escalated to another department: a fresh clock on that department's own business request turnaround
+	ops := e.MustDo(201, "POST", "/org/units", map[string]any{"kind": "department", "name": "Ops", "parent_id": sector}, ownerU.Access)["id"].(string)
+	e.MustDo(204, "PUT", "/tickets/request-tat", map[string]any{"department": ops, "hours": 6}, ownerU.Access)
+	moved := e.MustDo(200, "POST", "/tickets/"+tk["id"].(string)+"/act", map[string]any{"do": "escalate", "to_type": "department", "to_ref": ops, "why": "Ops handles it"}, ownerU.Access)
+	if moved["tat_hours"].(float64) != 6 || moved["priority"] != "High" {
+		t.Fatalf("escalated request: tat %v priority %v", moved["tat_hours"], moved["priority"])
 	}
 }
 
@@ -191,6 +203,8 @@ func TestRequestTurnaroundAndEscalatedTickets(t *testing.T) {
 		key, _ := e2ee.NewConversationKey()
 		return e.MustDo(201, "POST", "/conversations", map[string]any{"kind": "ticket", "members": []string{o.Person}, "keys": amy.WrapFor(e, key, 1, amy.Person, o.Person)}, amy.Access)["id"].(string)
 	}
+	e.MustDo(204, "PUT", "/approvals/flows/f8", map[string]any{"levels": 0}, ownerU.Access)
+	e.MustDo(200, "PUT", "/people/"+amy.Person+"/rights", map[string]any{"module": "departments", "right": "View dashboard", "allowed": true}, ownerU.Access)
 	rq := e.MustDo(201, "POST", "/tickets", map[string]any{"conversation": conv(), "to_type": "department", "to_ref": fin, "kind": "request"}, amy.Access)
 	if rq["tat_hours"].(float64) != 6 || rq["priority"] != "High" {
 		t.Fatalf("request: tat %v priority %v", rq["tat_hours"], rq["priority"])
@@ -452,5 +466,16 @@ func TestHeadsResolveWhatTheirPlaceReceived(t *testing.T) {
 	other := raise(fin)
 	if c, _ := e.Do("POST", "/tickets/"+other+"/act", map[string]any{"do": "step", "step": 3, "comment": "not mine"}, hana.Access); c != 403 {
 		t.Fatalf("IT's head resolved Finance's ticket: %d", c)
+	}
+	// and escalates what IT received: forwards it on, or reports it to the heads; not what is with Finance
+	fwd := raise(it)
+	if tk := e.MustDo(200, "GET", "/tickets/"+fwd, nil, hana.Access); tk["can_escalate"] != true {
+		t.Fatalf("head cannot escalate what IT received: %v", tk["can_escalate"])
+	}
+	e.MustDo(200, "POST", "/tickets/"+fwd+"/act", map[string]any{"do": "escalate", "to_type": "department", "to_ref": fin, "category": "Hardware", "why": "Finance owns these"}, hana.Access)
+	rep := raise(it)
+	e.MustDo(200, "POST", "/tickets/"+rep+"/act", map[string]any{"do": "escalate", "why": "running late"}, hana.Access)
+	if c, _ := e.Do("POST", "/tickets/"+other+"/act", map[string]any{"do": "escalate", "to_type": "department", "to_ref": it, "category": "Hardware"}, hana.Access); c != 403 {
+		t.Fatalf("IT's head escalated Finance's ticket: %d", c)
 	}
 }
