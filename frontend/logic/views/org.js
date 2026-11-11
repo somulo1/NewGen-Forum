@@ -251,13 +251,17 @@ export function buildOrg(ctx) {
         levels: levels.map((l) => ({ v: l, l: typeName[l] })), level, onLevel: (e) => set({ toType: e.target.value, toName: '' }),
         places: places.map((r) => r.name), place: place ? place.name : '', onPlace: (e) => set({ toName: e.target.value }),
         subject: f.title, onSubject: (e) => set({ title: e.target.value }), details: f.desc, onDetails: (e) => set({ desc: e.target.value }),
+        // attachments go with it, encrypted for the people on it, and show on its page like a ticket's evidence
+        files: f.files || [],
+        attach: (e) => { const list = this.capFiles((f.files || []).length, Array.from(e.target.files || [])).map((x) => this.fileInfo(x)); e.target.value = ''; this.setState((st) => ({ ouSend: { ...st.ouSend, files: (st.ouSend.files || []).concat(list) } })); },
+        removeFile: (i) => this.setState((st) => ({ ouSend: { ...st.ouSend, files: (st.ouSend.files || []).filter((_, k) => k !== i) } })),
         tatNote: place ? place.name + ' deals with ' + (f.kind === 'request' ? 'business requests' : 'communications') + ' within ' + tat + ' hours, from when it arrives.' : '',
         err: f.err || '', busy: !!f.busy, close: () => this.setState({ ouSend: null }),
         submit: () => {
           if (!place) { set({ err: 'Choose where to send it.' }); return; }
           if (!f.title.trim()) { set({ err: 'Give it a subject.' }); return; }
           this.setState((st) => ({ ouSend: { ...st.ouSend, busy: true } }));
-          ticketsW.raise(this, this.srv, { title: f.title.trim(), desc: f.desc || '', files: [] }, { name: f.kind === 'request' ? 'Business request' : 'Communication' },
+          ticketsW.raise(this, this.srv, { title: f.title.trim(), desc: f.desc || '', files: f.files || [] }, { name: f.kind === 'request' ? 'Business request' : 'Communication' },
             { type: level, name: place.name, kind: f.kind, from: { level: t, name: ouRec.name } })
             .then(() => { this.setState({ ouSend: null }); this.notify((f.kind === 'request' ? 'Business request' : 'Communication') + ' sent to ' + place.name + ' from ' + ouRec.name + '.', '#B8F36B'); orgW.ensure(this, this.srv, key, true); })
             .catch((e) => this.setState((st) => ({ ouSend: { ...st.ouSend, busy: false, err: e.message || 'It could not be sent.' } })));
@@ -337,7 +341,7 @@ export function buildOrg(ctx) {
       commDirs: ['Received', 'Escalated', 'Sent'].map((d) => ({ label: d, count: D.comms.filter((x) => x.dir === d).length, on: (s.ouCommDir || 'Received') === d, pick: () => this.setState({ ouCommDir: d }) })),
       // places write to each other here (two-way). Memos, announcements and newsletters go out from the Communications page instead.
       commSend: (has.tickets ? [['communication', 'New communication']].concat(has.departments ? [['request', 'New business request']] : []) : []).map(([k, l]) => ({ label: l,
-        run: () => this.setState({ ouSend: { key, kind: k, toType: k === 'request' ? 'departments' : '', toName: '', title: '', desc: '', busy: false, err: '' } }) })),
+        run: () => this.setState({ ouSend: { key, kind: k, toType: k === 'request' ? 'departments' : '', toName: '', title: '', desc: '', files: [], busy: false, err: '' } }) })),
       send: sendForm(),
       target: tg, setTarget: (e) => { const v = Math.max(50, Math.min(100, Number(e.target.value) || 95)); if (this.srv) { orgW.setTarget(this, this.srv, key, v).catch((err) => this.notify(err.message || 'Could not save the threshold.', '#FF9B8A')); return; } this.setState((x) => ({ targets: { ...x.targets, [key]: v } })); },
       perf: D.perf, perfText: D.perf == null ? '—' : D.perf + '%', perfColor: perfColor(D.perf, tg), perfNote: D.perf == null ? 'Nothing due yet in this period' : D.perf >= tg ? 'Target met' : (tg - D.perf) + ' points below target',

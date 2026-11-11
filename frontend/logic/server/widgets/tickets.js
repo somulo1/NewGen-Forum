@@ -174,7 +174,10 @@ export async function raise(logic, srv, nt, cat, target) {
   const toRef = toType === 'desk' ? undefined : srv.structure[target.type].get(target.name);
   const cats = srv.ticketCats || [];
   const server = cats.find((c) => c.name === cat.name && ((c.unit_type === toType && c.unit_ref === toRef) || c.unit_type === 'desk'));
-  const members = [...new Set((server && server.members) || [])];
+  // the people who can read it (its subject, details and attachments are encrypted for them): the category's people and, for a
+  // business request or communication, the heads of the place it goes to, so they can open it and assign it
+  const heads = toRef && (target.kind === 'request' || target.kind === 'communication') ? (((srv.unitList || []).find((u) => u.id === toRef) || {}).heads || []).map((h) => h.id) : [];
+  const members = [...new Set(((server && server.members) || []).concat(heads))];
   const { devices } = await srv.request('POST', '/e2ee/people/devices', { people: [...new Set([srv.me.person, ...members])] });
   const key = newConversationKey();
   const keys = await Promise.all(devices.map(async (d) => ({ epoch: 1, device: d.id, wrapped_key: b64(await wrap(key, unb64(d.identity_key))) })));
