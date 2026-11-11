@@ -248,3 +248,34 @@ func TestRepostGoesBackToTheSamePlacesForPeopleWithTheRight(t *testing.T) {
 		t.Fatalf("the forum holds %d copies, want 2", n)
 	}
 }
+
+// People a communication reached acknowledge it with a click; its insights show how many did and who.
+func TestCommunicationsAreAcknowledged(t *testing.T) {
+	e := testkit.New(t)
+	ownerU, slug := e.NewOrg("Olivia Owner")
+	org := e.OrgID(slug)
+	o := e.Owner(ownerU)
+	staff := e.Join(ownerU, slug, "Sam", "staff")
+	for _, m := range []*testkit.Member{o, staff} {
+		m.Register(e)
+	}
+	e.MustDo(204, "PUT", "/approvals/flows/f1", map[string]any{"levels": 0}, ownerU.Access)
+	key, _ := e2ee.NewConversationKey()
+	wall := e.MustDo(201, "POST", "/conversations", map[string]any{"kind": "wall", "name": "Everyone", "audience": "org", "keys": o.WrapFor(e, key, 1, o.Person, staff.Person)}, ownerU.Access)["id"].(string)
+	id := uuid.Must(uuid.NewV7()).String()
+	comm := e.MustDo(201, "POST", "/comms", map[string]any{"type": "Announcement", "conversation": wall, "message": id, "epoch": 1, "device": o.DevID, "envelope": o.Seal(org, wall, id, 1, key, "Office closed Friday")}, ownerU.Access)["comm"].(map[string]any)
+	cid := comm["id"].(string)
+	if comm["status"] != "Published" {
+		t.Skipf("announcements need approval here: %v", comm["status"])
+	}
+	if c, _ := e.Do("POST", "/comms/"+cid+"/acknowledge", nil, ownerU.Access); c != 404 {
+		t.Fatalf("its author acknowledged it: %d", c)
+	}
+	e.MustDo(204, "POST", "/comms/"+cid+"/acknowledge", nil, staff.Access)
+	e.MustDo(204, "POST", "/comms/"+cid+"/acknowledge", nil, staff.Access) // twice is fine, counted once
+	places := e.MustDo(200, "GET", "/comms/"+cid+"/insights", nil, ownerU.Access)["places"].([]any)
+	pl := places[0].(map[string]any)
+	if pl["acknowledged"].(float64) != 1 || len(pl["acknowledged_by"].([]any)) != 1 || pl["read"].(float64) != 1 {
+		t.Fatalf("insights: %v", pl)
+	}
+}

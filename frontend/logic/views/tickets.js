@@ -134,6 +134,11 @@ export function buildTickets(ctx) {
         .map((p) => ({ value: this.srv && p.name === this.srv.me.name ? 'Sam' : p.name, label: (this.srv && p.name === this.srv.me.name ? 'Me (' + p.name + ')' : p.name) + (p.dept ? ' · ' + p.dept : '') }))
         .sort((a, b) => a.label.localeCompare(b.label)),
       ownNote: raisedByMe && cur_t.step < 4 ? 'You raised this ticket, so someone else works on it. You can close it once it is solved.' : '',
+      // business requests and communications: the receiving place acknowledges them
+      isAckable: cur_t.kind === 'request' || cur_t.kind === 'communication', kindLabel: cur_t.kind === 'request' ? 'business request' : cur_t.kind === 'communication' ? 'communication' : 'ticket',
+      acks: cur_t.acks || [], hasAcks: (cur_t.acks || []).length > 0,
+      canAck: !!cur_t.canAck && !(cur_t.acks || []).some((a) => this.srv && a.name === this.srv.me.name),
+      acknowledge: () => ticketsW.acknowledge(this, this.srv, cur_t).then(() => this.notify('Acknowledged.', '#B8F36B')).catch((e) => this.notify(e.message || 'Could not acknowledge it.', '#FF9B8A')),
       wasEscalated: !!cur_t.escalatedTo, escalatedToLabel: cur_t.escalatedTo || '',
       assignees: cur_t.assignees.map((n) => ({ name: n, initials: ini(n), color: pColor[n] || '#9DB0A6' })),
       finish, actions: finish ? [] : actions,

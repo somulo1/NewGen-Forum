@@ -143,6 +143,12 @@
 <span style="color: var(--k-9DB0A6,#9DB0A6)">Created</span><span>{{ tk.created }}</span>
 <span style="color: var(--k-9DB0A6,#9DB0A6)">Synced with</span><span>{{ tk.sync }}</span>
 </div>
+<div v-if="tk.isAckable && (tk.canAck || tk.hasAcks)" style="padding: 16px 18px; border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><span style="flex: 1; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--k-9DB0A6,#9DB0A6)">Acknowledged</span>
+<button v-if="tk.canAck" type="button" @click="tk.acknowledge" style="height: 34px; padding: 0 14px; border-radius: 17px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">Acknowledge</button></div>
+<span v-if="!tk.hasAcks" style="font-size: 13px; color: var(--k-9DB0A6,#9DB0A6)">Nobody has acknowledged this {{ tk.kindLabel }} yet. Let the sender know it was received.</span>
+<div v-for="(a, ai) in tk.acks" :key="ai" style="font-size: 13px"><strong style="font-weight: 600">{{ a.name }}</strong> <span style="color: var(--k-9DB0A6,#9DB0A6)">· {{ a.at }}</span></div>
+</div>
 <template v-if="esc.canEscalate">
 <div style="padding: 18px; border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-3F2A26,#3F2A26); display: flex; flex-direction: column; gap: 10px">
 <div style="display: flex; align-items: center; gap: 8px"><span style="flex: 1; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--k-FF9B8A,#FF9B8A)">Escalate</span>

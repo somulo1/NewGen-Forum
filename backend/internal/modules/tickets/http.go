@@ -159,6 +159,18 @@ func (s *Service) Private(r chi.Router) {
 		w.WriteHeader(204)
 		return nil
 	}))
+	r.Post("/tickets/{id}/acknowledge", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
+		id, err := uuid.Parse(chi.URLParam(r, "id"))
+		if err != nil {
+			return httpx.ErrNotFound
+		}
+		t, err := s.Acknowledge(r.Context(), p, id)
+		if err != nil {
+			return err
+		}
+		httpx.JSON(w, 200, t)
+		return nil
+	}))
 	r.Get("/tickets/{id}", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
 		tid, err := id(r)
 		if err != nil {

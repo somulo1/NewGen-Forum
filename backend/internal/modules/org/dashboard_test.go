@@ -371,6 +371,17 @@ func TestPlacesSendEachOtherCommunications(t *testing.T) {
 	if c := e.MustDo(200, "GET", "/org/units/"+br+"/dashboard", nil, ownerU.Access)["comms"].([]any)[0].(map[string]any); c["from"] != "Finance" || c["from_unit"] != true {
 		t.Fatalf("from: %v %v", c["from"], c["from_unit"])
 	}
+	// the people of the branch acknowledge it; the sender cannot
+	if c, _ := e.Do("POST", "/tickets/"+conv+"/acknowledge", nil, amy.Access); c != 403 {
+		t.Fatalf("the sender acknowledged it: %d", c)
+	}
+	bea := e.Join(ownerU, slug, "Bea", "staff")
+	bea.Register(e)
+	e.MustDo(200, "PATCH", "/people/"+bea.Person, map[string]any{"branch_id": br}, ownerU.Access)
+	ack := e.MustDo(200, "POST", "/tickets/"+conv+"/acknowledge", nil, bea.Access)
+	if acks := ack["acknowledgements"].([]any); len(acks) != 1 {
+		t.Fatalf("acknowledgements: %v", acks)
+	}
 	if f := dirs(fin); len(f) != 1 || f[0] != "Sent" {
 		t.Fatalf("finance: %v", f)
 	}

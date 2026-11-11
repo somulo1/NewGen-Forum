@@ -50,7 +50,7 @@ async function mapTicket(srv, t) {
   return {
     id: t.ref, uid: t.id, title: first ? first.title : t.category + ' ticket', desc: first ? first.desc || '' : '(hidden: you are not a participant)', cat: t.category, prio: t.priority,
     step: t.step, hold: !!t.hold, late: !!t.late, raisedBy: me(srv, t.raised_by_name), assignees: names, handler: t.handler_name || '', handlerSince: t.handler_since ? when(t.handler_since) : '',
-    rating: t.rating || 0, autoClosed: !!t.auto_closed, closedAt: t.closed_at ? when(t.closed_at) : '', canAssign: !!detail.can_assign, canEscalate: !!detail.can_escalate, kind: t.kind || 'ticket', created: when(t.created_at), elapsed: detail.elapsed_hours || 0, tatH: t.tat_hours, sync: t.sync || 'Not synced', activity, dept: toType === 'departments' ? toName : (raiser ? raiser.dept : ''), fromDept: raiser ? raiser.dept : '',
+    rating: t.rating || 0, autoClosed: !!t.auto_closed, closedAt: t.closed_at ? when(t.closed_at) : '', canAssign: !!detail.can_assign, canEscalate: !!detail.can_escalate, kind: t.kind || 'ticket', canAck: !!detail.can_acknowledge, acks: (detail.acknowledgements || t.acknowledgements || []).map((a) => ({ name: a.name, at: when(a.at) })), created: when(t.created_at), elapsed: detail.elapsed_hours || 0, tatH: t.tat_hours, sync: t.sync || 'Not synced', activity, dept: toType === 'departments' ? toName : (raiser ? raiser.dept : ''), fromDept: raiser ? raiser.dept : '',
     createdAt: t.created_at.slice(0, 10), escalated: !!t.escalated, to: toType === 'desk' ? { type: 'desk', name: 'Ticket desk' } : { type: toType, name: toName }, dueAt: t.due_at || '', unsealed: !first
   };
 }
@@ -143,6 +143,12 @@ export async function assign(logic, srv, t, personName) {
 
 // Moves a ticket to another sector, branch, unit, department or the desk, under one of that place's categories, and hands it
 // to a named person there. e = { type: 'departments' | ... | 'desk', name, cat, person, why }
+// someone at the receiving place says they received a business request or communication
+export async function acknowledge(logic, srv, t) {
+  await srv.request('POST', `/tickets/${t.uid}/acknowledge`);
+  return reload(logic, srv, t.uid);
+}
+
 export async function escalate(logic, srv, t, e) {
   const toType = TYPE_BACK[e.type] || 'desk';
   const toRef = toType === 'desk' ? undefined : srv.structure[e.type].get(e.name);

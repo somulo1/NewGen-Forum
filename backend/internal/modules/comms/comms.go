@@ -54,6 +54,8 @@ type Comm struct {
 	PublishedAt  *time.Time `json:"published_at,omitempty"`
 	Read         int        `json:"read"`
 	IRead        bool       `json:"i_read"`
+	IAcked       bool       `json:"i_acked"`
+	Acked        int        `json:"acknowledged"`
 	Batch        *uuid.UUID `json:"batch,omitempty"` // the sends made together, one per place
 }
 
@@ -208,12 +210,13 @@ func (s *Service) applyPublish(ctx context.Context, tx pgx.Tx, a approvals.Appli
 }
 
 const sel = `select c.id, c.ref, c.type, c.status, c.by_person, p.first_name || ' ' || p.last_name, c.conversation_id, c.message_id, c.created_at, c.published_at, c.batch,
-	(select count(*) from hub.comm_reads r where r.comm_id = c.id), exists (select 1 from hub.comm_reads r where r.comm_id = c.id and r.person_id = $1)
+	(select count(*) from hub.comm_reads r where r.comm_id = c.id), exists (select 1 from hub.comm_reads r where r.comm_id = c.id and r.person_id = $1),
+	exists (select 1 from hub.comm_acks a where a.comm_id = c.id and a.person_id = $1), (select count(*) from hub.comm_acks a where a.comm_id = c.id)
 	from hub.comms c join hub.people p on p.id = c.by_person`
 
 func scan(r pgx.Row) (*Comm, error) {
 	x := &Comm{}
-	err := r.Scan(&x.ID, &x.Ref, &x.Type, &x.Status, &x.By, &x.ByName, &x.Conversation, &x.Message, &x.CreatedAt, &x.PublishedAt, &x.Batch, &x.Read, &x.IRead)
+	err := r.Scan(&x.ID, &x.Ref, &x.Type, &x.Status, &x.By, &x.ByName, &x.Conversation, &x.Message, &x.CreatedAt, &x.PublishedAt, &x.Batch, &x.Read, &x.IRead, &x.IAcked, &x.Acked)
 	return x, err
 }
 
@@ -329,6 +332,28 @@ func (s *Service) MarkRead(ctx context.Context, p *tenant.Principal, id uuid.UUI
 		}
 		_ = tag
 		return nil
+	})
+}
+
+// Acknowledge records that the caller received and noted a published communication sent to a place they are in (it also counts as
+// read). Once is enough; clicking again changes nothing.
+func (s *Service) Acknowledge(ctx context.Context, p *tenant.Principal, id uuid.UUID) error {
+	return s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
+		tag, err := tx.Exec(ctx, `insert into hub.comm_acks (org_id, comm_id, person_id) select $1, c.id, $3 from hub.comms c
+			join hub.conversation_members m on m.conversation_id = c.conversation_id and m.account_id = $4 and m.left_at is null
+			where c.id=$2 and c.status='Published' and c.by_person <> $3 on conflict do nothing`, p.Org, id, p.Person, p.Account)
+		if err != nil {
+			return err
+		}
+		if tag.RowsAffected() == 0 {
+			var ok bool
+			if err := tx.QueryRow(ctx, `select exists (select 1 from hub.comm_acks where comm_id=$1 and person_id=$2)`, id, p.Person).Scan(&ok); err != nil || ok {
+				return err
+			}
+			return httpx.ErrNotFound
+		}
+		_, err = tx.Exec(ctx, `insert into hub.comm_reads (org_id, comm_id, person_id) values ($1,$2,$3) on conflict do nothing`, p.Org, id, p.Person)
+		return err
 	})
 }
 
@@ -746,6 +771,17 @@ func (s *Service) Private(r chi.Router) {
 		w.WriteHeader(204)
 		return nil
 	}))
+	r.Post("/comms/{id}/acknowledge", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
+		id, err := uuid.Parse(chi.URLParam(r, "id"))
+		if err != nil {
+			return httpx.ErrNotFound
+		}
+		if err := s.Acknowledge(r.Context(), p, id); err != nil {
+			return err
+		}
+		w.WriteHeader(204)
+		return nil
+	}))
 	r.Get("/comms/{id}/places", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
 		id, err := uuid.Parse(chi.URLParam(r, "id"))
 		if err != nil {
@@ -892,6 +928,8 @@ type Spot struct {
 	Read     int       `json:"read"`
 	Likes    int       `json:"likes"`
 	Replies  int       `json:"replies"`
+	Acked    int       `json:"acknowledged"`
+	AckedBy  []string  `json:"acknowledged_by"` // who acknowledged it there, earliest first
 }
 
 var insightRight = map[string][2]string{"Memo": {"memos", "View insights"}, "Announcement": {"announcements", "View insights"}, "Newsletter": {"newsletter", "View insights"}, "Job post": {"jobposts", "View insights"}}
@@ -928,9 +966,31 @@ func (s *Service) Insights(ctx context.Context, p *tenant.Principal, id uuid.UUI
 			if err := rs.Scan(&x.Comm, &x.Place, &x.Conv, &x.Kind, &x.Status, &x.Audience, &x.Read, &x.Likes, &x.Replies); err != nil {
 				return err
 			}
+			x.AckedBy = []string{}
 			out = append(out, x)
 		}
-		return rs.Err()
+		if err := rs.Err(); err != nil {
+			return err
+		}
+		rs.Close()
+		for i := range out {
+			as, err := tx.Query(ctx, `select pe.first_name || ' ' || pe.last_name from hub.comm_acks a join hub.people pe on pe.id = a.person_id
+				where a.comm_id = $1 order by a.at`, out[i].Comm)
+			if err != nil {
+				return err
+			}
+			for as.Next() {
+				var n string
+				if err := as.Scan(&n); err != nil {
+					as.Close()
+					return err
+				}
+				out[i].AckedBy = append(out[i].AckedBy, n)
+			}
+			as.Close()
+			out[i].Acked = len(out[i].AckedBy)
+		}
+		return nil
 	})
 	return out, err
 }

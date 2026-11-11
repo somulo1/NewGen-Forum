@@ -26,7 +26,7 @@ export async function load(logic, srv) {
       id: c.ref, uid: c.id, type: c.type, title: pl ? pl.title : '(sealed)', summary: pl ? pl.summary || '' : '', body: pl ? pl.body || '' : '', fields: pl && pl.fields ? pl.fields : {}, files: pl && pl.files ? pl.files : [], by: c.by_name, byDept: dept,
       date: dayOf(c.published_at || c.created_at), at: c.published_at || c.created_at, to: pl && pl.to ? pl.to : [],
       batch: c.batch || c.id, sealed: !pl,
-      status: c.status === 'Pending approval' ? 'Awaiting approval' : c.status, read: Math.min(100, Math.round((c.read / Math.max(1, total)) * 100)), iRead: !!c.i_read
+      status: c.status === 'Pending approval' ? 'Awaiting approval' : c.status, read: Math.min(100, Math.round((c.read / Math.max(1, total)) * 100)), iRead: !!c.i_read, iAcked: !!c.i_acked, mine: !!(srv.me && c.by === srv.me.person)
     };
   }));
   // one communication sent to several places is stored once per place (same batch): it is listed once
@@ -37,7 +37,7 @@ export async function load(logic, srv) {
     const statuses = new Set(copies.map((x) => x.status));
     return { ...main, copies: copies.length,
       status: statuses.size === 1 ? main.status : statuses.has('Awaiting approval') ? 'Awaiting approval' : main.status,
-      read: Math.max(...copies.map((x) => x.read)), iRead: copies.some((x) => x.iRead),
+      read: Math.max(...copies.map((x) => x.read)), iRead: copies.some((x) => x.iRead), iAcked: copies.some((x) => x.iAcked),
       at: copies.map((x) => x.at).sort().reverse()[0], date: dayOf(copies.map((x) => x.at).sort().reverse()[0]) };
   });
   list.sort((a, b) => (a.at < b.at ? 1 : -1));
@@ -79,6 +79,12 @@ export function fileProblem(srv, f) {
 }
 
 // Who read it, who reacted and who replied, for every place it went. Only people allowed to see insights get an answer.
+// "Received and noted": a click, apart from just opening it. Its insights show who did.
+export async function acknowledge(logic, srv, c) {
+  await srv.request('POST', `/comms/${c.uid}/acknowledge`);
+  logic.setState((st) => ({ comms: st.comms.map((x) => (x.uid === c.uid ? { ...x, iAcked: true, iRead: true } : x)) }));
+}
+
 export async function insights(srv, c) {
   return (await srv.request('GET', `/comms/${c.uid}/insights`)).places;
 }

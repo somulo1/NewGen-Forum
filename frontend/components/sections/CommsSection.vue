@@ -31,10 +31,15 @@
 <article style="padding: 24px; display: flex; flex-direction: column; gap: 14px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); border-radius: 16px">
 <p v-if="commView.hasSummary" style="margin: 0; font-size: 17px; font-weight: 600; line-height: 1.5"><LinkText :text="commView.summary"/></p>
 <div style="font-size: 15px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; max-width: 72ch; color: var(--k-E8EFEA,#E8EFEA)"><LinkText :text="commView.body"/></div>
+<div v-if="commView.canAck || commView.acked" style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding-top: 10px; border-top: 1px solid var(--k-24322C,#24322C)">
+<button v-if="commView.canAck" type="button" @click="commView.acknowledge" style="height: 40px; padding: 0 18px; border-radius: 20px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">Acknowledge</button>
+<span style="font-size: 13px; color: var(--k-9DB0A6,#9DB0A6)">{{ commView.acked ? 'You acknowledged this.' : 'Let the sender know you received and noted it.' }}</span>
+</div>
 </article>
 <div v-if="commView.hasFiles" style="padding: 18px 20px; display: flex; flex-direction: column; gap: 8px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); border-radius: 16px"><strong style="font-size: 15px">Attachments</strong>
 <template v-for="f in commView.files" :key="f.name"><button type="button" @click="f.open" style="display: flex; gap: 10px; align-items: center; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; text-align: left"><span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ f.name }}</span><span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6); white-space: nowrap">{{ f.meta }} · Open</span></button></template></div>
 <div v-if="commView.canInsights" style="padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); border-radius: 16px"><strong style="font-size: 15px">Where it went and how it landed</strong>
+<div v-if="commView.hasPlaces" style="display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 12px; background: var(--k-121B17,#121B17); font-size: 13px"><strong>Acknowledged by {{ commView.totals.acked }}<template v-if="commView.totals.audience"> of {{ commView.totals.audience }}</template></strong><span v-if="commView.ackedBy.length" style="color: var(--k-C9D6CF,#C9D6CF)">{{ commView.ackedBy.join(', ') }}</span><span v-else style="color: var(--k-9DB0A6,#9DB0A6)">Nobody has acknowledged it yet.</span></div>
 <span v-if="!commView.hasPlaces && !commView.ins.loading && !commView.ins.err" style="font-size: 13px; color: var(--k-9DB0A6,#9DB0A6)">Only people with the right to see insights can see this.</span>
 <PageSkeleton v-if="commView.ins.loading" kind="lines" bare />
 <span v-if="commView.ins.err" role="alert" style="color: #FF9B8A">{{ commView.ins.err }}</span>

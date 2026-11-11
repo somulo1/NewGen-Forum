@@ -86,6 +86,9 @@ type Ticket struct {
 	// (that head, or the person working on it)
 	CanAssign   bool `json:"can_assign"`
 	CanEscalate bool `json:"can_escalate"`
+	// Acks: who at the receiving place acknowledged a business request or communication, and when; CanAck: the caller may
+	Acks   []Ack `json:"acknowledgements,omitempty"`
+	CanAck bool  `json:"can_acknowledge,omitempty"`
 	// ElapsedHours is how much of the TAT's running clock has been used (pauses and off-hours excluded); above TATHours means overdue.
 	ElapsedHours float64    `json:"elapsed_hours"`
 	ClosedAt     *time.Time `json:"closed_at,omitempty"`
@@ -485,6 +488,19 @@ func (s *Service) get(ctx context.Context, tx pgx.Tx, org, id uuid.UUID) (*Ticke
 	if cfg, err := s.config(ctx, tx); err == nil {
 		cfg.withElapsed(t)
 	}
+	as, err := tx.Query(ctx, `select pe.first_name || ' ' || pe.last_name, a.at from hub.ticket_acks a join hub.people pe on pe.id = a.person_id where a.ticket_id=$1 order by a.at`, id)
+	if err != nil {
+		return nil, err
+	}
+	for as.Next() {
+		var a Ack
+		if err := as.Scan(&a.Name, &a.At); err != nil {
+			as.Close()
+			return nil, err
+		}
+		t.Acks = append(t.Acks, a)
+	}
+	as.Close()
 	rs, err := tx.Query(ctx, `select at, actor_name, kind, text from hub.ticket_events where ticket_id=$1 order by at, id`, id)
 	if err != nil {
 		return nil, err
@@ -589,6 +605,57 @@ func (s *Service) List(ctx context.Context, p *tenant.Principal, q ListQuery) ([
 	return out, err
 }
 
+// Ack is one acknowledgement of a business request or communication.
+type Ack struct {
+	Name string    `json:"name"`
+	At   time.Time `json:"at"`
+}
+
+// mayAcknowledge: someone placed at the place a business request or communication is with (or above it) acknowledges receiving it.
+func mayAcknowledge(ctx context.Context, tx pgx.Tx, person uuid.UUID, t *Ticket) (bool, error) {
+	if t.Kind != "request" && t.Kind != "communication" || t.ToRef == nil {
+		return false, nil
+	}
+	var ok bool
+	err := tx.QueryRow(ctx, `with recursive up(id, parent_id) as (select id, parent_id from hub.org_units where id=$2
+			union all select u.id, u.parent_id from hub.org_units u join up on u.id = up.parent_id)
+		select exists (select 1 from hub.people pe where pe.id=$1 and exists (select 1 from up where up.id in (pe.department_id, pe.unit_id, pe.branch_id, pe.sector_id)))`, person, *t.ToRef).Scan(&ok)
+	return ok, err
+}
+
+// Acknowledge records that the caller, at the receiving place, received and noted a business request or communication.
+func (s *Service) Acknowledge(ctx context.Context, p *tenant.Principal, id uuid.UUID) (*Ticket, error) {
+	var out *Ticket
+	err := s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
+		t, err := s.get(ctx, tx, p.Org, id)
+		if err != nil {
+			return err
+		}
+		ok, err := mayAcknowledge(ctx, tx, p.Person, t)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return httpx.Err(403, "not_receiver", "Only the people of the place it was sent to can acknowledge it.")
+		}
+		tag, err := tx.Exec(ctx, `insert into hub.ticket_acks (org_id, ticket_id, person_id) values ($1,$2,$3) on conflict do nothing`, p.Org, id, p.Person)
+		if err != nil {
+			return err
+		}
+		if tag.RowsAffected() > 0 {
+			if err := s.event(ctx, tx, p.Org, id, p, "event", "Acknowledged it"); err != nil {
+				return err
+			}
+		}
+		out, err = s.get(ctx, tx, p.Org, id)
+		return err
+	})
+	if err == nil {
+		s.changed(ctx, p, out)
+	}
+	return out, err
+}
+
 func (s *Service) Get(ctx context.Context, p *tenant.Principal, id uuid.UUID) (*Ticket, error) {
 	var t *Ticket
 	err := s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
@@ -605,6 +672,9 @@ func (s *Service) Get(ctx context.Context, p *tenant.Principal, id uuid.UUID) (*
 		}
 		t.CanAssign = ok
 		t.CanEscalate = ok || (t.Handler != nil && *t.Handler == p.Person)
+		if t.CanAck, err = mayAcknowledge(ctx, tx, p.Person, t); err != nil {
+			return err
+		}
 		in, err := s.participant(ctx, tx, p, id)
 		if err != nil || !in {
 			t.Participant = &in

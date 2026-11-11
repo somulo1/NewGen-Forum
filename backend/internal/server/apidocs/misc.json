@@ -347,6 +347,16 @@
   "description": "The caller's own results this month (or period=quarter|year) in each place they belong to: tickets and business requests resolved or passed on within the place's turnaround, and communications opened within 48 hours.",
   "access": "anyone in the organization (own figures only)"
  },
+ "POST /v1/comms/{id}/acknowledge": {
+  "summary": "Acknowledge a communication",
+  "description": "Says the caller received and noted an organization-wide memo, announcement or newsletter sent to a place they are in. Its insights list who acknowledged it.",
+  "access": "anyone it was sent to (not its author)"
+ },
+ "POST /v1/tickets/{id}/acknowledge": {
+  "summary": "Acknowledge a business request or communication",
+  "description": "Someone placed at the receiving department, unit, branch or sector (or above it) says they received it. The item lists who acknowledged and when.",
+  "access": "people of the place it was sent to"
+ },
  "GET /v1/settings/blocks": {
   "summary": "What the organization has blocked",
   "description": "Private chats, private and forum calls, and the community wall when switched off in Settings. The server refuses them whatever the rights say.",
