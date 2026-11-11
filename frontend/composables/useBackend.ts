@@ -31,6 +31,16 @@ const ended = (code: string) => {
   try { window.dispatchEvent(new CustomEvent('hub:signed-out', { detail: code })); } catch (e) { /* not in a browser */ }
 };
 
+// This browser's own random token, kept for good: a sign-in from a browser the account used before sends no "new device" email,
+// whatever the network or place. Cleared site data makes it a new browser again.
+const browserToken = (): string => {
+  try {
+    let t = localStorage.getItem('hub-browser');
+    if (!t) { const b = new Uint8Array(24); crypto.getRandomValues(b); t = Array.from(b, (x) => x.toString(16).padStart(2, '0')).join(''); localStorage.setItem('hub-browser', t); }
+    return t.slice(0, 64);
+  } catch (e) { return ''; }
+};
+
 export const useBackend = () => {
   const base = ((useRuntimeConfig().public.apiBase as string) || '').replace(/\/$/, '');
 
@@ -148,7 +158,7 @@ export const useBackend = () => {
     signedIn: () => !!read(),
     async login(email: string, password: string, totp = ''): Promise<Session> {
       const e = email.trim();
-      const t = await raw('POST', '/auth/login', { email: e, password, ...(totp ? { totp } : {}) });
+      const t = await raw('POST', '/auth/login', { email: e, password, browser: browserToken(), ...(totp ? { totp } : {}) });
       const s = toSession(t, e.toLowerCase());
       write(s);
       // The account's device keys come back to this browser (locked with the password, which is only here for this moment), so posts,

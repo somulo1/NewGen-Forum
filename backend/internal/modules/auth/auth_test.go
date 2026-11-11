@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -19,6 +20,8 @@ import (
 	"hub/internal/mail"
 	"hub/internal/modules/auth"
 	"hub/internal/server"
+
+	"hub/internal/testkit"
 )
 
 type env struct {
@@ -295,5 +298,44 @@ func TestStoredEmailIsEncryptedAndNotReadable(t *testing.T) {
 	}
 	if strings.Contains(raw, email) || strings.Contains(raw, "Passw0rdOK") {
 		t.Fatal("account row contains plaintext email or password")
+	}
+}
+
+// The "new device" email goes only to a browser the account has never used: the same browser on another network sends none.
+func TestNewDeviceMailOnlyForUnknownBrowsers(t *testing.T) {
+	e := testkit.New(t)
+	email := testkit.Uniq()
+	e.Signup("Nora Newdevice", email)
+	login := func(browser string) {
+		t.Helper()
+		e.MustDo(200, "POST", "/auth/login", map[string]any{"email": email, "password": testkit.Password, "browser": browser}, "")
+	}
+	alerts := func() int {
+		time.Sleep(300 * time.Millisecond) // the email goes out in the background
+		n := 0
+		for _, m := range e.Dev.To(email) {
+			if strings.Contains(m.Subject, "New device") {
+				n++
+			}
+		}
+		return n
+	}
+	login("laptop-token")
+	if n := alerts(); n != 0 {
+		t.Fatalf("the first sign-in ever sent %d alerts", n)
+	}
+	login("laptop-token")
+	login("laptop-token")
+	if n := alerts(); n != 0 {
+		t.Fatalf("the same browser again sent %d alerts", n)
+	}
+	login("phone-token")
+	if n := alerts(); n != 1 {
+		t.Fatalf("a new browser sent %d alerts", n)
+	}
+	login("phone-token")
+	login("")
+	if n := alerts(); n != 2 {
+		t.Fatalf("after a known browser and one without a token: %d alerts", n)
 	}
 }

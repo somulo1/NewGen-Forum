@@ -76,11 +76,12 @@ func (s *Service) Public(r chi.Router) {
 			Password string `json:"password"`
 			TOTP     string `json:"totp"`
 			Org      string `json:"org"`
+			Browser  string `json:"browser"`
 		}
 		if err := httpx.Decode(r, &in, 8<<10); err != nil {
 			return err
 		}
-		t, err := s.Login(r.Context(), LoginIn{in.Email, in.Password, in.TOTP, in.Org, httpx.ClientIP(r), r.UserAgent()})
+		t, err := s.Login(r.Context(), LoginIn{Email: in.Email, Password: in.Password, TOTP: in.TOTP, Org: in.Org, IP: httpx.ClientIP(r), UserAgent: r.UserAgent(), Browser: in.Browser})
 		if err != nil {
 			return err
 		}

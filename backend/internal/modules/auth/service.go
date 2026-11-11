@@ -192,6 +192,7 @@ func (s *Service) Signup(ctx context.Context, name, email, password string, quiz
 
 type LoginIn struct {
 	Email, Password, TOTP, Org, IP, UserAgent string
+	Browser                                   string // the browser's own random token (empty: a browser that has none yet)
 }
 
 var dummyHash = crypto.HashPassword("dummy-password-for-timing", crypto.PasswordParams{Time: 3, MemoryKiB: 64 * 1024, Threads: 2})
@@ -289,13 +290,27 @@ func (s *Service) Login(ctx context.Context, in LoginIn) (*Tokens, error) {
 				return err
 			}
 		}
-		// a sign-in from an address this account has not used before is reported to its owner
-		if in.IP != "" {
-			var seen, any bool
-			if err := tx.QueryRow(ctx, `select exists (select 1 from hub.sessions where account_id=$1 and ip=$2::inet), exists (select 1 from hub.sessions where account_id=$1)`, a.ID, in.IP).Scan(&seen, &any); err == nil {
-				newAddr = any && !seen
+		// a sign-in from a browser or device this account has never used is reported to its owner. A known browser on another network
+		// or in another place is not: that is the same person moving about, and the email would only be noise.
+		var browser []byte
+		if len(in.Browser) > 200 {
+			in.Browser = in.Browser[:200]
+		}
+		if in.Browser != "" {
+			browser = hashSecret("browser:" + in.Browser)
+		}
+		{
+			// until an account has signed in once from a browser that sends its token (just after this change), the old rule stands in:
+			// an address it used before counts as known, so nobody gets one email per browser on the day this ships
+			var known, any, tokened, seenIP bool
+			if err := tx.QueryRow(ctx, `select $2::bytea is not null and exists (select 1 from hub.sessions where account_id=$1 and browser_hash=$2),
+				exists (select 1 from hub.sessions where account_id=$1),
+				exists (select 1 from hub.sessions where account_id=$1 and browser_hash is not null),
+				$3 <> '' and exists (select 1 from hub.sessions where account_id=$1 and ip = nullif($3,'')::inet)`, a.ID, browser, in.IP).Scan(&known, &any, &tokened, &seenIP); err == nil {
+				newAddr = any && !known && (tokened || !seenIP)
 			}
 		}
+		ctx = context.WithValue(ctx, browserKey{}, browser)
 		// one session per account: signing in here signs out every other browser and device
 		if replaced, err = s.revokeAllFor(ctx, tx, a.ID, uuid.Nil); err != nil {
 			return err
@@ -401,6 +416,7 @@ func (s *Service) issue(ctx context.Context, tx pgx.Tx, a Account, orgSlug strin
 	sid := app.NewID()
 	secret := crypto.RandomToken(32)
 	rt := Session{ID: sid, Account: a.ID, Family: family, Org: orgID, RefreshHash: hashSecret(secret), ExpiresAt: app.Now().Add(s.A.Cfg.RefreshTTL)}
+	rt.Browser, _ = ctx.Value(browserKey{}).([]byte)
 	if err := s.insertSession(ctx, tx, rt, ip, ua); err != nil {
 		return nil, err
 	}
@@ -410,6 +426,8 @@ func (s *Service) issue(ctx context.Context, tx pgx.Tx, a Account, orgSlug strin
 	}
 	return &Tokens{Access: access, Refresh: sid.String() + "." + secret, ExpiresIn: int(s.A.Cfg.AccessTTL.Seconds()), Account: a.ID, Name: a.DisplayName, Org: active, Orgs: orgs, MustChange: a.MustChange}, nil
 }
+
+type browserKey struct{}
 
 func hashSecret(secret string) []byte { h := sha256.Sum256([]byte(secret)); return h[:] }
 
@@ -755,7 +773,7 @@ func (s *Service) mailLocked(email, name, ip string, until time.Time) {
 		Note: "If this was you, wait a few minutes and try again, or reset your password. If it was not you, reset your password now and tell your administrator."})
 }
 
-// mailNewAddress tells the owner of an account that someone signed in from an address it had not used before.
+// mailNewAddress tells the owner of an account that someone signed in from a browser or device it had not used before.
 func (s *Service) mailNewAddress(email, name, ip, ua string) {
 	loc := ""
 	if s.A.Geo != nil {
@@ -771,8 +789,8 @@ func (s *Service) mailNewAddress(email, name, ip, ua string) {
 	if ua != "" {
 		rows = append(rows, [2]string{"Browser", ua})
 	}
-	_ = hubmail.SendCard(context.Background(), s.A.Mail, email, "New sign-in to your Hub account", hubmail.Card{Greeting: "Hello " + firstWord(name) + ",", Title: "New sign-in to your account", Preheader: "A sign-in from " + ip,
-		Lead: "Your account was just signed in to from an address you have not used before. Signing in here signed you out of your other browsers and devices.", Rows: rows,
+	_ = hubmail.SendCard(context.Background(), s.A.Mail, email, "New device signed in to your Hub account", hubmail.Card{Greeting: "Hello " + firstWord(name) + ",", Title: "A new device signed in", Preheader: "A sign-in from a device you have not used before",
+		Lead: "Your account was just signed in to from a browser or device it has not used before. Signing in here signed you out of your other browsers and devices.", Rows: rows,
 		Note: "If this was you, no action is needed. If it was not you, reset your password now and tell your administrator."})
 }
 

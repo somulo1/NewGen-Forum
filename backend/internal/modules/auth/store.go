@@ -36,6 +36,7 @@ type Session struct {
 	RefreshHash         []byte
 	ExpiresAt           time.Time
 	RevokedAt           *time.Time
+	Browser             []byte // hash of the browser's own token, on sign-in
 }
 
 type Reset struct {
@@ -86,8 +87,8 @@ func (s *Service) saveAccount(ctx context.Context, tx pgx.Tx, a Account) error {
 }
 
 func (s *Service) insertSession(ctx context.Context, tx pgx.Tx, x Session, ip, ua string) error {
-	_, err := tx.Exec(ctx, `insert into hub.sessions (id, account_id, org_id, device_id, family_id, refresh_hash, expires_at, revoked_at, ip, user_agent) values ($1,$2,$3,$4,$5,$6,$7,$8,nullif($9,'')::inet,$10)`,
-		x.ID, x.Account, x.Org, x.Device, x.Family, x.RefreshHash, x.ExpiresAt, x.RevokedAt, ip, ua)
+	_, err := tx.Exec(ctx, `insert into hub.sessions (id, account_id, org_id, device_id, family_id, refresh_hash, expires_at, revoked_at, ip, user_agent, browser_hash) values ($1,$2,$3,$4,$5,$6,$7,$8,nullif($9,'')::inet,$10,$11)`,
+		x.ID, x.Account, x.Org, x.Device, x.Family, x.RefreshHash, x.ExpiresAt, x.RevokedAt, ip, ua, x.Browser)
 	if err != nil {
 		return err
 	}
