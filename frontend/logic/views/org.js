@@ -264,16 +264,18 @@ export function buildOrg(ctx) {
       tks: () => D.tks.map((x) => String(x.uid || x.id)),
       projects: () => ps.map((p) => String(p.id)),
       members: () => mem.map((p) => String(p.uid || p.name)),
-      cats: () => []
+      cats: () => [],
+      people: () => []   // results, not new items: this tab never blinks
     };
     const seenKey = (k) => 'hub-seen:' + acct + ':' + key + ':' + k;
     const readSeen = (k) => { try { const v = localStorage.getItem(seenKey(k)); return v ? new Set(JSON.parse(v)) : null; } catch (e) { return new Set(); } };
     const writeSeen = (k, ids) => { try { localStorage.setItem(seenKey(k), JSON.stringify(ids.slice(-1000))); } catch (e) { /* not kept: the tab simply does not blink */ } };
     const ready = !this.srv || !!D.loaded;   // decide only on complete data, never on a half-loaded dashboard
-    const seeTab = (k) => { if (ready) writeSeen(k, idsOf[k]()); };
+    const idsIn = (k) => (idsOf[k] ? idsOf[k]() : []);   // a tab without its own list of items never blinks
+    const seeTab = (k) => { if (ready) writeSeen(k, idsIn(k)); };
     const freshIn = (k) => {
       if (!ready) return false;
-      const ids = idsOf[k]();
+      const ids = idsIn(k);
       const seen = readSeen(k);
       if (ouTab === k) { if (!seen || ids.some((id) => !seen.has(id))) writeSeen(k, ids); return false; }   // being looked at now: all of it is seen
       if (!seen) return ids.length > 0;   // never opened yet: everything in it is new to this person
