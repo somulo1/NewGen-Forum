@@ -386,3 +386,37 @@ func TestPlacesSendEachOtherCommunications(t *testing.T) {
 		t.Fatalf("finance: %v", f)
 	}
 }
+
+// A department's business requests are tracked like its communications: received, passed on, and sent (from its dashboard too).
+func TestDepartmentBusinessRequestsAreTrackedBothWays(t *testing.T) {
+	e := testkit.New(t)
+	ownerU, slug := e.NewOrg("Olivia Owner")
+	o := e.Owner(ownerU)
+	e.MustDo(204, "PUT", "/approvals/flows/f11", map[string]any{"levels": 0}, ownerU.Access)
+	e.MustDo(204, "PUT", "/approvals/flows/f8", map[string]any{"levels": 0}, ownerU.Access)
+	e.Levels(ownerU, map[string]string{"department": ""})
+	fin := e.MustDo(201, "POST", "/org/units", map[string]any{"kind": "department", "name": "Finance"}, ownerU.Access)["id"].(string)
+	it := e.MustDo(201, "POST", "/org/units", map[string]any{"kind": "department", "name": "IT"}, ownerU.Access)["id"].(string)
+	amy := e.Join(ownerU, slug, "Amy", "staff")
+	for _, m := range []*testkit.Member{o, amy} {
+		m.Register(e)
+	}
+	e.MustDo(200, "PATCH", "/people/"+amy.Person, map[string]any{"department_id": fin}, ownerU.Access)
+	e.MustDo(200, "PUT", "/people/"+amy.Person+"/rights", map[string]any{"module": "departments", "right": "View dashboard", "allowed": true}, ownerU.Access)
+	key, _ := e2ee.NewConversationKey()
+	conv := e.MustDo(201, "POST", "/conversations", map[string]any{"kind": "ticket", "members": []string{o.Person}, "keys": amy.WrapFor(e, key, 1, amy.Person, o.Person)}, amy.Access)["id"].(string)
+	e.MustDo(201, "POST", "/tickets", map[string]any{"conversation": conv, "to_type": "department", "to_ref": it, "kind": "request", "from_ref": fin, "title": "Budget lines"}, amy.Access)
+	dirs := func(unit string) []string {
+		var out []string
+		for _, x := range e.MustDo(200, "GET", "/org/units/"+unit+"/dashboard", nil, ownerU.Access)["requests"].([]any) {
+			out = append(out, x.(map[string]any)["dir"].(string))
+		}
+		return out
+	}
+	if f := dirs(fin); len(f) != 1 || f[0] != "Sent" {
+		t.Fatalf("finance sent: %v", f)
+	}
+	if i := dirs(it); len(i) != 1 || i[0] != "Received" {
+		t.Fatalf("IT received: %v", i)
+	}
+}
