@@ -11,7 +11,7 @@ export function buildCatMgr(ctx) {
   if (s.section === 'ticketdesk') target = { type: 'desk', name: 'Ticket desk', canManage: can('tickets', 'Set up ticket categories'), pool: corePeople.slice() };
   else if (s.section === 'orgunit' && ou && ou.name && s.ou) {
     const parts = s.ou.split(':'), rec = recOf(parts[0], parts[1]);
-    if (rec) target = { type: parts[0], name: rec.name, canManage: can('tickets', 'Set up ticket categories'), pool: this.dir.filter((p) => p[field[parts[0]]] === rec.name).map((p) => p.name).slice(0, 60) };
+    if (rec) target = { type: parts[0], name: rec.name, canManage: can('tickets', 'Set up ticket categories') || !!(this.srv && ((this.srv.unitList || []).find((u) => u.id === rec.id) || {}).heads && this.srv.unitList.find((u) => u.id === rec.id).heads.some((h) => h.id === this.srv.me.person)), pool: this.dir.filter((p) => p[field[parts[0]]] === rec.name).map((p) => p.name).slice(0, 60) };
   }
   if (!target) return { catMgr: { active: false } };
   const key = target.type + ':' + target.name;

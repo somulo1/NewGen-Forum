@@ -98,7 +98,7 @@ export function valsTickets(ctx) {
       if (!nt.title.trim()) return;
       this.setState((st) => ({ ntOpen: false, nt: { title: '', cat: st.nt.cat, prio: 'Medium', desc: '', files: [], toType: st.nt.toType, toName: st.nt.toName, kind: 'ticket' } }));
       ticketsW.raise(this, this.srv, nt, { name: cat.name, prio: ntTargets.priority }, ntTargets)
-        .then((t) => { this.setState({ ticketOpen: t.id }); this.notify((ntTargets.kind === 'request' ? 'Business request ' : '') + t.id + ' raised in ' + cat.name + ' and sent to ' + (ntTargets.type === 'desk' ? 'the ticket desk' : ntTargets.name) + '. TAT ' + (cat.custom ? cat.tat + ' hours' : tatText(cat.name)) + (t.handler ? '. Assigned to ' + t.handler : '') + '.', '#7CC4FF', t.id); })
+        .then((t) => { this.setState({ ticketOpen: t.id }); this.notify(({ request: 'Business request ', communication: 'Communication ' }[ntTargets.kind] || '') + t.id + ' sent' + (ntTargets.kind === 'ticket' ? ' in ' + cat.name : '') + ' and sent to ' + (ntTargets.type === 'desk' ? 'the ticket desk' : ntTargets.name) + '. TAT ' + (cat.custom ? cat.tat + ' hours' : tatText(cat.name)) + (t.handler ? '. Assigned to ' + t.handler : '') + '.', '#7CC4FF', t.id); })
         .catch((e) => this.notify(e.message || 'Could not raise the ticket.', '#FF9B8A'));
     }
   };

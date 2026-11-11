@@ -98,6 +98,7 @@
 </template>
 </div>
 
+<MyPerformance v-if="!me.isOther"/>
 <section v-if="!me.isOther && me.sounds" aria-label="Notification sounds (private to you)" style="padding: 16px 20px; border-radius: 18px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 14px">
 <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
 <div style="flex: 1 1 280px; min-width: 0"><strong style="font-size: 15px">Notification sounds</strong><p style="margin: 4px 0 0; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Private to you: nobody else sees these choices. They set which notices make the short chime. Calls, meetings and chats have their own sounds and are not affected.</p></div>

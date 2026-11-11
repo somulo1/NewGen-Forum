@@ -11,7 +11,6 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"hub/internal/authz"
-	"hub/internal/crypto"
 	"hub/internal/httpx"
 	"hub/internal/integrity"
 	"hub/internal/tenant"
@@ -26,17 +25,20 @@ var (
 )
 
 type CommRow struct {
-	ID           uuid.UUID `json:"id"`
-	Ref          string    `json:"ref"`
-	Type         string    `json:"type"`
-	Date         string    `json:"date"`
-	Dir          string    `json:"dir"` // Received | Sent
-	Status       string    `json:"status"`
-	OK           bool      `json:"ok"`
-	Pending      bool      `json:"pending,omitempty"` // still open and not yet due: not counted either way
-	Counterparty string    `json:"cp"`
-	Conversation uuid.UUID `json:"conversation"`
-	Message      uuid.UUID `json:"message"` // the subject is sealed: open this message to read it
+	ID           uuid.UUID  `json:"id"`
+	Ref          string     `json:"ref"`
+	Type         string     `json:"type"`
+	Date         string     `json:"date"`
+	Dir          string     `json:"dir"` // Received | Sent
+	Status       string     `json:"status"`
+	OK           bool       `json:"ok"`
+	Pending      bool       `json:"pending,omitempty"` // still open and not yet due: not counted either way
+	Counterparty string     `json:"cp"`
+	Conversation uuid.UUID  `json:"conversation"` // the communication's own thread (it is kept like a ticket)
+	Message      uuid.UUID  `json:"message,omitempty"`
+	Assignee     string     `json:"assignee"`
+	AssigneeID   *uuid.UUID `json:"assignee_id,omitempty"`
+	Open         bool       `json:"open"`
 }
 
 type ReqStep struct {
@@ -47,35 +49,41 @@ type ReqStep struct {
 }
 
 type ReqRow struct {
-	ID           uuid.UUID `json:"id"`
-	Ref          string    `json:"ref"`
-	Date         string    `json:"date"`
-	Dir          string    `json:"dir"`
-	Subject      string    `json:"subject"`
-	Status       string    `json:"status"`
-	OK           bool      `json:"ok"`
-	Pending      bool      `json:"pending,omitempty"` // still open and not yet due: not counted either way
-	Counterparty string    `json:"cp"`
-	By           string    `json:"by"`
-	Level        int       `json:"level"`
-	Levels       int       `json:"levels"`
-	Approvers    []string  `json:"approvers"`
-	History      []ReqStep `json:"history"`
-	Closed       bool      `json:"closed"`
+	ID           uuid.UUID  `json:"id"`
+	Ref          string     `json:"ref"`
+	Date         string     `json:"date"`
+	Dir          string     `json:"dir"`
+	Subject      string     `json:"subject"`
+	Status       string     `json:"status"`
+	OK           bool       `json:"ok"`
+	Pending      bool       `json:"pending,omitempty"` // still open and not yet due: not counted either way
+	Counterparty string     `json:"cp"`
+	By           string     `json:"by"`
+	Assignee     string     `json:"assignee"`
+	AssigneeID   *uuid.UUID `json:"assignee_id,omitempty"`
+	Open         bool       `json:"open"` // still with this place, not resolved or passed on
+	Level        int        `json:"level"`
+	Levels       int        `json:"levels"`
+	Approvers    []string   `json:"approvers"`
+	History      []ReqStep  `json:"history"`
+	Closed       bool       `json:"closed"`
 }
 
 type TicketRow struct {
-	ID           uuid.UUID `json:"id"`
-	Ref          string    `json:"ref"`
-	Date         string    `json:"date"`
-	Dir          string    `json:"dir"` // Received | Sent | Escalated
-	Category     string    `json:"category"`
-	Priority     string    `json:"priority"`
-	Step         int       `json:"step"`
-	Status       string    `json:"status"`
-	OK           bool      `json:"ok"`
-	Pending      bool      `json:"pending,omitempty"` // still open and not yet due: not counted either way
-	Counterparty string    `json:"cp"`
+	ID           uuid.UUID  `json:"id"`
+	Ref          string     `json:"ref"`
+	Date         string     `json:"date"`
+	Dir          string     `json:"dir"` // Received | Sent | Escalated
+	Category     string     `json:"category"`
+	Priority     string     `json:"priority"`
+	Step         int        `json:"step"`
+	Status       string     `json:"status"`
+	OK           bool       `json:"ok"`
+	Pending      bool       `json:"pending,omitempty"` // still open and not yet due: not counted either way
+	Counterparty string     `json:"cp"`
+	Assignee     string     `json:"assignee"`
+	AssigneeID   *uuid.UUID `json:"assignee_id,omitempty"`
+	Open         bool       `json:"open"` // still with this place, not resolved or passed on
 }
 
 type ProjectRow struct {
@@ -91,18 +99,80 @@ type Part struct {
 	Waiting  int `json:"waiting"` // received but still open and within time
 }
 
+// MemberPerf is how one person in the unit did in the period: the tickets, business requests and communications they worked on
+// (resolved or passed on within the place's turnaround, out of those decided).
+type MemberPerf struct {
+	ID       uuid.UUID `json:"id"`
+	Name     string    `json:"name"`
+	Title    string    `json:"title"`
+	Tickets  Part      `json:"tickets"`
+	Requests Part      `json:"requests"`
+	Comms    Part      `json:"comms"`
+	Perf     int       `json:"perf"`
+	Measured int       `json:"measured"`
+}
+
 type Dashboard struct {
 	Unit     Unit            `json:"unit"`
 	Target   int             `json:"target"`
 	Perf     int             `json:"perf"`
 	Measured int             `json:"measured"` // how many items the performance is based on (0: nothing to judge yet)
-	Since    string          `json:"since"`    // the start of the period it covers
+	People   []MemberPerf    `json:"people"`
+	Since    string          `json:"since"` // the start of the period it covers
 	Parts    map[string]Part `json:"parts"`
 	Members  int             `json:"members"`
 	Comms    []CommRow       `json:"comms"`
 	Requests []ReqRow        `json:"requests"`
 	Tickets  []TicketRow     `json:"tickets"`
 	Projects []ProjectRow    `json:"projects"`
+}
+
+type selfView struct{}
+
+// MyPerf is one person's own results in each place they belong to (department, unit, branch, sector), whatever their rights.
+type MyPerf struct {
+	Unit Unit       `json:"unit"`
+	Me   MemberPerf `json:"me"`
+}
+
+// MyPerformance lets anyone see how they did in the period in each place they are placed in. Only their own figures are returned.
+func (s *Service) MyPerformance(ctx context.Context, p *tenant.Principal, period string) ([]MyPerf, error) {
+	var places []uuid.UUID
+	err := s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
+		var a, b, c, d *uuid.UUID
+		if err := tx.QueryRow(ctx, `select department_id, unit_id, branch_id, sector_id from hub.people where id=$1`, p.Person).Scan(&a, &b, &c, &d); err != nil {
+			return err
+		}
+		for _, x := range []*uuid.UUID{a, b, c, d} {
+			if x != nil {
+				places = append(places, *x)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := []MyPerf{}
+	for _, u := range places {
+		dash, err := s.Dashboard(context.WithValue(ctx, selfView{}, true), p, u, 30, period)
+		if err != nil {
+			return nil, err
+		}
+		for _, m := range dash.People {
+			if m.ID == p.Person {
+				out = append(out, MyPerf{Unit: dash.Unit, Me: m})
+			}
+		}
+	}
+	return out, nil
+}
+
+func ptrID(id *uuid.UUID) uuid.UUID {
+	if id == nil {
+		return uuid.Nil
+	}
+	return *id
 }
 
 func pct(ok, n int) int {
@@ -166,7 +236,7 @@ func (s *Service) Dashboard(ctx context.Context, p *tenant.Principal, id uuid.UU
 	if days <= 0 || days > 3660 {
 		days = 30
 	}
-	d := &Dashboard{Parts: map[string]Part{}, Comms: []CommRow{}, Requests: []ReqRow{}, Tickets: []TicketRow{}, Projects: []ProjectRow{}}
+	d := &Dashboard{Parts: map[string]Part{}, Comms: []CommRow{}, Requests: []ReqRow{}, Tickets: []TicketRow{}, Projects: []ProjectRow{}, People: []MemberPerf{}}
 	err := s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
 		if err := tx.QueryRow(ctx, `select id, kind, parent_id, name, coalesce(code,'') from hub.org_units where id=$1`, id).Scan(&d.Unit.ID, &d.Unit.Kind, &d.Unit.Parent, &d.Unit.Name, &d.Unit.Code); errors.Is(err, pgx.ErrNoRows) {
 			return httpx.ErrNotFound
@@ -174,16 +244,14 @@ func (s *Service) Dashboard(ctx context.Context, p *tenant.Principal, id uuid.UU
 			return err
 		}
 		col := memberCol[d.Unit.Kind]
-		if err := authz.Require(ctx, tx, p.Person, rightsMod[d.Unit.Kind], "View dashboard"); err != nil {
-			return err
+		if ctx.Value(selfView{}) == nil {
+			if err := authz.Require(ctx, tx, p.Person, rightsMod[d.Unit.Kind], "View dashboard"); err != nil {
+				return err
+			}
 		}
 		d.Target = DefaultTarget
 		_ = tx.QueryRow(ctx, `select target_pct from hub.unit_targets where unit_id=$1`, id).Scan(&d.Target)
 		if err := tx.QueryRow(ctx, `select count(*) from hub.people where `+col+`=$1 and status='active'`, id).Scan(&d.Members); err != nil {
-			return err
-		}
-		dek, _, err := s.A.OrgDEK(ctx, tx, p.Org)
-		if err != nil {
 			return err
 		}
 		um := `(select id from hub.people where ` + col + `=$1 and status <> 'deleted')`
@@ -195,158 +263,130 @@ func (s *Service) Dashboard(ctx context.Context, p *tenant.Principal, id uuid.UU
 		}
 		d.Since = since.UTC().Format(time.RFC3339)
 
-		// ---- memos, announcements, newsletters ----
+		// communications here are the ones places send each other from their dashboards (not the organization-wide memos and
+		// announcements): they are read with tickets below.
+
+		// ---- tickets and business requests ----
+		// Each stay with this unit or a unit under it (a sector's branches, a branch's departments) is judged on its own clock: from
+		// when it arrived here to when it was resolved or escalated on (see tickets/hops.go). Its people's tickets to anyone else
+		// are listed as sent and not judged here. Business requests are tickets marked as requests.
 		rs, err := tx.Query(ctx, `
-			select c.id, c.ref, c.type, c.published_at, c.conversation_id, c.message_id,
-			  c.by_person in `+um+`,
-			  (select count(*) from hub.conversation_members m join hub.people pe on pe.account_id = m.account_id and pe.org_id = m.org_id
-			     where m.conversation_id = c.conversation_id and m.left_at is null and pe.id in `+um+`),
-			  (select count(*) from hub.conversation_members m where m.conversation_id = c.conversation_id and m.left_at is null),
-			  (select count(*) from hub.comm_reads r where r.comm_id = c.id and r.person_id in `+um+`),
-			  (select count(*) from hub.comm_reads r where r.comm_id = c.id and r.person_id in `+um+` and r.at <= c.published_at + $3::interval),
-			  (select count(*) from hub.comm_reads r where r.comm_id = c.id),
-			  coalesce(dx.name, ''), conv.name_enc, conv.id
-			from hub.comms c
-			join hub.conversations conv on conv.id = c.conversation_id
-			join hub.people sp on sp.id = c.by_person left join hub.org_units dx on dx.id = sp.department_id
-			where c.status = 'Published' and c.published_at > $2
-			  and (c.by_person in `+um+` or exists (select 1 from hub.conversation_members m join hub.people pe on pe.account_id = m.account_id and pe.org_id = m.org_id
-			        where m.conversation_id = c.conversation_id and m.left_at is null and pe.id in `+um+`))
-			order by c.published_at desc limit 200`, id, since, fmt.Sprintf("%d seconds", int(ontimeWait.Seconds())))
-		if err != nil {
-			return err
-		}
-		for rs.Next() {
-			var r CommRow
-			var pub time.Time
-			var sent bool
-			var inUnit, inConv, reads, onTime, allReads int
-			var dept string
-			var nameEnc []byte
-			var convID uuid.UUID
-			if err := rs.Scan(&r.ID, &r.Ref, &r.Type, &pub, &r.Conversation, &r.Message, &sent, &inUnit, &inConv, &reads, &onTime, &allReads, &dept, &nameEnc, &convID); err != nil {
-				rs.Close()
-				return err
-			}
-			r.Date = pub.UTC().Format("2006-01-02")
-			cp := "Community wall"
-			if len(nameEnc) > 0 {
-				if b, err := crypto.FieldOpen(dek, crypto.Context{Org: p.Org.String(), Table: "conversations", Column: "name_enc", RowID: convID.String()}, nameEnc); err == nil && len(b) > 0 {
-					cp = string(b)
-				}
-			}
-			if sent {
-				r.Dir, r.Counterparty = "Sent", cp
-				switch {
-				case inConv > 0 && allReads >= inConv-1:
-					r.Status, r.OK = "Read by all", true
-				case allReads > 0:
-					r.Status, r.OK = "Partly read", true
-				default:
-					r.Status, r.OK = "Delivered", true
-				}
-			} else {
-				r.Dir, r.Counterparty = "Received", dept
-				// a unit has acknowledged a broadcast when a quarter of its people (at least one) have opened it
-				need := max(1, (inUnit+3)/4)
-				switch {
-				case onTime >= need && inUnit > 0:
-					r.Status, r.OK = "Acknowledged on time", true
-				case reads >= need && inUnit > 0:
-					r.Status = "Acknowledged late"
-				case time.Since(pub) < ontimeWait:
-					// still within its time to be read: not judged yet
-					r.Status, r.Pending = "Waiting to be read", true
-				default:
-					r.Status = "Not acknowledged"
-				}
-			}
-			d.Comms = append(d.Comms, r)
-		}
-		rs.Close()
-		if err := rs.Err(); err != nil {
-			return err
-		}
-
-		// ---- business requests: raised from the ticket form to a department (tickets marked as requests, read with them below) ----
-
-		// ---- tickets ----
-		// a ticket sent to this unit or to any unit under it (a sector's branches, a branch's departments) is work this unit received
-		rs, err = tx.Query(ctx, `
-			with recursive below(id) as (select $1::uuid union select u.id from hub.org_units u join below on u.parent_id = below.id)
-			select t.conversation_id, t.ref, t.created_at, t.category, t.priority, t.step, t.late, t.escalated, t.due_at, t.solved_at, t.kind = 'request',
-			  coalesce(rp.first_name || ' ' || rp.last_name, ''),
-			  (select min(e.at) from hub.ticket_events e where e.ticket_id = t.conversation_id and e.kind = 'event' and e.text like 'Escalated%'),
-			  coalesce($2::text <> '' and t.to_ref in (select id from below), false), coalesce(t.escalated_from && array(select id from below), false), coalesce(rdx.name, ''), t.to_type, coalesce(tu.name, '')
-			from hub.tickets t join hub.people rp on rp.id = t.raised_by left join hub.org_units rdx on rdx.id = rp.department_id
+			with recursive below(id) as (select $1::uuid union select u.id from hub.org_units u join below on u.parent_id = below.id),
+			stays as (
+			  select h.ticket_id, h.unit_ref, h.received_at, h.left_at, h.outcome, h.on_time, h.due_at, h.handler from hub.ticket_hops h where h.unit_ref in (select id from below)
+			  union all
+			  -- tickets from before stays were kept: one stay, at the place they are now
+			  select t.conversation_id, t.to_ref, t.created_at, case when t.step >= 3 then t.solved_at end, case when t.step >= 3 then 'resolved' end,
+			    case when t.step >= 3 then (t.due_at is null or t.solved_at <= t.due_at) end, case when t.step >= 3 then t.due_at end, t.handler
+			  from hub.tickets t where t.to_ref in (select id from below) and not exists (select 1 from hub.ticket_hops x where x.ticket_id = t.conversation_id)
+			),
+			rows as (
+			  select true as here, s.ticket_id, s.received_at as at, s.left_at, s.outcome, s.on_time, s.due_at, s.handler from stays s where s.received_at > $2
+			  union all
+			  select false, t.conversation_id, t.created_at, null, null, null, null, null::uuid from hub.tickets t
+			  where t.raised_by in `+um+` and t.created_at > $2
+			    -- where it first went (the first stay; for older tickets, where they are now) is not this unit
+			    and not coalesce(coalesce((select h.unit_ref from hub.ticket_hops h where h.ticket_id = t.conversation_id order by h.received_at limit 1), t.to_ref) in (select id from below), false)
+			)
+			select x.here, t.conversation_id, t.ref, x.at, t.category, t.priority, t.step, t.due_at, t.solved_at, x.left_at, x.outcome, x.on_time, x.due_at,
+			  coalesce(t.kind, 'ticket'), coalesce(rp.first_name || ' ' || rp.last_name, ''), coalesce(rdx.name, ''), t.to_type, coalesce(tu.name, ''),
+			  -- who works on it: for a stay that ended, whoever had it then; otherwise whoever has it now
+			  case when x.left_at is not null then x.handler else t.handler end, coalesce(hp.first_name || ' ' || hp.last_name, '')
+			from rows x join hub.tickets t on t.conversation_id = x.ticket_id
+			left join hub.people hp on hp.id = (case when x.left_at is not null then x.handler else t.handler end)
+			join hub.people rp on rp.id = t.raised_by left join hub.org_units rdx on rdx.id = rp.department_id
 			left join hub.org_units tu on tu.id = t.to_ref
-			where t.created_at > $3 and (t.to_ref in (select id from below) or t.raised_by in `+um+` or t.escalated_from && array(select id from below))
-			order by t.created_at desc limit 300`, id, d.Unit.Kind, since)
+			order by x.at desc limit 300`, id, since)
 		if err != nil {
 			return err
 		}
 		stepNames := []string{"Raised", "Assigned", "In progress", "Resolved", "Closed"}
+		now := time.Now()
 		for rs.Next() {
 			var r TicketRow
-			var created time.Time
-			var late, esc, here, passedOn bool
-			var due, solved, escAt *time.Time
-			var rdept, toType, toName, raiser string
-			var isReq *bool
-			if err := rs.Scan(&r.ID, &r.Ref, &created, &r.Category, &r.Priority, &r.Step, &late, &esc, &due, &solved, &isReq, &raiser, &escAt, &here, &passedOn, &rdept, &toType, &toName); err != nil {
+			var at time.Time
+			var here bool
+			var due, solved, left, stayDue *time.Time
+			var outcome *string
+			var onTime *bool
+			var kind string
+			var raiser, rdept, toType, toName string
+			if err := rs.Scan(&here, &r.ID, &r.Ref, &at, &r.Category, &r.Priority, &r.Step, &due, &solved, &left, &outcome, &onTime, &stayDue, &kind, &raiser, &rdept, &toType, &toName, &r.AssigneeID, &r.Assignee); err != nil {
 				rs.Close()
 				return err
 			}
-			r.Date = created.UTC().Format("2006-01-02")
-			overdue := late || (r.Step < 3 && due != nil && due.Before(time.Now())) || (r.Step >= 3 && due != nil && solved != nil && solved.After(*due))
-			// Performance counts what was received and then resolved in time, or escalated in time (by a person, before its time ran
-			// out; the automatic escalation of an overdue ticket does not count). Anything still open counts against it until then.
-			solvedOnTime := r.Step >= 3 && solved != nil && (due == nil || !solved.After(*due))
-			escOnTime := escAt != nil && (due == nil || !escAt.After(*due))
-			r.OK = solvedOnTime || escOnTime
-			r.Pending = !r.OK && !overdue && r.Step < 3
-			r.Status = stepNames[min(max(r.Step, 0), 4)]
-			if overdue {
-				r.Status = "Overdue"
-				if r.Step >= 3 {
-					r.Status = "Solved late"
-				}
-			} else if r.Step >= 3 {
-				r.Status = "Solved on time"
-			} else if escOnTime {
-				r.Status = "Escalated on time"
+			r.Date = at.UTC().Format("2006-01-02")
+			where := toName
+			if where == "" {
+				where = "Ticket desk"
 			}
 			switch {
-			// Received: with this unit now (raised by its own people too, and escalated to it). Escalated: this unit passed it on.
-			// Sent: its people raised it to someone else.
-			case here:
-				r.Dir, r.Counterparty = "Received", rdept
-			case passedOn:
-				r.Dir, r.Counterparty = "Escalated", toName
-				if toName == "" {
-					r.Counterparty = "Ticket desk"
+			case !here:
+				// raised by its people to someone else: shown, not judged here
+				r.Dir, r.Counterparty = "Sent", where
+				r.Status = stepNames[min(max(r.Step, 0), 4)]
+				if r.Step < 3 && due != nil && due.Before(now) {
+					r.Status = "Overdue"
 				}
+			case outcome != nil && *outcome == "escalated":
+				r.Dir, r.Counterparty = "Escalated", where
+				r.OK = onTime != nil && *onTime
+				r.Status = map[bool]string{true: "Escalated on time", false: "Escalated late"}[r.OK]
+			case outcome != nil && *outcome == "resolved":
+				r.Dir, r.Counterparty = "Received", rdept
+				r.OK = onTime != nil && *onTime
+				r.Status = map[bool]string{true: "Solved on time", false: "Solved late"}[r.OK]
 			default:
-				r.Dir = "Sent"
-				if toName != "" {
-					r.Counterparty = toName
+				// still here: judged once it is resolved or escalated, or once its time here runs out
+				r.Dir, r.Counterparty = "Received", rdept
+				r.Status = stepNames[min(max(r.Step, 0), 4)]
+				if due != nil && due.Before(now) {
+					r.Status = "Overdue"
 				} else {
-					r.Counterparty = "Ticket desk"
+					r.Pending = true
 				}
 			}
-			if isReq != nil && *isReq {
+			_ = left
+			_ = stayDue
+			_ = solved
+			if kind == "communication" {
+				d.Comms = append(d.Comms, CommRow{ID: r.ID, Ref: r.Ref, Type: "Communication", Date: r.Date, Dir: r.Dir, Status: r.Status, OK: r.OK, Pending: r.Pending,
+					Counterparty: r.Counterparty, Conversation: r.ID, Assignee: r.Assignee, AssigneeID: r.AssigneeID, Open: r.Dir != "Sent" && (r.Pending || r.Status == "Overdue")})
+				continue
+			}
+			if kind == "request" {
 				// only a department receives business requests; elsewhere they are what its people sent
 				if d.Unit.Kind != "department" && r.Dir != "Sent" {
 					continue
 				}
 				d.Requests = append(d.Requests, ReqRow{ID: r.ID, Ref: r.Ref, Date: r.Date, Dir: r.Dir, Subject: r.Category, Status: r.Status, OK: r.OK, Pending: r.Pending,
-					Counterparty: r.Counterparty, By: raiser, Approvers: []string{}, History: []ReqStep{}, Closed: r.Step >= 3})
+					Counterparty: r.Counterparty, By: raiser, Assignee: r.Assignee, AssigneeID: r.AssigneeID, Open: r.Pending || r.Status == "Overdue", Approvers: []string{}, History: []ReqStep{}, Closed: r.Step >= 3})
 				continue
 			}
+			r.Open = r.Dir != "Sent" && (r.Pending || r.Status == "Overdue")
 			d.Tickets = append(d.Tickets, r)
 		}
 		rs.Close()
 		if err := rs.Err(); err != nil {
+			return err
+		}
+
+		// ---- its people (their results are filled from what they worked on, below) ----
+		ps, err := tx.Query(ctx, `select pe.id, pe.first_name || ' ' || pe.last_name, coalesce(pe.title, '')
+			from hub.people pe where pe.`+col+` = $1 and pe.status = 'active' order by pe.first_name, pe.last_name`, id)
+		if err != nil {
+			return err
+		}
+		for ps.Next() {
+			var m MemberPerf
+			if err := ps.Scan(&m.ID, &m.Name, &m.Title); err != nil {
+				ps.Close()
+				return err
+			}
+			d.People = append(d.People, m)
+		}
+		ps.Close()
+		if err := ps.Err(); err != nil {
 			return err
 		}
 
@@ -378,9 +418,9 @@ func (s *Service) Dashboard(ctx context.Context, p *tenant.Principal, id uuid.UU
 	}
 	n, ok := 0, 0
 	for _, r := range d.Comms {
-		if r.Dir == "Received" && r.Pending {
+		if r.Dir != "Sent" && r.Pending {
 			waiting++
-		} else if r.Dir == "Received" {
+		} else if r.Dir != "Sent" {
 			n++
 			if r.OK {
 				ok++
@@ -413,6 +453,47 @@ func (s *Service) Dashboard(ctx context.Context, p *tenant.Principal, id uuid.UU
 	}
 	count("tickets", n, ok)
 	d.Perf, d.Measured = pct(okAll, nAll), nAll
+	// each person: what they worked on, counted the same way
+	byID := map[uuid.UUID]*MemberPerf{}
+	for i := range d.People {
+		byID[d.People[i].ID] = &d.People[i]
+	}
+	add := func(part *Part, id *uuid.UUID, dir string, pending, ok bool) {
+		if id == nil || dir == "Sent" {
+			return
+		}
+		if pending {
+			part.Waiting++
+			return
+		}
+		part.Received++
+		if ok {
+			part.OK++
+		}
+	}
+	for _, r := range d.Tickets {
+		if m := byID[ptrID(r.AssigneeID)]; m != nil {
+			add(&m.Tickets, r.AssigneeID, r.Dir, r.Pending, r.OK)
+		}
+	}
+	for _, r := range d.Comms {
+		if m := byID[ptrID(r.AssigneeID)]; m != nil {
+			add(&m.Comms, r.AssigneeID, r.Dir, r.Pending, r.OK)
+		}
+	}
+	for _, r := range d.Requests {
+		if m := byID[ptrID(r.AssigneeID)]; m != nil {
+			add(&m.Requests, r.AssigneeID, r.Dir, r.Pending, r.OK)
+		}
+	}
+	for i := range d.People {
+		m := &d.People[i]
+		for _, part := range []*Part{&m.Tickets, &m.Requests, &m.Comms} {
+			part.Pct = pct(part.OK, part.Received)
+		}
+		n, ok := m.Tickets.Received+m.Requests.Received+m.Comms.Received, m.Tickets.OK+m.Requests.OK+m.Comms.OK
+		m.Perf, m.Measured = pct(ok, n), n
+	}
 	_ = strings.TrimSpace
 	return d, nil
 }
@@ -437,6 +518,9 @@ func (s *Service) Performance(ctx context.Context, p *tenant.Principal, period .
 	for i, u := range units {
 		if i >= 200 {
 			break
+		}
+		if len(period) == 0 || period[0] == "" {
+			period = []string{"month"} // this month unless asked otherwise
 		}
 		d, err := s.Dashboard(ctx, p, u.ID, 30, period...)
 		var he *httpx.Error

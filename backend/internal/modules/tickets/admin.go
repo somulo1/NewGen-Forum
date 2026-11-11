@@ -110,8 +110,8 @@ func (s *Service) SaveCategory(ctx context.Context, p *tenant.Principal, id *uui
 	if c.Name == "" || len(c.Name) > 60 || c.TAT < 1 || c.TAT > 24*90 {
 		return nil, httpx.Bad("Give the category a name and a TAT between 1 hour and 90 days.")
 	}
-	if strings.EqualFold(c.Name, RequestCategory) {
-		return nil, httpx.Bad("That name is kept for business requests. A department sets their turnaround on its dashboard.")
+	if strings.EqualFold(c.Name, RequestCategory) || strings.EqualFold(c.Name, CommunicationCategory) {
+		return nil, httpx.Bad("That name is kept for business requests and communications. A place sets their turnaround on its dashboard.")
 	}
 	if c.Priority == "" {
 		c.Priority = "Medium"
@@ -122,8 +122,18 @@ func (s *Service) SaveCategory(ctx context.Context, p *tenant.Principal, id *uui
 	if c.Members == nil {
 		c.Members = []uuid.UUID{}
 	}
+	c.Priority = PriorityOf(c.TAT) // follows the turnaround: within 8 hours High, within 24 Medium, longer Low
 	err := s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
-		if err := authz.Require(ctx, tx, p.Person, "tickets", "Set up ticket categories"); err != nil {
+		unitType, unitRef := c.UnitType, c.UnitRef
+		if id != nil {
+			// an existing category stays with its place
+			if err := tx.QueryRow(ctx, `select unit_type, unit_ref from hub.ticket_categories where id=$1`, *id).Scan(&unitType, &unitRef); errors.Is(err, pgx.ErrNoRows) {
+				return httpx.ErrNotFound
+			} else if err != nil {
+				return err
+			}
+		}
+		if err := mayManageCategories(ctx, tx, p.Person, unitType, unitRef); err != nil {
 			return err
 		}
 		if id == nil {
@@ -153,9 +163,28 @@ func (s *Service) SaveCategory(ctx context.Context, p *tenant.Principal, id *uui
 	return &c, nil
 }
 
+// mayManageCategories: the head of a department, unit, branch or sector sets its categories and their turnaround on its dashboard;
+// anyone who can set up ticket categories may do it for every place and the ticket desk.
+func mayManageCategories(ctx context.Context, tx pgx.Tx, person uuid.UUID, unitType string, unitRef *uuid.UUID) error {
+	if unitType != "desk" && unitRef != nil {
+		head, err := isHead(ctx, tx, person, &Ticket{ToType: unitType, ToRef: unitRef})
+		if err != nil || head {
+			return err
+		}
+	}
+	return authz.Require(ctx, tx, person, "tickets", "Set up ticket categories")
+}
+
 func (s *Service) DeleteCategory(ctx context.Context, p *tenant.Principal, id uuid.UUID) error {
 	return s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
-		if err := authz.Require(ctx, tx, p.Person, "tickets", "Set up ticket categories"); err != nil {
+		var unitType string
+		var unitRef *uuid.UUID
+		if err := tx.QueryRow(ctx, `select unit_type, unit_ref from hub.ticket_categories where id=$1`, id).Scan(&unitType, &unitRef); errors.Is(err, pgx.ErrNoRows) {
+			return httpx.ErrNotFound
+		} else if err != nil {
+			return err
+		}
+		if err := mayManageCategories(ctx, tx, p.Person, unitType, unitRef); err != nil {
 			return err
 		}
 		var name string

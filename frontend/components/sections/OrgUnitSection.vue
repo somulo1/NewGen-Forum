@@ -77,9 +77,13 @@
 <button v-for="b in ou.commSend" :key="b.label" type="button" @click="b.run" style="height: 36px; padding: 0 14px; border-radius: 18px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">{{ b.label }}</button>
 </div>
 <div v-if="ou.isTks" role="radiogroup" aria-label="Tickets" style="display: inline-flex; padding: 3px; border-radius: 12px; background: var(--k-121B17,#121B17); border: 1px solid var(--k-2A3832,#2A3832); align-self: flex-start"><button v-for="d in ou.tkDirs" :key="d.label" type="button" role="radio" :aria-checked="d.on" @click="d.pick" :style="`height: 34px; padding: 0 14px; border-radius: 9px; border: 0; cursor: pointer; font-size: 13px; font-weight: 600; background: ${d.on ? '#B8F36B' : 'transparent'}; color: ${d.on ? '#0F1714' : 'var(--k-C9D6CF,#C9D6CF)'}`">{{ d.label }} · {{ d.count }}</button></div>
-<div v-if="ou.isReqs && ou.reqTat" style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 10px 12px; border-radius: 12px; background: var(--k-121B17,#121B17); font-size: 13px">
-<span style="flex: 1 1 220px">Business requests here are due within <strong>{{ ou.reqTat.label }}</strong>.</span>
-<template v-if="ou.reqTat.canSet"><label style="display: inline-flex; align-items: center; gap: 6px">Hours<input type="number" min="1" max="2160" :value="ou.reqTat.draft" @input="ou.reqTat.onInput" style="width: 90px; height: 34px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-16201C,#16201C); color: var(--k-E8EFEA,#E8EFEA)"></label><button type="button" @click="ou.reqTat.save" style="height: 34px; padding: 0 14px; border-radius: 17px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">Save</button><span style="flex: 1 1 100%; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">1 hour to 3 months (2160 hours). Within 8 hours is high priority, within 24 hours medium, longer low.</span></template>
+<div v-if="(ou.isReqs && ou.reqTat) || (ou.isComms && ou.commTat)" style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 10px 12px; border-radius: 12px; background: var(--k-121B17,#121B17); font-size: 13px">
+<span style="flex: 1 1 220px">{{ tatOf(ou).what }} here are due within <strong>{{ tatOf(ou).label }}</strong>.</span>
+<template v-if="tatOf(ou).canSet"><label style="display: inline-flex; align-items: center; gap: 6px">Hours<input type="number" min="1" max="2160" :value="tatOf(ou).draft" @input="tatOf(ou).onInput" style="width: 90px; height: 34px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-16201C,#16201C); color: var(--k-E8EFEA,#E8EFEA)"></label><button type="button" @click="tatOf(ou).save" style="height: 34px; padding: 0 14px; border-radius: 17px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">Save</button><span style="flex: 1 1 100%; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">1 hour to 3 months (2160 hours). Within 8 hours is high priority, within 24 hours medium, longer low.</span></template>
+</div>
+<div v-if="ou.isPeople" style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; font-size: 13px">
+<label style="display: inline-flex; align-items: center; gap: 8px">Person<select :value="ou.person" @change="ou.onPerson" style="height: 36px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA)"><option value="">Everyone</option><option v-for="o in ou.personOpts" :key="o.v" :value="o.v">{{ o.l }}</option></select></label>
+<span style="color: var(--k-9DB0A6,#9DB0A6)">On time out of what was decided in the period. Items still within their time are shown as not due yet.</span>
 </div>
 <DataTable v-if="!ou.isCats" :t="ouTable" />
 </div>
@@ -91,6 +95,7 @@ import { hubBindings } from '~/composables/useHub';
 
 export default {
   name: 'OrgUnitSection',
-  ...hubBindings(["go","ou","ouTable","show"])
+  ...hubBindings(["go","ou","ouTable","show"]),
+  methods: { tatOf(ou) { return ou.isReqs ? ou.reqTat : ou.commTat; } }
 };
 </script>

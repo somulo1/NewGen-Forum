@@ -25,7 +25,10 @@ export function buildOrg(ctx) {
   const escSeed = (str) => { let h = 11; for (let i = 0; i < str.length; i++) h = (h * 33 + str.charCodeAt(i)) >>> 0; return h; };
   const deptCats = { 'IT Operations': ['Network & Wi-Fi', 'Hardware', 'Access request'], 'Software Development': ['Software bug', 'Change request'], 'HR': ['HR request', 'Payroll query'], 'Finance': ['Payment query', 'Budget approval'], 'Risk & Compliance': ['Security incident', 'Compliance query'], 'Customer Care': ['Customer complaint'], 'Legal': ['Contract review'] };
   const escLevels = ['departments', 'units', 'branches', 'sectors'].filter((t) => has[t]);
-  const escTypes = escLevels.length ? escLevels : ['desk'];
+  // a business request moves between departments only; a ticket to any place, or the ticket team
+  const escIsReq = !!(cur_t && cur_t.kind === 'request');
+  const escIsComm = !!(cur_t && cur_t.kind === 'communication');   // a communication moves between places, never to the ticket team
+  const escTypes = escIsReq ? ['departments'] : escIsComm ? escLevels : escLevels.length ? escLevels : ['desk'];
   // Not back to where it is, and not into my own sector, branch, unit or department at the level it already sits at
   // (moving it up a level into my own place is fine). The server enforces the same rule.
   const myPlace = (this.dir || []).find((p) => this.srv && p.name === this.srv.me.name) || {};
@@ -39,7 +42,7 @@ export function buildOrg(ctx) {
   const TB = { departments: 'department', units: 'unit', branches: 'branch', sectors: 'sector' };
   const srvCats = (type, r) => {
     const all = (this.srv && this.srv.ticketCats) || [];
-    const own = all.filter((c) => c.unit_type === TB[type] && c.unit_ref === r.id);
+    const own = all.filter((c) => c.unit_type === TB[type] && c.unit_ref === r.id && c.name !== 'Business request' && c.name !== 'Communication');
     return [...new Set((own.length ? own : all.filter((c) => c.unit_type === 'desk')).map((c) => c.name))];
   };
   const escCats = (type, r) => this.srv ? (type === 'desk' ? ts.cats.map((c) => c.name) : srvCats(type, r)) : type === 'desk' ? ts.cats.map((c) => c.name) : type === 'departments' ? (deptCats[r.name] || [r.name + ' request', 'General enquiry']) : ['Escalated tickets', 'Service complaint', 'Approval & sign-off'];
@@ -64,21 +67,33 @@ export function buildOrg(ctx) {
   const escType = escTypes.indexOf(ES.type) !== -1 ? ES.type : escTypes[0];
   const escRecList = escRecs(escType);
   const escRec = escRecList.find((r) => r.id === ES.id) || (escType === 'desk' ? escRecList[0] : null);
-  const escCatList = escRec ? escCats(escType, escRec) : [];
-  const escCat = escCatList.indexOf(ES.cat) !== -1 ? ES.cat : '';
+  // its turnaround starts again at the place it goes to, on the category it falls under there (for a request: that department's own)
+  const escFixed = escIsReq ? 'Business request' : escIsComm ? 'Communication' : '';
+  const escCatList = escRec ? (escFixed ? [escFixed] : escCats(escType, escRec)) : [];
+  const escCat = escFixed ? (escRec ? escFixed : '') : escCatList.indexOf(ES.cat) !== -1 ? ES.cat : '';
+  const escTat = (c) => {
+    if (!this.srv || !escRec) return tatText(c);
+    const all = this.srv.ticketCats || [];
+    const own = all.find((x) => x.name === c && x.unit_type === TB[escType] && x.unit_ref === escRec.id) || all.find((x) => x.name === c && x.unit_type === 'desk');
+    return own ? own.tat_hours + 'h' : c === 'Business request' ? '72h' : c === 'Communication' ? '48h' : tatText(c);
+  };
   const escPpl = (escRec && escCat ? escPeople(escType, escRec, escCat) : []).filter((p) => !cur_t || (p.name !== cur_t.raisedBy && !(cur_t.raisedBy === 'Sam' && this.srv && p.name === this.srv.me.name)));   // never the person who raised it
   const escPerson = escPpl.find((p) => p.name === ES.person) ? ES.person : '';
   const setEsc = (patch) => this.setState((st) => ({ esc: Object.assign({}, st.esc, patch) }));
   const escLabel = (t) => (t === 'desk' ? 'Ticket team' : typeName[t]);
   const escReady = !!(escRec && escCat && escPerson);
   const esc = {
-    open: s.escOpen, btnLabel: s.escOpen ? 'Cancel' : 'Escalate ticket', canEscalate: !!cur_t && cur_t.step < 3 && (!this.srv || cur_t.canEscalate !== false),
+    open: s.escOpen, btnLabel: s.escOpen ? 'Cancel' : 'Forward to another place',
+    // the other escalation: report that it missed its TAT to the heads, while it stays here (Hub also does this by itself)
+    canReport: !!(cur_t && this.srv && cur_t.step < 3 && cur_t.canEscalate !== false && !cur_t.escalated),
+    report: () => { if (!cur_t) return; ticketsW.act(this, this.srv, cur_t, { do: 'escalate', why: 'Reported from the ticket page' }).then(() => this.notify(cur_t.id + ' was reported to the heads. It stays here.', '#FFB86B')).catch((e) => this.notify(e.message || 'Could not report it.', '#FF9B8A')); }, canEscalate: !!cur_t && cur_t.step < 3 && (!this.srv || cur_t.canEscalate !== false),
     toggle: () => this.setState((st) => ({ escOpen: !st.escOpen, esc: { type: '', id: '', cat: '', person: '', why: '' } })),
     types: escTypes.map((t) => ({ label: escLabel(t), pick: () => setEsc({ type: t, id: '', cat: '', person: '' }), style: 'height:34px;padding:0 12px;border-radius:17px;cursor:pointer;font-size:13px;' + (t === escType ? 'border:1px solid var(--k-FF9B8A,#FF9B8A);background:var(--k-3A2420,#3A2420);color:#FFD3CA;font-weight:600' : 'border:1px solid var(--k-2A3832,#2A3832);background:var(--k-121B17,#121B17);color:var(--k-C9D6CF,#C9D6CF)') })),
     typeLabel: escLabel(escType), showRec: escType !== 'desk',
     recs: escRecList.map((r) => ({ id: r.id, name: r.name })), recValue: escRec ? escRec.id : '',
     onRec: (e) => setEsc({ id: e.target.value, cat: '', person: '' }),
-    hasRec: !!escRec, cats: escCatList.map((c) => ({ name: c, tat: tatText(c) })), catValue: escCat,
+    hasRec: !!escRec, isRequest: escIsReq || escIsComm, cats: escCatList.map((c) => ({ name: c, tat: escTat(c) })), catValue: escCat,
+    clockNote: escRec && escCat ? 'Its turnaround starts again when it reaches ' + (escType === 'desk' ? 'the ticket team' : escRec.name) + ': ' + escTat(escCat) + ' for ' + escCat + '. You are judged on whether you escalate it within your own turnaround.' : '',
     onCat: (e) => setEsc({ cat: e.target.value, person: '' }),
     hasCat: !!escCat, people: escPpl.map((p) => ({ name: p.name, title: p.title })), personValue: escPerson,
     noPeople: !!escCat && escPpl.length === 0,
@@ -120,10 +135,12 @@ export function buildOrg(ctx) {
       wc: (parts.comms || {}).waiting || 0, wr: (parts.requests || {}).waiting || 0, wt: (parts.tickets || {}).waiting || 0, loaded: !!full || !!(this.srv.ouFailed && this.srv.ouFailed.has(key)) };
     if (!full) return out;
     const titleOfComm = (c) => ((s.comms || []).find((x) => x.id === c.ref) || {}).title || c.type + ' ' + c.ref;
-    out.comms = full.comms.map((c) => ({ date: c.date, dir: c.dir, type: c.type, subject: titleOfComm(c), cp: c.cp, status: c.status, ok: c.ok, ref: c.ref, uid: c.id, fromServer: true }));
+    // communications here are the ones places send each other (kept like tickets): each opens on the ticket page
+    out.comms = full.comms.map((c) => { const st = (tickets || []).find((y) => y.id === c.ref); return { id: c.ref, uid: c.id, date: c.date, dir: c.dir, type: c.type, subject: st ? st.title : 'Communication', cp: c.cp, status: c.status, ok: c.ok, open: !!c.open, assignee: c.assignee || '', fromServer: true }; });
     // business requests are raised from the ticket form: each one opens on the ticket page
     out.reqs = full.requests.map((q) => { const st = (tickets || []).find((y) => y.id === q.ref); return { ...q, id: q.ref, uid: q.id, title: st ? st.title : q.subject, fromServer: true, real: q }; });
-    out.tks = full.tickets.map((x) => { const st = (tickets || []).find((y) => y.id === x.ref); return { id: x.ref, uid: x.id, date: x.date, dir: x.dir, title: st ? st.title : x.category + ' ticket', cp: x.cp, status: x.status, ok: x.ok, real: null, fromServer: true }; });
+    out.tks = full.tickets.map((x) => { const st = (tickets || []).find((y) => y.id === x.ref); return { id: x.ref, uid: x.id, date: x.date, dir: x.dir, title: st ? st.title : x.category + ' ticket', cp: x.cp, status: x.status, ok: x.ok, open: !!x.open, assignee: x.assignee || '', real: null, fromServer: true }; });
+    out.people = full.people || [];
     return out;
   };
   const unitData = (type, r) => {
@@ -218,6 +235,16 @@ export function buildOrg(ctx) {
     const unitRow = this.srv ? (this.srv.unitList || []).find((x) => x.id === ouRec.id) : null;
     const headNames = ((unitRow && unitRow.heads) || []).map((h) => h.name);
     const dirC = { Received: '#7CC4FF', Sent: '#C9B6FF', Escalated: '#FF9B8A' };
+    const kindTat = (kind, stateKey, def, what) => {
+      const cur = (s[stateKey] || {})[t + ':' + ouRec.name] || def;
+      const mine = !!(this.srv && unitRow && (unitRow.heads || []).some((h) => h.id === this.srv.me.person));
+      const dk = kind + ':' + key;
+      const draft = s.ouKindTat && s.ouKindTat.key === dk ? s.ouKindTat.v : String(cur);
+      return { hours: cur, what, label: cur % 24 === 0 ? (cur / 24) + (cur === 24 ? ' day' : ' days') + ' (' + cur + ' hours)' : cur + ' hours', canSet: !!this.srv && (mine || can('tickets', 'Set up ticket categories')), draft,
+        onInput: (e) => this.setState({ ouKindTat: { key: dk, v: e.target.value } }),
+        save: () => { const h = Math.round(Number(draft)); if (!(h >= 1 && h <= 2160)) { this.notify('Choose between 1 hour and 2160 hours (3 months).', '#FFB86B'); return; }
+          ticketsW.setKindTat(this, this.srv, kind, t, ouRec.name, h).then(() => { this.setState({ ouKindTat: null }); this.notify(what + ' to ' + ouRec.name + ' are now due within ' + h + ' hours.', '#B8F36B'); }).catch((e) => this.notify(e.message || 'Could not save it.', '#FF9B8A')); } };
+    };
     const stC = (st) => (/on time|Delivered|Read by all|Solved on time/.test(st) ? '#B8F36B' : /late|Partly|Waiting|In progress|Assigned/.test(st) ? '#FFB86B' : /Overdue|Not ack/.test(st) ? '#FF9B8A' : '#9DB0A6');
     const cnt = (arr, d) => arr.filter((x) => x.dir === d).length;
     const deptProj = { 'IT Operations': ['network'], 'Software Development': ['mobile'], 'HR': ['onboard'], 'Risk & Compliance': ['audit'], 'Finance': ['audit'], 'Operations': ['network'], 'Customer Care': ['mobile'] };
@@ -252,7 +279,7 @@ export function buildOrg(ctx) {
       return ids.some((id) => !seen.has(id));
     };
     ou = {
-      period: s.ouPeriod || '', periodOpts: [['', 'Last 30 days'], ['month', 'This month'], ['quarter', 'This quarter'], ['year', 'This year']].map(([v, l]) => ({ v, l })),
+      period: s.ouPeriod == null ? 'month' : s.ouPeriod, periodOpts: [['month', 'This month'], ['', 'Last 30 days'], ['quarter', 'This quarter'], ['year', 'This year']].map(([v, l]) => ({ v, l })),
       onPeriod: (e) => this.setState({ ouPeriod: e.target.value }),
       perfFormula: 'Performance = (resolved in time + escalated in time) ÷ everything received in the period × 100%',
       loading: !!this.srv && !D.loaded,   // its dashboard is still being fetched from the server
@@ -267,27 +294,24 @@ export function buildOrg(ctx) {
         { label: 'Tickets', parts: [{ n: cnt(D.tks, 'Received'), l: 'Received', color: '#7CC4FF' }, { n: cnt(D.tks, 'Sent'), l: 'Sent', color: '#C9B6FF' }, { n: cnt(D.tks, 'Escalated'), l: 'Escalated', color: '#FF9B8A' }] },
         { label: 'Projects', parts: [{ n: ps.length, l: 'Active', color: '#E8EFEA' }, { n: ps.filter((p) => p.status !== 'On track').length, l: 'Need attention', color: '#FFB86B' }] }
       ],
-      isCats: ouTab === 'cats', isComms: ouTab === 'comms', isTks: ouTab === 'tks', isReqs: ouTab === 'reqs',
+      isCats: ouTab === 'cats', isComms: ouTab === 'comms', isPeople: ouTab === 'people',
+      personOpts: (D.people || []).map((m) => ({ v: m.id, l: m.name })), person: s.ouPerson || '', onPerson: (e) => this.setState({ ouPerson: e.target.value }), isTks: ouTab === 'tks', isReqs: ouTab === 'reqs',
       // tickets this unit has (received, its own people's included), passed on, and sent out
       tkDirs: ['Received', 'Escalated', 'Sent'].map((d) => ({ label: d, count: D.tks.filter((x) => x.dir === d).length, on: (s.ouTkDir || 'Received') === d, pick: () => this.setState({ ouTkDir: d }) })),
       // how long this department takes to deal with a business request; its head (or whoever sets up ticket categories) changes it
-      reqTat: t === 'departments' ? (() => {
-        const cur = (s.requestTat || {})['departments:' + ouRec.name] || 72;
-        const mine = !!(this.srv && unitRow && (unitRow.heads || []).some((h) => h.id === this.srv.me.person));
-        const draft = s.ouReqTat && s.ouReqTat.key === key ? s.ouReqTat.v : String(cur);
-        return { hours: cur, label: cur % 24 === 0 ? (cur / 24) + (cur === 24 ? ' day' : ' days') + ' (' + cur + ' hours)' : cur + ' hours', canSet: !!this.srv && (mine || can('tickets', 'Set up ticket categories')), draft,
-          onInput: (e) => this.setState({ ouReqTat: { key, v: e.target.value } }),
-          save: () => { const h = Math.round(Number(draft)); if (!(h >= 1 && h <= 2160)) { this.notify('Choose between 1 hour and 2160 hours (3 months).', '#FFB86B'); return; }
-            ticketsW.setRequestTat(this, this.srv, ouRec.name, h).then(() => { this.setState({ ouReqTat: null }); this.notify('Business requests to ' + ouRec.name + ' are now due within ' + h + ' hours.', '#B8F36B'); }).catch((e) => this.notify(e.message || 'Could not save it.', '#FF9B8A')); } };
-      })() : null,
+      // how long this place takes to deal with business requests (departments) and communications; its head (or whoever sets up
+      // ticket categories) changes them
+      reqTat: t === 'departments' ? kindTat('request', 'requestTat', 72, 'Business requests') : null,
+      commTat: kindTat('communication', 'commTat', 48, 'Communications'),
       // received and sent communications are kept apart; anyone allowed can send one from here to any other department, unit, branch or sector
-      commDirs: ['Received', 'Sent'].map((d) => ({ label: d, count: D.comms.filter((x) => (d === 'Sent' ? x.dir === 'Sent' : x.dir !== 'Sent')).length, on: (s.ouCommDir || 'Received') === d, pick: () => this.setState({ ouCommDir: d }) })),
-      commSend: [['Memo', 'memos', 'Send memos'], ['Announcement', 'announcements', 'Post'], ['Newsletter', 'newsletter', 'Publish newsletters']].filter(([ty, m, r]) => has[m] && can(m, r)).map(([ty]) => ({ label: 'New ' + ty.toLowerCase(),
-        run: () => this.setState({ cmOpen: true, cmd: { type: ty, title: '', summary: '', body: '', fields: {}, files: [], wall: false, forum: '', forumSel: {}, sel: {} } }) })),
+      commDirs: ['Received', 'Escalated', 'Sent'].map((d) => ({ label: d, count: D.comms.filter((x) => x.dir === d).length, on: (s.ouCommDir || 'Received') === d, pick: () => this.setState({ ouCommDir: d }) })),
+      // places write to each other here (two-way). Memos, announcements and newsletters go out from the Communications page instead.
+      commSend: (has.tickets ? [['communication', 'New communication']].concat(has.departments ? [['request', 'New business request']] : []) : []).map(([k, l]) => ({ label: l,
+        run: () => this.setState((st) => ({ section: 'tickets', ticketOpen: null, ntOpen: true, nt: { title: '', cat: '', prio: 'Medium', desc: '', files: [], toType: (st.nt || {}).toType, toName: '', kind: k } })) })),
       target: tg, setTarget: (e) => { const v = Math.max(50, Math.min(100, Number(e.target.value) || 95)); if (this.srv) { orgW.setTarget(this, this.srv, key, v).catch((err) => this.notify(err.message || 'Could not save the threshold.', '#FF9B8A')); return; } this.setState((x) => ({ targets: { ...x.targets, [key]: v } })); },
       perf: D.perf, perfText: D.perf == null ? '—' : D.perf + '%', perfColor: perfColor(D.perf, tg), perfNote: D.perf == null ? 'Nothing due yet in this period' : D.perf >= tg ? 'Target met' : (tg - D.perf) + ' points below target',
       breakdown: [mk('Communications acknowledged on time', D.pc, recvNote(D.comms, D.wc)), mk('Business requests resolved on time', D.pr, recvNote(D.reqs, D.wr)), mk('Tickets resolved on time', D.pt, recvNote(D.tks, D.wt))],
-      tabs: [['comms', 'Communications', D.comms.length], ['reqs', 'Business requests', D.reqs.length], ['tks', 'Tickets', D.tks.length], ['cats', 'Ticket categories', (s.unitCats[t + ':' + ouRec.name] || []).length], ['projects', 'Projects', ps.length], ['members', 'Members', mem.length]].map(([k, l, n]) => ({ label: l, count: n, on: ouTab === k, fresh: freshIn(k), go: () => { seeTab(k); this.setState({ ouTab: k, ouItem: null }); },
+      tabs: [['comms', 'Communications', D.comms.length], ['reqs', 'Business requests', D.reqs.length], ['tks', 'Tickets', D.tks.length], ['cats', 'Ticket categories', (s.unitCats[t + ':' + ouRec.name] || []).length], ['projects', 'Projects', ps.length], ['members', 'Members', mem.length], ['people', 'Performance by person', (D.people || []).length]].map(([k, l, n]) => ({ label: l, count: n, on: ouTab === k, fresh: freshIn(k), go: () => { seeTab(k); this.setState({ ouTab: k, ouItem: null }); },
         style: 'min-height:44px;padding:0 16px;border:0;background:transparent;cursor:pointer;font-size:14px;white-space:nowrap;font-family:inherit;border-bottom:2px solid ' + (ouTab === k ? '#B8F36B' : 'transparent') + ';color:' + (ouTab === k ? 'var(--k-E8EFEA,#E8EFEA)' : 'var(--k-9DB0A6,#9DB0A6)') + ';font-weight:' + (ouTab === k ? '600' : '500') }))
     };
     // Small performance cards for the top card of the dashboard.
@@ -351,15 +375,29 @@ export function buildOrg(ctx) {
     const recColor = (info) => (info.closed ? '#9DB0A6' : info.step >= info.last - 1 ? '#B8F36B' : '#FFB86B');
     ou.recInfo = recInfo; ou.recColor = recColor;
     const dirCell = (d) => C.b(d, dirC[d]);
-    if (ouTab === 'comms') ouTable = { id: 'ou-c-' + key, pageSize: 10, minWidth: '900px', cols: [{ label: 'Date', filter: 'date' }, { label: 'Direction', filter: 'select' }, { label: 'Type', filter: 'select' }, { label: 'Subject', filter: 'text' }, { label: 'From / to', filter: 'text' }, { label: 'Status', filter: 'select' }, { label: '', align: 'right' }],
-      rows: D.comms.filter((c) => ((s.ouCommDir || 'Received') === 'Sent' ? c.dir === 'Sent' : c.dir !== 'Sent')).sort((a, b) => b.date.localeCompare(a.date)).map((c) => { const ri = recInfo(false, c, D.comms.indexOf(c)); return { cells: [C.t(fmtDay(c.date), { fv: c.date, nowrap: true }), dirCell(c.dir), C.t(c.type), C.t(c.subject, { strong: true }), C.t(c.cp), C.b(ri.label, recColor(ri)), C.a([{ label: 'View', kind: 'primary', run: setItem('comms', D.comms.indexOf(c)) }])] }; }) };
-    if (ouTab === 'reqs') ouTable = { id: 'ou-r-' + key, pageSize: 10, minWidth: '900px', cols: [{ label: 'Request', filter: 'text' }, { label: 'Date', filter: 'date' }, { label: 'Direction', filter: 'select' }, { label: 'Title', filter: 'text' }, { label: 'With', filter: 'select' }, { label: 'Status', filter: 'select' }, { label: '', align: 'right' }],
-      rows: D.reqs.slice().sort((a, b) => b.date.localeCompare(a.date)).map((c) => ({ tint: c.status === 'Overdue' ? '#FF9B8A' : '', cells: [C.t(c.ref, { mono: true }), C.t(fmtDay(c.date), { fv: c.date, nowrap: true }), dirCell(c.dir), C.t(c.title || c.subject, { strong: true, sub: c.subject }), C.t(c.cp), C.b(c.status, stC(c.status)),
+    // what still needs doing comes first (newest first), then what is done: the open ones fill the first page
+    const byOpenThenNew = (a, b) => (b.open ? 1 : 0) - (a.open ? 1 : 0) || b.date.localeCompare(a.date);
+    if (ouTab === 'comms') ouTable = { id: 'ou-c-' + key, pageSize: 10, minWidth: '900px', cols: [{ label: 'Ref', filter: 'text' }, { label: 'Date', filter: 'date' }, { label: 'Direction', filter: 'select' }, { label: 'Subject', filter: 'text' }, { label: 'With', filter: 'select' }, { label: 'Assigned to', filter: 'select' }, { label: 'Status', filter: 'select' }, { label: 'Action', align: 'right' }],
+      rows: D.comms.filter((c) => c.dir === (s.ouCommDir || 'Received')).sort(byOpenThenNew).map((c) => ({ tint: c.status === 'Overdue' ? '#FF9B8A' : '', cells: [C.t(c.id || '', { mono: true }), C.t(fmtDay(c.date), { fv: c.date, nowrap: true }), dirCell(c.dir), C.t(c.subject, { strong: true }), C.t(c.cp), C.t(c.assignee || 'Not assigned yet', { fv: c.assignee || '' }), C.b(c.status, stC(c.status)),
+        C.a(c.uid && c.fromServer ? [{ label: 'View', kind: 'primary', run: openTicketPage(c) }] : [])] })) };
+    if (ouTab === 'reqs') ouTable = { id: 'ou-r-' + key, pageSize: 10, minWidth: '900px', cols: [{ label: 'Request', filter: 'text' }, { label: 'Date', filter: 'date' }, { label: 'Direction', filter: 'select' }, { label: 'Title', filter: 'text' }, { label: 'With', filter: 'select' }, { label: 'Assigned to', filter: 'select' }, { label: 'Status', filter: 'select' }, { label: 'Action', align: 'right' }],
+      rows: D.reqs.slice().sort(byOpenThenNew).map((c) => ({ tint: c.status === 'Overdue' ? '#FF9B8A' : '', cells: [C.t(c.ref, { mono: true }), C.t(fmtDay(c.date), { fv: c.date, nowrap: true }), dirCell(c.dir), C.t(c.title || c.subject, { strong: true, sub: c.subject }), C.t(c.cp), C.t(c.assignee || 'Not assigned yet', { fv: c.assignee || '' }), C.b(c.status, stC(c.status)),
         C.a(c.uid ? [{ label: 'View', kind: 'primary', run: openTicketPage(c) }] : [])] })) };
-    if (ouTab === 'tks') ouTable = { id: 'ou-t-' + key, pageSize: 10, minWidth: '900px', cols: [{ label: 'Ticket', filter: 'text' }, { label: 'Date', filter: 'date' }, { label: 'Direction', filter: 'select' }, { label: 'Title', filter: 'text' }, { label: 'With', filter: 'select' }, { label: 'Status', filter: 'select' }, { label: '', align: 'right' }],
-      rows: D.tks.filter((c) => c.dir === (s.ouTkDir || 'Received')).sort((a, b) => b.date.localeCompare(a.date)).map((c) => ({ tint: c.status === 'Overdue' ? '#FF9B8A' : '', cells: [C.t(c.id, { mono: true }), C.t(fmtDay(c.date), { fv: c.date, nowrap: true }), dirCell(c.dir), C.t(c.title, { strong: true }), C.t(c.cp), C.b(c.status, stC(c.status)),
+    if (ouTab === 'tks') ouTable = { id: 'ou-t-' + key, pageSize: 10, minWidth: '900px', cols: [{ label: 'Ticket', filter: 'text' }, { label: 'Date', filter: 'date' }, { label: 'Direction', filter: 'select' }, { label: 'Title', filter: 'text' }, { label: 'With', filter: 'select' }, { label: 'Assigned to', filter: 'select' }, { label: 'Status', filter: 'select' }, { label: 'Action', align: 'right' }],
+      rows: D.tks.filter((c) => c.dir === (s.ouTkDir || 'Received')).sort(byOpenThenNew).map((c) => ({ tint: c.status === 'Overdue' ? '#FF9B8A' : '', cells: [C.t(c.id, { mono: true }), C.t(fmtDay(c.date), { fv: c.date, nowrap: true }), dirCell(c.dir), C.t(c.title, { strong: true }), C.t(c.cp), C.t(c.assignee || 'Not assigned yet', { fv: c.assignee || '' }), C.b(c.status, stC(c.status)),
         C.a([{ label: 'View', kind: 'primary', run: openTicketPage(c) }])] })) };
     // the people placed in this part (and everyone the part's own record lists), with their profile one click away
+    // each person's results in the period: what they worked on, resolved or passed on within the turnaround, out of what was decided
+    if (ouTab === 'people') {
+      const pc = (part) => (part && part.received ? part.pct + '%' : '—');
+      const frac = (part) => (part ? part.ok + ' of ' + part.received + (part.waiting ? ' · ' + part.waiting + ' not due yet' : '') : '');
+      const who = s.ouPerson || '';
+      const list = (D.people || []).filter((m) => !who || m.id === who);
+      ouTable = { id: 'ou-p-' + key, pageSize: 15, minWidth: '820px', emptyText: 'Nobody is placed here yet.',
+        cols: [{ label: 'Person', filter: 'text' }, { label: 'Tickets on time', align: 'right' }, ...(t === 'departments' ? [{ label: 'Business requests on time', align: 'right' }] : []), { label: 'Communications opened in time', align: 'right' }, { label: 'Overall', align: 'right' }],
+        rows: list.map((m) => ({ cells: [C.t(m.name, { strong: true, sub: m.title }), C.t(pc(m.tickets), { sub: frac(m.tickets), fv: m.tickets.pct }), ...(t === 'departments' ? [C.t(pc(m.requests), { sub: frac(m.requests), fv: m.requests.pct })] : []), C.t(pc(m.comms), { sub: frac(m.comms), fv: m.comms.pct }),
+          C.b(m.measured ? m.perf + '%' : '—', perfColor(m.measured ? m.perf : null, tg), { fv: m.measured ? m.perf : -1 })] })) };
+    }
     if (ouTab === 'members') ouTable = { id: 'ou-m-' + key, pageSize: 15, minWidth: '640px', emptyText: 'Nobody is in this ' + typeName[t].toLowerCase() + ' yet. Add people from Organization structure.', cols: [{ label: 'Person', filter: 'text' }, { label: 'Job title', filter: 'text' }, { label: 'Status', filter: 'select' }, { label: '', align: 'right' }],
       rows: mem.map((p) => ({ cells: [C.p(p.name, { sub: p.email || '', fv: p.name }), C.t(p.title || '—'), C.t(p.status || 'Available'), C.a([{ label: 'Profile', kind: 'primary', run: () => this.setState({ personOpen: p.id }) }])] })) };
     if (ouTab === 'projects') ouTable = { id: 'ou-p-' + key, pageSize: 10, minWidth: '760px', emptyText: 'No projects for this ' + typeName[t].toLowerCase() + ' yet.', cols: [{ label: 'Project', filter: 'text' }, { label: 'Status', filter: 'select' }, { label: 'Progress' }, { label: 'Due', filter: 'date' }, { label: '', align: 'right' }],

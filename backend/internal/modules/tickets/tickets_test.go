@@ -381,10 +381,11 @@ func TestTicketRolesHeadWorkerAndRaiser(t *testing.T) {
 	if c := act(wes, map[string]any{"do": "escalate"}); c != 200 {
 		t.Fatalf("the worker escalated: %d", c)
 	}
-	// escalated in time counts as done in time, for each period that includes the day it was received
+	// raising the alarm without handing it on keeps it here: still this department's, on its own clock, not judged yet
+	// (handing it to another place within the time is what counts as escalated in time: see org's TestEachPlaceIsJudgedOnItsOwnStay)
 	for _, period := range []string{"", "month", "quarter", "year"} {
-		if p := part(period); p["received"].(float64) != 1 || p["ok"].(float64) != 1 || p["pct"].(float64) != 100 {
-			t.Fatalf("after escalating in time (%q): %v", period, p)
+		if p := part(period); p["received"].(float64) != 0 || p["waiting"].(float64) != 1 {
+			t.Fatalf("after raising the alarm (%q): %v", period, p)
 		}
 	}
 	// a head of department may assign a ticket they raised themselves to their own department

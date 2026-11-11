@@ -342,6 +342,11 @@
   "description": "How long the department takes to deal with a business request, 1 to 2160 hours (3 months). Its priority follows: within 8 hours High, within 24 Medium, longer Low.",
   "access": "the department's head, or Tickets: Set up ticket categories"
  },
+ "GET /v1/org/my-performance": {
+  "summary": "How I did",
+  "description": "The caller's own results this month (or period=quarter|year) in each place they belong to: tickets and business requests resolved or passed on within the place's turnaround, and communications opened within 48 hours.",
+  "access": "anyone in the organization (own figures only)"
+ },
  "GET /v1/settings/blocks": {
   "summary": "What the organization has blocked",
   "description": "Private chats, private and forum calls, and the community wall when switched off in Settings. The server refuses them whatever the rights say.",

@@ -235,7 +235,8 @@ export function buildAdminTables(ctx) {
   const tLevels = levelsOf(has);
   // a business request goes to a department only; a ticket to any level the organization uses
   const canRequest = tLevels.indexOf('departments') !== -1;
-  const ntKind = s.nt.kind === 'request' && canRequest ? 'request' : 'ticket';
+  const canComm = tLevels.length > 0;   // communications go between departments, units, branches and sectors
+  const ntKind = s.nt.kind === 'request' && canRequest ? 'request' : s.nt.kind === 'communication' && canComm ? 'communication' : 'ticket';
   const ntType = ntKind === 'request' ? 'departments' : tLevels.indexOf(s.nt.toType) !== -1 ? s.nt.toType : (tLevels[0] || 'desk');
   const ntRecs = ntType === 'desk' ? [] : (O[ntType] || []);
   const ntName = ntRecs.some((r) => r.name === s.nt.toName) ? s.nt.toName : (ntRecs[0] ? ntRecs[0].name : '');
@@ -245,22 +246,23 @@ export function buildAdminTables(ctx) {
   const ntCats = ntCatList.map((c) => ({ label: c.name + ' · ' + c.tat + 'h' + (c.custom ? ' · ' + c.prio + ' priority' : ''), pick: () => this.setState((x) => ({ nt: { ...x.nt, cat: c.name } })), style: chip(ntCatSel.name === c.name) }));
   // priority follows the turnaround the receiving unit set for the category: within 8 hours High, within 24 Medium, longer Low
   const prioOf = (tat) => (tat <= 8 ? 'High' : tat <= 24 ? 'Medium' : 'Low');
-  const reqTat = ntKind === 'request' ? ((s.requestTat || {})[ntType + ':' + ntName] || 72) : 0;
-  const ntPriority = ntKind === 'request' ? prioOf(reqTat) : ntCatSel ? prioOf(Number(ntCatSel.tat) || 0) : 'Medium';
+  const reqTat = ntKind === 'request' ? ((s.requestTat || {})[ntType + ':' + ntName] || 72) : ntKind === 'communication' ? ((s.commTat || {})[ntType + ':' + ntName] || 48) : 0;
+  const ntPriority = ntKind !== 'ticket' ? prioOf(reqTat) : ntCatSel ? prioOf(Number(ntCatSel.tat) || 0) : 'Medium';
   const ownCats = (s.unitCats[ntType + ':' + ntName] || []).length > 0;
   const ntForm = {
-    kind: ntKind, canRequest, isRequest: ntKind === 'request', title: ntKind === 'request' ? 'Raise a business request' : 'Raise a new ticket', submitLabel: ntKind === 'request' ? 'Send request' : 'Raise ticket',
-    kinds: canRequest ? [['ticket', 'Ticket'], ['request', 'Business request']].map(([k, l]) => ({ k, label: l, on: ntKind === k, pick: () => this.setState((x) => ({ nt: { ...x.nt, kind: k, cat: '' } })) })) : [],
+    kind: ntKind, canRequest, isRequest: ntKind === 'request',
+    title: { request: 'Raise a business request', communication: 'Send a communication', ticket: 'Raise a new ticket' }[ntKind], submitLabel: { request: 'Send request', communication: 'Send communication', ticket: 'Raise ticket' }[ntKind],
+    kinds: canComm ? [['ticket', 'Ticket']].concat(canRequest ? [['request', 'Business request']] : []).concat([['communication', 'Communication']]).map(([k, l]) => ({ k, label: l, on: ntKind === k, pick: () => this.setState((x) => ({ nt: { ...x.nt, kind: k, cat: '' } })) })) : [],
     typeOptions: ntKind === 'request' ? [] : tLevels.map((l) => ({ value: l, label: LEVEL_LABEL[l] })),
     onType: (e) => { const v = e.target.value; this.setState((x) => ({ nt: { ...x.nt, toType: v, toName: '', cat: '' } })); },
     recOptions: ntRecs.map((r) => r.name), recLabel: ntType === 'desk' ? '' : LEVEL_LABEL[ntType],
     onRec: (e) => { const v = e.target.value; this.setState((x) => ({ nt: { ...x.nt, toType: ntType, toName: v, cat: '' } })); },
-    showCats: ntKind !== 'request', requestNote: ntKind === 'request' ? ntName + ' deals with business requests within ' + reqTat + ' hours.' : '',
+    showCats: ntKind === 'ticket', requestNote: ntKind !== 'ticket' ? ntName + ' deals with ' + (ntKind === 'request' ? 'business requests' : 'communications') + ' within ' + reqTat + ' hours.' : '',
     catOptions: ntCatList.map((c) => ({ value: c.name, label: c.name + ' · resolved within ' + c.tat + 'h' })), cat: ntCatSel ? ntCatSel.name : '',
     onCat: (e) => { const v = e.target.value; this.setState((x) => ({ nt: { ...x.nt, cat: v } })); },
     catNote: ntType === 'desk' ? '' : ownCats ? 'The categories ' + ntName + ' handles.' : ntName + ' has not set its own categories yet, so the general ones are shown.',
     priority: ntPriority, priorityColor: ntPriority === 'High' ? '#FF9B8A' : ntPriority === 'Medium' ? '#FFB86B' : '#9DB0A6',
-    priorityNote: ntKind === 'request' ? 'Within 8 hours is high, within 24 hours medium, longer is low.' : ntCatSel ? 'Set by the ' + ntCatSel.tat + '-hour turnaround of ' + ntCatSel.name + '. Within 8 hours is high, within 24 hours medium, longer is low.' : ''
+    priorityNote: ntKind !== 'ticket' ? 'Within 8 hours is high, within 24 hours medium, longer is low.' : ntCatSel ? 'Set by the ' + ntCatSel.tat + '-hour turnaround of ' + ntCatSel.name + '. Within 8 hours is high, within 24 hours medium, longer is low.' : ''
   };
   const ntTargets = { hasLevels: tLevels.length > 0, multiple: tLevels.length > 1, type: ntType, name: ntName, kind: ntKind, priority: ntPriority,
     types: tLevels.map((l) => ({ label: LEVEL_LABEL[l], pick: () => this.setState((x) => ({ nt: { ...x.nt, toType: l, toName: '' } })), style: chip(ntType === l) })),

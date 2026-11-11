@@ -141,18 +141,49 @@ const RequestCategory = "Business request"
 // DefaultRequestTAT applies until a department sets its own: three working days.
 const DefaultRequestTAT = 72
 
+// CommunicationCategory holds a place's turnaround for the communications other places send it from their dashboards.
+const CommunicationCategory = "Communication"
+
+// DefaultCommunicationTAT applies until a place sets its own: two days.
+const DefaultCommunicationTAT = 48
+
+// KindCategory is the category that holds the turnaround for business requests or communications.
+func KindCategory(kind string) string {
+	if kind == "communication" {
+		return CommunicationCategory
+	}
+	return RequestCategory
+}
+
+// DefaultKindTAT is the turnaround used before a place sets its own.
+func DefaultKindTAT(kind string) int {
+	if kind == "communication" {
+		return DefaultCommunicationTAT
+	}
+	return DefaultRequestTAT
+}
+
 // SetRequestTAT sets how long a department takes to deal with a business request, from 1 hour to 3 months (2160 hours). Its head
 // may set it, and so may anyone who can set up ticket categories.
 func (s *Service) SetRequestTAT(ctx context.Context, p *tenant.Principal, dept uuid.UUID, hours int) error {
+	return s.SetKindTAT(ctx, p, "request", dept, hours)
+}
+
+// SetKindTAT sets how long a place takes to deal with business requests (departments only) or communications (any place).
+func (s *Service) SetKindTAT(ctx context.Context, p *tenant.Principal, kind string, dept uuid.UUID, hours int) error {
+	if kind != "request" && kind != "communication" {
+		return httpx.Bad("Choose business requests or communications.")
+	}
 	if hours < 1 || hours > 24*90 {
 		return httpx.Bad("Choose a turnaround between 1 hour and 3 months (2160 hours).")
 	}
 	return s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
-		var kind string
-		if err := tx.QueryRow(ctx, `select kind from hub.org_units where id=$1`, dept).Scan(&kind); err != nil || kind != "department" {
+		var unitKind string
+		if err := tx.QueryRow(ctx, `select kind from hub.org_units where id=$1`, dept).Scan(&unitKind); err != nil || (kind == "request" && unitKind != "department") {
 			return httpx.ErrNotFound
 		}
-		head, err := isHead(ctx, tx, p.Person, &Ticket{ToType: "department", ToRef: &dept})
+		name := KindCategory(kind)
+		head, err := isHead(ctx, tx, p.Person, &Ticket{ToType: unitKind, ToRef: &dept})
 		if err != nil {
 			return err
 		}
@@ -162,11 +193,11 @@ func (s *Service) SetRequestTAT(ctx context.Context, p *tenant.Principal, dept u
 			}
 		}
 		var id uuid.UUID
-		err = tx.QueryRow(ctx, `select id from hub.ticket_categories where unit_type='department' and unit_ref=$1 and name=$2`, dept, RequestCategory).Scan(&id)
+		err = tx.QueryRow(ctx, `select id from hub.ticket_categories where unit_type=$3 and unit_ref=$1 and name=$2`, dept, name, unitKind).Scan(&id)
 		switch {
 		case errors.Is(err, pgx.ErrNoRows):
 			id = app.NewID()
-			if _, err := tx.Exec(ctx, `insert into hub.ticket_categories (org_id, id, unit_type, unit_ref, name, tat_hours, priority) values ($1,$2,'department',$3,$4,$5,$6)`, p.Org, id, dept, RequestCategory, hours, PriorityOf(hours)); err != nil {
+			if _, err := tx.Exec(ctx, `insert into hub.ticket_categories (org_id, id, unit_type, unit_ref, name, tat_hours, priority) values ($1,$2,$7,$3,$4,$5,$6)`, p.Org, id, dept, name, hours, PriorityOf(hours), unitKind); err != nil {
 				return err
 			}
 		case err != nil:
@@ -179,7 +210,7 @@ func (s *Service) SetRequestTAT(ctx context.Context, p *tenant.Principal, dept u
 		if err := s.A.Sign.Seal(ctx, tx, "ticket_categories", "id=$1", id); err != nil {
 			return err
 		}
-		return s.A.Audit(ctx, tx, p.Org, &p.Person, p.Name, fmt.Sprintf("Set the business request turnaround to %d hours", hours), "Tickets", p.IP, map[string]any{"department": dept, "hours": hours})
+		return s.A.Audit(ctx, tx, p.Org, &p.Person, p.Name, fmt.Sprintf("Set the %s turnaround to %d hours", map[string]string{"request": "business request", "communication": "communication"}[kind], hours), "Tickets", p.IP, map[string]any{"unit": dept, "kind": kind, "hours": hours})
 	})
 }
 
@@ -196,8 +227,11 @@ func PriorityOf(tatHours int) string {
 
 func (s *Service) category(ctx context.Context, tx pgx.Tx, toType string, toRef *uuid.UUID, name string) (*Category, error) {
 	c := &Category{}
+	// a place that set its own categories takes only those; one that has none yet takes the organization's general ones
 	row := tx.QueryRow(ctx, `select id, unit_type, unit_ref, name, tat_hours, priority, members from hub.ticket_categories
-		where name=$1 and ((unit_type=$2 and unit_ref is not distinct from $3) or unit_type='desk') order by (unit_type='desk') limit 1`, name, toType, toRef)
+		where name=$1 and ((unit_type=$2 and unit_ref is not distinct from $3) or (unit_type='desk' and not exists (
+		  select 1 from hub.ticket_categories o where o.unit_type=$2 and o.unit_ref is not distinct from $3 and o.unit_type <> 'desk' and o.name <> $4 and o.name <> $5)))
+		order by (unit_type='desk') limit 1`, name, toType, toRef, RequestCategory, CommunicationCategory)
 	if err := row.Scan(&c.ID, &c.UnitType, &c.UnitRef, &c.Name, &c.TAT, &c.Priority, &c.Members); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
@@ -222,8 +256,11 @@ func (s *Service) Create(ctx context.Context, p *tenant.Principal, in CreateIn) 
 	if in.ToType != "desk" && in.ToRef == nil {
 		return nil, httpx.Bad("Choose who receives it.")
 	}
-	if in.Kind != "" && in.Kind != "request" && in.Kind != "ticket" {
-		return nil, httpx.Bad("Choose a ticket or a business request.")
+	if in.Kind != "" && in.Kind != "request" && in.Kind != "ticket" && in.Kind != "communication" {
+		return nil, httpx.Bad("Choose a ticket, a business request or a communication.")
+	}
+	if in.Kind == "communication" && (in.ToType == "desk" || in.ToRef == nil) {
+		return nil, httpx.Bad("A communication goes to a department, unit, branch or sector.")
 	}
 	if in.Kind == "ticket" {
 		in.Kind = ""
@@ -252,15 +289,15 @@ func (s *Service) Create(ctx context.Context, p *tenant.Principal, in CreateIn) 
 		if kind != "ticket" || creator != p.Account {
 			return httpx.Bad("Create the ticket conversation first.")
 		}
-		if in.Kind == "request" {
-			in.Category = RequestCategory // its turnaround is the one the department set for business requests
+		if in.Kind == "request" || in.Kind == "communication" {
+			in.Category = KindCategory(in.Kind) // its turnaround is the one the receiving place set for these
 		}
 		cat, err := s.category(ctx, tx, in.ToType, in.ToRef, in.Category)
 		if err != nil {
 			return err
 		}
-		if cat == nil && in.Kind == "request" {
-			cat = &Category{UnitType: in.ToType, UnitRef: in.ToRef, Name: RequestCategory, TAT: DefaultRequestTAT, Members: []uuid.UUID{}}
+		if cat == nil && (in.Kind == "request" || in.Kind == "communication") {
+			cat = &Category{UnitType: in.ToType, UnitRef: in.ToRef, Name: KindCategory(in.Kind), TAT: DefaultKindTAT(in.Kind), Members: []uuid.UUID{}}
 		}
 		if cat == nil {
 			return httpx.Bad("That category does not exist for this recipient.")
@@ -307,15 +344,16 @@ func (s *Service) Create(ctx context.Context, p *tenant.Principal, in CreateIn) 
 		if err := s.A.Sign.Seal(ctx, tx, "tickets", "conversation_id=$1", in.Conversation); err != nil {
 			return err
 		}
+		// its first stay: the receiving place's clock starts now
+		if err := s.openHop(ctx, tx, p.Org, in.Conversation, in.ToType, in.ToRef, cat.Name, cat.TAT, now); err != nil {
+			return err
+		}
 		if in.Title != "" {
 			if err := s.saveText(ctx, tx, p.Org, in.Conversation, in.Title, in.Description); err != nil {
 				return err
 			}
 		}
-		raisedText := "Raised the ticket"
-		if in.Kind == "request" {
-			raisedText = "Raised the business request"
-		}
+		raisedText := map[string]string{"": "Raised the ticket", "request": "Raised the business request", "communication": "Sent the communication"}[in.Kind]
 		if err := s.eventAt(ctx, tx, p.Org, in.Conversation, p, "event", raisedText, &now); err != nil {
 			return err
 		}
@@ -627,6 +665,14 @@ func (s *Service) Act(ctx context.Context, p *tenant.Principal, id uuid.UUID, a 
 			return httpx.Err(409, "ticket_closed", "This ticket is closed. It cannot be reopened or changed.")
 		}
 		set, text := "", ""
+		// what happens to the stays once the ticket row is updated (see hops.go)
+		var hopOp string
+		var hopTo struct {
+			typ string
+			ref *uuid.UUID
+			cat string
+			tat int
+		}
 		args := []any{id}
 		switch a.Do {
 		case "assign":
@@ -676,6 +722,12 @@ func (s *Service) Act(ctx context.Context, p *tenant.Principal, id uuid.UUID, a 
 			}
 			args = append(args, *a.Step)
 			set = "step=$2::smallint, hold=false, solved_at = case when $2::int >= 3 then coalesce(solved_at, now()) else null end"
+			switch {
+			case cur.Step < 3 && *a.Step >= 3:
+				hopOp = "resolve"
+			case cur.Step >= 3 && *a.Step < 3:
+				hopOp = "reopen"
+			}
 			text = "Moved it to " + stepNames[*a.Step]
 			note := strings.TrimSpace(a.Comment)
 			if len(note) > 2000 {
@@ -753,13 +805,45 @@ func (s *Service) Act(ctx context.Context, p *tenant.Principal, id uuid.UUID, a 
 			}
 			set, text = "escalated=true", "Escalated to "+cfg.Escalate
 			if a.ToType == "" && a.Person == nil && a.Category == "" {
-				if err := s.notifyEscalation(ctx, tx, &nb, p.Org, cur, cfg); err != nil {
+				// reporting it (a missed or threatened TAT) to the heads of the place it is with; it stays there
+				heads, err := s.reportMissedTAT(ctx, tx, &nb, p.Org, cur)
+				if err != nil {
 					return err
+				}
+				text = "Reported it to the head of the place it is with"
+				if heads == 0 {
+					text = "Reported it to " + cfg.Escalate
+					if err := s.notifyEscalation(ctx, tx, &nb, p.Org, cur, cfg); err != nil {
+						return err
+					}
+				}
+				if a.Why != "" {
+					text += ": " + strings.TrimSpace(a.Why)
 				}
 				break
 			}
 			dest := "the ticket desk"
 			if a.ToType != "" {
+				// it moves to another place: that place's clock starts now, on the category it falls under there
+				switch cur.Kind {
+				case "request":
+					if a.ToType != "department" {
+						return httpx.Bad("A business request can only go to another department.")
+					}
+					a.Category = RequestCategory
+				case "communication":
+					if a.ToType == "desk" {
+						return httpx.Bad("A communication goes to a department, unit, branch or sector.")
+					}
+					a.Category = CommunicationCategory
+				}
+				if a.Category == "" {
+					// no category chosen: the one it has, if the place it goes to handles it (checked below); its clock still restarts there
+					a.Category = cur.Category
+				}
+				if a.ToType != "desk" && a.ToRef != nil && cur.ToRef != nil && *a.ToRef == *cur.ToRef && a.ToType == cur.ToType {
+					return httpx.Bad("It is already there. Choose another place to escalate it to.")
+				}
 				if a.ToType == "desk" {
 					args = append(args, "desk", (*uuid.UUID)(nil))
 				} else {
@@ -779,6 +863,10 @@ func (s *Service) Act(ctx context.Context, p *tenant.Principal, id uuid.UUID, a 
 				// remember the unit it leaves (the right side reads the row before this change)
 				set += fmt.Sprintf(", escalated_from=case when to_ref is null then escalated_from else array_append(coalesce(escalated_from, '{}'), to_ref) end, to_type=$%d, to_ref=$%d", len(args)-1, len(args))
 			}
+			if a.Category != "" && a.ToType == "" {
+				// a new category restarts the clock, so it only comes with a move to another place; staying put keeps its turnaround
+				return httpx.Bad("Choose where to escalate it. The category is the one it falls under there.")
+			}
 			if a.Category != "" {
 				tt, tr := cur.ToType, cur.ToRef
 				if a.ToType != "" {
@@ -788,13 +876,24 @@ func (s *Service) Act(ctx context.Context, p *tenant.Principal, id uuid.UUID, a 
 				if err != nil {
 					return err
 				}
+				if cat == nil && (a.Category == RequestCategory || a.Category == CommunicationCategory) {
+					cat = &Category{UnitType: tt, UnitRef: tr, Name: a.Category, TAT: DefaultKindTAT(map[string]string{RequestCategory: "request", CommunicationCategory: "communication"}[a.Category])}
+				}
 				if cat == nil {
 					return httpx.Bad("That category does not exist for the place you are escalating to.")
 				}
-				due := cfg.Due(app.Now(), cat.TAT)
-				args = append(args, cat.Name, cat.TAT, due)
-				set += fmt.Sprintf(", category=$%d, tat_hours=$%d, due_at=$%d, late=false", len(args)-2, len(args)-1, len(args))
+				at := app.Now()
+				if a.At != nil {
+					at = *a.At
+				}
+				due := cfg.Due(at, cat.TAT)
+				args = append(args, cat.Name, cat.TAT, due, PriorityOf(cat.TAT))
+				set += fmt.Sprintf(", category=$%d, tat_hours=$%d, due_at=$%d, priority=$%d, late=false, hold=false, hold_since=null", len(args)-3, len(args)-2, len(args)-1, len(args))
 				dest += " as " + cat.Name
+				if a.ToType != "" {
+					hopOp = "move"
+					hopTo.typ, hopTo.ref, hopTo.cat, hopTo.tat = tt, tr, cat.Name, cat.TAT
+				}
 			}
 			if a.Person != nil {
 				if *a.Person == cur.RaisedBy {
@@ -839,6 +938,27 @@ func (s *Service) Act(ctx context.Context, p *tenant.Principal, id uuid.UUID, a 
 		}
 		if err := s.A.Sign.Seal(ctx, tx, "tickets", "conversation_id=$1", id); err != nil {
 			return err
+		}
+		hopAt := app.Now()
+		if a.At != nil {
+			hopAt = *a.At
+		}
+		switch hopOp {
+		case "move":
+			if err := s.closeHop(ctx, tx, p.Org, cur, "escalated", hopAt); err != nil {
+				return err
+			}
+			if err := s.openHop(ctx, tx, p.Org, id, hopTo.typ, hopTo.ref, hopTo.cat, hopTo.tat, hopAt); err != nil {
+				return err
+			}
+		case "resolve":
+			if err := s.closeHop(ctx, tx, p.Org, cur, "resolved", hopAt); err != nil {
+				return err
+			}
+		case "reopen":
+			if err := s.reopenHop(ctx, tx, cur); err != nil {
+				return err
+			}
 		}
 		if err := s.eventAt(ctx, tx, p.Org, id, p, "event", text, a.At); err != nil {
 			return err
@@ -901,6 +1021,38 @@ func (s *Service) notifyEscalation(ctx context.Context, tx pgx.Tx, nb *notify.Ba
 	return nil
 }
 
+// reportMissedTAT tells the heads of the place a ticket is with (people holding the place's head role and placed in it) that it
+// passed its TAT. It returns how many were told.
+func (s *Service) reportMissedTAT(ctx context.Context, tx pgx.Tx, nb *notify.Batch, org uuid.UUID, t *Ticket) (int, error) {
+	if t.ToRef == nil || t.ToType == "desk" {
+		return 0, nil
+	}
+	rs, err := tx.Query(ctx, `select distinct p.id from hub.unit_heads uh join hub.person_roles pr on pr.role_id = uh.role_id
+		join hub.people p on p.id = pr.person_id and p.status = 'active'
+		where uh.unit_id = $1 and (p.sector_id = $1 or p.branch_id = $1 or p.unit_id = $1 or p.department_id = $1)
+		limit 20`, *t.ToRef)
+	if err != nil {
+		return 0, err
+	}
+	var ids []uuid.UUID
+	for rs.Next() {
+		var id uuid.UUID
+		if err := rs.Scan(&id); err != nil {
+			rs.Close()
+			return 0, err
+		}
+		ids = append(ids, id)
+	}
+	rs.Close()
+	for _, id := range ids {
+		s.mailTicket(ctx, tx, nb, org, id, "escalated", t, nil, "", "It passed its target time.")
+		if err := nb.Add(ctx, tx, org, id, "ticket", t.Ref+" passed its TAT and was reported to you.", "#FF9B8A", t.Ref); err != nil {
+			return 0, err
+		}
+	}
+	return len(ids), nil
+}
+
 // ---- timing sweep (run by the worker) ----
 
 // Sweep marks tickets that ran past their TAT as late, escalates them, and warns about those nearing it. Safe to run on
@@ -919,7 +1071,7 @@ func (s *Service) Sweep(ctx context.Context, org uuid.UUID) (late, near int, err
 		if err := s.autoClose(ctx, tx, org, &nb); err != nil {
 			return err
 		}
-		rs, err := tx.Query(ctx, `select t.conversation_id, t.ref, t.handler, t.created_at, t.due_at, t.late, t.escalated, t.hold
+		rs, err := tx.Query(ctx, `select t.conversation_id, t.ref, t.handler, t.created_at, t.due_at, t.late, t.escalated, t.hold, t.to_type, t.to_ref
 			from hub.tickets t where t.step < 3 and t.due_at is not null and (not t.late and t.due_at < now() or (t.due_at - t.created_at) * ($1::numeric / 100) + t.created_at < now() and t.due_at >= now())`, cfg.NearPct)
 		if err != nil {
 			return err
@@ -932,11 +1084,13 @@ func (s *Service) Sweep(ctx context.Context, org uuid.UUID) (late, near int, err
 			due       time.Time
 			late, esc bool
 			hold      bool
+			toType    string
+			toRef     *uuid.UUID
 		}
 		var rowsSeen []row
 		for rs.Next() {
 			var r row
-			if err := rs.Scan(&r.id, &r.ref, &r.handler, &r.created, &r.due, &r.late, &r.esc, &r.hold); err != nil {
+			if err := rs.Scan(&r.id, &r.ref, &r.handler, &r.created, &r.due, &r.late, &r.esc, &r.hold, &r.toType, &r.toRef); err != nil {
 				rs.Close()
 				return err
 			}
@@ -955,11 +1109,20 @@ func (s *Service) Sweep(ctx context.Context, org uuid.UUID) (late, near int, err
 				if err := s.A.Sign.Seal(ctx, tx, "tickets", "conversation_id=$1", r.id); err != nil {
 					return err
 				}
-				if err := s.event(ctx, tx, org, r.id, nil, "event", "Passed its TAT and was escalated to "+cfg.Escalate); err != nil {
+				// a missed TAT is reported to the heads of the place it is with (it stays there); without heads, to the escalation contact
+				t := &Ticket{ID: r.id, Ref: r.ref, ToType: r.toType, ToRef: r.toRef}
+				heads, err := s.reportMissedTAT(ctx, tx, &nb, org, t)
+				if err != nil {
 					return err
 				}
-				t := &Ticket{ID: r.id, Ref: r.ref}
-				if err := s.notifyEscalation(ctx, tx, &nb, org, t, cfg); err != nil {
+				to := "the head of the place it is with"
+				if heads == 0 {
+					to = cfg.Escalate
+					if err := s.notifyEscalation(ctx, tx, &nb, org, t, cfg); err != nil {
+						return err
+					}
+				}
+				if err := s.event(ctx, tx, org, r.id, nil, "event", "Passed its TAT: reported to "+to); err != nil {
 					return err
 				}
 				if r.handler != nil && cfg.Notify.Overdue {

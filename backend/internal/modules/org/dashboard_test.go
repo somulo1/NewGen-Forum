@@ -65,22 +65,24 @@ func TestUnitDashboardIsBuiltFromRealRecords(t *testing.T) {
 	}
 
 	d = e.MustDo(200, "GET", "/org/units/"+dept+"/dashboard", nil, ownerU.Access)
-	if n := len(d["tickets"].([]any)); n != 1 {
-		t.Fatalf("tickets: %v", d["tickets"])
+	// escalated to the desk and then back to Finance: two stays with Finance, the first passed on, the second still open
+	dirs := map[string]int{}
+	for _, x := range d["tickets"].([]any) {
+		dirs[x.(map[string]any)["dir"].(string)]++
 	}
-	tk := d["tickets"].([]any)[0].(map[string]any)
-	// escalated to the desk and then back to Finance: it is with Finance again, so Finance has it as received
-	if tk["dir"] != "Received" {
-		t.Fatalf("ticket direction: %v", tk)
+	if len(d["tickets"].([]any)) != 2 || dirs["Escalated"] != 1 || dirs["Received"] != 1 {
+		t.Fatalf("tickets: %v", d["tickets"])
 	}
 	// business requests come only from the request form now (see TestBusinessRequestsComeFromTheForm), never from approvals
 	if reqs := d["requests"].([]any); len(reqs) != 0 {
 		t.Fatalf("approvals listed as business requests: %v", reqs)
 	}
-	comms := d["comms"].([]any)
-	if len(comms) != 1 || comms[0].(map[string]any)["dir"] != "Sent" || comms[0].(map[string]any)["message"] != mid {
-		t.Fatalf("comms: %v", comms)
+	// organization-wide memos go out from the Communications page and are not a place's communications
+	// (those are sent between places from the dashboards: see TestPlacesSendEachOtherCommunications)
+	if comms := d["comms"].([]any); len(comms) != 0 {
+		t.Fatalf("a memo listed among the place's communications: %v", comms)
 	}
+	_ = mid
 	parts := d["parts"].(map[string]any)
 	if parts["tickets"].(map[string]any)["received"].(float64) != 1 {
 		t.Fatalf("parts: %v", parts)
@@ -204,5 +206,157 @@ func TestRequestTurnaroundAndEscalatedTickets(t *testing.T) {
 	}
 	if len(dirs) != 1 || dirs[0] != "Escalated" {
 		t.Fatalf("finance tickets: %v", dirs)
+	}
+}
+
+// Each place is judged on its own stay: its clock starts when it receives the ticket, and escalating within its own time counts
+// for it. The place it moves to starts a new clock on the category it falls under there.
+func TestEachPlaceIsJudgedOnItsOwnStay(t *testing.T) {
+	e := testkit.New(t)
+	ownerU, slug := e.NewOrg("Olivia Owner")
+	o := e.Owner(ownerU)
+	e.MustDo(204, "PUT", "/approvals/flows/f11", map[string]any{"levels": 0}, ownerU.Access)
+	e.Levels(ownerU, map[string]string{"department": ""})
+	fin := e.MustDo(201, "POST", "/org/units", map[string]any{"kind": "department", "name": "Finance"}, ownerU.Access)["id"].(string)
+	it := e.MustDo(201, "POST", "/org/units", map[string]any{"kind": "department", "name": "IT"}, ownerU.Access)["id"].(string)
+	hr := e.MustDo(201, "POST", "/org/units", map[string]any{"kind": "department", "name": "HR"}, ownerU.Access)["id"].(string)
+	e.MustDo(201, "POST", "/tickets/categories", map[string]any{"unit_type": "department", "unit_ref": it, "name": "Laptop repair", "tat_hours": 4}, ownerU.Access)
+	amy := e.Join(ownerU, slug, "Amy", "staff")
+	for _, m := range []*testkit.Member{o, amy} {
+		m.Register(e)
+	}
+	key, _ := e2ee.NewConversationKey()
+	conv := e.MustDo(201, "POST", "/conversations", map[string]any{"kind": "ticket", "members": []string{o.Person}, "keys": amy.WrapFor(e, key, 1, amy.Person, o.Person)}, amy.Access)["id"].(string)
+	e.MustDo(201, "POST", "/tickets", map[string]any{"conversation": conv, "category": "Hardware", "to_type": "department", "to_ref": fin}, amy.Access)
+	act := func(body map[string]any) (int, map[string]any) {
+		return e.Do("POST", "/tickets/"+conv+"/act", body, ownerU.Access)
+	}
+	if c, _ := act(map[string]any{"do": "escalate", "to_type": "department", "to_ref": it, "why": "IT"}); c != 400 {
+		t.Fatalf("moved without a category: %d", c)
+	}
+	if c, _ := act(map[string]any{"do": "escalate", "category": "Laptop repair", "why": "longer"}); c != 400 {
+		t.Fatalf("changed the category (and clock) without moving: %d", c)
+	}
+	c, tk := act(map[string]any{"do": "escalate", "to_type": "department", "to_ref": it, "category": "Laptop repair", "why": "IT fixes laptops"})
+	if c != 200 || tk["tat_hours"].(float64) != 4 || tk["priority"] != "High" {
+		t.Fatalf("escalate to IT: %d %v %v", c, tk["tat_hours"], tk["priority"])
+	}
+	tickets := func(unit string) []map[string]any {
+		var out []map[string]any
+		for _, x := range e.MustDo(200, "GET", "/org/units/"+unit+"/dashboard", nil, ownerU.Access)["tickets"].([]any) {
+			out = append(out, x.(map[string]any))
+		}
+		return out
+	}
+	if f := tickets(fin); len(f) != 1 || f[0]["dir"] != "Escalated" || f[0]["ok"] != true {
+		t.Fatalf("finance escalated in its own time: %v", f)
+	}
+	if i := tickets(it); len(i) != 1 || i[0]["dir"] != "Received" || i[0]["pending"] != true {
+		t.Fatalf("IT has it, its clock running: %v", i)
+	}
+	// IT runs out of time, then passes it on: late for IT, a fresh clock for HR
+	e.RootExec(`update hub.tickets set due_at = now() - interval '1 hour' where conversation_id = $1`, conv)
+	if i := tickets(it); i[0]["status"] != "Overdue" {
+		t.Fatalf("IT overdue: %v", i)
+	}
+	e.MustDo(200, "POST", "/tickets/"+conv+"/act", map[string]any{"do": "escalate", "to_type": "department", "to_ref": hr, "category": "HR request", "why": "policy"}, ownerU.Access)
+	if i := tickets(it); len(i) != 1 || i[0]["dir"] != "Escalated" || i[0]["ok"] != false {
+		t.Fatalf("IT escalated late: %v", i)
+	}
+	if h := tickets(hr); len(h) != 1 || h[0]["pending"] != true {
+		t.Fatalf("HR starts fresh: %v", h)
+	}
+	if f := tickets(fin); f[0]["ok"] != true {
+		t.Fatalf("finance's result changed by what happened later: %v", f)
+	}
+	// HR resolves it in time
+	e.MustDo(200, "POST", "/tickets/"+conv+"/act", map[string]any{"do": "step", "step": 3, "comment": "done"}, ownerU.Access)
+	if h := tickets(hr); h[0]["dir"] != "Received" || h[0]["ok"] != true || h[0]["status"] != "Solved on time" {
+		t.Fatalf("HR solved: %v", h)
+	}
+}
+
+// The dashboard shows who works on each ticket, and each person's own results; members see theirs whatever their rights.
+func TestPeopleSeeTheirOwnPerformance(t *testing.T) {
+	e := testkit.New(t)
+	ownerU, slug := e.NewOrg("Olivia Owner")
+	o := e.Owner(ownerU)
+	e.MustDo(204, "PUT", "/approvals/flows/f11", map[string]any{"levels": 0}, ownerU.Access)
+	e.Levels(ownerU, map[string]string{"department": ""})
+	fin := e.MustDo(201, "POST", "/org/units", map[string]any{"kind": "department", "name": "Finance"}, ownerU.Access)["id"].(string)
+	it := e.MustDo(201, "POST", "/org/units", map[string]any{"kind": "department", "name": "IT"}, ownerU.Access)["id"].(string)
+	amy := e.Join(ownerU, slug, "Amy", "staff")
+	wes := e.Join(ownerU, slug, "Wes", "staff")
+	for _, m := range []*testkit.Member{o, amy, wes} {
+		m.Register(e)
+	}
+	e.MustDo(200, "PATCH", "/people/"+wes.Person, map[string]any{"department_id": fin}, ownerU.Access)
+	key, _ := e2ee.NewConversationKey()
+	conv := e.MustDo(201, "POST", "/conversations", map[string]any{"kind": "ticket", "members": []string{o.Person, wes.Person}, "keys": amy.WrapFor(e, key, 1, amy.Person, o.Person, wes.Person)}, amy.Access)["id"].(string)
+	e.MustDo(201, "POST", "/tickets", map[string]any{"conversation": conv, "category": "Hardware", "to_type": "department", "to_ref": fin}, amy.Access)
+	e.MustDo(200, "POST", "/tickets/"+conv+"/act", map[string]any{"do": "assign", "handler": wes.Person}, ownerU.Access)
+	d := e.MustDo(200, "GET", "/org/units/"+fin+"/dashboard?period=month", nil, ownerU.Access)
+	if tk := d["tickets"].([]any)[0].(map[string]any); tk["assignee"] != "Wes Member" && tk["assignee_id"] != wes.Person {
+		t.Fatalf("assignee: %v", tk)
+	}
+	// Wes forwards it to IT within Finance's time: on time for Wes
+	e.MustDo(200, "POST", "/tickets/"+conv+"/act", map[string]any{"do": "escalate", "to_type": "department", "to_ref": it, "category": "Hardware", "why": "IT"}, ownerU.Access)
+	mine := e.MustDo(200, "GET", "/org/my-performance", nil, wes.Access)["places"].([]any)
+	if len(mine) != 1 {
+		t.Fatalf("places: %v", mine)
+	}
+	me := mine[0].(map[string]any)["me"].(map[string]any)
+	tk := me["tickets"].(map[string]any)
+	if tk["received"].(float64) != 1 || tk["ok"].(float64) != 1 || me["id"] != wes.Person {
+		t.Fatalf("Wes: %v", me)
+	}
+	if c, _ := e.Do("GET", "/org/units/"+fin+"/dashboard", nil, wes.Access); c != 403 {
+		t.Fatalf("staff opened the whole dashboard: %d", c)
+	}
+}
+
+// Places send each other communications from their dashboards: kept like tickets, on the receiving place's own turnaround.
+func TestPlacesSendEachOtherCommunications(t *testing.T) {
+	e := testkit.New(t)
+	ownerU, slug := e.NewOrg("Olivia Owner")
+	o := e.Owner(ownerU)
+	e.MustDo(204, "PUT", "/approvals/flows/f11", map[string]any{"levels": 0}, ownerU.Access)
+	e.Levels(ownerU, map[string]string{"branch": "", "department": "branch"})
+	br := e.MustDo(201, "POST", "/org/units", map[string]any{"kind": "branch", "name": "Kisumu"}, ownerU.Access)["id"].(string)
+	fin := e.MustDo(201, "POST", "/org/units", map[string]any{"kind": "department", "name": "Finance", "parent_id": br}, ownerU.Access)["id"].(string)
+	amy := e.Join(ownerU, slug, "Amy", "staff")
+	for _, m := range []*testkit.Member{o, amy} {
+		m.Register(e)
+	}
+	e.MustDo(200, "PATCH", "/people/"+amy.Person, map[string]any{"department_id": fin}, ownerU.Access)
+	e.MustDo(204, "PUT", "/tickets/request-tat", map[string]any{"department": br, "hours": 12, "kind": "communication"}, ownerU.Access)
+	if c, _ := e.Do("PUT", "/tickets/request-tat", map[string]any{"department": br, "hours": 12}, ownerU.Access); c != 404 {
+		t.Fatalf("business request turnaround on a branch: %d", c)
+	}
+	key, _ := e2ee.NewConversationKey()
+	conv := e.MustDo(201, "POST", "/conversations", map[string]any{"kind": "ticket", "members": []string{o.Person}, "keys": amy.WrapFor(e, key, 1, amy.Person, o.Person)}, amy.Access)["id"].(string)
+	if c, _ := e.Do("POST", "/tickets", map[string]any{"conversation": conv, "to_type": "desk", "kind": "communication"}, amy.Access); c != 400 {
+		t.Fatalf("a communication to the ticket desk: %d", c)
+	}
+	cm := e.MustDo(201, "POST", "/tickets", map[string]any{"conversation": conv, "to_type": "branch", "to_ref": br, "kind": "communication", "title": "Stock count dates"}, amy.Access)
+	if cm["kind"] != "communication" || cm["tat_hours"].(float64) != 12 || cm["priority"] != "Medium" {
+		t.Fatalf("communication: %v %v %v", cm["kind"], cm["tat_hours"], cm["priority"])
+	}
+	dirs := func(unit string) []string {
+		var out []string
+		d := e.MustDo(200, "GET", "/org/units/"+unit+"/dashboard", nil, ownerU.Access)
+		for _, x := range d["comms"].([]any) {
+			out = append(out, x.(map[string]any)["dir"].(string))
+		}
+		if len(d["tickets"].([]any)) != 0 {
+			t.Fatalf("a communication listed as a ticket: %v", d["tickets"])
+		}
+		return out
+	}
+	if b := dirs(br); len(b) != 1 || b[0] != "Received" {
+		t.Fatalf("branch: %v", b)
+	}
+	if f := dirs(fin); len(f) != 1 || f[0] != "Sent" {
+		t.Fatalf("finance: %v", f)
 	}
 }

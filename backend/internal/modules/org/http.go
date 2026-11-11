@@ -178,6 +178,23 @@ func (s *Service) Private(r chi.Router) {
 		w.WriteHeader(204)
 		return nil
 	}))
+	// how the caller did this month (or ?period=quarter|year) in each place they belong to: their own figures only
+	r.Get("/org/my-performance", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
+		p, err := tenant.MustOrg(r.Context())
+		if err != nil {
+			return err
+		}
+		period := r.URL.Query().Get("period")
+		if period == "" {
+			period = "month"
+		}
+		out, err := s.MyPerformance(r.Context(), p, period)
+		if err != nil {
+			return err
+		}
+		httpx.JSON(w, 200, map[string]any{"places": out})
+		return nil
+	}))
 	r.Get("/org/units/{id}/dashboard", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
 		p, err := tenant.MustOrg(r.Context())
 		if err != nil {

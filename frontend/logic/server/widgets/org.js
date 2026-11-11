@@ -58,7 +58,7 @@ export async function loadPerformance(logic, srv) {
 // Loads (or refreshes) the dashboard of one unit; safe to call from a render, it asks the server at most once a minute.
 export function ensure(logic, srv, key, force) {
   // the period the dashboard covers: this month, quarter or year, or the last 30 days
-  const period = logic.state.ouPeriod || '';
+  const period = logic.state.ouPeriod == null ? 'month' : logic.state.ouPeriod;   // this month unless another period is picked
   const tag = key + '|' + period;
   const asked = srv.ouAsked.get(tag) || 0;
   if (!force && Date.now() - asked < FRESH_MS) return;

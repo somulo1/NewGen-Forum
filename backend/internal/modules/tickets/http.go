@@ -104,13 +104,17 @@ func (s *Service) Private(r chi.Router) {
 	// {"department": id, "hours": 1-2160}: how long a department takes to deal with business requests
 	r.Put("/tickets/request-tat", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
 		var in struct {
-			Department uuid.UUID `json:"department"`
+			Department uuid.UUID `json:"department"` // the place (any kind for communications)
 			Hours      int       `json:"hours"`
+			Kind       string    `json:"kind"` // "request" (default) or "communication"
 		}
 		if err := httpx.Decode(r, &in, 1<<10); err != nil {
 			return err
 		}
-		if err := s.SetRequestTAT(r.Context(), p, in.Department, in.Hours); err != nil {
+		if in.Kind == "" {
+			in.Kind = "request"
+		}
+		if err := s.SetKindTAT(r.Context(), p, in.Kind, in.Department, in.Hours); err != nil {
 			return err
 		}
 		w.WriteHeader(204)

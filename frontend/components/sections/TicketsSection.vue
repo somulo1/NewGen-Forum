@@ -146,6 +146,7 @@
 <template v-if="esc.canEscalate">
 <div style="padding: 18px; border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-3F2A26,#3F2A26); display: flex; flex-direction: column; gap: 10px">
 <div style="display: flex; align-items: center; gap: 8px"><span style="flex: 1; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--k-FF9B8A,#FF9B8A)">Escalate</span>
+<button v-if="esc.canReport && !esc.open" type="button" @click="esc.report" title="Tell the heads it is late or at risk. It stays here." style="height: 32px; padding: 0 12px; border-radius: 16px; border: 1px solid var(--k-FFB86B,#FFB86B); background: transparent; color: var(--k-FFB86B,#FFB86B); cursor: pointer; font-size: 13px; font-weight: 600">Report missed TAT</button>
 <button @click="esc.toggle" style="height: 32px; padding: 0 12px; border-radius: 16px; border: 1px solid var(--k-FF9B8A,#FF9B8A); background: transparent; color: var(--k-FF9B8A,#FF9B8A); cursor: pointer; font-size: 13px; font-weight: 600">{{ esc.btnLabel }}</button></div>
 <template v-if="esc.open">
 <span style="font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">1 · Escalate to</span>
@@ -154,10 +155,11 @@
 <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">2 · Which {{ esc.typeLabel }}
 <select :value="esc.recValue" @change="esc.onRec" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px"><option value="">Choose…</option><template v-for="(er, er__i) in esc.recs" :key="er__i"><option :value="er.id">{{ er.name }}</option></template></select></label>
 </template>
-<template v-if="esc.hasRec">
+<template v-if="esc.hasRec && !esc.isRequest">
 <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">3 · Category they handle
 <select :value="esc.catValue" @change="esc.onCat" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px"><option value="">Choose a category…</option><template v-for="(ec, ec__i) in esc.cats" :key="ec__i"><option :value="ec.name">{{ ec.name }} · TAT {{ ec.tat }}</option></template></select></label>
 </template>
+<span v-if="esc.clockNote" style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">{{ esc.clockNote }}</span>
 <template v-if="esc.hasCat">
 <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">4 · Person assigned to this category
 <select :value="esc.personValue" @change="esc.onPerson" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px"><option value="">Choose a person…</option><template v-for="(ep, ep__i) in esc.people" :key="ep__i"><option :value="ep.name">{{ ep.name }} · {{ ep.title }}</option></template></select></label>

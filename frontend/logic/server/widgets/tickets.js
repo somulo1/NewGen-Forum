@@ -50,7 +50,7 @@ async function mapTicket(srv, t) {
   return {
     id: t.ref, uid: t.id, title: first ? first.title : t.category + ' ticket', desc: first ? first.desc || '' : '(hidden: you are not a participant)', cat: t.category, prio: t.priority,
     step: t.step, hold: !!t.hold, late: !!t.late, raisedBy: me(srv, t.raised_by_name), assignees: names, handler: t.handler_name || '', handlerSince: t.handler_since ? when(t.handler_since) : '',
-    rating: t.rating || 0, autoClosed: !!t.auto_closed, closedAt: t.closed_at ? when(t.closed_at) : '', canAssign: !!detail.can_assign, canEscalate: !!detail.can_escalate, created: when(t.created_at), elapsed: detail.elapsed_hours || 0, tatH: t.tat_hours, sync: t.sync || 'Not synced', activity, dept: toType === 'departments' ? toName : (raiser ? raiser.dept : ''), fromDept: raiser ? raiser.dept : '',
+    rating: t.rating || 0, autoClosed: !!t.auto_closed, closedAt: t.closed_at ? when(t.closed_at) : '', canAssign: !!detail.can_assign, canEscalate: !!detail.can_escalate, kind: t.kind || 'ticket', created: when(t.created_at), elapsed: detail.elapsed_hours || 0, tatH: t.tat_hours, sync: t.sync || 'Not synced', activity, dept: toType === 'departments' ? toName : (raiser ? raiser.dept : ''), fromDept: raiser ? raiser.dept : '',
     createdAt: t.created_at.slice(0, 10), escalated: !!t.escalated, to: toType === 'desk' ? { type: 'desk', name: 'Ticket desk' } : { type: toType, name: toName }, dueAt: t.due_at || '', unsealed: !first
   };
 }
@@ -63,14 +63,15 @@ async function loadSettings(logic, srv) {
   const cats = categories.filter((c) => c.unit_type === 'desk').map((c) => (c.tat_hours % dayH === 0 ? { name: c.name, tat: c.tat_hours / dayH, unit: 'days' } : { name: c.name, tat: c.tat_hours, unit: 'hours' }));
   const unitCats = {};
   // a department's business request turnaround is kept with its categories but is not a ticket category
-  const requestTat = {};
+  const requestTat = {}, commTat = {};
   categories.filter((c) => c.unit_type !== 'desk').forEach((c) => {
     const key = TYPE[c.unit_type] + ':' + (srv.unitName.get(c.unit_ref) || '');
     if (c.name === 'Business request') { requestTat[key] = c.tat_hours; return; }
+    if (c.name === 'Communication') { commTat[key] = c.tat_hours; return; }
     (unitCats[key] = unitCats[key] || []).push({ id: c.id, name: c.name, tat: c.tat_hours, prio: c.priority, members: (c.members || []).map((id) => srv.nameOf.get(id)).filter(Boolean) });
   });
   srv.ticketCats = categories;
-  logic.setState((st) => ({ tset: { ...st.tset, cats, start: cfg.start, end: cfg.end, pause: cfg.pause, notify: cfg.notify, nearPct: cfg.nearPct, escalate: cfg.escalate }, unitCats, requestTat }));
+  logic.setState((st) => ({ tset: { ...st.tset, cats, start: cfg.start, end: cfg.end, pause: cfg.pause, notify: cfg.notify, nearPct: cfg.nearPct, escalate: cfg.escalate }, unitCats, requestTat, commTat }));
 }
 const hm = (v) => { const p = String(v || '0:0').split(':'); return (Number(p[0]) || 0) * 60 + (Number(p[1]) || 0); };
 
@@ -178,7 +179,7 @@ export async function raise(logic, srv, nt, cat, target) {
     const fs = await srv.vault.seal(conv.id, { name: up.name, meta: up.meta, type: up.type, isImg: up.isImg, isVideo: up.isVideo, fileId: up.fileId, key: up.key });
     await srv.request('POST', `/conversations/${conv.id}/messages`, { ...fs, type: 'text' });
   }
-  await srv.request('POST', '/tickets', { conversation: conv.id, title: nt.title, description: nt.desc || '', category: cat.name, priority: cat.prio || nt.prio, to_type: toType, to_ref: toRef, kind: target.kind === 'request' ? 'request' : 'ticket',
+  await srv.request('POST', '/tickets', { conversation: conv.id, title: nt.title, description: nt.desc || '', category: cat.name, priority: cat.prio || nt.prio, to_type: toType, to_ref: toRef, kind: target.kind === 'request' || target.kind === 'communication' ? target.kind : 'ticket',
     // emails about this ticket may show these (only sent when the organization allows details in emails; files are never included)
     ...(srv.emailDetails !== false ? { details: { title: nt.title, description: nt.desc || '', files: (nt.files || []).length } } : {}) });
   return reload(logic, srv, conv.id);
@@ -186,8 +187,10 @@ export async function raise(logic, srv, nt, cat, target) {
 
 // ---- settings: a unit's own categories (the "Ticket categories" table) ----
 // how long a department takes to deal with business requests (its head sets it), 1 hour to 3 months
-export async function setRequestTat(logic, srv, deptName, hours) {
-  await srv.request('PUT', '/tickets/request-tat', { department: srv.structure.departments.get(deptName), hours });
+export async function setRequestTat(logic, srv, deptName, hours) { return setKindTat(logic, srv, 'request', 'departments', deptName, hours); }
+// kind: 'request' (departments) or 'communication' (any place); level: departments | units | branches | sectors
+export async function setKindTat(logic, srv, kind, level, name, hours) {
+  await srv.request('PUT', '/tickets/request-tat', { department: srv.structure[level].get(name), hours, kind });
   await load(logic, srv);
 }
 
@@ -196,7 +199,7 @@ export async function saveUnitCats(logic, srv, key, rows) {
   const unitName = rest.join(':');
   const unitType = TYPE_BACK[level] || 'desk';
   const unitRef = unitType === 'desk' ? null : srv.structure[level].get(unitName);
-  const existing = (srv.ticketCats || []).filter((c) => c.unit_type === unitType && (c.unit_ref || null) === unitRef && c.name !== 'Business request');
+  const existing = (srv.ticketCats || []).filter((c) => c.unit_type === unitType && (c.unit_ref || null) === unitRef && c.name !== 'Business request' && c.name !== 'Communication');
   const keep = new Set();
   for (const r of rows) {
     const body = { unit_type: unitType, unit_ref: unitRef || undefined, name: r.name, tat_hours: Math.max(1, Math.round(Number(r.tat) || 1)), priority: r.prio || 'Medium', members: (r.members || []).map((n) => (n === 'Sam' ? srv.me.person : srv.personOf.get(n))).filter(Boolean) };
