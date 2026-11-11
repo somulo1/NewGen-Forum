@@ -1377,11 +1377,18 @@ func isHead(ctx context.Context, tx pgx.Tx, person uuid.UUID, t *Ticket) (bool, 
 	return head, err
 }
 
-// mayAssign: a head of the ticket's place, or (when they did not raise it) someone whose role holds "Assign & hand over".
+// mayAssign: a head of the ticket's place assigns and hands over. Only heads do, for a ticket with a department, unit, branch or
+// sector; at the ticket desk (no head) someone whose role holds "Assign & hand over" does, when they did not raise it.
 func mayAssign(ctx context.Context, tx pgx.Tx, person uuid.UUID, t *Ticket) (bool, error) {
 	head, err := isHead(ctx, tx, person, t)
 	if err != nil || head {
 		return head, err
+	}
+	if t.ToRef != nil && t.ToType != "desk" {
+		// the organization's owner (a locked role) oversees every place, except tickets they raised; anyone else must head it
+		var owner bool
+		err := tx.QueryRow(ctx, `select exists (select 1 from hub.person_roles pr join hub.roles r on r.id = pr.role_id where pr.person_id=$1 and r.locked)`, person).Scan(&owner)
+		return owner && t.RaisedBy != person, err // never on a ticket they raised themselves
 	}
 	if t.RaisedBy == person {
 		return false, nil

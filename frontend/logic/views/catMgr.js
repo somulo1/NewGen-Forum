@@ -11,7 +11,7 @@ export function buildCatMgr(ctx) {
   if (s.section === 'ticketdesk') target = { type: 'desk', name: 'Ticket desk', canManage: can('tickets', 'Set up ticket categories'), pool: corePeople.slice() };
   else if (s.section === 'orgunit' && ou && ou.name && s.ou) {
     const parts = s.ou.split(':'), rec = recOf(parts[0], parts[1]);
-    if (rec) target = { type: parts[0], name: rec.name, canManage: can('tickets', 'Set up ticket categories') || !!(this.srv && ((this.srv.unitList || []).find((u) => u.id === rec.id) || {}).heads && this.srv.unitList.find((u) => u.id === rec.id).heads.some((h) => h.id === this.srv.me.person)), pool: this.dir.filter((p) => p[field[parts[0]]] === rec.name).map((p) => p.name).slice(0, 60) };
+    if (rec) target = { type: parts[0], name: rec.name, canManage: can('tickets', 'Set up ticket categories') || !!(this.srv && ((this.srv.unitList || []).find((u) => u.id === rec.id) || {}).heads && this.srv.unitList.find((u) => u.id === rec.id).heads.some((h) => h.id === this.srv.me.person)), pool: this.dir.filter((p) => p[field[parts[0]]] === rec.name).map((p) => p.name), everyone: this.dir.filter((p) => (p.status || 'active') === 'active').map((p) => p.name) };
   }
   if (!target) return { catMgr: { active: false } };
   const key = target.type + ':' + target.name;
@@ -27,7 +27,8 @@ export function buildCatMgr(ctx) {
   const same = ed && ed.members.length === ed.orig.length && ed.members.every((n) => ed.orig.indexOf(n) !== -1);
   const editor = edCat ? { open: true, name: edCat.name, q: ed.q, onQ: (e) => this.setCatEditQ(e.target.value),
     selected: ed.members.map((n) => ({ ...person(n), remove: () => this.toggleCatEdit(n) })), count: ed.members.length,
-    results: target.pool.filter((n) => !q || n.toLowerCase().indexOf(q) !== -1).map((n) => ({ ...person(n), on: ed.members.indexOf(n) !== -1, toggle: () => this.toggleCatEdit(n) })),
+    // the place's own people first; typing searches everyone in the organization (there can be thousands), showing the best 40
+    results: (q ? (target.everyone || target.pool).filter((n) => n.toLowerCase().indexOf(q) !== -1).sort((a, b) => (a.toLowerCase().startsWith(q) ? 0 : 1) - (b.toLowerCase().startsWith(q) ? 0 : 1) || a.localeCompare(b)) : target.pool).slice(0, 40).map((n) => ({ ...person(n), on: ed.members.indexOf(n) !== -1, toggle: () => this.toggleCatEdit(n) })),
     dirty: !same, save: () => this.applyCatEdit(key), cancel: () => this.cancelCatEdit() } : { open: false };
   // Performance threshold for this dashboard, edited here and saved with the button.
   const unitKey = s.section === 'orgunit' ? s.ou : null;

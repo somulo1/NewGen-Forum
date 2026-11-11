@@ -323,7 +323,7 @@ func TestTicketRolesHeadWorkerAndRaiser(t *testing.T) {
 	e.MustDo(204, "PUT", "/approvals/flows/f8", map[string]any{"levels": 0}, ownerU.Access)
 	e.Levels(ownerU, map[string]string{"department": ""})
 	it := e.MustDo(201, "POST", "/org/units", map[string]any{"kind": "department", "name": "IT"}, ownerU.Access)["id"].(string)
-	hana := e.Join(ownerU, slug, "Hana", "staff")
+	hana := e.Join(ownerU, slug, "Hana", "hod") // heads IT (Each department), so she assigns and hands over there
 	wes := e.Join(ownerU, slug, "Wes", "staff")
 	rae := e.Join(ownerU, slug, "Rae", "staff")
 	for _, m := range []*testkit.Member{hana, wes, rae} {

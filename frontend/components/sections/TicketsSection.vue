@@ -113,11 +113,11 @@
 <template v-if="tk.noHandler"><span style="font-size: 14px; color: var(--k-FFB86B,#FFB86B)">Not assigned yet</span>
 <div v-if="tk.canHandover && tk.suggested.length" style="display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 12px; background: var(--k-121B17,#121B17); font-size: 13px"><span style="color: var(--k-9DB0A6,#9DB0A6)">{{ tk.cat }} is handled here by the people below. They take new tickets automatically; this one was raised before, so assign it.</span>
 <div style="display: flex; flex-wrap: wrap; gap: 6px"><button v-for="sg in tk.suggested" :key="sg.name" type="button" @click="sg.assign" style="height: 32px; padding: 0 12px; border-radius: 16px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">Assign {{ sg.name }}</button></div></div></template>
-<template v-if="tk.canHandover"><label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">{{ tk.handoverLabel }}
-<select :value="tk.handlerValue" :disabled="tk.closed" @change="handover" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px">
-<option value="">Choose a person…</option>
-<template v-for="o in tk.handoverOpts" :key="o.value"><option :value="o.value">{{ o.label }}</option></template>
-</select></label></template>
+<template v-if="tk.canHandover"><div style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">{{ tk.handoverLabel }}
+<button v-if="tk.canAssignMe" type="button" :disabled="tk.closed" @click="tk.assignMe" style="align-self: flex-start; min-height: 36px; padding: 0 14px; border-radius: 18px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">Assign to me</button>
+<select :disabled="tk.closed" @change="tk.onMember" aria-label="Hand over to a member" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px; width: 100%; min-width: 0"><option value="">{{ tk.placeMembers.length ? 'Choose a member…' : 'No other members here' }}</option><option v-for="m in tk.placeMembers" :key="m.value" :value="m.value">{{ m.label }}</option></select>
+<PeoplePicker v-if="tk.placeMembers.length > 12" instant :people="tk.pickPeople" :scope="tk.placeMembers.map((m) => (tk.pickPeople.find((p) => p.name === m.value) || {}).uid)" :exclude="tk.pickExclude" placeholder="Or search the members by name…" @pick="(p) => tk.assignTo(p.name)"/>
+</div></template>
 <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--k-9DB0A6,#9DB0A6); margin-top: 4px">Everyone assigned</span>
 <div style="display: flex; flex-wrap: wrap; gap: 6px"><template v-for="(as, as__i) in tk.assignees" :key="as__i"><span style="height: 30px; padding: 0 10px 0 4px; border-radius: 15px; background: var(--k-121B17,#121B17); border: 1px solid var(--k-2A3832,#2A3832); display: flex; align-items: center; gap: 6px; font-size: 12px"><UserAvatar :name="as.name" :initials="as.initials" :color="as.color" :size="22" :font-size="9"/>{{ as.name }}</span></template></div>
 <span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Raised by {{ tk.raisedBy }}</span>
@@ -127,6 +127,33 @@
 <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--k-9DB0A6,#9DB0A6)">Actions</span>
 <template v-if="tk.ownNote"><span style="font-size: 13px; color: var(--k-FFB86B,#FFB86B); line-height: 1.5">{{ tk.ownNote }}</span></template>
 <template v-for="(act, act__i) in tk.actions" :key="act__i"><button @click="act.run" :style="act.style">{{ act.label }}</button></template>
+<template v-if="esc.canEscalate">
+<button v-if="esc.canReport && !esc.open && !esc.reportOpen" type="button" @click="esc.report" title="Tell the heads it is late or at risk. It stays here." style="min-height: 40px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--k-FFB86B,#FFB86B); background: transparent; color: var(--k-FFB86B,#FFB86B); cursor: pointer; font-size: 14px; font-weight: 600">Report missed TAT</button>
+<div v-if="esc.reportOpen" style="display: flex; flex-direction: column; gap: 8px"><label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">Why report it? (required)<textarea rows="3" maxlength="300" :value="esc.reportWhy" @input="esc.onReportWhy" placeholder="e.g. Waiting on a part, it will miss its time" style="padding: 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font: inherit; font-size: 14px; resize: vertical"></textarea></label>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end"><button type="button" @click="esc.cancelReport" style="min-height: 36px; padding: 0 14px; border-radius: 18px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer">Cancel</button><button type="button" @click="esc.sendReport" style="min-height: 36px; padding: 0 14px; border-radius: 18px; border: 0; background: #FFB86B; color: #0F1714; font-weight: 600; cursor: pointer">Report to the heads</button></div></div>
+<template v-if="esc.open">
+<strong style="font-size: 14px; color: var(--k-FF9B8A,#FF9B8A)">Escalate</strong>
+<span style="font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">1 · Escalate to</span>
+<div style="display: flex; flex-wrap: wrap; gap: 6px"><template v-for="(et, et__i) in esc.types" :key="et__i"><button @click="et.pick" :style="et.style">{{ et.label }}</button></template></div>
+<template v-if="esc.showRec">
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">2 · Which {{ esc.typeLabel }}
+<select :value="esc.recValue" @change="esc.onRec" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px"><option value="">Choose…</option><template v-for="(er, er__i) in esc.recs" :key="er__i"><option :value="er.id">{{ er.name }}</option></template></select></label>
+</template>
+<template v-if="esc.hasRec && !esc.isRequest">
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">3 · Category they handle
+<select :value="esc.catValue" @change="esc.onCat" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px"><option value="">Choose a category…</option><template v-for="(ec, ec__i) in esc.cats" :key="ec__i"><option :value="ec.name">{{ ec.name }} · TAT {{ ec.tat }}</option></template></select></label>
+</template>
+<span v-if="esc.clockNote" style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">{{ esc.clockNote }}</span>
+<template v-if="esc.hasCat">
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">4 · Person assigned to this category
+<select :value="esc.personValue" @change="esc.onPerson" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px"><option value="">Choose a person…</option><template v-for="(ep, ep__i) in esc.people" :key="ep__i"><option :value="ep.name">{{ ep.name }} · {{ ep.title }}</option></template></select></label>
+<template v-if="esc.noPeople"><span style="font-size: 12px; color: var(--k-FFB86B,#FFB86B)">Nobody is assigned to this category there yet.</span></template>
+</template>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">Reason (required)<RichTextInput :model-value="esc.why" @update:model-value="esc.onWhy" placeholder="Why is this being escalated?" aria-label="Escalation reason" :rows="2"/></label>
+<div style="display: flex; gap: 8px"><button type="button" @click="esc.toggle" style="flex: 1; min-height: 42px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; font-size: 14px">Cancel</button><button @click="esc.submit" :style="esc.btnStyle + ';flex:1'">Escalate</button></div>
+<span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">The ticket moves to the chosen person, takes the new category's TAT, and the change is logged in the activity.</span>
+</template>
+</template>
 <template v-if="tk.finish && tk.finish.solving">
 <strong style="font-size: 14px">{{ tk.finish.title }}</strong>
 <span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6); line-height: 1.5">{{ tk.finish.hint }}</span>
@@ -159,36 +186,6 @@
 <span v-if="!tk.hasAcks" style="font-size: 13px; color: var(--k-9DB0A6,#9DB0A6)">Nobody has acknowledged this {{ tk.kindLabel }} yet. Let the sender know it was received.</span>
 <div v-for="(a, ai) in tk.acks" :key="ai" style="font-size: 13px"><strong style="font-weight: 600">{{ a.name }}</strong> <span style="color: var(--k-9DB0A6,#9DB0A6)">· {{ a.at }}</span></div>
 </div>
-<template v-if="esc.canEscalate">
-<div style="padding: 18px; border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-3F2A26,#3F2A26); display: flex; flex-direction: column; gap: 10px">
-<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><span style="flex: 1 1 100%; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--k-FF9B8A,#FF9B8A)">Escalate</span>
-<button v-if="esc.canReport && !esc.open && !esc.reportOpen" type="button" @click="esc.report" title="Tell the heads it is late or at risk. It stays here." style="min-height: 32px; white-space: nowrap; padding: 0 12px; border-radius: 16px; border: 1px solid var(--k-FFB86B,#FFB86B); background: transparent; color: var(--k-FFB86B,#FFB86B); cursor: pointer; font-size: 13px; font-weight: 600">Report missed TAT</button>
-<button @click="esc.toggle" style="min-height: 32px; white-space: nowrap; padding: 0 12px; border-radius: 16px; border: 1px solid var(--k-FF9B8A,#FF9B8A); background: transparent; color: var(--k-FF9B8A,#FF9B8A); cursor: pointer; font-size: 13px; font-weight: 600">{{ esc.btnLabel }}</button></div>
-<div v-if="esc.reportOpen" style="display: flex; flex-direction: column; gap: 8px"><label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">Why report it? (required)<textarea rows="3" maxlength="300" :value="esc.reportWhy" @input="esc.onReportWhy" placeholder="e.g. Waiting on a part, it will miss its time" style="padding: 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font: inherit; font-size: 14px; resize: vertical"></textarea></label>
-<div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end"><button type="button" @click="esc.cancelReport" style="min-height: 36px; padding: 0 14px; border-radius: 18px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer">Cancel</button><button type="button" @click="esc.sendReport" style="min-height: 36px; padding: 0 14px; border-radius: 18px; border: 0; background: #FFB86B; color: #0F1714; font-weight: 600; cursor: pointer">Report to the heads</button></div></div>
-<template v-if="esc.open">
-<span style="font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">1 · Escalate to</span>
-<div style="display: flex; flex-wrap: wrap; gap: 6px"><template v-for="(et, et__i) in esc.types" :key="et__i"><button @click="et.pick" :style="et.style">{{ et.label }}</button></template></div>
-<template v-if="esc.showRec">
-<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">2 · Which {{ esc.typeLabel }}
-<select :value="esc.recValue" @change="esc.onRec" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px"><option value="">Choose…</option><template v-for="(er, er__i) in esc.recs" :key="er__i"><option :value="er.id">{{ er.name }}</option></template></select></label>
-</template>
-<template v-if="esc.hasRec && !esc.isRequest">
-<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">3 · Category they handle
-<select :value="esc.catValue" @change="esc.onCat" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px"><option value="">Choose a category…</option><template v-for="(ec, ec__i) in esc.cats" :key="ec__i"><option :value="ec.name">{{ ec.name }} · TAT {{ ec.tat }}</option></template></select></label>
-</template>
-<span v-if="esc.clockNote" style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">{{ esc.clockNote }}</span>
-<template v-if="esc.hasCat">
-<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">4 · Person assigned to this category
-<select :value="esc.personValue" @change="esc.onPerson" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px"><option value="">Choose a person…</option><template v-for="(ep, ep__i) in esc.people" :key="ep__i"><option :value="ep.name">{{ ep.name }} · {{ ep.title }}</option></template></select></label>
-<template v-if="esc.noPeople"><span style="font-size: 12px; color: var(--k-FFB86B,#FFB86B)">Nobody is assigned to this category there yet.</span></template>
-</template>
-<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">Reason (required)<RichTextInput :model-value="esc.why" @update:model-value="esc.onWhy" placeholder="Why is this being escalated?" aria-label="Escalation reason" :rows="2"/></label>
-<button @click="esc.submit" :style="esc.btnStyle">Escalate</button>
-<span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">The ticket moves to the chosen person, takes the new category's TAT, and the change is logged in the activity.</span>
-</template>
-</div>
-</template>
 </aside>
 </div>
 </div>

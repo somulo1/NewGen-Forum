@@ -142,6 +142,21 @@ export function buildTickets(ctx) {
         return ((c && c.members) || []).map((id) => (this.dir || []).find((p) => p.uid === id)).filter((p) => p && p.name !== cur_t.raisedBy)
           .map((p) => ({ name: p.name, assign: () => ticketsW.assign(this, this.srv, cur_t, p.name).then(() => this.notify(cur_t.id + ' assigned to ' + p.name + '. They have been notified.', '#7CC4FF', cur_t.id)).catch((x) => this.notify(x.message || 'Could not assign it.', '#FF9B8A')) }));
       })(),
+      // assigning: search anyone by name (there can be many people), or take it yourself in one click
+      // the members of the place it is with: the head hands it over to one of them
+      placeMembers: (() => {
+        const to = cur_t.to || { type: 'desk' };
+        const field = { departments: 'dept', branches: 'loc', sectors: 'sector', units: 'unit' }[to.type];
+        const ex = new Set([cur_t.raisedBy, cur_t.handler === 'Sam' && this.srv ? this.srv.me.name : cur_t.handler]);
+        return (this.dir || []).filter((p) => (p.status || 'active') === 'active' && (!field || p[field] === to.name) && !ex.has(p.name))
+          .map((p) => ({ value: p.name, label: (this.srv && p.name === this.srv.me.name ? 'Me (' + p.name + ')' : p.name) + (p.title ? ' · ' + p.title : '') })).sort((a, b) => a.label.localeCompare(b.label));
+      })(),
+      onMember: (e) => { const v = e.target.value; e.target.value = ''; if (v) ticketsW.assign(this, this.srv, cur_t, this.srv && v === this.srv.me.name ? 'Sam' : v).then(() => this.notify(cur_t.id + (cur_t.handler ? ' handed over to ' : ' assigned to ') + v + '. They have been notified.', '#7CC4FF', cur_t.id)).catch((x) => this.notify(x.message || 'Could not hand it over.', '#FF9B8A')); },
+      pickPeople: (this.dir || []).filter((p) => (p.status || 'active') === 'active').map((p) => ({ uid: p.uid || p.name, name: p.name, title: p.title, dept: p.dept, initials: p.initials, color: p.color })),
+      pickExclude: (this.dir || []).filter((p) => p.name === cur_t.raisedBy || (raisedByMe && this.srv && p.name === this.srv.me.name) || (cur_t.handler && (p.name === cur_t.handler || (cur_t.handler === 'Sam' && this.srv && p.name === this.srv.me.name)))).map((p) => p.uid || p.name),
+      canAssignMe: !!this.srv && !raisedByMe && cur_t.handler !== 'Sam' && cur_t.step < 3,
+      assignTo: (name) => ticketsW.assign(this, this.srv, cur_t, this.srv && name === this.srv.me.name ? 'Sam' : name).then(() => this.notify(cur_t.id + (cur_t.handler ? ' handed over to ' : ' assigned to ') + (this.srv && name === this.srv.me.name ? 'you' : name) + '.', '#7CC4FF', cur_t.id)).catch((x) => this.notify(x.message || 'Could not assign it.', '#FF9B8A')),
+      assignMe: () => ticketsW.assign(this, this.srv, cur_t, 'Sam').then(() => this.notify(cur_t.id + ' is yours now.', '#7CC4FF', cur_t.id)).catch((x) => this.notify(x.message || 'Could not assign it to you.', '#FF9B8A')),
       handoverOpts: (this.dir || []).filter((p) => p.name !== cur_t.raisedBy && !(raisedByMe && p.name === (this.srv && this.srv.me.name)) && (p.status || 'active') === 'active')
         .map((p) => ({ value: this.srv && p.name === this.srv.me.name ? 'Sam' : p.name, label: (this.srv && p.name === this.srv.me.name ? 'Me (' + p.name + ')' : p.name) + (p.dept ? ' · ' + p.dept : '') }))
         .sort((a, b) => a.label.localeCompare(b.label)),

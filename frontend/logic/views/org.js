@@ -83,7 +83,7 @@ export function buildOrg(ctx) {
   const escLabel = (t) => (t === 'desk' ? 'Ticket team' : typeName[t]);
   const escReady = !!(escRec && escCat && escPerson);
   const esc = {
-    open: s.escOpen, btnLabel: s.escOpen ? 'Cancel' : 'Forward to another place',
+    open: s.escOpen, btnLabel: s.escOpen ? 'Cancel' : 'Escalate',
     // the other escalation: report that it missed its TAT to the heads, while it stays here (Hub also does this by itself)
     canReport: !!(cur_t && this.srv && cur_t.step < 3 && cur_t.canEscalate !== false && !cur_t.escalated),
     // reporting needs a comment too: it opens a short box first
