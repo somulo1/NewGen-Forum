@@ -4,19 +4,21 @@
      showing how many more there are. Click opens the viewer. -->
 <template>
 <div :style="framed ? 'display: flex; flex-direction: column; gap: 4px; min-width: 0; max-width: 100%; padding: 3px; border-radius: 14px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-0F1714,#0F1714)' : 'display: flex; flex-direction: column; gap: 6px; min-width: 0'">
-<button v-if="visual.length === 1" type="button" class="mc-cell mc-single" @click="open(visual[0])" :aria-label="`Open ${visual[0].name}`" :style="`max-height: ${maxH}px`">
+<component :is="autoplay && visual[0].isVideo ? 'div' : 'button'" v-if="visual.length === 1" type="button" class="mc-cell mc-single" @click="!(autoplay && visual[0].isVideo) && open(visual[0])" :aria-label="`Open ${visual[0].name}`" :style="`max-height: ${maxH}px`">
 <span v-if="visual[0].isImg && visual[0].url" class="mc-bg" :style="bg(visual[0])"></span>
 <img v-if="visual[0].isImg" class="mc-img" :src="visual[0].url" :alt="visual[0].name" :style="`max-height: ${maxH}px`" loading="lazy">
+<WallVideo v-else-if="autoplay" :src="visual[0].url" :name="visual[0].name" :max-h="maxH" @open="open(visual[0])"/>
 <template v-else><video class="mc-img" :src="visual[0].url" preload="metadata" muted playsinline :style="`max-height: ${maxH}px`"></video><span class="mc-play" aria-hidden="true">▶</span></template>
-</button>
+</component>
 <div v-else-if="visual.length > 1" :style="gridStyle">
 <template v-for="(m, i) in shown" :key="i">
-<button type="button" class="mc-cell mc-fill" @click="open(m)" :aria-label="`Open ${m.name}`" :style="cell(i)">
+<component :is="autoplay && m.isVideo ? 'div' : 'button'" type="button" class="mc-cell mc-fill" @click="!(autoplay && m.isVideo) && open(m)" :aria-label="`Open ${m.name}`" :style="cell(i)">
 <span v-if="m.isImg && m.url" class="mc-bg" :style="bg(m)"></span>
 <img v-if="m.isImg" class="mc-img" :src="m.url" :alt="m.name" loading="lazy">
+<WallVideo v-else-if="autoplay" :src="m.url" :name="m.name" @open="open(m)"/>
 <template v-else><video class="mc-img" :src="m.url" preload="metadata" muted playsinline></video><span class="mc-play" aria-hidden="true">▶</span></template>
 <span v-if="i === shown.length - 1 && extra > 0" class="mc-more" aria-hidden="true">+{{ extra }}</span>
-</button>
+</component>
 </template>
 </div>
 <div v-if="others.length" style="display: flex; flex-wrap: wrap; gap: 6px; min-width: 0">
@@ -28,7 +30,7 @@
 <script>
 export default {
   name: 'MediaCollage',
-  props: { files: { type: Array, default: () => [] }, framed: Boolean, maxH: { type: Number, default: 520 }, row: { type: Number, default: 210 } },
+  props: { files: { type: Array, default: () => [] }, framed: Boolean, maxH: { type: Number, default: 520 }, autoplay: Boolean, row: { type: Number, default: 210 } },
   setup() { return { viewer: useState('fileViewer', () => null) }; },
   computed: {
     visual() { return this.files.filter((m) => m.isImg || m.isVideo); },

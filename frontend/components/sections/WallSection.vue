@@ -106,7 +106,7 @@
 </div>
 </template>
 <template v-if="p.hasTags"><div style="padding: 0 16px 10px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center"><span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Tagged:</span><template v-for="(tg, tg__i) in p.tagList" :key="tg__i"><button @click="tg.open" style="height: 28px; padding: 0 10px; border-radius: 14px; border: 1px solid var(--k-4A4426,#4A4426); background: var(--k-24220F,#24220F); color: var(--k-FFD66B,#FFD66B); cursor: pointer; font-size: 12px; font-weight: 600">@{{ tg.name }}</button></template></div></template>
-<template v-if="p.hasMedia"><div class="wall-media" style="padding: 0 12px 12px"><MediaCollage :files="p.media" :max-h="560" :row="230"/></div></template>
+<template v-if="p.hasMedia"><div class="wall-media" style="padding: 0 12px 12px"><MediaCollage :files="p.media" autoplay :max-h="560" :row="230"/></div></template>
 <template v-if="p.hasPoll">
 <div style="display: flex; flex-direction: column; gap: 8px; padding: 0 16px 12px">
 <template v-for="(o, o__i) in p.poll" :key="o__i">
