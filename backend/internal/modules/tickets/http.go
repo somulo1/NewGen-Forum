@@ -159,6 +159,19 @@ func (s *Service) Private(r chi.Router) {
 		w.WriteHeader(204)
 		return nil
 	}))
+	// someone on an unassigned ticket asks Hub to give it to whoever its place names (after adding them to it)
+	r.Post("/tickets/{id}/route", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
+		id, err := uuid.Parse(chi.URLParam(r, "id"))
+		if err != nil {
+			return httpx.ErrNotFound
+		}
+		t, err := s.Route(r.Context(), p, id)
+		if err != nil {
+			return err
+		}
+		httpx.JSON(w, 200, t)
+		return nil
+	}))
 	r.Post("/tickets/{id}/acknowledge", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
 		id, err := uuid.Parse(chi.URLParam(r, "id"))
 		if err != nil {

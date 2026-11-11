@@ -491,3 +491,48 @@ func TestHeadsResolveWhatTheirPlaceReceived(t *testing.T) {
 		t.Fatalf("IT's head escalated Finance's ticket: %d", c)
 	}
 }
+
+// Who handles a ticket comes from the place's categories (set on its dashboard): a ticket raised before the category had people is
+// given to them once they are on it, and a business request goes to the head of the department.
+func TestCategoriesDecideWhoHandles(t *testing.T) {
+	e := testkit.New(t)
+	ownerU, slug := e.NewOrg("Olivia Owner")
+	o := e.Owner(ownerU)
+	e.MustDo(204, "PUT", "/approvals/flows/f11", map[string]any{"levels": 0}, ownerU.Access)
+	e.MustDo(204, "PUT", "/approvals/flows/f8", map[string]any{"levels": 0}, ownerU.Access)
+	e.Levels(ownerU, map[string]string{"department": ""})
+	it := e.MustDo(201, "POST", "/org/units", map[string]any{"kind": "department", "name": "IT"}, ownerU.Access)["id"].(string)
+	cat := e.MustDo(201, "POST", "/tickets/categories", map[string]any{"unit_type": "department", "unit_ref": it, "name": "Laptops", "tat_hours": 24}, ownerU.Access)
+	sal := e.Join(ownerU, slug, "Salmon", "staff")
+	hana := e.Join(ownerU, slug, "Hana", "staff")
+	amy := e.Join(ownerU, slug, "Amy", "staff")
+	for _, m := range []*testkit.Member{o, sal, hana, amy} {
+		m.Register(e)
+	}
+	e.MustDo(200, "PATCH", "/people/"+hana.Person, map[string]any{"department_id": it}, ownerU.Access)
+	e.MustDo(204, "PUT", "/org/units/"+it+"/head", map[string]any{"role": "staff"}, ownerU.Access)
+	newConv := func(members ...*testkit.Member) string {
+		ids, people := []string{amy.Person}, []string{}
+		for _, m := range members {
+			ids, people = append(ids, m.Person), append(people, m.Person)
+		}
+		key, _ := e2ee.NewConversationKey()
+		return e.MustDo(201, "POST", "/conversations", map[string]any{"kind": "ticket", "members": people, "keys": amy.WrapFor(e, key, 1, ids...)}, amy.Access)["id"].(string)
+	}
+	// raised while Laptops had nobody: unassigned (Salmon is on the ticket, as if added later, but not yet named on the category)
+	tk := newConv(sal)
+	if r := e.MustDo(201, "POST", "/tickets", map[string]any{"conversation": tk, "category": "Laptops", "to_type": "department", "to_ref": it}, amy.Access); r["handler"] != nil {
+		t.Fatalf("assigned before the category named anyone: %v", r["handler"])
+	}
+	// the head of IT names Salmon on Laptops; the next look at the ticket hands it to him
+	e.MustDo(200, "PUT", "/tickets/categories/"+cat["id"].(string), map[string]any{"name": "Laptops", "tat_hours": 24, "members": []string{sal.Person}}, ownerU.Access)
+	if r := e.MustDo(200, "POST", "/tickets/"+tk+"/route", nil, amy.Access); r["handler"] != sal.Person {
+		t.Fatalf("not handed to the category's person: %v", r["handler"])
+	}
+	// a business request to IT goes to its head, who is on it
+	e.MustDo(200, "PUT", "/people/"+amy.Person+"/rights", map[string]any{"module": "departments", "right": "View dashboard", "allowed": true}, ownerU.Access)
+	rq := e.MustDo(201, "POST", "/tickets", map[string]any{"conversation": newConv(hana), "to_type": "department", "to_ref": it, "kind": "request", "title": "Budget"}, amy.Access)
+	if rq["handler"] != hana.Person {
+		t.Fatalf("business request not with IT's head: %v", rq["handler"])
+	}
+}

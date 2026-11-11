@@ -391,6 +391,13 @@ func (s *Service) Create(ctx context.Context, p *tenant.Principal, in CreateIn) 
 		if err := s.A.Sign.Seal(ctx, tx, "tickets", "conversation_id=$1", in.Conversation); err != nil {
 			return err
 		}
+		if handler == nil {
+			// nobody named by the category is on it yet: the heads of the place (a business request or communication has no list)
+			t0 := &Ticket{ID: in.Conversation, Ref: ref, Kind: map[string]string{"": "ticket"}[in.Kind] + in.Kind, Category: cat.Name, ToType: in.ToType, ToRef: in.ToRef, RaisedBy: p.Person, Step: step}
+			if _, err := s.autoAssign(ctx, tx, &nb, p.Org, t0); err != nil {
+				return err
+			}
+		}
 		// its first stay: the receiving place's clock starts now
 		if err := s.openHop(ctx, tx, p.Org, in.Conversation, in.ToType, in.ToRef, cat.Name, cat.TAT, now); err != nil {
 			return err

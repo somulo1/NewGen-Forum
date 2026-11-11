@@ -90,6 +90,7 @@ export async function load(logic, srv) {
   const rows = [];
   for (let i = 0; i < tickets.length; i += 10) rows.push(...await Promise.all(tickets.slice(i, i + 10).map((t) => mapTicket(srv, t))));
   logic.setState({ tickets: rows });
+  routeUnassigned(logic, srv, tickets).catch(() => {});   // quietly, after the list is shown
   await files.settle(showFiles(logic, srv, rows));   // the attachments of the newest tickets are in before tickets count as loaded
   watchSettings(logic, srv);
 }
@@ -131,6 +132,33 @@ async function ensureMember(srv, t, pid) {
   await srv.request('POST', `/conversations/${t.uid}/members`, { people: [pid], device: srv.vault.deviceId, keys });
   srv.vault.convs.delete(t.uid);
 }
+// The categories a place sets on its dashboard decide who handles a ticket. A ticket raised before its category had people (or a
+// business request or communication, which goes to the place's heads) is given to them here: someone on it adds them (they hold
+// its key) and the server picks the one with the fewest open tickets. Each ticket is tried once per visit.
+const TB2 = { department: 'department', unit: 'unit', branch: 'branch', sector: 'sector', desk: 'desk' };
+async function routeUnassigned(logic, srv, list) {
+  srv.routed = srv.routed || new Set();
+  const cats = srv.ticketCats || [];
+  for (const t of list) {
+    if (t.handler || t.step >= 3 || t.participant === false || srv.routed.has(t.id)) continue;
+    srv.routed.add(t.id);
+    const kind = t.kind || 'ticket';
+    let people = [];
+    if (kind === 'ticket') {
+      const c = cats.find((x) => x.name === t.category && x.unit_type === TB2[t.to_type] && (x.unit_ref || null) === (t.to_ref || null)) || cats.find((x) => x.name === t.category && x.unit_type === 'desk');
+      people = (c && c.members) || [];
+    }
+    if (!people.length && t.to_ref) people = (((srv.unitList || []).find((u) => u.id === t.to_ref) || {}).heads || []).map((h) => h.id);
+    people = [...new Set(people)].filter((pid) => pid !== t.raised_by);
+    if (!people.length) continue;
+    try {
+      for (const pid of people) await ensureMember(srv, { uid: t.id }, pid);
+      const out = await srv.request('POST', `/tickets/${t.id}/route`);
+      if (out && out.handler) await reload(logic, srv, t.id);
+    } catch (e) { /* not allowed to add people here, or nobody suitable: it stays for a head to assign */ }
+  }
+}
+
 const personId = (srv, name) => (name === 'Sam' || name === srv.me.name ? srv.me.person : srv.personOf.get(name));
 
 // Gives a person a key to the ticket's conversation (if they are not on it yet), then makes them the handler.

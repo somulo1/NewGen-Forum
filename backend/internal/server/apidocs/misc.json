@@ -357,6 +357,11 @@
   "description": "Someone placed at the receiving department, unit, branch or sector (or above it) says they received it. The item lists who acknowledged and when.",
   "access": "people of the place it was sent to"
  },
+ "POST /v1/tickets/{id}/route": {
+  "summary": "Hand an unassigned ticket to its place's handler",
+  "description": "Gives an open, unassigned ticket to whoever the place it is with names for its category (the one with the fewest open tickets), or to that place's heads for business requests and communications. Only people already on the ticket can be picked.",
+  "access": "anyone on the ticket"
+ },
  "GET /v1/settings/blocks": {
   "summary": "What the organization has blocked",
   "description": "Private chats, private and forum calls, and the community wall when switched off in Settings. The server refuses them whatever the rights say.",
