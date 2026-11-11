@@ -2,6 +2,8 @@ import * as ticketsW from '~/logic/server/widgets/tickets.js';
 import * as feedbackW from '~/logic/server/widgets/feedback.js';
 import * as mentions from '~/logic/server/mentions.js';
 import { pickHandler } from '~/logic/ticketRouting.js';
+// the text of the rich-text details, for a subject when none was written
+const plainText = (h) => String(h || '').replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|div|li)>/gi, '\n').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
 
 // Values and handlers the templates read through hubBindings: tickets.
 export function valsTickets(ctx) {
@@ -91,14 +93,19 @@ export function valsTickets(ctx) {
     ntAttach: (e) => { const list = this.capFiles((this.state.nt.files || []).length, Array.from(e.target.files || [])).map((f) => this.fileInfo(f)); e.target.value = ''; this.setState((st) => ({ nt: { ...st.nt, files: (st.nt.files || []).concat(list) } })); },
     ntRemoveFile: (i) => this.setState((st) => ({ nt: { ...st.nt, files: (st.nt.files || []).filter((_, k) => k !== i) } })),
     ntSetDesc: (e) => { const v = typeof e === 'string' ? e : e.target.value; this.setState((st) => ({ nt: { ...st.nt, desc: v } })); },
-    ntBtnStyle: 'height:40px;padding:0 20px;border-radius:10px;border:0;font-weight:600;cursor:pointer;' + (s.nt.title.trim() ? 'background:#B8F36B;color:#0F1714' : 'background:var(--k-2A3832,#2A3832);color:var(--k-9DB0A6,#9DB0A6)'),
+    // ready to send once it says something: a subject, or details (their first line then becomes the subject)
+    ntBtnStyle: 'height:40px;padding:0 20px;border-radius:10px;border:0;font-weight:600;cursor:pointer;' + (s.nt.title.trim() || plainText(s.nt.desc).trim() ? 'background:#B8F36B;color:#0F1714' : 'background:var(--k-2A3832,#2A3832);color:var(--k-9DB0A6,#9DB0A6)'),
     createTicket: () => {
-      const nt = this.state.nt;
+      const st0 = this.state.nt;
+      const subject = st0.title.trim() || plainText(st0.desc).trim().split('\n')[0].slice(0, 120);
+      if (!subject) { this.notify('Say what it is about: write the issue or some details.', '#FFB86B'); return; }
+      if (ntTargets.hasLevels && !ntTargets.name) { this.notify('Choose where to send it.', '#FFB86B'); return; }
+      const nt = { ...st0, title: subject };
       const cat = ntCatSel;
-      if (!nt.title.trim()) return;
+      if (!cat && ntTargets.kind === 'ticket') { this.notify(ntTargets.name + ' has no categories to choose from yet.', '#FFB86B'); return; }
       this.setState((st) => ({ ntOpen: false, nt: { title: '', cat: st.nt.cat, prio: 'Medium', desc: '', files: [], toType: st.nt.toType, toName: st.nt.toName, kind: 'ticket' } }));
-      ticketsW.raise(this, this.srv, nt, { name: cat.name, prio: ntTargets.priority }, ntTargets)
-        .then((t) => { this.setState({ ticketOpen: t.id }); this.notify(({ request: 'Business request ', communication: 'Communication ' }[ntTargets.kind] || '') + t.id + ' sent' + (ntTargets.kind === 'ticket' ? ' in ' + cat.name : '') + ' and sent to ' + (ntTargets.type === 'desk' ? 'the ticket desk' : ntTargets.name) + '. TAT ' + (cat.custom ? cat.tat + ' hours' : tatText(cat.name)) + (t.handler ? '. Assigned to ' + t.handler : '') + '.', '#7CC4FF', t.id); })
+      ticketsW.raise(this, this.srv, nt, { name: cat ? cat.name : '', prio: ntTargets.priority }, ntTargets)
+        .then((t) => { this.setState({ ticketOpen: t.id }); this.notify(({ request: 'Business request ', communication: 'Communication ' }[ntTargets.kind] || '') + t.id + ' raised' + (ntTargets.kind === 'ticket' && cat ? ' in ' + cat.name : '') + ' and sent to ' + (ntTargets.type === 'desk' ? 'the ticket desk' : ntTargets.name) + '. TAT ' + (ntTargets.kind !== 'ticket' || !cat ? 'set by ' + ntTargets.name : cat.custom ? cat.tat + ' hours' : tatText(cat.name)) + (t.handler ? '. Assigned to ' + t.handler : '') + '.', '#7CC4FF', t.id); })
         .catch((e) => this.notify(e.message || 'Could not raise the ticket.', '#FF9B8A'));
     }
   };

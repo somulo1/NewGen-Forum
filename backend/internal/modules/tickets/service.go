@@ -694,7 +694,7 @@ func (s *Service) Get(ctx context.Context, p *tenant.Principal, id uuid.UUID) (*
 		if err != nil {
 			return err
 		}
-		t.CanWork = t.RaisedBy != p.Person && (head || solve || (t.Handler != nil && *t.Handler == p.Person))
+		t.CanWork = head || (t.RaisedBy != p.Person && (solve || (t.Handler != nil && *t.Handler == p.Person)))
 		if t.CanAck, err = mayAcknowledge(ctx, tx, p.Person, t); err != nil {
 			return err
 		}
@@ -764,7 +764,11 @@ func (s *Service) Act(ctx context.Context, p *tenant.Principal, id uuid.UUID, a 
 			return err
 		}
 		need := func(right string) error {
-			// nobody works on a ticket they raised; they may still close it
+			// a head deals with what reached their place, even what they sent to it themselves
+			if headHere && (right == "Solve" || right == "Close" || right == "Assign & hand over") {
+				return nil
+			}
+			// anyone else never works on a ticket they raised; they may still close it
 			if right == "Solve" && raisedByMe {
 				return httpx.Err(403, "own_ticket", "You raised this ticket, so someone else has to work on it. You can still close it.")
 			}

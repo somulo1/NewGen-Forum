@@ -467,6 +467,18 @@ func TestHeadsResolveWhatTheirPlaceReceived(t *testing.T) {
 	if c, _ := e.Do("POST", "/tickets/"+other+"/act", map[string]any{"do": "step", "step": 3, "comment": "not mine"}, hana.Access); c != 403 {
 		t.Fatalf("IT's head resolved Finance's ticket: %d", c)
 	}
+	// a head resolves even what they raised to their own place themselves
+	key, _ := e2ee.NewConversationKey()
+	own := e.MustDo(201, "POST", "/conversations", map[string]any{"kind": "ticket", "members": []string{amy.Person}, "keys": hana.WrapFor(e, key, 1, hana.Person, amy.Person)}, hana.Access)["id"].(string)
+	e.MustDo(201, "POST", "/tickets", map[string]any{"conversation": own, "category": "Hardware", "to_type": "department", "to_ref": it}, hana.Access)
+	if tk := e.MustDo(200, "GET", "/tickets/"+own, nil, hana.Access); tk["can_work"] != true {
+		t.Fatalf("head cannot work on what they sent to their own place: %v", tk["can_work"])
+	}
+	e.MustDo(200, "POST", "/tickets/"+own+"/act", map[string]any{"do": "step", "step": 3, "comment": "done myself"}, hana.Access)
+	// someone who is not a head still cannot resolve what they raised
+	if c, _ := e.Do("POST", "/tickets/"+other+"/act", map[string]any{"do": "step", "step": 3, "comment": "mine"}, amy.Access); c != 403 {
+		t.Fatalf("the raiser resolved their own ticket: %d", c)
+	}
 	// and escalates what IT received: forwards it on, or reports it to the heads; not what is with Finance
 	fwd := raise(it)
 	if tk := e.MustDo(200, "GET", "/tickets/"+fwd, nil, hana.Access); tk["can_escalate"] != true {

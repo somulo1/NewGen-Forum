@@ -78,7 +78,7 @@ export function buildTickets(ctx) {
     // nobody works on a ticket they raised: the person who raised it can only close it once it is solved
     const raisedByMe = cur_t.raisedBy === 'Sam';
     // the person on it, the head of the place it is with (the server says so), or the Solve right; never who raised it
-    const mayWork = !raisedByMe && (cur_t.handler === 'Sam' || !this.srv || can('tickets', 'Solve') || !!cur_t.canWork);
+    const mayWork = !!cur_t.canWork || (!raisedByMe && (cur_t.handler === 'Sam' || !this.srv || can('tickets', 'Solve')));   // a head also works on what they raised to their own place
     if (cur_t.step === 1 && mayWork) actions.push({ label: 'Start work', style: primary, run: () => setStep(2) });
     if (cur_t.step === 2 && mayWork) {
       actions.push({ label: 'Mark as solved', style: primary, run: () => openFinish(3) });
@@ -134,7 +134,7 @@ export function buildTickets(ctx) {
       handoverOpts: (this.dir || []).filter((p) => p.name !== cur_t.raisedBy && !(raisedByMe && p.name === (this.srv && this.srv.me.name)) && (p.status || 'active') === 'active')
         .map((p) => ({ value: this.srv && p.name === this.srv.me.name ? 'Sam' : p.name, label: (this.srv && p.name === this.srv.me.name ? 'Me (' + p.name + ')' : p.name) + (p.dept ? ' · ' + p.dept : '') }))
         .sort((a, b) => a.label.localeCompare(b.label)),
-      ownNote: raisedByMe && cur_t.step < 4 ? 'You raised this ticket, so someone else works on it. You can close it once it is solved.' : '',
+      ownNote: raisedByMe && !cur_t.canWork && cur_t.step < 4 ? 'You raised this ticket, so someone else works on it. You can close it once it is solved.' : '',
       // business requests and communications: the receiving place acknowledges them
       isAckable: cur_t.kind === 'request' || cur_t.kind === 'communication', kindLabel: cur_t.kind === 'request' ? 'business request' : cur_t.kind === 'communication' ? 'communication' : 'ticket',
       acks: cur_t.acks || [], hasAcks: (cur_t.acks || []).length > 0,
