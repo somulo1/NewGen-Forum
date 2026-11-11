@@ -145,10 +145,10 @@ export function buildOrg(ctx) {
     if (!full) return out;
     const titleOfComm = (c) => ((s.comms || []).find((x) => x.id === c.ref) || {}).title || c.type + ' ' + c.ref;
     // communications here are the ones places send each other (kept like tickets): each opens on the ticket page
-    out.comms = full.comms.map((c) => { const st = (tickets || []).find((y) => y.id === c.ref); return { id: c.ref, uid: c.id, date: c.date, dir: c.dir, type: c.type, subject: st ? st.title : 'Communication', cp: c.cp, status: c.status, ok: c.ok, open: !!c.open, assignee: c.assignee || '', from: c.from || '', fromUnit: !!c.from_unit, fromServer: true }; });
+    out.comms = full.comms.map((c) => { const st = (tickets || []).find((y) => y.id === c.ref); return { id: c.ref, uid: c.id, date: c.date, at: c.at || '', dir: c.dir, type: c.type, subject: st ? st.title : 'Communication', cp: c.cp, status: c.status, ok: c.ok, open: !!c.open, assignee: c.assignee || '', from: c.from || '', fromUnit: !!c.from_unit, fromServer: true }; });
     // business requests are raised from the ticket form: each one opens on the ticket page
     out.reqs = full.requests.map((q) => { const st = (tickets || []).find((y) => y.id === q.ref); return { ...q, id: q.ref, uid: q.id, title: st ? st.title : q.subject, fromUnit: !!q.from_unit, fromServer: true, real: q }; });
-    out.tks = full.tickets.map((x) => { const st = (tickets || []).find((y) => y.id === x.ref); return { id: x.ref, uid: x.id, date: x.date, dir: x.dir, title: st ? st.title : x.category + ' ticket', cp: x.cp, status: x.status, ok: x.ok, open: !!x.open, assignee: x.assignee || '', from: x.from || '', fromUnit: !!x.from_unit, real: null, fromServer: true }; });
+    out.tks = full.tickets.map((x) => { const st = (tickets || []).find((y) => y.id === x.ref); return { id: x.ref, uid: x.id, date: x.date, at: x.at || '', dir: x.dir, title: st ? st.title : x.category + ' ticket', cp: x.cp, status: x.status, ok: x.ok, open: !!x.open, assignee: x.assignee || '', from: x.from || '', fromUnit: !!x.from_unit, real: null, fromServer: true }; });
     out.people = full.people || [];
     return out;
   };
@@ -423,7 +423,9 @@ export function buildOrg(ctx) {
     ou.recInfo = recInfo; ou.recColor = recColor;
     const dirCell = (d) => C.b(d, dirC[d]);
     // what still needs doing comes first (newest first), then what is done: the open ones fill the first page
-    const byOpenThenNew = (a, b) => (b.open ? 1 : 0) - (a.open ? 1 : 0) || b.date.localeCompare(a.date);
+    // everything not yet resolved here comes first, newest arrival first (sent here or escalated here), so it fills page one; what is
+    // done follows, and moves to later pages as new work arrives
+    const byOpenThenNew = (a, b) => (b.open ? 1 : 0) - (a.open ? 1 : 0) || String(b.at || b.date).localeCompare(String(a.at || a.date));
     if (ouTab === 'comms') ouTable = { id: 'ou-c-' + key, pageSize: 10, minWidth: '900px', cols: [{ label: 'Ref', filter: 'text' }, { label: 'Date', filter: 'date' }, { label: 'Direction', filter: 'select' }, { label: 'From', filter: 'select' }, { label: 'Subject', filter: 'text' }, { label: 'With', filter: 'select' }, { label: 'Assigned to', filter: 'select' }, { label: 'Status', filter: 'select' }, { label: 'Action', align: 'right' }],
       rows: D.comms.filter((c) => c.dir === (s.ouCommDir || 'Received')).sort(byOpenThenNew).map((c) => ({ tint: c.status === 'Overdue' ? '#FF9B8A' : '', cells: [C.t(c.id || '', { mono: true }), C.t(fmtDay(c.date), { fv: c.date, nowrap: true }), dirCell(c.dir), C.t(c.from || '', { sub: c.fromUnit ? 'from the place' : c.from ? 'from a person' : '', fv: c.from || '' }), C.t(c.subject, { strong: true }), C.t(c.cp), C.t(c.assignee || 'Not assigned yet', { fv: c.assignee || '' }), C.b(c.status, stC(c.status)),
         C.a(c.uid && c.fromServer ? [{ label: 'View', kind: 'primary', run: openTicketPage(c) }] : [])] })) };

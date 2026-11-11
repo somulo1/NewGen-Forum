@@ -41,6 +41,7 @@ type CommRow struct {
 	Open         bool       `json:"open"`
 	From         string     `json:"from"`
 	FromUnit     bool       `json:"from_unit"`
+	At           string     `json:"at"`
 }
 
 type ReqStep struct {
@@ -66,6 +67,7 @@ type ReqRow struct {
 	Open         bool       `json:"open"`      // still with this place, not resolved or passed on
 	From         string     `json:"from"`      // the place it was sent on behalf of, or the person who raised it
 	FromUnit     bool       `json:"from_unit"` // sent from a place's dashboard, not by a person for themselves
+	At           string     `json:"at"`        // when it reached this place
 	Level        int        `json:"level"`
 	Levels       int        `json:"levels"`
 	Approvers    []string   `json:"approvers"`
@@ -90,6 +92,7 @@ type TicketRow struct {
 	Open         bool       `json:"open"`      // still with this place, not resolved or passed on
 	From         string     `json:"from"`      // the place it was sent on behalf of, or the person who raised it
 	FromUnit     bool       `json:"from_unit"` // sent from a place's dashboard, not by a person for themselves
+	At           string     `json:"at"`        // when it reached this place
 }
 
 type ProjectRow struct {
@@ -326,6 +329,7 @@ func (s *Service) Dashboard(ctx context.Context, p *tenant.Principal, id uuid.UU
 				return err
 			}
 			r.Date = at.UTC().Format("2006-01-02")
+			r.At = at.UTC().Format(time.RFC3339Nano) // when it reached this place (sent here, or escalated to it), for ordering
 			// who it is from: the place it was sent on behalf of, or the person who raised it
 			r.From, r.FromUnit = raiser, fromUnit != ""
 			if r.FromUnit {
@@ -365,7 +369,7 @@ func (s *Service) Dashboard(ctx context.Context, p *tenant.Principal, id uuid.UU
 			_ = stayDue
 			_ = solved
 			if kind == "communication" {
-				d.Comms = append(d.Comms, CommRow{ID: r.ID, Ref: r.Ref, Type: "Communication", Date: r.Date, Dir: r.Dir, Status: r.Status, OK: r.OK, Pending: r.Pending, From: r.From, FromUnit: r.FromUnit,
+				d.Comms = append(d.Comms, CommRow{ID: r.ID, Ref: r.Ref, Type: "Communication", Date: r.Date, Dir: r.Dir, Status: r.Status, OK: r.OK, Pending: r.Pending, From: r.From, FromUnit: r.FromUnit, At: r.At,
 					Counterparty: r.Counterparty, Conversation: r.ID, Assignee: r.Assignee, AssigneeID: r.AssigneeID, Open: r.Dir != "Sent" && (r.Pending || r.Status == "Overdue")})
 				continue
 			}
@@ -375,7 +379,7 @@ func (s *Service) Dashboard(ctx context.Context, p *tenant.Principal, id uuid.UU
 					continue
 				}
 				d.Requests = append(d.Requests, ReqRow{ID: r.ID, Ref: r.Ref, Date: r.Date, Dir: r.Dir, Subject: r.Category, Status: r.Status, OK: r.OK, Pending: r.Pending,
-					Counterparty: r.Counterparty, By: raiser, From: r.From, FromUnit: r.FromUnit, Assignee: r.Assignee, AssigneeID: r.AssigneeID, Open: r.Pending || r.Status == "Overdue", Approvers: []string{}, History: []ReqStep{}, Closed: r.Step >= 3})
+					Counterparty: r.Counterparty, By: raiser, From: r.From, FromUnit: r.FromUnit, At: r.At, Assignee: r.Assignee, AssigneeID: r.AssigneeID, Open: r.Pending || r.Status == "Overdue", Approvers: []string{}, History: []ReqStep{}, Closed: r.Step >= 3})
 				continue
 			}
 			r.Open = r.Dir != "Sent" && (r.Pending || r.Status == "Overdue")
