@@ -234,7 +234,7 @@ export function buildOrg(ctx) {
     return ty + 's go to ' + (to.length ? to.join(', ') : 'nowhere yet') + '. Sent by ' + roleNameOf(r.sender) + '. ' + (r.approver === 'none' ? 'No approval.' : 'Approved by ' + roleNameOf(r.approver) + '.');
   };
   let ou = {}, ouTable = { id: 'none', cols: [], rows: [] };
-  const ouTab = ((s.ouTab === 'tks' || s.ouTab === 'cats') && !has.tickets) || (s.ouTab === 'projects' && !has.projects) ? 'comms' : s.ouTab;
+  const ouTab = ((s.ouTab === 'tks' || s.ouTab === 'cats') && !has.tickets) || (s.ouTab === 'projects' && !has.projects) ? 'comms' : s.ouTab === 'people' ? 'members' : s.ouTab;
   const ouParts = s.ou ? s.ou.split(':') : null;
   const ouRec = ouParts && has[ouParts[0]] && can(ouParts[0], 'View dashboard') ? recOf(ouParts[0], ouParts[1]) : null;
   if (ouRec) {
@@ -338,7 +338,7 @@ export function buildOrg(ctx) {
         { label: 'Tickets', parts: [{ n: cnt(D.tks, 'Received'), l: 'Received', color: '#7CC4FF' }, { n: cnt(D.tks, 'Sent'), l: 'Sent', color: '#C9B6FF' }, { n: cnt(D.tks, 'Escalated'), l: 'Escalated', color: '#FF9B8A' }] },
         { label: 'Projects', parts: [{ n: ps.length, l: 'Active', color: '#E8EFEA' }, { n: ps.filter((p) => p.status !== 'On track').length, l: 'Need attention', color: '#FFB86B' }] }
       ],
-      isCats: ouTab === 'cats', isComms: ouTab === 'comms', isPeople: ouTab === 'people',
+      isCats: ouTab === 'cats', isComms: ouTab === 'comms', isPeople: ouTab === 'members',
       personOpts: (D.people || []).map((m) => ({ v: m.id, l: m.name })), person: s.ouPerson || '', onPerson: (e) => this.setState({ ouPerson: e.target.value }), isTks: ouTab === 'tks', isReqs: ouTab === 'reqs',
       // tickets this unit has (received, its own people's included), passed on, and sent out
       tkDirs: ['Received', 'Escalated', 'Sent'].map((d) => ({ label: d, count: D.tks.filter((x) => x.dir === d).length, on: (s.ouTkDir || 'Received') === d, pick: () => this.setState({ ouTkDir: d }) })),
@@ -358,7 +358,7 @@ export function buildOrg(ctx) {
       target: tg, setTarget: (e) => { const v = Math.max(50, Math.min(100, Number(e.target.value) || 95)); if (this.srv) { orgW.setTarget(this, this.srv, key, v).catch((err) => this.notify(err.message || 'Could not save the threshold.', '#FF9B8A')); return; } this.setState((x) => ({ targets: { ...x.targets, [key]: v } })); },
       perf: D.perf, perfText: D.perf == null ? '—' : D.perf + '%', perfColor: perfColor(D.perf, tg), perfNote: D.perf == null ? 'Nothing due yet in this period' : D.perf >= tg ? 'Target met' : (tg - D.perf) + ' points below target',
       breakdown: [mk('Communications acknowledged on time', D.pc, recvNote(D.comms, D.wc)), mk('Business requests resolved on time', D.pr, recvNote(D.reqs, D.wr)), mk('Tickets resolved on time', D.pt, recvNote(D.tks, D.wt))],
-      tabs: [['comms', 'Communications', D.comms.length], ['reqs', 'Business requests', D.reqs.length], ['tks', 'Tickets', D.tks.length], ['cats', 'Ticket categories', (s.unitCats[t + ':' + ouRec.name] || []).length], ['projects', 'Projects', ps.length], ['members', 'Members', mem.length], ['people', 'Performance by person', (D.people || []).length]].map(([k, l, n]) => ({ label: l, count: n, on: ouTab === k, fresh: freshIn(k), go: () => { seeTab(k); this.setState({ ouTab: k, ouItem: null }); },
+      tabs: [['comms', 'Communications', D.comms.length], ['reqs', 'Business requests', D.reqs.length], ['tks', 'Tickets', D.tks.length], ['cats', 'Ticket categories', (s.unitCats[t + ':' + ouRec.name] || []).length], ['projects', 'Projects', ps.length], ['members', 'Members', mem.length]].map(([k, l, n]) => ({ label: l, count: n, on: ouTab === k, fresh: freshIn(k), go: () => { seeTab(k); this.setState({ ouTab: k, ouItem: null }); },
         style: 'min-height:44px;padding:0 16px;border:0;background:transparent;cursor:pointer;font-size:14px;white-space:nowrap;font-family:inherit;border-bottom:2px solid ' + (ouTab === k ? '#B8F36B' : 'transparent') + ';color:' + (ouTab === k ? 'var(--k-E8EFEA,#E8EFEA)' : 'var(--k-9DB0A6,#9DB0A6)') + ';font-weight:' + (ouTab === k ? '600' : '500') }))
     };
     // Small performance cards for the top card of the dashboard.
@@ -437,18 +437,24 @@ export function buildOrg(ctx) {
         C.a([{ label: 'View', kind: 'primary', run: openTicketPage(c) }])] })) };
     // the people placed in this part (and everyone the part's own record lists), with their profile one click away
     // each person's results in the period: what they worked on, resolved or passed on within the turnaround, out of what was decided
-    if (ouTab === 'people') {
+    // members and their results in one table: people with assigned items first (best first), everyone else after with a dash
+    if (ouTab === 'members') {
       const pc = (part) => (part && part.received ? part.pct + '%' : '—');
       const frac = (part) => (!part || !(part.received + part.waiting) ? 'none assigned' : part.ok + ' of ' + part.received + (part.waiting ? ' · ' + part.waiting + ' not due yet' : ''));
-      const who = s.ouPerson || '';
-      const list = (D.people || []).filter((m) => !who || m.id === who);
-      ouTable = { id: 'ou-p-' + key, pageSize: 15, minWidth: '820px', emptyText: 'Nobody here was assigned a ticket, business request or communication in this period.',
-        cols: [{ label: 'Person', filter: 'text' }, { label: 'Tickets on time', align: 'right' }, ...(t === 'departments' ? [{ label: 'Business requests on time', align: 'right' }] : []), { label: 'Communications on time', align: 'right' }, { label: 'Overall', align: 'right' }],
-        rows: list.map((m) => ({ cells: [C.t(m.name, { strong: true, sub: m.title }), C.t(pc(m.tickets), { sub: frac(m.tickets), fv: m.tickets.pct }), ...(t === 'departments' ? [C.t(pc(m.requests), { sub: frac(m.requests), fv: m.requests.pct })] : []), C.t(pc(m.comms), { sub: frac(m.comms), fv: m.comms.pct }),
-          C.b(m.measured ? m.perf + '%' : '—', perfColor(m.measured ? m.perf : null, tg), { fv: m.measured ? m.perf : -1 })] })) };
+      const perfBy = {}; (D.people || []).forEach((m) => { perfBy[m.id] = m; });
+      const seen = {}; const all = [];
+      mem.forEach((p) => { seen[p.id] = 1; all.push({ p: p, m: perfBy[p.id] }); });
+      (D.people || []).forEach((m) => { if (!seen[m.id]) all.push({ p: { id: m.id, name: m.name, title: m.title }, m: m }); });
+      const rank = (x) => (x.m ? (x.m.measured ? 2 : 1) : 0);
+      all.sort((x, y) => rank(y) - rank(x) || (rank(x) === 2 ? y.m.perf - x.m.perf : 0) || String(x.p.name).localeCompare(String(y.p.name)));
+      const dash = (on) => C.t('—', { sub: on ? 'none assigned' : '', fv: -1 });
+      ouTable = { id: 'ou-m-' + key, pageSize: 15, minWidth: '980px', emptyText: 'Nobody is in this ' + typeName[t].toLowerCase() + ' yet. Add people from Organization structure.',
+        cols: [{ label: 'Person', filter: 'text' }, { label: 'Status', filter: 'select' }, { label: 'Tickets on time', align: 'right' }, ...(t === 'departments' ? [{ label: 'Business requests on time', align: 'right' }] : []), { label: 'Communications on time', align: 'right' }, { label: 'Overall', align: 'right' }, { label: '', align: 'right' }],
+        rows: all.map(({ p, m }) => ({ cells: [C.p(p.name, { sub: p.title || p.email || '', fv: p.name }), C.t(p.status || 'Available'),
+          m ? C.t(pc(m.tickets), { sub: frac(m.tickets), fv: m.tickets.pct }) : dash(true), ...(t === 'departments' ? [m ? C.t(pc(m.requests), { sub: frac(m.requests), fv: m.requests.pct }) : dash(true)] : []), m ? C.t(pc(m.comms), { sub: frac(m.comms), fv: m.comms.pct }) : dash(true),
+          m && m.measured ? C.b(m.perf + '%', perfColor(m.perf, tg), { fv: m.perf }) : C.t('—', { fv: -1 }),
+          C.a([{ label: 'Profile', kind: 'primary', run: () => this.setState({ personOpen: p.id }) }])] })) };
     }
-    if (ouTab === 'members') ouTable = { id: 'ou-m-' + key, pageSize: 15, minWidth: '640px', emptyText: 'Nobody is in this ' + typeName[t].toLowerCase() + ' yet. Add people from Organization structure.', cols: [{ label: 'Person', filter: 'text' }, { label: 'Job title', filter: 'text' }, { label: 'Status', filter: 'select' }, { label: '', align: 'right' }],
-      rows: mem.map((p) => ({ cells: [C.p(p.name, { sub: p.email || '', fv: p.name }), C.t(p.title || '—'), C.t(p.status || 'Available'), C.a([{ label: 'Profile', kind: 'primary', run: () => this.setState({ personOpen: p.id }) }])] })) };
     if (ouTab === 'projects') ouTable = { id: 'ou-p-' + key, pageSize: 10, minWidth: '760px', emptyText: 'No projects for this ' + typeName[t].toLowerCase() + ' yet.', cols: [{ label: 'Project', filter: 'text' }, { label: 'Status', filter: 'select' }, { label: 'Progress' }, { label: 'Due', filter: 'date' }, { label: '', align: 'right' }],
       rows: ps.map((p) => ({ cells: [C.t(p.name, { strong: true, sub: 'Led by ' + p.owner }), C.b(p.status, p.statusColor), C.bar(p.progress, p.statusColor), C.t(p.dueLabel, { fv: p.due, nowrap: true }), C.a([{ label: 'View', kind: 'primary', run: p.open }])] })) };
     // ---- Communications and business requests open on a page built like the ticket page ----
