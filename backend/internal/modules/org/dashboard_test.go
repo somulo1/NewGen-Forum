@@ -420,3 +420,37 @@ func TestDepartmentBusinessRequestsAreTrackedBothWays(t *testing.T) {
 		t.Fatalf("IT received: %v", i)
 	}
 }
+
+// The head of a place resolves what its dashboard received, without the Solve right, but not what it sent.
+func TestHeadsResolveWhatTheirPlaceReceived(t *testing.T) {
+	e := testkit.New(t)
+	ownerU, slug := e.NewOrg("Olivia Owner")
+	o := e.Owner(ownerU)
+	e.MustDo(204, "PUT", "/approvals/flows/f11", map[string]any{"levels": 0}, ownerU.Access)
+	e.MustDo(204, "PUT", "/approvals/flows/f8", map[string]any{"levels": 0}, ownerU.Access)
+	e.Levels(ownerU, map[string]string{"department": ""})
+	fin := e.MustDo(201, "POST", "/org/units", map[string]any{"kind": "department", "name": "Finance"}, ownerU.Access)["id"].(string)
+	it := e.MustDo(201, "POST", "/org/units", map[string]any{"kind": "department", "name": "IT"}, ownerU.Access)["id"].(string)
+	hana := e.Join(ownerU, slug, "Hana", "staff") // staff: no Solve right
+	amy := e.Join(ownerU, slug, "Amy", "staff")
+	for _, m := range []*testkit.Member{o, hana, amy} {
+		m.Register(e)
+	}
+	e.MustDo(200, "PATCH", "/people/"+hana.Person, map[string]any{"department_id": it}, ownerU.Access)
+	e.MustDo(204, "PUT", "/org/units/"+it+"/head", map[string]any{"role": "staff"}, ownerU.Access)
+	raise := func(to string) string {
+		key, _ := e2ee.NewConversationKey()
+		conv := e.MustDo(201, "POST", "/conversations", map[string]any{"kind": "ticket", "members": []string{hana.Person}, "keys": amy.WrapFor(e, key, 1, amy.Person, hana.Person)}, amy.Access)["id"].(string)
+		e.MustDo(201, "POST", "/tickets", map[string]any{"conversation": conv, "category": "Hardware", "to_type": "department", "to_ref": to}, amy.Access)
+		return conv
+	}
+	got := raise(it)
+	if tk := e.MustDo(200, "GET", "/tickets/"+got, nil, hana.Access); tk["can_work"] != true {
+		t.Fatalf("head cannot work on what IT received: %v", tk["can_work"])
+	}
+	e.MustDo(200, "POST", "/tickets/"+got+"/act", map[string]any{"do": "step", "step": 3, "comment": "fixed"}, hana.Access)
+	other := raise(fin)
+	if c, _ := e.Do("POST", "/tickets/"+other+"/act", map[string]any{"do": "step", "step": 3, "comment": "not mine"}, hana.Access); c != 403 {
+		t.Fatalf("IT's head resolved Finance's ticket: %d", c)
+	}
+}

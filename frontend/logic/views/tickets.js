@@ -77,7 +77,8 @@ export function buildTickets(ctx) {
     const actions = [];
     // nobody works on a ticket they raised: the person who raised it can only close it once it is solved
     const raisedByMe = cur_t.raisedBy === 'Sam';
-    const mayWork = !raisedByMe && (cur_t.handler === 'Sam' || !this.srv || can('tickets', 'Solve'));
+    // the person on it, the head of the place it is with (the server says so), or the Solve right; never who raised it
+    const mayWork = !raisedByMe && (cur_t.handler === 'Sam' || !this.srv || can('tickets', 'Solve') || !!cur_t.canWork);
     if (cur_t.step === 1 && mayWork) actions.push({ label: 'Start work', style: primary, run: () => setStep(2) });
     if (cur_t.step === 2 && mayWork) {
       actions.push({ label: 'Mark as solved', style: primary, run: () => openFinish(3) });

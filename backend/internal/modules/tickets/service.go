@@ -86,6 +86,8 @@ type Ticket struct {
 	// (that head, or the person working on it)
 	CanAssign   bool `json:"can_assign"`
 	CanEscalate bool `json:"can_escalate"`
+	// CanWork: the caller may resolve it and move it along (the person on it, the head of the place it is with, or the Solve right)
+	CanWork bool `json:"can_work"`
 	// Acks: who at the receiving place acknowledged a business request or communication, and when; CanAck: the caller may
 	Acks   []Ack `json:"acknowledgements,omitempty"`
 	CanAck bool  `json:"can_acknowledge,omitempty"`
@@ -672,6 +674,15 @@ func (s *Service) Get(ctx context.Context, p *tenant.Principal, id uuid.UUID) (*
 		}
 		t.CanAssign = ok
 		t.CanEscalate = ok || (t.Handler != nil && *t.Handler == p.Person)
+		head, err := isHead(ctx, tx, p.Person, t)
+		if err != nil {
+			return err
+		}
+		solve, err := authz.Can(ctx, tx, p.Person, "tickets", "Solve")
+		if err != nil {
+			return err
+		}
+		t.CanWork = t.RaisedBy != p.Person && (head || solve || (t.Handler != nil && *t.Handler == p.Person))
 		if t.CanAck, err = mayAcknowledge(ctx, tx, p.Person, t); err != nil {
 			return err
 		}
@@ -734,12 +745,21 @@ func (s *Service) Act(ctx context.Context, p *tenant.Principal, id uuid.UUID, a 
 		}
 		isHandler := cur.Handler != nil && *cur.Handler == p.Person
 		raisedByMe := cur.RaisedBy == p.Person
+		// the head of the place it is with now (its dashboard received it; or a place above that one) works on it as of right:
+		// resolves, closes and moves it along, whatever their role's ticket rights. Not what their place sent or passed on.
+		headHere, err := isHead(ctx, tx, p.Person, cur)
+		if err != nil {
+			return err
+		}
 		need := func(right string) error {
 			// nobody works on a ticket they raised; they may still close it
 			if right == "Solve" && raisedByMe {
 				return httpx.Err(403, "own_ticket", "You raised this ticket, so someone else has to work on it. You can still close it.")
 			}
 			if isHandler && (right == "Solve" || right == "Close") {
+				return nil
+			}
+			if headHere && (right == "Solve" || right == "Close" || right == "Assign & hand over") {
 				return nil
 			}
 			if right == "Close" { // the person who raised it may close it with "Close own tickets"
@@ -1296,7 +1316,9 @@ func isHead(ctx context.Context, tx pgx.Tx, person uuid.UUID, t *Ticket) (bool, 
 	err := tx.QueryRow(ctx, `with recursive up(id, parent_id) as (select id, parent_id from hub.org_units where id=$2
 			union all select u.id, u.parent_id from hub.org_units u join up on u.id = up.parent_id)
 		select exists (select 1 from hub.people pe join hub.person_roles pr on pr.person_id = pe.id join hub.roles r on r.id = pr.role_id
-			where pe.id = $1 and r.scope like 'Each %' and exists (select 1 from up where up.id in (pe.sector_id, pe.branch_id, pe.unit_id, pe.department_id)))`, person, *t.ToRef).Scan(&head)
+			where pe.id = $1 and exists (select 1 from up where up.id in (pe.sector_id, pe.branch_id, pe.unit_id, pe.department_id)
+			  -- a role that heads each place of its kind, or the head role set for this place (or one above it) in Organization structure
+			  and (r.scope like 'Each %' or exists (select 1 from hub.unit_heads uh where uh.unit_id = up.id and uh.role_id = r.id))))`, person, *t.ToRef).Scan(&head)
 	return head, err
 }
 
