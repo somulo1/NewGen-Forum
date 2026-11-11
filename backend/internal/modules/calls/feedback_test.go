@@ -66,3 +66,47 @@ func TestCallFeedbackFromEveryoneWhoWasIn(t *testing.T) {
 		t.Fatalf("staff read the organization's feedback: %d", code)
 	}
 }
+
+// Only calls where people really talked are rated, and closing the card without rating stops the question for good.
+func TestFeedbackOnlyForTalksAndAskedOnce(t *testing.T) {
+	e := testkit.New(t)
+	ownerU, slug := e.NewOrg("Olivia Owner")
+	o := e.Owner(ownerU)
+	a := e.Join(ownerU, slug, "Amy", "staff")
+	org := uuid.MustParse(e.OrgID(slug))
+	m := calls.New(e.A)
+	ago := time.Now().Add(-time.Hour)
+	if err := m.RecordPast(t.Context(), org, uuid.MustParse(o.Person), "voice", "dm", nil, []uuid.UUID{uuid.MustParse(a.Person)}, "ended", ago, 30); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.RecordPast(t.Context(), org, uuid.MustParse(o.Person), "video", "meeting", nil, []uuid.UUID{uuid.MustParse(a.Person)}, "ended", ago.Add(time.Minute), 600); err != nil {
+		t.Fatal(err)
+	}
+	due := func(mb *testkit.Member) []any {
+		return e.MustDo(200, "GET", "/calls/feedback", nil, mb.Access)["due"].([]any)
+	}
+	if len(due(o)) != 2 {
+		t.Fatalf("answered call and meeting: %v", due(o))
+	}
+	// the meeting: Amy came in only after Olivia had left, so they never talked
+	var meeting string
+	for _, d := range due(o) {
+		if d.(map[string]any)["context"] == "meeting" {
+			meeting = d.(map[string]any)["call"].(string)
+		}
+	}
+	e.RootExec(`update hub.call_participants set joined_at = now() - interval '5 minutes', left_at = now() - interval '4 minutes' where call_id = $1 and person_id = $2`, meeting, a.Person)
+	e.RootExec(`update hub.call_participants set joined_at = now() - interval '10 minutes', left_at = now() - interval '6 minutes' where call_id = $1 and person_id = $2`, meeting, o.Person)
+	if d := due(o); len(d) != 1 || d[0].(map[string]any)["context"] != "dm" {
+		t.Fatalf("a meeting where nobody overlapped is rated: %v", d)
+	}
+	call := due(o)[0].(map[string]any)["call"].(string)
+	e.MustDo(204, "POST", "/calls/"+call+"/feedback/skip", nil, o.Access)
+	e.MustDo(204, "POST", "/calls/"+call+"/feedback/skip", nil, o.Access)
+	if len(due(o)) != 0 {
+		t.Fatal("asked again after cancelling")
+	}
+	if len(due(a)) != 1 {
+		t.Fatal("cancelling for one person hid it from the other")
+	}
+}

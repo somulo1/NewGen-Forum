@@ -332,6 +332,11 @@
    "404": "No such invoice"
   }
  },
+ "POST /v1/calls/{id}/feedback/skip": {
+  "summary": "Do not ask me to rate this call",
+  "description": "Closing the rating card without rating: the call is not offered for rating to this person again.",
+  "access": "anyone in the organization"
+ },
  "GET /v1/settings/blocks": {
   "summary": "What the organization has blocked",
   "description": "Private chats, private and forum calls, and the community wall when switched off in Settings. The server refuses them whatever the rights say.",

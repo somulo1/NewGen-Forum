@@ -48,10 +48,13 @@ func remarkCtx(org, id uuid.UUID) crypto.Context {
 	return crypto.Context{Org: org.String(), Table: "call_feedback", Column: "remark_enc", RowID: id.String()}
 }
 
-// rateable: the person joined the call, at least one other person joined it too, and the person is no longer in it.
-const rateable = `exists (select 1 from hub.call_participants me where me.call_id = c.id and me.person_id = $1 and me.joined_at is not null
-		and (me.left_at is not null or c.ended_at is not null))
-	and exists (select 1 from hub.call_participants o where o.call_id = c.id and o.person_id <> $1 and o.joined_at is not null)`
+// rateable: the person was in the call at the same time as someone else (they really talked, even for seconds), and is no longer in
+// it. A private call also has to have been answered: one that rang out or was declined is never rated.
+const rateable = `(c.context <> 'dm' or c.answered_at is not null)
+	and exists (select 1 from hub.call_participants me where me.call_id = c.id and me.person_id = $1 and me.joined_at is not null
+		and (me.left_at is not null or c.ended_at is not null)
+		and exists (select 1 from hub.call_participants o where o.call_id = c.id and o.person_id <> $1 and o.joined_at is not null
+			and o.joined_at < coalesce(me.left_at, c.ended_at, now()) and coalesce(o.left_at, c.ended_at, now()) > me.joined_at))`
 
 // FeedbackDue lists the caller's recent calls still waiting for their feedback, newest first.
 func (m *Module) FeedbackDue(ctx context.Context, p *tenant.Principal) ([]Due, error) {
@@ -62,6 +65,7 @@ func (m *Module) FeedbackDue(ctx context.Context, p *tenant.Principal) ([]Due, e
 				where o.call_id = c.id and o.person_id <> $1 and o.joined_at is not null), '{}')
 			from hub.calls c where c.started_at > now() - make_interval(secs => $2) and `+rateable+`
 			and not exists (select 1 from hub.call_feedback f where f.call_id = c.id and f.person_id = $1)
+			and not exists (select 1 from hub.call_feedback_skips k where k.call_id = c.id and k.person_id = $1)
 			order by c.started_at desc limit 20`, p.Person, FeedbackWindow.Seconds())
 		if err != nil {
 			return err
@@ -115,6 +119,18 @@ func (m *Module) Rate(ctx context.Context, p *tenant.Principal, call uuid.UUID, 
 			return err
 		}
 		return m.A.Sign.Seal(ctx, tx, "call_feedback", "id=$1", id)
+	})
+}
+
+// Skip: the person closed the rating card without rating. They are not asked about this call again.
+func (m *Module) Skip(ctx context.Context, p *tenant.Principal, call uuid.UUID) error {
+	return m.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
+		id := app.NewID()
+		tag, err := tx.Exec(ctx, `insert into hub.call_feedback_skips (org_id, id, call_id, person_id) values ($1,$2,$3,$4) on conflict do nothing`, p.Org, id, call, p.Person)
+		if err != nil || tag.RowsAffected() == 0 {
+			return err
+		}
+		return m.A.Sign.Seal(ctx, tx, "call_feedback_skips", "id=$1", id)
 	})
 }
 
@@ -314,6 +330,17 @@ func (m *Module) feedbackRoutes(r chi.Router, org func(h func(w http.ResponseWri
 			return err
 		}
 		if err := m.Rate(r.Context(), p, id, in.Stars, in.Remark); err != nil {
+			return err
+		}
+		w.WriteHeader(204)
+		return nil
+	}))
+	r.Post("/calls/{id}/feedback/skip", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
+		id, err := uuid.Parse(chi.URLParam(r, "id"))
+		if err != nil {
+			return httpx.ErrNotFound
+		}
+		if err := m.Skip(r.Context(), p, id); err != nil {
 			return err
 		}
 		w.WriteHeader(204)

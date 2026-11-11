@@ -627,14 +627,13 @@ export async function loadHistory(logic, srv) {
   logic.setState({ callLog: calls.map((c) => ({ id: c.id, ctx: c.context === 'meeting' || c.context === 'standup' ? 'meeting' : c.context, ref: localOf(c), kind: c.kind, dir: dir(c), at: new Date(c.started_at).getTime(), dur: c.duration_seconds || 0 })) });
 }
 
-// Feedback: after a call, meeting or standup that someone else also joined, everyone who was in it is asked to rate it (1 to 5
-// stars, optional remark). The server keeps the list of calls still waiting, so a closed tab asks again next time; "Later" only
-// waits until the next sign-in or call.
+// Feedback: after a call, meeting or standup where someone else was in it at the same time (for a private call, one that was answered),
+// everyone who was in it is asked once to rate it (1 to 5 stars, optional remark). Rating or cancelling both close it for good; only a
+// tab closed with the card open asks again.
 export async function checkFeedback(logic, srv) {
   if (logic.state.call || logic.state.callFb) return;
   const { due } = await srv.request('GET', '/calls/feedback');
-  const later = srv.fbLater || (srv.fbLater = new Set());
-  const next = (due || []).find((d) => !later.has(d.call));
+  const next = (due || [])[0];
   if (!next || logic.state.call || logic.state.callFb) return;
   const what = next.context === 'meeting' ? 'meeting' : next.context === 'standup' ? 'standup' : next.kind === 'video' ? 'video call' : 'call';
   const with_ = (next.people || []).slice(0, 3).join(', ') + ((next.people || []).length > 3 ? ' and ' + (next.people.length - 3) + ' more' : '');
@@ -653,11 +652,12 @@ export async function sendFeedback(logic, srv) {
   }
   logic.setState({ callFb: null });
   logic.notify('Thanks for your feedback.', '#B8F36B');
-  checkFeedback(logic, srv).catch(() => {});
 }
 
-export function feedbackLater(logic, srv) {
+export async function feedbackLater(logic, srv) {
   const fb = logic.state.callFb;
-  if (fb) (srv.fbLater || (srv.fbLater = new Set())).add(fb.id);
+  if (!fb || fb.busy) return;
   logic.setState({ callFb: null });
+  // not asked again: the server remembers, so other tabs and the next sign-in do not ask either
+  await srv.request('POST', `/calls/${fb.id}/feedback/skip`).catch(() => {});
 }

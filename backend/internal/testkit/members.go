@@ -207,3 +207,16 @@ func (e *Env) RemoveRights(slug, module string, names ...string) {
 		e.T.Fatal(err)
 	}
 }
+
+// RootExec changes data behind the app's back (tests only), with the superuser connection.
+func (e *Env) RootExec(q string, args ...any) {
+	root, err := pgx.Connect(context.Background(), rootURL())
+	if err != nil {
+		e.T.Skip("superuser not reachable: ", err)
+	}
+	defer root.Close(context.Background())
+	_, _ = root.Exec(context.Background(), "set session_replication_role = replica")
+	if _, err := root.Exec(context.Background(), q, args...); err != nil {
+		e.T.Fatal(err)
+	}
+}
