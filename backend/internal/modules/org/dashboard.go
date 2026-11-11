@@ -33,6 +33,7 @@ type CommRow struct {
 	Dir          string    `json:"dir"` // Received | Sent
 	Status       string    `json:"status"`
 	OK           bool      `json:"ok"`
+	Pending      bool      `json:"pending,omitempty"` // still open and not yet due: not counted either way
 	Counterparty string    `json:"cp"`
 	Conversation uuid.UUID `json:"conversation"`
 	Message      uuid.UUID `json:"message"` // the subject is sealed: open this message to read it
@@ -53,6 +54,7 @@ type ReqRow struct {
 	Subject      string    `json:"subject"`
 	Status       string    `json:"status"`
 	OK           bool      `json:"ok"`
+	Pending      bool      `json:"pending,omitempty"` // still open and not yet due: not counted either way
 	Counterparty string    `json:"cp"`
 	By           string    `json:"by"`
 	Level        int       `json:"level"`
@@ -72,6 +74,7 @@ type TicketRow struct {
 	Step         int       `json:"step"`
 	Status       string    `json:"status"`
 	OK           bool      `json:"ok"`
+	Pending      bool      `json:"pending,omitempty"` // still open and not yet due: not counted either way
 	Counterparty string    `json:"cp"`
 }
 
@@ -83,15 +86,17 @@ type ProjectRow struct {
 
 type Part struct {
 	Pct      int `json:"pct"`
-	Received int `json:"received"`
+	Received int `json:"received"` // what was counted: decided items (done, or past their time)
 	OK       int `json:"ok"`
+	Waiting  int `json:"waiting"` // received but still open and within time
 }
 
 type Dashboard struct {
 	Unit     Unit            `json:"unit"`
 	Target   int             `json:"target"`
 	Perf     int             `json:"perf"`
-	Since    string          `json:"since"` // the start of the period it covers
+	Measured int             `json:"measured"` // how many items the performance is based on (0: nothing to judge yet)
+	Since    string          `json:"since"`    // the start of the period it covers
 	Parts    map[string]Part `json:"parts"`
 	Members  int             `json:"members"`
 	Comms    []CommRow       `json:"comms"`
@@ -249,6 +254,9 @@ func (s *Service) Dashboard(ctx context.Context, p *tenant.Principal, id uuid.UU
 					r.Status, r.OK = "Acknowledged on time", true
 				case reads >= need && inUnit > 0:
 					r.Status = "Acknowledged late"
+				case time.Since(pub) < ontimeWait:
+					// still within its time to be read: not judged yet
+					r.Status, r.Pending = "Waiting to be read", true
 				default:
 					r.Status = "Not acknowledged"
 				}
@@ -314,7 +322,7 @@ func (s *Service) Dashboard(ctx context.Context, p *tenant.Principal, id uuid.UU
 			case status == "Pending" && age > ontimeWait:
 				r.Status, r.OK = "Overdue", false
 			case status == "Pending":
-				r.Status, r.OK = "In progress", true
+				r.Status, r.OK, r.Pending = "In progress", false, true
 			case age > ontimeWait:
 				r.Status, r.OK = "Resolved late", false
 			default:
@@ -357,13 +365,15 @@ func (s *Service) Dashboard(ctx context.Context, p *tenant.Principal, id uuid.UU
 		}
 
 		// ---- tickets ----
+		// a ticket sent to this unit or to any unit under it (a sector's branches, a branch's departments) is work this unit received
 		rs, err = tx.Query(ctx, `
+			with recursive below(id) as (select $1::uuid union select u.id from hub.org_units u join below on u.parent_id = below.id)
 			select t.conversation_id, t.ref, t.created_at, t.category, t.priority, t.step, t.late, t.escalated, t.due_at, t.solved_at,
 			  (select min(e.at) from hub.ticket_events e where e.ticket_id = t.conversation_id and e.kind = 'event' and e.text like 'Escalated%'),
-			  (t.to_type = $2 and t.to_ref = $1), coalesce(rdx.name, ''), t.to_type, coalesce(tu.name, '')
+			  ($2::text <> '' and t.to_ref in (select id from below)), coalesce(rdx.name, ''), t.to_type, coalesce(tu.name, '')
 			from hub.tickets t join hub.people rp on rp.id = t.raised_by left join hub.org_units rdx on rdx.id = rp.department_id
 			left join hub.org_units tu on tu.id = t.to_ref
-			where t.created_at > $3 and ((t.to_type = $2 and t.to_ref = $1) or t.raised_by in `+um+`)
+			where t.created_at > $3 and (t.to_ref in (select id from below) or t.raised_by in `+um+`)
 			order by t.created_at desc limit 300`, id, d.Unit.Kind, since)
 		if err != nil {
 			return err
@@ -386,6 +396,7 @@ func (s *Service) Dashboard(ctx context.Context, p *tenant.Principal, id uuid.UU
 			solvedOnTime := r.Step >= 3 && solved != nil && (due == nil || !solved.After(*due))
 			escOnTime := escAt != nil && (due == nil || !escAt.After(*due))
 			r.OK = solvedOnTime || escOnTime
+			r.Pending = !r.OK && !overdue && r.Step < 3
 			r.Status = stepNames[min(max(r.Step, 0), 4)]
 			if overdue {
 				r.Status = "Overdue"
@@ -438,14 +449,16 @@ func (s *Service) Dashboard(ctx context.Context, p *tenant.Principal, id uuid.UU
 	if err != nil {
 		return nil, err
 	}
-	var okAll, nAll int
+	var okAll, nAll, waiting int
 	count := func(name string, n, ok int) {
-		d.Parts[name] = Part{Pct: pct(ok, n), Received: n, OK: ok}
-		okAll, nAll = okAll+ok, nAll+n
+		d.Parts[name] = Part{Pct: pct(ok, n), Received: n, OK: ok, Waiting: waiting}
+		okAll, nAll, waiting = okAll+ok, nAll+n, 0
 	}
 	n, ok := 0, 0
 	for _, r := range d.Comms {
-		if r.Dir == "Received" {
+		if r.Dir == "Received" && r.Pending {
+			waiting++
+		} else if r.Dir == "Received" {
 			n++
 			if r.OK {
 				ok++
@@ -455,7 +468,9 @@ func (s *Service) Dashboard(ctx context.Context, p *tenant.Principal, id uuid.UU
 	count("comms", n, ok)
 	n, ok = 0, 0
 	for _, r := range d.Requests {
-		if r.Dir == "Received" {
+		if r.Dir == "Received" && r.Pending {
+			waiting++
+		} else if r.Dir == "Received" {
 			n++
 			if r.OK {
 				ok++
@@ -465,7 +480,9 @@ func (s *Service) Dashboard(ctx context.Context, p *tenant.Principal, id uuid.UU
 	count("requests", n, ok)
 	n, ok = 0, 0
 	for _, r := range d.Tickets {
-		if r.Dir != "Sent" {
+		if r.Dir != "Sent" && r.Pending {
+			waiting++
+		} else if r.Dir != "Sent" {
 			n++
 			if r.OK {
 				ok++
@@ -473,17 +490,18 @@ func (s *Service) Dashboard(ctx context.Context, p *tenant.Principal, id uuid.UU
 		}
 	}
 	count("tickets", n, ok)
-	d.Perf = pct(okAll, nAll)
+	d.Perf, d.Measured = pct(okAll, nAll), nAll
 	_ = strings.TrimSpace
 	return d, nil
 }
 
 type UnitPerf struct {
-	ID     uuid.UUID       `json:"id"`
-	Kind   string          `json:"kind"`
-	Perf   int             `json:"perf"`
-	Target int             `json:"target"`
-	Parts  map[string]Part `json:"parts"`
+	ID       uuid.UUID       `json:"id"`
+	Kind     string          `json:"kind"`
+	Perf     int             `json:"perf"`
+	Measured int             `json:"measured"`
+	Target   int             `json:"target"`
+	Parts    map[string]Part `json:"parts"`
 }
 
 // Performance gives every unit the caller may open a one-line summary (for the org overview cards and widgets). Building
@@ -506,7 +524,7 @@ func (s *Service) Performance(ctx context.Context, p *tenant.Principal, period .
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, UnitPerf{ID: u.ID, Kind: u.Kind, Perf: d.Perf, Target: d.Target, Parts: d.Parts})
+		out = append(out, UnitPerf{ID: u.ID, Kind: u.Kind, Perf: d.Perf, Measured: d.Measured, Target: d.Target, Parts: d.Parts})
 	}
 	return out, nil
 }

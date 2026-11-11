@@ -110,3 +110,28 @@ func TestUnitDashboardIsBuiltFromRealRecords(t *testing.T) {
 		t.Fatal("structure does not carry the threshold")
 	}
 }
+
+// A sector's dashboard counts the tickets sent to the departments under it, and one still open within its time is not judged yet.
+func TestSectorDashboardRollsUpAndWaitsForOpenTickets(t *testing.T) {
+	e := testkit.New(t)
+	ownerU, slug := e.NewOrg("Olivia Owner")
+	o := e.Owner(ownerU)
+	e.MustDo(204, "PUT", "/approvals/flows/f11", map[string]any{"levels": 0}, ownerU.Access)
+	e.Levels(ownerU, map[string]string{"sector": "", "department": "sector"})
+	sector := e.MustDo(201, "POST", "/org/units", map[string]any{"kind": "sector", "name": "Central"}, ownerU.Access)["id"].(string)
+	dept := e.MustDo(201, "POST", "/org/units", map[string]any{"kind": "department", "name": "Finance", "parent_id": sector}, ownerU.Access)["id"].(string)
+	amy := e.Join(ownerU, slug, "Amy", "staff")
+	for _, m := range []*testkit.Member{o, amy} {
+		m.Register(e)
+	}
+	key, _ := e2ee.NewConversationKey()
+	conv := e.MustDo(201, "POST", "/conversations", map[string]any{"kind": "ticket", "members": []string{o.Person}, "keys": amy.WrapFor(e, key, 1, amy.Person, o.Person)}, amy.Access)["id"].(string)
+	e.MustDo(201, "POST", "/tickets", map[string]any{"conversation": conv, "category": "Hardware", "to_type": "department", "to_ref": dept}, amy.Access)
+	for _, unit := range []string{dept, sector} {
+		d := e.MustDo(200, "GET", "/org/units/"+unit+"/dashboard", nil, ownerU.Access)
+		tk := d["parts"].(map[string]any)["tickets"].(map[string]any)
+		if tk["waiting"].(float64) != 1 || tk["received"].(float64) != 0 || d["measured"].(float64) != 0 {
+			t.Fatalf("unit %s: tickets %v measured %v", unit, tk, d["measured"])
+		}
+	}
+}

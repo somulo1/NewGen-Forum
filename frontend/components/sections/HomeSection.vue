@@ -263,7 +263,7 @@
 <template v-for="(og, og__i) in w.items" :key="og__i">
 <div style="display: flex; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 10px; background: var(--k-121B17,#121B17)">
 <div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><strong style="font-size: 13px; font-weight: 600">{{ og.name }}</strong><span style="font-size: 11px; color: var(--k-9DB0A6,#9DB0A6)">{{ og.sub }}</span></div>
-<span :style="`font-size: 12px; font-weight: 700; color: ${og.perfColor}`">{{ og.perf }}%</span>
+<span :style="`font-size: 12px; font-weight: 700; color: ${og.perfColor}`">{{ og.perfText }}</span>
 <button @click="og.open" :aria-label="`Open ${og.name} dashboard`" style="height: 30px; padding: 0 10px; border-radius: 15px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; font-size: 12px">View</button>
 </div>
 </template>
@@ -275,7 +275,7 @@
 <div style="display: flex; flex-direction: column; gap: 12px">
 <template v-for="(pf, pf__i) in w.items" :key="pf__i">
 <button @click="pf.open" style="padding: 0; border: 0; background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; text-align: left; display: flex; flex-direction: column; gap: 6px">
-<div style="display: flex; justify-content: space-between; gap: 8px; width: 100%; font-size: 13px"><span><span style="color: var(--k-9DB0A6,#9DB0A6)">{{ pf.type }} ·</span> {{ pf.name }}</span><strong :style="`color: ${pf.color}`">{{ pf.perf }}%<span style="font-weight: 400; color: var(--k-9DB0A6,#9DB0A6)"> · target {{ pf.target }}%</span></strong></div>
+<div style="display: flex; justify-content: space-between; gap: 8px; width: 100%; font-size: 13px"><span><span style="color: var(--k-9DB0A6,#9DB0A6)">{{ pf.type }} ·</span> {{ pf.name }}</span><strong :style="`color: ${pf.color}`">{{ pf.perfText }}<span style="font-weight: 400; color: var(--k-9DB0A6,#9DB0A6)"> · target {{ pf.target }}%</span></strong></div>
 <div style="position: relative; width: 100%; height: 8px; border-radius: 4px; background: var(--k-22302A,#22302A)"><div :style="pf.bar"></div><span :style="pf.marker"></span></div>
 </button>
 </template>

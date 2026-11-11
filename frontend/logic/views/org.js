@@ -113,8 +113,11 @@ export function buildOrg(ctx) {
     const full = this.srv.ouData && this.srv.ouData.get(key);
     const sum = this.srv.perf && this.srv.perf.get(key);
     const parts = (full && full.parts) || (sum && sum.parts) || {};
-    const pc = (k) => (parts[k] ? parts[k].pct : 100);
-    const out = { comms: [], reqs: [], tks: [], perf: full ? full.perf : sum ? sum.perf : 100, pc: pc('comms'), pr: pc('requests'), pt: pc('tickets'), loaded: !!full || !!(this.srv.ouFailed && this.srv.ouFailed.has(key)) };
+    // null: nothing to judge yet (nothing received, or all of it still open and within its time). Never shown as 0% or 100%.
+    const pc = (k) => (parts[k] ? (parts[k].received > 0 ? parts[k].pct : null) : null);
+    const src = full || sum;
+    const out = { comms: [], reqs: [], tks: [], perf: src ? (src.measured === 0 ? null : src.perf) : null, pc: pc('comms'), pr: pc('requests'), pt: pc('tickets'),
+      wc: (parts.comms || {}).waiting || 0, wr: (parts.requests || {}).waiting || 0, wt: (parts.tickets || {}).waiting || 0, loaded: !!full || !!(this.srv.ouFailed && this.srv.ouFailed.has(key)) };
     if (!full) return out;
     const titleOfComm = (c) => ((s.comms || []).find((x) => x.id === c.ref) || {}).title || c.type + ' ' + c.ref;
     out.comms = full.comms.map((c) => ({ date: c.date, dir: c.dir, type: c.type, subject: titleOfComm(c), cp: c.cp, status: c.status, ok: c.ok, ref: c.ref, uid: c.id, fromServer: true }));
@@ -158,13 +161,13 @@ export function buildOrg(ctx) {
       tks = real.concat(tks.filter((x) => !real.some((r) => r.id === x.id)));
     }
     const recv = (arr) => arr.filter((x) => x.dir !== 'Sent');
-    const pct = (arr) => { const rr = recv(arr); return rr.length ? Math.round(rr.filter((x) => x.ok).length / rr.length * 100) : 100; };
+    const pct = (arr) => { const rr = recv(arr); return rr.length ? Math.round(rr.filter((x) => x.ok).length / rr.length * 100) : null; };
     const all = recv(comms).concat(recv(reqs)).concat(recv(tks));
-    const perf = all.length ? Math.round(all.filter((x) => x.ok).length / all.length * 100) : 100;
+    const perf = all.length ? Math.round(all.filter((x) => x.ok).length / all.length * 100) : null;
     return { comms, reqs, tks, perf, pc: pct(comms), pr: pct(reqs), pt: pct(tks) };
   };
   const targetOf = (key) => s.targets[key] || 95;
-  const perfColor = (v, tg) => (v >= tg ? '#B8F36B' : v >= tg - 10 ? '#FFB86B' : '#FF9B8A');
+  const perfColor = (v, tg) => (v == null ? '#9DB0A6' : v >= tg ? '#B8F36B' : v >= tg - 10 ? '#FFB86B' : '#FF9B8A');
   const openOu = (type, id) => () => this.setState({ section: 'orgunit', ou: type + ':' + id, ouTab: 'comms', ouItem: null, ticketOpen: null, projectOpen: null });
   const orgRows = [{ depth: 0, type: 'Organization', name: (s.orgProfile && s.orgProfile.name) || '[YOUR ORGANIZATION]', sub: this.dir.length + ' people · ' + levels.map((t) => O[t].length + ' ' + typeName[t].toLowerCase() + (O[t].length === 1 ? '' : (t === 'branches' ? 'es' : 's'))).join(' · '), color: '#E8EFEA', canOpen: false }];
   const walk = (ptype, pid, depth) => {
@@ -220,7 +223,9 @@ export function buildOrg(ctx) {
     const real = this.srv && this.srv.ouData && this.srv.ouData.get(key);
     const pids = this.srv ? (real ? real.projects.map((x) => x.id) : []) : t === 'departments' ? (deptProj[ouRec.name] || []) : s.projects.filter((p, i) => (seedOf(ouRec.id) + i) % 2 === 0).map((p) => p.id);
     const ps = projects.filter((p) => pids.indexOf(p.id) !== -1);
-    const mk = (label, pc, detail) => ({ label: label, pct: pc, detail: detail, color: perfColor(pc, tg), bar: 'height:100%;width:' + pc + '%;background:' + perfColor(pc, tg) + ';border-radius:5px', marker: 'position:absolute;top:-3px;left:calc(' + tg + '% - 1px);width:2px;height:16px;background:var(--k-E8EFEA,#E8EFEA);border-radius:1px' });
+    // how many came in, and how many of those are still open within their time (they count once done or late)
+    const recvNote = (arr, waiting) => { const n = arr.filter((x) => x.dir !== 'Sent').length; return n + ' received' + (waiting ? ' · ' + waiting + ' not due yet' : ''); };
+    const mk = (label, pc, detail) => ({ label: label, pct: pc, pctText: pc == null ? '—' : pc + '%', detail: detail, color: perfColor(pc, tg), bar: 'height:100%;width:' + (pc || 0) + '%;background:' + perfColor(pc, tg) + ';border-radius:5px', marker: 'position:absolute;top:-3px;left:calc(' + tg + '% - 1px);width:2px;height:16px;background:var(--k-E8EFEA,#E8EFEA);border-radius:1px' });
     // A tab blinks while it holds something this person has not seen yet (a new ticket, communication, request, project or member).
     // What was seen is kept in this browser per unit and tab; opening the tab marks all of it seen, and the blinking stops.
     const acct = (this.srv && this.srv.me && this.srv.me.account) || 'local';
@@ -263,15 +268,15 @@ export function buildOrg(ctx) {
       ],
       isCats: ouTab === 'cats',
       target: tg, setTarget: (e) => { const v = Math.max(50, Math.min(100, Number(e.target.value) || 95)); if (this.srv) { orgW.setTarget(this, this.srv, key, v).catch((err) => this.notify(err.message || 'Could not save the threshold.', '#FF9B8A')); return; } this.setState((x) => ({ targets: { ...x.targets, [key]: v } })); },
-      perf: D.perf, perfColor: perfColor(D.perf, tg), perfNote: D.perf >= tg ? 'Target met' : (tg - D.perf) + ' points below target',
-      breakdown: [mk('Communications acknowledged on time', D.pc, D.comms.filter((x) => x.dir !== 'Sent').length + ' received'), mk('Business requests resolved on time', D.pr, D.reqs.filter((x) => x.dir !== 'Sent').length + ' received'), mk('Tickets resolved on time', D.pt, D.tks.filter((x) => x.dir !== 'Sent').length + ' received')],
+      perf: D.perf, perfText: D.perf == null ? '—' : D.perf + '%', perfColor: perfColor(D.perf, tg), perfNote: D.perf == null ? 'Nothing due yet in this period' : D.perf >= tg ? 'Target met' : (tg - D.perf) + ' points below target',
+      breakdown: [mk('Communications acknowledged on time', D.pc, recvNote(D.comms, D.wc)), mk('Business requests resolved on time', D.pr, recvNote(D.reqs, D.wr)), mk('Tickets resolved on time', D.pt, recvNote(D.tks, D.wt))],
       tabs: [['comms', 'Communications', D.comms.length], ['reqs', 'Business requests', D.reqs.length], ['tks', 'Tickets', D.tks.length], ['cats', 'Ticket categories', (s.unitCats[t + ':' + ouRec.name] || []).length], ['projects', 'Projects', ps.length], ['members', 'Members', mem.length]].map(([k, l, n]) => ({ label: l, count: n, on: ouTab === k, fresh: freshIn(k), go: () => { seeTab(k); this.setState({ ouTab: k, ouItem: null }); },
         style: 'min-height:44px;padding:0 16px;border:0;background:transparent;cursor:pointer;font-size:14px;white-space:nowrap;font-family:inherit;border-bottom:2px solid ' + (ouTab === k ? '#B8F36B' : 'transparent') + ';color:' + (ouTab === k ? 'var(--k-E8EFEA,#E8EFEA)' : 'var(--k-9DB0A6,#9DB0A6)') + ';font-weight:' + (ouTab === k ? '600' : '500') }))
     };
     // Small performance cards for the top card of the dashboard.
     const ouOff = (l) => (/Ticket/.test(l) && !has.tickets) || (/Project/.test(l) && !has.projects);
     ou.kpis = ou.kpis.filter((k) => !ouOff(k.label)); ou.tabs = ou.tabs.filter((k) => !ouOff(k.label)); ou.breakdown = ou.breakdown.filter((k) => !ouOff(k.label));
-    ou.perfTiles = [{ label: 'Overall', pct: D.perf, color: perfColor(D.perf, tg), note: D.perf >= tg ? 'Target ' + tg + '% met' : (tg - D.perf) + ' pts below ' + tg + '%' }].concat(ou.breakdown.map((b) => ({ label: b.label.replace(/ (acknowledged|resolved) on time/, ''), pct: b.pct, color: b.color, note: b.detail })));
+    ou.perfTiles = [{ label: 'Overall', pct: D.perf, pctText: D.perf == null ? '—' : D.perf + '%', color: perfColor(D.perf, tg), note: D.perf == null ? 'Nothing due yet' : D.perf >= tg ? 'Target ' + tg + '% met' : (tg - D.perf) + ' pts below ' + tg + '%' }].concat(ou.breakdown.map((b) => ({ label: b.label.replace(/ (acknowledged|resolved) on time/, ''), pct: b.pct, pctText: b.pctText, color: b.color, note: b.detail })));
     // A ticket opens on the same page as My tickets. Demo tickets are created on first view so every status, comment and handover works.
     const openTicketPage = (c) => () => {
       const from = { ou: key, label: ouRec.name + ' dashboard' };
@@ -400,9 +405,9 @@ export function buildOrg(ctx) {
     }
   }
   const orgWidgetItems = {};
-  ['departments', 'units'].forEach((t) => { if (!has[t]) return; orgWidgetItems[t] = O[t].map((r) => { const k = t + ':' + r.id; const pf = unitPerf[k].perf; const pp = parentFor(t, r); return { name: r.name, sub: (pp ? recOf(pp[0], pp[1]).name + ' · ' : '') + membersOf(t, r.name).length + ' people', perf: pf, perfColor: perfColor(pf, targetOf(k)), open: openOu(t, r.id) }; }); });
+  ['departments', 'units'].forEach((t) => { if (!has[t]) return; orgWidgetItems[t] = O[t].map((r) => { const k = t + ':' + r.id; const pf = unitPerf[k].perf; const pp = parentFor(t, r); return { name: r.name, sub: (pp ? recOf(pp[0], pp[1]).name + ' · ' : '') + membersOf(t, r.name).length + ' people', perf: pf, perfText: pf == null ? '—' : pf + '%', perfColor: perfColor(pf, targetOf(k)), open: openOu(t, r.id) }; }); });
   if (has.branches) orgWidgetItems.branches = O.branches.map((b) => ({ name: b.name, initials: shortOf(b.name), place: has.sectors ? recOf('sectors', b.sector).name + ' sector' : 'Branch', head: (membersOf('branches', b.name).find((p) => /Supervisor|Lead|Manager/.test(p.title)) || {}).name || 'Not set', staff: membersOf('branches', b.name).length, statusColor: '#B8F36B', statusLabel: unitPerf['branches:' + b.id].perf + '% on time', open: openOu('branches', b.id) }));
   if (has.sectors) orgWidgetItems.sectors = O.sectors.map((sc, i) => ({ name: sc.name, color: ['#FFB86B', '#7CC4FF', '#F49AC1'][i % 3], depts: (has.branches ? O.branches.filter((b) => b.sector === sc.id) : O.departments.filter((d) => d.sector === sc.id)).map((x) => x.name).join(' · '), staff: membersOf('sectors', sc.name).length, open: openOu('sectors', sc.id) }));
-  orgWidgetItems.performance = myUnits.map((u) => { const tg = targetOf(u.key); return { name: u.name, type: u.type, perf: u.perf, target: tg, color: perfColor(u.perf, tg), open: u.open, bar: 'height:100%;width:' + u.perf + '%;background:' + perfColor(u.perf, tg) + ';border-radius:4px', marker: 'position:absolute;top:-3px;left:calc(' + tg + '% - 1px);width:2px;height:14px;background:var(--k-E8EFEA,#E8EFEA)' }; });
+  orgWidgetItems.performance = myUnits.map((u) => { const tg = targetOf(u.key); return { name: u.name, type: u.type, perf: u.perf, perfText: u.perf == null ? '—' : u.perf + '%', target: tg, color: perfColor(u.perf, tg), open: u.open, bar: 'height:100%;width:' + (u.perf || 0) + '%;background:' + perfColor(u.perf, tg) + ';border-radius:4px', marker: 'position:absolute;top:-3px;left:calc(' + tg + '% - 1px);width:2px;height:14px;background:var(--k-E8EFEA,#E8EFEA)' }; });
   return { O, esc, myUnits, org, orgWidgetItems, ou, ouTable, recOf, roleNameOf, ruleSentence, typeName };
 }

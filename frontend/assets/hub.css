@@ -138,3 +138,11 @@ main h1{font-size:22px !important}
 .home-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:16px;align-items:stretch}
 .home-grid>.home-widget{height:100%}
 .home-grid>.home-widget>button:last-child,.home-grid>.home-widget>div:last-child:not(:has(>:not(button))){margin-top:auto}
+
+/* unit dashboards on phones: the summary cards two by two, a little tighter, so no screen space is wasted */
+@media (max-width: 640px){
+.ou-kpis{grid-template-columns:repeat(2,minmax(0,1fr)) !important;gap:10px !important}
+.ou-kpi{padding:12px !important;gap:6px !important;border-radius:14px !important}
+.ou-kpi-parts{gap:6px 12px !important}
+.ou-kpi-n{font-size:20px !important;line-height:1.15}
+}

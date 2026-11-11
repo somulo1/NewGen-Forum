@@ -54,16 +54,16 @@
 <span style="font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">Managed by the {{ ou.managerRole }} role · {{ ou.manager }} · {{ ou.members }} people</span>
 <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px"><label style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">Performance for <select :value="ou.period" @change="ou.onPeriod" aria-label="Period" style="height: 34px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 13px"><template v-for="o in ou.periodOpts" :key="o.v"><option :value="o.v">{{ o.l }}</option></template></select></label><span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">{{ ou.perfFormula }}</span></div>
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap: 10px; margin-top: 6px">
-<template v-for="(pt, pt__i) in ou.perfTiles" :key="pt__i"><div role="group" :aria-label="`${pt.label} performance`" :style="`padding: 10px 12px; border-radius: 12px; background: var(--k-121B17,#121B17); border: 1px solid ${pt.color}; display: flex; flex-direction: column; gap: 2px; min-width: 0`"><span :style="`font-family: 'Space Grotesk', sans-serif; font-size: 24px; font-weight: 700; color: ${pt.color}`">{{ pt.pct }}%</span><span style="font-size: 13px; font-weight: 600">{{ pt.label }}</span><span style="font-size: 11px; color: var(--k-9DB0A6,#9DB0A6); overflow-wrap: anywhere">{{ pt.note }}</span></div></template>
+<template v-for="(pt, pt__i) in ou.perfTiles" :key="pt__i"><div role="group" :aria-label="`${pt.label} performance`" :style="`padding: 10px 12px; border-radius: 12px; background: var(--k-121B17,#121B17); border: 1px solid ${pt.color}; display: flex; flex-direction: column; gap: 2px; min-width: 0`"><span :style="`font-family: 'Space Grotesk', sans-serif; font-size: 24px; font-weight: 700; color: ${pt.color}`">{{ pt.pctText }}</span><span style="font-size: 13px; font-weight: 600">{{ pt.label }}</span><span style="font-size: 11px; color: var(--k-9DB0A6,#9DB0A6); overflow-wrap: anywhere">{{ pt.note }}</span></div></template>
 </div>
 </div>
 </div>
 
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px">
+<div class="ou-kpis" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px">
 <template v-for="(kp, kp__i) in ou.kpis" :key="kp__i">
-<div style="padding: 16px; border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 8px">
+<div class="ou-kpi" style="padding: 16px; border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 8px">
 <span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">{{ kp.label }}</span>
-<div style="display: flex; gap: 14px; flex-wrap: wrap"><template v-for="(pt, pt__i) in kp.parts" :key="pt__i"><div style="display: flex; flex-direction: column"><span :style="`font-family: 'Space Grotesk', sans-serif; font-size: 24px; font-weight: 700; color: ${pt.color}`">{{ pt.n }}</span><span style="font-size: 11px; color: var(--k-9DB0A6,#9DB0A6)">{{ pt.l }}</span></div></template></div>
+<div class="ou-kpi-parts" style="display: flex; gap: 14px; flex-wrap: wrap"><template v-for="(pt, pt__i) in kp.parts" :key="pt__i"><div style="display: flex; flex-direction: column; min-width: 0"><span class="ou-kpi-n" :style="`font-family: 'Space Grotesk', sans-serif; font-size: 24px; font-weight: 700; color: ${pt.color}`">{{ pt.n }}</span><span style="font-size: 11px; color: var(--k-9DB0A6,#9DB0A6)">{{ pt.l }}</span></div></template></div>
 </div>
 </template>
 </div>
