@@ -110,7 +110,9 @@
 <template v-if="tk.hasHandler">
 <div style="display: flex; gap: 10px; align-items: center"><UserAvatar :name="tk.handler" :initials="tk.handlerInitials" :color="tk.handlerColor" :size="42"/><div style="display: flex; flex-direction: column"><strong style="font-size: 15px">{{ tk.handler }}</strong><span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Since {{ tk.handlerSince }}</span></div></div>
 </template>
-<template v-if="tk.noHandler"><span style="font-size: 14px; color: var(--k-FFB86B,#FFB86B)">Not assigned yet</span></template>
+<template v-if="tk.noHandler"><span style="font-size: 14px; color: var(--k-FFB86B,#FFB86B)">Not assigned yet</span>
+<div v-if="tk.canHandover && tk.suggested.length" style="display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 12px; background: var(--k-121B17,#121B17); font-size: 13px"><span style="color: var(--k-9DB0A6,#9DB0A6)">{{ tk.cat }} is handled here by the people below. They take new tickets automatically; this one was raised before, so assign it.</span>
+<div style="display: flex; flex-wrap: wrap; gap: 6px"><button v-for="sg in tk.suggested" :key="sg.name" type="button" @click="sg.assign" style="height: 32px; padding: 0 12px; border-radius: 16px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">Assign {{ sg.name }}</button></div></div></template>
 <template v-if="tk.canHandover"><label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">{{ tk.handoverLabel }}
 <select :value="tk.handlerValue" :disabled="tk.closed" @change="handover" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px">
 <option value="">Choose a person…</option>

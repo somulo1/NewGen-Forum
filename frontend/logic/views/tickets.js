@@ -131,6 +131,18 @@ export function buildTickets(ctx) {
       // handing over or reassigning needs the right; the person who raised it is never offered as the one to work on it
       // only the head of the department the ticket is with assigns or reassigns (the server decides; the person working on it does not)
       canHandover: cur_t.step < 4 && (!this.srv || cur_t.canAssign === true),
+      // the people this place's category names to solve it: suggested first. A category's people only take tickets raised after they
+      // were added, so an older ticket waits for someone to assign it; one click does that here.
+      suggested: (() => {
+        if (!this.srv || cur_t.handler || cur_t.step >= 3) return [];
+        const TB = { departments: 'department', units: 'unit', branches: 'branch', sectors: 'sector', desk: 'desk' };
+        const to = cur_t.to || { type: 'desk' };
+        const ref = to.type === 'desk' ? null : (this.srv.structure[to.type] && this.srv.structure[to.type].get(to.name));
+        const cats = this.srv.ticketCats || [];
+        const c = cats.find((x) => x.name === cur_t.cat && x.unit_type === TB[to.type] && (x.unit_ref || null) === (ref || null)) || cats.find((x) => x.name === cur_t.cat && x.unit_type === 'desk');
+        return ((c && c.members) || []).map((id) => (this.dir || []).find((p) => p.uid === id)).filter((p) => p && p.name !== cur_t.raisedBy)
+          .map((p) => ({ name: p.name, assign: () => ticketsW.assign(this, this.srv, cur_t, p.name).then(() => this.notify(cur_t.id + ' assigned to ' + p.name + '. They have been notified.', '#7CC4FF', cur_t.id)).catch((x) => this.notify(x.message || 'Could not assign it.', '#FF9B8A')) }));
+      })(),
       handoverOpts: (this.dir || []).filter((p) => p.name !== cur_t.raisedBy && !(raisedByMe && p.name === (this.srv && this.srv.me.name)) && (p.status || 'active') === 'active')
         .map((p) => ({ value: this.srv && p.name === this.srv.me.name ? 'Sam' : p.name, label: (this.srv && p.name === this.srv.me.name ? 'Me (' + p.name + ')' : p.name) + (p.dept ? ' · ' + p.dept : '') }))
         .sort((a, b) => a.label.localeCompare(b.label)),
