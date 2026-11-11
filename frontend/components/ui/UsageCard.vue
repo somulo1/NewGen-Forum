@@ -13,7 +13,7 @@
 </div>
 </template>
 </section>
-<div v-else-if="err" role="alert" style="padding: 10px 14px; border-radius: 12px; background: var(--k-3A2420,#3A2420); color: #FFD3CA; font-size: 13px">{{ err }}</div>
+<div v-else-if="err" role="alert" style="padding: 10px 14px; border-radius: 12px; background: var(--k-3A2420,#3A2420); color: var(--k-FFD3CA,#FFD3CA); font-size: 13px">{{ err }}</div>
 </template>
 
 <script>

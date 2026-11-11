@@ -43,7 +43,7 @@ func TestUnitDashboardIsBuiltFromRealRecords(t *testing.T) {
 	if esc["to_type"] != "desk" || esc["escalated"] != true {
 		t.Fatalf("escalation: %v", esc)
 	}
-	if code, _ := e.Do("POST", "/tickets/"+conv+"/act", map[string]any{"do": "escalate", "to_type": "department", "to_ref": uuid.NewString()}, ownerU.Access); code != 400 {
+	if code, _ := e.Do("POST", "/tickets/"+conv+"/act", map[string]any{"do": "escalate", "why": "needs attention", "to_type": "department", "to_ref": uuid.NewString()}, ownerU.Access); code != 400 {
 		t.Fatalf("escalated to a department that does not exist: %d", code)
 	}
 	e.MustDo(200, "POST", "/tickets/"+conv+"/act", map[string]any{"do": "escalate", "to_type": "department", "to_ref": dept, "person": o.Person, "why": "Back to Finance"}, ownerU.Access)
@@ -487,7 +487,7 @@ func TestHeadsResolveWhatTheirPlaceReceived(t *testing.T) {
 	e.MustDo(200, "POST", "/tickets/"+fwd+"/act", map[string]any{"do": "escalate", "to_type": "department", "to_ref": fin, "category": "Hardware", "why": "Finance owns these"}, hana.Access)
 	rep := raise(it)
 	e.MustDo(200, "POST", "/tickets/"+rep+"/act", map[string]any{"do": "escalate", "why": "running late"}, hana.Access)
-	if c, _ := e.Do("POST", "/tickets/"+other+"/act", map[string]any{"do": "escalate", "to_type": "department", "to_ref": it, "category": "Hardware"}, hana.Access); c != 403 {
+	if c, _ := e.Do("POST", "/tickets/"+other+"/act", map[string]any{"do": "escalate", "why": "needs attention", "to_type": "department", "to_ref": it, "category": "Hardware"}, hana.Access); c != 403 {
 		t.Fatalf("IT's head escalated Finance's ticket: %d", c)
 	}
 }
@@ -534,5 +534,45 @@ func TestCategoriesDecideWhoHandles(t *testing.T) {
 	rq := e.MustDo(201, "POST", "/tickets", map[string]any{"conversation": newConv(hana), "to_type": "department", "to_ref": it, "kind": "request", "title": "Budget"}, amy.Access)
 	if rq["handler"] != hana.Person {
 		t.Fatalf("business request not with IT's head: %v", rq["handler"])
+	}
+}
+
+// A resolved, or even closed, ticket can be forwarded to another place: it opens there, tracked as received, on that place's TAT.
+func TestClosedTicketsCanBeForwarded(t *testing.T) {
+	e := testkit.New(t)
+	ownerU, slug := e.NewOrg("Olivia Owner")
+	o := e.Owner(ownerU)
+	e.MustDo(204, "PUT", "/approvals/flows/f11", map[string]any{"levels": 0}, ownerU.Access)
+	e.MustDo(204, "PUT", "/approvals/flows/f5", map[string]any{"levels": 0}, ownerU.Access)
+	e.Levels(ownerU, map[string]string{"department": ""})
+	fin := e.MustDo(201, "POST", "/org/units", map[string]any{"kind": "department", "name": "Finance"}, ownerU.Access)["id"].(string)
+	it := e.MustDo(201, "POST", "/org/units", map[string]any{"kind": "department", "name": "IT"}, ownerU.Access)["id"].(string)
+	e.MustDo(201, "POST", "/tickets/categories", map[string]any{"unit_type": "department", "unit_ref": it, "name": "Laptops", "tat_hours": 6}, ownerU.Access)
+	amy := e.Join(ownerU, slug, "Amy", "staff")
+	for _, m := range []*testkit.Member{o, amy} {
+		m.Register(e)
+	}
+	key, _ := e2ee.NewConversationKey()
+	conv := e.MustDo(201, "POST", "/conversations", map[string]any{"kind": "ticket", "members": []string{o.Person}, "keys": amy.WrapFor(e, key, 1, amy.Person, o.Person)}, amy.Access)["id"].(string)
+	e.MustDo(201, "POST", "/tickets", map[string]any{"conversation": conv, "category": "Hardware", "to_type": "department", "to_ref": fin}, amy.Access)
+	act := func(body map[string]any) map[string]any {
+		return e.MustDo(200, "POST", "/tickets/"+conv+"/act", body, ownerU.Access)
+	}
+	act(map[string]any{"do": "step", "step": 3, "comment": "done"})
+	act(map[string]any{"do": "step", "step": 4, "comment": "closing", "rating": 4})
+	if c, _ := e.Do("POST", "/tickets/"+conv+"/act", map[string]any{"do": "escalate", "why": "late"}, ownerU.Access); c != 409 {
+		t.Fatalf("reported a closed ticket: %d", c)
+	}
+	tk := act(map[string]any{"do": "escalate", "to_type": "department", "to_ref": it, "category": "Laptops", "why": "IT must check"})
+	if tk["step"].(float64) >= 3 || tk["closed_at"] != nil || tk["tat_hours"].(float64) != 6 || tk["priority"] != "High" {
+		t.Fatalf("forwarded closed ticket: step %v closed %v tat %v prio %v", tk["step"], tk["closed_at"], tk["tat_hours"], tk["priority"])
+	}
+	rows := e.MustDo(200, "GET", "/org/units/"+it+"/dashboard", nil, ownerU.Access)["tickets"].([]any)
+	if len(rows) != 1 || rows[0].(map[string]any)["dir"] != "Received" || rows[0].(map[string]any)["open"] != true {
+		t.Fatalf("IT: %v", rows)
+	}
+	f := e.MustDo(200, "GET", "/org/units/"+fin+"/dashboard", nil, ownerU.Access)["tickets"].([]any)
+	if len(f) != 1 || f[0].(map[string]any)["status"] != "Solved on time" {
+		t.Fatalf("Finance keeps its own result: %v", f)
 	}
 }

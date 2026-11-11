@@ -31,3 +31,6 @@
 .hub-light [style*=" color: rgb(255, 255, 255)"],.hub-light [style^="color: rgb(255, 255, 255)"]{color:#000000 !important}
 /* The profile cover is a dark picture the name sits on; in light mode it is lightened so the name stays readable. */
 .hub-light section[aria-label="Profile header"] > div:first-child{filter:invert(1) hue-rotate(180deg)}
+
+/* pale red text on the red-tinted panels: dark enough to read in light mode */
+.hub-light{--k-FFD3CA:#7A1A0C}

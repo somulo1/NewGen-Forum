@@ -79,30 +79,29 @@ export function buildTickets(ctx) {
     const raisedByMe = cur_t.raisedBy === 'Sam';
     // the person on it, the head of the place it is with (the server says so), or the Solve right; never who raised it
     const mayWork = !!cur_t.canWork || (!raisedByMe && (cur_t.handler === 'Sam' || !this.srv || can('tickets', 'Solve')));   // a head also works on what they raised to their own place
-    if (cur_t.step === 1 && mayWork) actions.push({ label: 'Start work', style: primary, run: () => setStep(2) });
-    if (cur_t.step === 2 && mayWork) {
-      actions.push({ label: 'Mark as solved', style: primary, run: () => openFinish(3) });
-      actions.push({ label: cur_t.hold ? 'Resume work' : 'Put on hold', style: secondary, run: () => (cur_t.hold ? ticketsW.resume : ticketsW.hold)(this, this.srv, cur_t).catch(fail) });
-    }
-    if (cur_t.step === 3) {
-      actions.push({ label: 'Close ticket', style: primary, run: () => openFinish(4) });
-      if (mayWork) actions.push({ label: 'Reopen', style: secondary, run: () => setStep(2) });
-    }
+    // three actions only. Resolve: from the moment it reaches the place, until it is resolved. Close: once resolved (Hub closes it
+    // itself 30 minutes after that). Escalate: forward it to another place, open, resolved or even closed; it opens there on that
+    // place's own TAT.
+    if (cur_t.step < 3 && mayWork) actions.push({ label: 'Resolve', style: primary, run: () => openFinish(3) });
+    if (cur_t.step === 3) actions.push({ label: 'Close', style: primary, run: () => openFinish(4) });
+    if (this.srv && cur_t.canEscalate !== false && cur_t.canEscalate) actions.push({ label: 'Escalate', style: secondary, run: () => this.setState({ escOpen: true, esc: { type: '', id: '', cat: '', person: '', why: '' } }) });
     let finish = null;
     if (fin) {
       const patch = (p) => this.setState((st) => ({ tkFinish: st.tkFinish ? { ...st.tkFinish, ...p } : st.tkFinish }));
       const solving = fin.step === 3;
       finish = {
         solving, title: solving ? 'Resolve ticket' : 'Close ticket',
-        hint: solving ? 'Say what was done to resolve it. ' + cur_t.raisedBy + ' sees this comment.' : 'Rate how it was handled (optional) and leave a remark if you like.',
-        placeholder: solving ? 'What was done to resolve it (required)' : 'Remark (optional)',
+        hint: solving ? 'Say what was done to resolve it. ' + cur_t.raisedBy + ' sees this comment.' : 'Every closure is rated. Pick 1 to 5 stars for how it was handled and say why. (If nobody closes it, Hub closes it 30 minutes after it is resolved with 5 stars.)',
+        placeholder: solving ? 'What was done to resolve it (required)' : 'Comment on closing it (required)',
         note: fin.note, err: fin.err, busy: fin.busy, stars: fin.stars,
         starList: [1, 2, 3, 4, 5].map((n) => ({ n, on: n <= fin.stars, label: n + (n === 1 ? ' star' : ' stars'), pick: () => patch({ stars: fin.stars === n ? 0 : n }) })),
         onNote: (e) => patch({ note: e.target.value, err: '' }),
         cancel: () => this.setState({ tkFinish: null }),
         submit: () => {
           const note = (this.state.tkFinish && this.state.tkFinish.note || '').trim();
-          if (solving && !note) return patch({ err: 'Write what was done to resolve it.' });
+          // every action carries a comment
+          if (!solving && !fin.stars) return patch({ err: 'Rate it: pick 1 to 5 stars.' });
+          if (!note) return patch({ err: solving ? 'Write what was done to resolve it.' : 'Write a comment on closing it.' });
           if (note.length > 2000) return patch({ err: 'Keep the comment under 2000 characters.' });
           if (fin.busy) return;
           patch({ busy: true });

@@ -38,7 +38,7 @@
 </form>
 </template>
 <template v-if="structureEd.hasOk"><div role="status" style="padding: 10px 14px; border-radius: 12px; background: var(--k-1E3326,#1E3326); color: #B8F36B; font-size: 14px">{{ structureEd.ok }}</div></template>
-<template v-if="structureEd.hasErr"><div role="alert" style="padding: 10px 14px; border-radius: 12px; background: var(--k-3A2420,#3A2420); color: #FFD3CA; font-size: 14px">{{ structureEd.err }}</div></template>
+<template v-if="structureEd.hasErr"><div role="alert" style="padding: 10px 14px; border-radius: 12px; background: var(--k-3A2420,#3A2420); color: var(--k-FFD3CA,#FFD3CA); font-size: 14px">{{ structureEd.err }}</div></template>
 
 <div role="tablist" aria-label="Levels" style="display: flex; flex-wrap: wrap; gap: 6px; border-bottom: 1px solid var(--k-24322C,#24322C)">
 <template v-for="t in structureEd.tabs" :key="t.kind"><button type="button" role="tab" :aria-selected="t.on" @click="t.pick" :style="`height: 40px; padding: 0 16px; border: 0; border-bottom: 3px solid ${t.on ? '#B8F36B' : 'transparent'}; background: transparent; color: ${t.on ? 'var(--k-E8EFEA,#E8EFEA)' : 'var(--k-9DB0A6,#9DB0A6)'}; font-weight: 600; font-size: 14px; cursor: pointer`">{{ t.label }} <span style="font-size: 12px; opacity: 0.8">{{ t.count }}</span></button></template>

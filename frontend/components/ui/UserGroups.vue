@@ -11,7 +11,7 @@
 <div style="grid-column: 1 / -1; display: flex; align-items: center; gap: 10px"><button type="submit" :disabled="!form.name.trim() || busy" :style="`height: 40px; padding: 0 22px; border-radius: 20px; border: 0; font-weight: 600; cursor: pointer; ${form.name.trim() && !busy ? 'background: #B8F36B; color: #0F1714' : 'background: var(--k-2A3832,#2A3832); color: var(--k-9DB0A6,#9DB0A6)'}`">Create group</button></div>
 </form>
 
-<div v-if="err" role="alert" style="padding: 10px 14px; border-radius: 12px; background: var(--k-3A2420,#3A2420); color: #FFD3CA; font-size: 14px">{{ err }}</div>
+<div v-if="err" role="alert" style="padding: 10px 14px; border-radius: 12px; background: var(--k-3A2420,#3A2420); color: var(--k-FFD3CA,#FFD3CA); font-size: 14px">{{ err }}</div>
 <div v-if="ok" role="status" style="padding: 10px 14px; border-radius: 12px; background: var(--k-1E3326,#1E3326); color: #B8F36B; font-size: 14px">{{ ok }}</div>
 <span v-if="!groups.length" style="font-size: 13px; color: var(--k-9DB0A6,#9DB0A6)">No user groups yet.</span>
 

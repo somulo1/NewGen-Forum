@@ -86,9 +86,17 @@ export function buildOrg(ctx) {
     open: s.escOpen, btnLabel: s.escOpen ? 'Cancel' : 'Forward to another place',
     // the other escalation: report that it missed its TAT to the heads, while it stays here (Hub also does this by itself)
     canReport: !!(cur_t && this.srv && cur_t.step < 3 && cur_t.canEscalate !== false && !cur_t.escalated),
-    report: () => { if (!cur_t) return; ticketsW.act(this, this.srv, cur_t, { do: 'escalate', why: 'Reported from the ticket page' }).then(() => this.notify(cur_t.id + ' was reported to the heads. It stays here.', '#FFB86B')).catch((e) => this.notify(e.message || 'Could not report it.', '#FF9B8A')); }, canEscalate: !!cur_t && cur_t.step < 3 && (!this.srv || cur_t.canEscalate !== false),
+    // reporting needs a comment too: it opens a short box first
+    reportOpen: s.escReport != null, reportWhy: s.escReport || '', onReportWhy: (e) => this.setState({ escReport: typeof e === 'string' ? e : e.target.value }),
+    report: () => this.setState({ escReport: '' }), cancelReport: () => this.setState({ escReport: null }),
+    sendReport: () => {
+      const why = (this.state.escReport || '').trim();
+      if (!cur_t) return;
+      if (!why) { this.notify('Say why you are reporting it.', '#FFB86B'); return; }
+      ticketsW.act(this, this.srv, cur_t, { do: 'escalate', why }).then(() => { this.setState({ escReport: null }); this.notify(cur_t.id + ' was reported to the heads. It stays here.', '#FFB86B'); }).catch((e) => this.notify(e.message || 'Could not report it.', '#FF9B8A'));
+    }, canEscalate: !!cur_t && (!this.srv || cur_t.canEscalate !== false),
     toggle: () => this.setState((st) => ({ escOpen: !st.escOpen, esc: { type: '', id: '', cat: '', person: '', why: '' } })),
-    types: escTypes.map((t) => ({ label: escLabel(t), pick: () => setEsc({ type: t, id: '', cat: '', person: '' }), style: 'height:34px;padding:0 12px;border-radius:17px;cursor:pointer;font-size:13px;' + (t === escType ? 'border:1px solid var(--k-FF9B8A,#FF9B8A);background:var(--k-3A2420,#3A2420);color:#FFD3CA;font-weight:600' : 'border:1px solid var(--k-2A3832,#2A3832);background:var(--k-121B17,#121B17);color:var(--k-C9D6CF,#C9D6CF)') })),
+    types: escTypes.map((t) => ({ label: escLabel(t), pick: () => setEsc({ type: t, id: '', cat: '', person: '' }), style: 'height:34px;padding:0 12px;border-radius:17px;cursor:pointer;font-size:13px;' + (t === escType ? 'border:1px solid var(--k-FF9B8A,#FF9B8A);background:var(--k-3A2420,#3A2420);color:var(--k-FFD3CA,#FFD3CA);font-weight:600' : 'border:1px solid var(--k-2A3832,#2A3832);background:var(--k-121B17,#121B17);color:var(--k-C9D6CF,#C9D6CF)') })),
     typeLabel: escLabel(escType), showRec: escType !== 'desk',
     recs: escRecList.map((r) => ({ id: r.id, name: r.name })), recValue: escRec ? escRec.id : '',
     onRec: (e) => setEsc({ id: e.target.value, cat: '', person: '' }),
@@ -104,6 +112,7 @@ export function buildOrg(ctx) {
       if (!cur_t || !escReady) { this.notify('Pick where to escalate, the category and the person.', '#FFB86B'); return; }
       const dest = escType === 'desk' ? 'the ticket team' : typeName[escType] + ' ' + escRec.name;
       const why = (this.state.esc.why || '').trim();
+      if (!why) { this.notify('Say why you are escalating it.', '#FFB86B'); return; }
       if (this.srv) {
         const ticket = cur_t;
         ticketsW.escalate(this, this.srv, ticket, { type: escType, name: escRec.name, cat: escCat, person: escPerson, why })

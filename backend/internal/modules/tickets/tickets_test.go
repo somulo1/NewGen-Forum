@@ -84,7 +84,7 @@ func TestTicketRoutingHandOverAndEscalation(t *testing.T) {
 	id := conv
 	st := 2
 	e.MustDo(200, "POST", "/tickets/"+id+"/act", map[string]any{"do": "step", "step": st}, it.Access)
-	if code, _ := e.Do("POST", "/tickets/"+id+"/act", map[string]any{"do": "step", "step": 4}, raiser.Access); code != 403 {
+	if code, _ := e.Do("POST", "/tickets/"+id+"/act", map[string]any{"do": "step", "step": 4, "comment": "closing", "rating": 4}, raiser.Access); code != 403 {
 		t.Fatalf("requester closed own ticket: %d", code)
 	}
 	e.MustDo(200, "POST", "/tickets/"+id+"/act", map[string]any{"do": "hold"}, it.Access)
@@ -224,7 +224,7 @@ func TestOwnTicketsAndEscalationScope(t *testing.T) {
 	if c := act(mine, map[string]any{"do": "assign", "handler": staff.Person}); c != 403 {
 		t.Fatalf("the raiser (not a head of the unit) handed it over: %d", c)
 	}
-	if c := act(mine, map[string]any{"do": "step", "step": 4, "rating": 6}); c != 400 {
+	if c := act(mine, map[string]any{"do": "step", "step": 4, "comment": "closing", "rating": 6}); c != 400 {
 		t.Fatalf("six stars: %d", c)
 	}
 	if c := act(mine, map[string]any{"do": "step", "step": 4, "rating": 4, "comment": "Quick, thanks"}); c != 200 {
@@ -236,24 +236,24 @@ func TestOwnTicketsAndEscalationScope(t *testing.T) {
 
 	// a unit ticket: not into the owner's own unit again, but up into their own branch is fine
 	tk := raise(staff, "unit", unit)
-	if c := act(tk, map[string]any{"do": "escalate", "to_type": "unit", "to_ref": unit}); c != 400 {
+	if c := act(tk, map[string]any{"do": "escalate", "why": "needs attention", "to_type": "unit", "to_ref": unit}); c != 400 {
 		t.Fatalf("escalated to where it is: %d", c)
 	}
-	if c := act(tk, map[string]any{"do": "escalate", "to_type": "branch", "to_ref": branch}); c != 200 {
+	if c := act(tk, map[string]any{"do": "escalate", "why": "needs attention", "to_type": "branch", "to_ref": branch}); c != 200 {
 		t.Fatalf("unit into own branch: %d", c)
 	}
 	// now a branch ticket: not into their own branch, but another branch or their sector is fine
-	if c := act(tk, map[string]any{"do": "escalate", "to_type": "branch", "to_ref": branch}); c != 400 {
+	if c := act(tk, map[string]any{"do": "escalate", "why": "needs attention", "to_type": "branch", "to_ref": branch}); c != 400 {
 		t.Fatalf("branch into own branch: %d", c)
 	}
-	if c := act(tk, map[string]any{"do": "escalate", "to_type": "branch", "to_ref": other}); c != 200 {
+	if c := act(tk, map[string]any{"do": "escalate", "why": "needs attention", "to_type": "branch", "to_ref": other}); c != 200 {
 		t.Fatalf("into another branch: %d", c)
 	}
-	if c := act(tk, map[string]any{"do": "escalate", "to_type": "sector", "to_ref": sector}); c != 200 {
+	if c := act(tk, map[string]any{"do": "escalate", "why": "needs attention", "to_type": "sector", "to_ref": sector}); c != 200 {
 		t.Fatalf("up into own sector: %d", c)
 	}
 	sec := raise(staff, "sector", sector)
-	if c := act(sec, map[string]any{"do": "escalate", "to_type": "sector", "to_ref": sector}); c != 400 {
+	if c := act(sec, map[string]any{"do": "escalate", "why": "needs attention", "to_type": "sector", "to_ref": sector}); c != 400 {
 		t.Fatalf("sector into own sector: %d", c)
 	}
 }
@@ -364,7 +364,7 @@ func TestTicketRolesHeadWorkerAndRaiser(t *testing.T) {
 	if a, x := can(rae); a || x {
 		t.Fatalf("raiser should do neither: assign=%v escalate=%v", a, x)
 	}
-	if c := act(rae, map[string]any{"do": "escalate"}); c != 403 {
+	if c := act(rae, map[string]any{"do": "escalate", "why": "needs attention"}); c != 403 {
 		t.Fatalf("the raiser escalated: %d", c)
 	}
 	part := func(period string) map[string]any {
@@ -378,7 +378,7 @@ func TestTicketRolesHeadWorkerAndRaiser(t *testing.T) {
 	if p := part(""); p["received"].(float64) != 0 || p["waiting"].(float64) != 1 {
 		t.Fatalf("before escalating: %v", p)
 	}
-	if c := act(wes, map[string]any{"do": "escalate"}); c != 200 {
+	if c := act(wes, map[string]any{"do": "escalate", "why": "needs attention"}); c != 200 {
 		t.Fatalf("the worker escalated: %d", c)
 	}
 	// raising the alarm without handing it on keeps it here: still this department's, on its own clock, not judged yet

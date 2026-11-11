@@ -11,7 +11,7 @@
 </div>
 <span :style="`font-size: 13px; color: ${color}; line-height: 1.5`">{{ advice }}</span>
 </template>
-<template v-if="err"><div role="alert" style="padding: 10px 14px; border-radius: 12px; background: var(--k-3A2420,#3A2420); color: #FFD3CA; font-size: 13px">{{ err }}</div></template>
+<template v-if="err"><div role="alert" style="padding: 10px 14px; border-radius: 12px; background: var(--k-3A2420,#3A2420); color: var(--k-FFD3CA,#FFD3CA); font-size: 13px">{{ err }}</div></template>
 </section>
 </template>
 

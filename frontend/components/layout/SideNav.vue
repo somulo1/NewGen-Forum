@@ -48,7 +48,7 @@
 </template>
 <template v-if="dmsOpen">
 <div v-if="confirming && confirming.kind === 'private chat'" role="alertdialog" aria-label="Delete" style="margin: 0 4px 8px; padding: 12px; border-radius: 12px; background: var(--k-3A2420,#3A2420); border: 1px solid var(--k-5A3A33,#5A3A33); display: flex; flex-direction: column; gap: 8px">
-<span style="font-size: 13px; line-height: 1.45; color: #FFD3CA">Delete the {{ confirming.kind }} <strong>{{ confirming.name }}</strong>? Its history is erased from your account for good. Other people keep theirs. If someone writes again, it comes back holding only what is written from then on.</span>
+<span style="font-size: 13px; line-height: 1.45; color: var(--k-FFD3CA,#FFD3CA)">Delete the {{ confirming.kind }} <strong>{{ confirming.name }}</strong>? Its history is erased from your account for good. Other people keep theirs. If someone writes again, it comes back holding only what is written from then on.</span>
 <span v-if="confirming.err" role="alert" style="font-size: 12px; color: #FF9B8A">{{ confirming.err }}</span>
 <div style="display: flex; gap: 8px"><button data-keep="1" type="button" :disabled="confirming.busy" @click="doDelete" style="flex: 1; height: 34px; border-radius: 17px; border: 0; background: #FF9B8A; color: #0F1714; font-weight: 600; cursor: pointer">{{ confirming.busy ? 'Deleting…' : 'Delete' }}</button><button data-keep="1" type="button" @click="confirming = null" style="flex: 1; height: 34px; border-radius: 17px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer">Keep</button></div>
 </div>
@@ -83,7 +83,7 @@
 
 <template v-if="forumsOpen">
 <div v-if="confirming && confirming.kind === 'forum'" role="alertdialog" aria-label="Delete" style="margin: 0 4px 8px; padding: 12px; border-radius: 12px; background: var(--k-3A2420,#3A2420); border: 1px solid var(--k-5A3A33,#5A3A33); display: flex; flex-direction: column; gap: 8px">
-<span style="font-size: 13px; line-height: 1.45; color: #FFD3CA">Delete the {{ confirming.kind }} <strong>{{ confirming.name }}</strong>? Its history is erased from your account for good. Other people keep theirs. If someone writes again, it comes back holding only what is written from then on.</span>
+<span style="font-size: 13px; line-height: 1.45; color: var(--k-FFD3CA,#FFD3CA)">Delete the {{ confirming.kind }} <strong>{{ confirming.name }}</strong>? Its history is erased from your account for good. Other people keep theirs. If someone writes again, it comes back holding only what is written from then on.</span>
 <span v-if="confirming.err" role="alert" style="font-size: 12px; color: #FF9B8A">{{ confirming.err }}</span>
 <div style="display: flex; gap: 8px"><button data-keep="1" type="button" :disabled="confirming.busy" @click="doDelete" style="flex: 1; height: 34px; border-radius: 17px; border: 0; background: #FF9B8A; color: #0F1714; font-weight: 600; cursor: pointer">{{ confirming.busy ? 'Deleting…' : 'Delete' }}</button><button data-keep="1" type="button" @click="confirming = null" style="flex: 1; height: 34px; border-radius: 17px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer">Keep</button></div>
 </div>

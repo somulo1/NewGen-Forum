@@ -804,8 +804,9 @@ func (s *Service) Act(ctx context.Context, p *tenant.Principal, id uuid.UUID, a 
 			return httpx.Err(403, "not_head", "Only the head of the department this ticket is with, or someone whose role may assign tickets, can "+what+" it.")
 		}
 		// a closed ticket is final: nothing changes it any more (it can only be reopened while resolved and not yet closed)
-		if cur.Step >= 4 {
-			return httpx.Err(409, "ticket_closed", "This ticket is closed. It cannot be reopened or changed.")
+		// a closed ticket is final where it is; it can still be forwarded to another place, which opens it there on its own clock
+		if cur.Step >= 4 && !(a.Do == "escalate" && a.ToType != "") {
+			return httpx.Err(409, "ticket_closed", "This ticket is closed. It cannot be reopened or changed here; forward it to another place instead.")
 		}
 		set, text := "", ""
 		// what happens to the stays once the ticket row is updated (see hops.go)
@@ -884,9 +885,15 @@ func (s *Service) Act(ctx context.Context, p *tenant.Principal, id uuid.UUID, a 
 				if err := s.addComment(ctx, tx, p.Org, id, &p.Person, "Resolved: "+note); err != nil {
 					return err
 				}
-			case 4: // closing: optional stars and remark
+			case 4: // closing: optional stars, and a comment like every action
 				if a.Rating < 0 || a.Rating > 5 {
 					return httpx.Bad("Rate it from 1 to 5 stars.")
+				}
+				if a.Rating == 0 {
+					return httpx.Bad("Rate it from 1 to 5 stars: every closure is rated.")
+				}
+				if note == "" {
+					return httpx.Bad("Write a comment on closing it.")
 				}
 				args = append(args, a.Rating)
 				set += fmt.Sprintf(", closed_at=now(), rating=nullif($%d::int, 0)::smallint, auto_closed=false", len(args))
@@ -939,12 +946,18 @@ func (s *Service) Act(ctx context.Context, p *tenant.Principal, id uuid.UUID, a 
 			if !isHandler && !mayAssign {
 				return httpx.Err(403, "not_head", "Only the person working on this ticket or the head of the department it is with can escalate it.")
 			}
+			if cur.Step >= 3 && a.ToType == "" {
+				return httpx.Bad("It is already resolved. Forward it to another place if it needs more work.")
+			}
 			if cur.Escalated && a.ToType == "" {
 				return httpx.Err(409, "already_escalated", "This ticket was already escalated.")
 			}
 			a.Why = strings.TrimSpace(a.Why)
 			if len(a.Why) > 300 {
 				return httpx.Bad("Keep the reason under 300 characters.")
+			}
+			if a.Why == "" {
+				return httpx.Bad("Say why you are escalating it.")
 			}
 			set, text = "escalated=true", "Escalated to "+cfg.Escalate
 			if a.ToType == "" && a.Person == nil && a.Category == "" {
@@ -1036,6 +1049,13 @@ func (s *Service) Act(ctx context.Context, p *tenant.Principal, id uuid.UUID, a 
 				if a.ToType != "" {
 					hopOp = "move"
 					hopTo.typ, hopTo.ref, hopTo.cat, hopTo.tat = tt, tr, cat.Name, cat.TAT
+					// it arrives open at the new place, even if it was resolved or closed where it was
+					set += ", solved_at=null, closed_at=null, rating=null, auto_closed=false"
+					if a.Person == nil {
+						set += ", handler=null, handler_since=null, step=0"
+					} else {
+						set += ", step=1"
+					}
 				}
 			}
 			if a.Person != nil {
@@ -1047,7 +1067,11 @@ func (s *Service) Act(ctx context.Context, p *tenant.Principal, id uuid.UUID, a 
 					return httpx.Bad("That person cannot take this ticket: they are not part of its conversation. Add them first.")
 				}
 				args = append(args, *a.Person)
-				set += fmt.Sprintf(", handler=$%d, handler_since=now(), step=greatest(step,1)", len(args))
+				if hopOp == "move" {
+					set += fmt.Sprintf(", handler=$%d, handler_since=now()", len(args)) // its step is set with the move
+				} else {
+					set += fmt.Sprintf(", handler=$%d, handler_since=now(), step=greatest(step,1)", len(args))
+				}
 				dest += " (" + name + ")"
 				if _, err := tx.Exec(ctx, `insert into hub.ticket_assignees (org_id, ticket_id, person_id) values ($1,$2,$3) on conflict do nothing`, p.Org, id, *a.Person); err != nil {
 					return err
@@ -1093,6 +1117,14 @@ func (s *Service) Act(ctx context.Context, p *tenant.Principal, id uuid.UUID, a 
 			}
 			if err := s.openHop(ctx, tx, p.Org, id, hopTo.typ, hopTo.ref, hopTo.cat, hopTo.tat, hopAt); err != nil {
 				return err
+			}
+			if a.Person == nil {
+				// nobody named: whoever the new place's category (or its heads) names takes it, if they are on it
+				if now, err := scanTicket(tx.QueryRow(ctx, ticketSelect+` where t.conversation_id=$1`, id)); err == nil {
+					if _, err := s.autoAssign(ctx, tx, &nb, p.Org, now); err != nil {
+						return err
+					}
+				}
 			}
 		case "resolve":
 			if err := s.closeHop(ctx, tx, p.Org, cur, "resolved", hopAt); err != nil {
