@@ -260,7 +260,7 @@ export function buildAdminTables(ctx) {
     recOptions: ntRecs.map((r) => r.name), recLabel: ntType === 'desk' ? '' : LEVEL_LABEL[ntType],
     onRec: (e) => { const v = e.target.value; this.setState((x) => ({ nt: { ...x.nt, toType: ntType, toName: v, cat: '' } })); },
     showCats: ntKind === 'ticket', requestNote: ntKind !== 'ticket' ? ntName + ' deals with ' + (ntKind === 'request' ? 'business requests' : 'communications') + ' within ' + reqTat + ' hours.' : '',
-    catOptions: ntCatList.map((c) => ({ value: c.name, label: c.name + ' · resolved within ' + c.tat + 'h' })), cat: ntCatSel ? ntCatSel.name : '',
+    catOptions: ntCatList.map((c) => ({ value: c.name, label: c.name })), cat: ntCatSel ? ntCatSel.name : '',
     onCat: (e) => { const v = e.target.value; this.setState((x) => ({ nt: { ...x.nt, cat: v } })); },
     catNote: ntType === 'desk' ? '' : ownCats ? 'The categories ' + ntName + ' handles.' : ntName + ' has not set its own categories yet, so the general ones are shown.',
     priority: ntPriority, priorityColor: ntPriority === 'High' ? '#FF9B8A' : ntPriority === 'Medium' ? '#FFB86B' : '#9DB0A6',
