@@ -178,9 +178,9 @@ export default {
 </script>
 
 <style>
-/* phones: the views move behind the vertical ⋮ so the name and the icon buttons keep their room */
+/* phones and tablets (the sizes where a chat opens as a page, as in the side panel): the views move behind the vertical ⋮ so the name and the icon buttons keep their room */
 .hub-seg-more { display: none !important; }
-@media (max-width: 700px) {
+@media (max-width: 900px) {
   .hub-chat-bar .hub-seg { display: none !important; }
   .hub-chat-bar .hub-seg-more { display: block !important; }
   .hub-chat-bar .hub-sep { display: none !important; }
