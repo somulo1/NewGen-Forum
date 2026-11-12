@@ -1,6 +1,8 @@
 <!-- Forum, full screen or fitted to the page (beside the sidebar) -->
 <template><template v-if="shown">
 <section :aria-label="fit === 'page' ? 'Forum fit to page' : 'Forum full screen'" :class="fit === 'page' ? 'hub-fitpage' : 'hub-screen'" :style="rootStyle">
+<ChatRail kind="forum" />
+<div style="position: relative; flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden">
 <CallScreen variant="full" :fit="fit" />
 <template v-if="!showPanelCall">
 <div style="width: 100%; flex: 1; min-height: 0; box-sizing: border-box; display: flex; flex-direction: column">
@@ -145,6 +147,7 @@
 </template>
 </div>
 </template>
+</div>
 </section>
 </template>
 </template>
@@ -152,18 +155,19 @@
 <script>
 import { hubBindings } from '~/composables/useHub';
 import CallScreen from '../overlays/CallScreen.vue';
+import ChatRail from './ChatRail.vue';
 import ChatSharedFiles from './ChatSharedFiles.vue';
 import SecureInboxCard from './SecureInboxCard.vue';
 
 export default {
   name: 'ForumFull',
-  components: { CallScreen, ChatSharedFiles, SecureInboxCard },
+  components: { CallScreen, ChatRail, ChatSharedFiles, SecureInboxCard },
   props: { fit: { type: String, default: 'screen' } },
   computed: {
     ...hubBindings(["canVoiceCall","canVideoCall","chatLoading","olderCount","moreOlder","showOlder","mentionList","onActivityClick","canAddToForum","addErr","addOpen","addBusy","toggleAdd","addPersonToForum","pickerPeople","forumMemberIds","pickEmojiForum","attachForum","chatRef","replyBar","chatCtl","closeChatFolder","composerNote","composerOff","cur","fKey","fdraft","fileFolders","ftab","has","inviteOpen","inviteText","inviteErr","inviteBusy","onInviteText","sendInvites","isFullForum","isPageForum","onFDraftValue","openChatFolder","pollView","selectedChatFolder","sendForum","showPanelCall","tab","tabTo","toClosed","toDocked","toFull","toMin","toPage","toggleInvite","videoCall","voiceCall"]).computed,
     shown() { return this.fit === 'page' ? !!this.isPageForum : !!this.isFullForum; },
     rootStyle() {
-      const base = 'background: var(--k-0F1714,#0F1714); display: flex; flex-direction: column; overflow: hidden; box-sizing: border-box;';
+      const base = 'background: var(--k-0F1714,#0F1714); display: flex; flex-direction: row; overflow: hidden; box-sizing: border-box;';
       return this.fit === 'page'
         ? base + ' position: absolute; inset: 24px 12px 12px 12px; z-index: 30; border-radius: 22px; border: 2px solid var(--k-6B7A72,#6B7A72); box-shadow: none'
         : base + ' position: fixed; inset: 0; z-index: 40';

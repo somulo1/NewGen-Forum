@@ -1,6 +1,8 @@
 <!-- Private chat, full screen or fitted to the page (beside the sidebar) -->
 <template><template v-if="shown">
 <section :aria-label="fit === 'page' ? 'Private chat fit to page' : 'Private chat full screen'" :class="fit === 'page' ? 'hub-fitpage' : 'hub-screen'" :style="rootStyle">
+<ChatRail kind="dm" />
+<div style="position: relative; flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden">
 <CallScreen variant="full" :fit="fit" />
 <template v-if="!showPanelCall">
 <div style="position: relative; flex: none; border-bottom: 1px solid var(--k-24322C,#24322C); background: var(--k-0F1714,#0F1714)">
@@ -62,6 +64,7 @@
 </div>
 </div>
 </template>
+</div>
 </section>
 </template>
 </template>
@@ -69,18 +72,19 @@
 <script>
 import { hubBindings } from '~/composables/useHub';
 import CallScreen from '../overlays/CallScreen.vue';
+import ChatRail from './ChatRail.vue';
 import ChatSharedFiles from './ChatSharedFiles.vue';
 import SecureInboxCard from './SecureInboxCard.vue';
 
 export default {
   name: 'PrivateChatFull',
-  components: { CallScreen, ChatSharedFiles, SecureInboxCard },
+  components: { CallScreen, ChatRail, ChatSharedFiles, SecureInboxCard },
   props: { fit: { type: String, default: 'screen' } },
   computed: {
     ...hubBindings(["canVoiceCall","canVideoCall","olderCount","moreOlder","showOlder","pickEmojiForum","attachForum","closeChatFolder","composerNote","composerOff","cur","dmPriv","fKey","fdraft","fileFolders","isFullDm","isPanelCalls","isPanelChat","isPanelFiles","goPanelChat","goPanelCalls","goPanelFiles","openChatFolder","replyBar","selectedChatFolder","isPageDm","onFDraftValue","sendForum","showPanelCall","toClosed","toDocked","toFull","toMin","toPage","videoCall","voiceCall"]).computed,
     shown() { return this.fit === 'page' ? !!this.isPageDm : !!this.isFullDm; },
     rootStyle() {
-      const base = 'background: var(--k-0F1714,#0F1714); display: flex; flex-direction: column; overflow: hidden; box-sizing: border-box;';
+      const base = 'background: var(--k-0F1714,#0F1714); display: flex; flex-direction: row; overflow: hidden; box-sizing: border-box;';
       return this.fit === 'page'
         ? base + ' position: absolute; inset: 24px 12px 12px 12px; z-index: 30; border-radius: 22px; border: 2px solid var(--k-6B7A72,#6B7A72); box-shadow: none'
         : base + ' position: fixed; inset: 0; z-index: 40';

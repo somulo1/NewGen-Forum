@@ -22,22 +22,9 @@
 <template v-if="has.secureshare"><button @click="go.share" :style="nav.share"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="8" cy="15" r="4"></circle><path d="M11 12l9-9M17 6l3 3"></path></svg>Secure share</button></template>
 <button @click="go.people" :style="nav.people"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"></circle><path d="M2 20c0-3.5 3-6 7-6s7 2.5 7 6M16 4.5a3.5 3.5 0 0 1 0 7M18 14c2.5.6 4 2.8 4 6"></path></svg>People</button>
 <button @click="go.approvals" :style="nav.approvals"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"></path><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"></path></svg><span style="flex: 1">Approvals</span><template v-if="hasPendingApprovals"><span style="min-width: 20px; height: 20px; padding: 0 6px; box-sizing: border-box; border-radius: 10px; background: #FFB86B; color: #0F1714; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center">{{ pendingApprovals }}</span></template></button>
-<template v-if="canSeeAdmin">
-<span style="margin: 14px 12px 4px; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--k-9DB0A6,#9DB0A6)">Admin</span>
-</template>
-<template v-if="canSecurity"><button @click="go.security" :style="nav.security"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"></path><path d="M9 12l2 2 4-4"></path></svg><span style="flex: 1">Security &amp; logs</span><template v-if="hasOpenAlerts"><span style="min-width: 20px; height: 20px; padding: 0 6px; box-sizing: border-box; border-radius: 10px; background: #FF9B8A; color: #0F1714; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center">{{ openAlertCount }}</span></template></button></template>
-<template v-if="canRoles"><button @click="go.roles" :style="nav.roles"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></svg>Roles &amp; rights</button></template>
-
-<template v-if="nav.canOrgStructure || canSettings">
-<button data-keep="1" @click="toggleOrg" :aria-expanded="orgOpen" style="margin: 16px 4px 4px 2px; display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: var(--k-9DB0A6,#9DB0A6); cursor: pointer; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" :style="orgChevron"><path d="M6 9l6 6 6-6"></path></svg>Organization</button>
-<template v-if="orgOpen">
-<template v-if="nav.canOrgStructure"><button @click="go.orgedit" :style="nav.orgedit"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="9" y="3" width="6" height="5" rx="1"></rect><rect x="3" y="16" width="6" height="5" rx="1"></rect><rect x="15" y="16" width="6" height="5" rx="1"></rect><path d="M12 8v4M6 16v-4h12v4"></path></svg>Organization structure</button></template>
-<template v-if="canSettings"><button @click="go.settings" :style="nav.settings"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path></svg>Settings</button></template>
-</template>
-</template>
 <template v-if="has.chat">
 <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px; margin: 16px 4px 6px 2px">
-<button data-keep="1" @click="toggleDms" :aria-expanded="dmsOpen" style="flex: 1; display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: var(--k-9DB0A6,#9DB0A6); cursor: pointer; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" :style="dmsChevron"><path d="M6 9l6 6 6-6"></path></svg>Messages<span style="margin-left: auto; padding: 1px 7px; border-radius: 9px; background: var(--k-22302A,#22302A); color: var(--k-C9D6CF,#C9D6CF); font-size: 11px; letter-spacing: 0">{{ dmUnreadLabel }}</span></button>
+<button data-keep="1" @click="openDms" title="Open private chats in the side panel" style="flex: 1; display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: var(--k-9DB0A6,#9DB0A6); cursor: pointer; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"></path></svg>Messages<span style="margin-left: auto; padding: 1px 7px; border-radius: 9px; background: var(--k-22302A,#22302A); color: var(--k-C9D6CF,#C9D6CF); font-size: 11px; letter-spacing: 0">{{ dmUnreadLabel }}</span></button>
 <button aria-label="New private message" data-keep="1" @click="toggleNewDm" style="width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg></button>
 </div>
 <template v-if="newDmOpen">
@@ -46,26 +33,10 @@
 <template v-for="(dmm, dmm__i) in dmMatches" :key="dmm__i"><button @click="dmm.open" style="display: flex; align-items: center; gap: 8px; min-height: 38px; padding: 0 6px; border: 0; border-radius: 8px; background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; text-align: left"><UserAvatar :name="dmm.name" :initials="dmm.initials" :color="dmm.color" :size="26" :font-size="10"/><span style="flex: 1; min-width: 0; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ dmm.name }}</span></button></template>
 </div>
 </template>
-<template v-if="dmsOpen">
-<div v-if="confirming && confirming.kind === 'private chat'" role="alertdialog" aria-label="Delete" style="margin: 0 4px 8px; padding: 12px; border-radius: 12px; background: var(--k-3A2420,#3A2420); border: 1px solid var(--k-5A3A33,#5A3A33); display: flex; flex-direction: column; gap: 8px">
-<span style="font-size: 13px; line-height: 1.45; color: var(--k-FFD3CA,#FFD3CA)">Delete the {{ confirming.kind }} <strong>{{ confirming.name }}</strong>? Its history is erased from your account for good. Other people keep theirs. If someone writes again, it comes back holding only what is written from then on.</span>
-<span v-if="confirming.err" role="alert" style="font-size: 12px; color: #FF9B8A">{{ confirming.err }}</span>
-<div style="display: flex; gap: 8px"><button data-keep="1" type="button" :disabled="confirming.busy" @click="doDelete" style="flex: 1; height: 34px; border-radius: 17px; border: 0; background: #FF9B8A; color: #0F1714; font-weight: 600; cursor: pointer">{{ confirming.busy ? 'Deleting…' : 'Delete' }}</button><button data-keep="1" type="button" @click="confirming = null" style="flex: 1; height: 34px; border-radius: 17px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer">Keep</button></div>
-</div>
-<div class="nav-scroll" :style="listStyle(dmList.length, 54)">
-<template v-for="(dl, dl__i) in dmList" :key="dl.key || dl__i">
-<button class="nav-row" type="button" title="Press and hold to delete" @click="rowClick($event, dl)" @pointerdown="pressStart(dl)" @pointerup="pressEnd" @pointerleave="pressEnd" @pointercancel="pressEnd" @contextmenu.prevent="ask(dl)" @keydown.delete="ask(dl)" :style="dl.style">
-<span style="position: relative; width: 32px; height: 32px; flex: none"><UserAvatar :name="dl.name" :initials="dl.initials" :color="dl.color" :size="32" :font-size="11"/><span :style="`position: absolute; right: -1px; bottom: -1px; width: 10px; height: 10px; border-radius: 50%; background: ${dl.dot}; border: 2px solid var(--k-121B17,#121B17)`"></span></span>
-<span style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ dl.name }}</span><span :style="`font-size: 11px; color: ${dl.typing ? '#7CC4FF' : 'var(--k-9DB0A6,#9DB0A6)'}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; ${dl.typing ? 'font-style: italic' : ''}`">{{ dl.last }}</span></span>
-<template v-if="dl.hasUnread"><span style="min-width: 20px; height: 20px; padding: 0 6px; box-sizing: border-box; border-radius: 10px; background: #C9B6FF; color: #0F1714; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center">{{ dl.unread }}</span></template>
-</button>
-</template>
-</div>
-</template>
 </template>
 
 <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px; margin: 16px 4px 6px 2px">
-<button data-keep="1" @click="toggleForums" :aria-expanded="forumsOpen" style="flex: 1; display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: var(--k-9DB0A6,#9DB0A6); cursor: pointer; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" :style="forumsChevron"><path d="M6 9l6 6 6-6"></path></svg>Forums<span style="margin-left: auto; padding: 1px 7px; border-radius: 9px; background: var(--k-22302A,#22302A); color: var(--k-C9D6CF,#C9D6CF); font-size: 11px; letter-spacing: 0">{{ forumCount }}</span></button>
+<button data-keep="1" @click="openForums" title="Open forums in the side panel" style="flex: 1; display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: var(--k-9DB0A6,#9DB0A6); cursor: pointer; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"></circle><path d="M2 20c0-3.5 3-6 7-6s7 2.5 7 6M16 4a3.5 3.5 0 0 1 0 7M18 14c2.5.6 4 2.8 4 6"></path></svg>Forums<span style="margin-left: auto; padding: 1px 7px; border-radius: 9px; background: var(--k-22302A,#22302A); color: var(--k-C9D6CF,#C9D6CF); font-size: 11px; letter-spacing: 0">{{ forumBadge }}</span></button>
 <button aria-label="Create a forum" data-keep="1" @click="toggleCreate" style="width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg></button>
 </div>
 
@@ -81,21 +52,18 @@
 </div>
 </template>
 
-<template v-if="forumsOpen">
-<div v-if="confirming && confirming.kind === 'forum'" role="alertdialog" aria-label="Delete" style="margin: 0 4px 8px; padding: 12px; border-radius: 12px; background: var(--k-3A2420,#3A2420); border: 1px solid var(--k-5A3A33,#5A3A33); display: flex; flex-direction: column; gap: 8px">
-<span style="font-size: 13px; line-height: 1.45; color: var(--k-FFD3CA,#FFD3CA)">Delete the {{ confirming.kind }} <strong>{{ confirming.name }}</strong>? Its history is erased from your account for good. Other people keep theirs. If someone writes again, it comes back holding only what is written from then on.</span>
-<span v-if="confirming.err" role="alert" style="font-size: 12px; color: #FF9B8A">{{ confirming.err }}</span>
-<div style="display: flex; gap: 8px"><button data-keep="1" type="button" :disabled="confirming.busy" @click="doDelete" style="flex: 1; height: 34px; border-radius: 17px; border: 0; background: #FF9B8A; color: #0F1714; font-weight: 600; cursor: pointer">{{ confirming.busy ? 'Deleting…' : 'Delete' }}</button><button data-keep="1" type="button" @click="confirming = null" style="flex: 1; height: 34px; border-radius: 17px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer">Keep</button></div>
-</div>
-<div class="nav-scroll" :style="listStyle(forums.length, 48)">
-<template v-for="(f, f__i) in forums" :key="f.key || f__i">
-<button class="nav-row" type="button" title="Press and hold to delete" @click="rowClick($event, f)" @pointerdown="pressStart(f)" @pointerup="pressEnd" @pointerleave="pressEnd" @pointercancel="pressEnd" @contextmenu.prevent="ask(f)" @keydown.delete="ask(f)" :style="f.rowStyle">
-<span :style="`width: 30px; height: 30px; flex: none; border-radius: 9px; background: ${f.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 12px`">{{ f.initials }}</span>
-<span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ f.name }}</span>
-<template v-if="f.hasUnread"><span style="min-width: 20px; height: 20px; padding: 0 6px; box-sizing: border-box; border-radius: 10px; background: #B8F36B; color: #0F1714; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center">{{ f.unread }}</span></template>
-</button>
+<template v-if="canSeeAdmin">
+<span style="margin: 14px 12px 4px; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--k-9DB0A6,#9DB0A6)">Admin</span>
 </template>
-</div>
+<template v-if="canSecurity"><button @click="go.security" :style="nav.security"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"></path><path d="M9 12l2 2 4-4"></path></svg><span style="flex: 1">Security &amp; logs</span><template v-if="hasOpenAlerts"><span style="min-width: 20px; height: 20px; padding: 0 6px; box-sizing: border-box; border-radius: 10px; background: #FF9B8A; color: #0F1714; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center">{{ openAlertCount }}</span></template></button></template>
+<template v-if="canRoles"><button @click="go.roles" :style="nav.roles"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></svg>Roles &amp; rights</button></template>
+
+<template v-if="nav.canOrgStructure || canSettings">
+<button data-keep="1" @click="toggleOrg" :aria-expanded="orgOpen" style="margin: 16px 4px 4px 2px; display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: var(--k-9DB0A6,#9DB0A6); cursor: pointer; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" :style="orgChevron"><path d="M6 9l6 6 6-6"></path></svg>Organization</button>
+<template v-if="orgOpen">
+<template v-if="nav.canOrgStructure"><button @click="go.orgedit" :style="nav.orgedit"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="9" y="3" width="6" height="5" rx="1"></rect><rect x="3" y="16" width="6" height="5" rx="1"></rect><rect x="15" y="16" width="6" height="5" rx="1"></rect><path d="M12 8v4M6 16v-4h12v4"></path></svg>Organization structure</button></template>
+<template v-if="canSettings"><button @click="go.settings" :style="nav.settings"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path></svg>Settings</button></template>
+</template>
 </template>
 
 </template>
@@ -121,6 +89,11 @@ export default {
   name: 'SideNav',
   data() { return { confirming: null, timer: 0, held: false }; },
   methods: {
+    // Messages and Forums open the module in the side panel (the first chat with something new, or the latest);
+    // the other chats are switched from the panel's icons, or from the list when the chat is fitted to the page
+    dock() { if (typeof window !== 'undefined' && window.innerWidth > 900) this.toDocked(); },
+    openDms() { const l = this.dmList || []; if (!l.length) { this.toggleNewDm(); return; } (l.find((d) => d.hasUnread) || l[0]).open(); this.dock(); },
+    openForums() { const l = (this.forums || []).filter((f) => !f.notMember); if (!l.length) { this.toggleCreate(); return; } (l.find((f) => f.hasUnread) || l[0]).open(); this.dock(); },
     signOut() { useAuth().signOut(); },
     // more than five chats or forums: the list scrolls inside the sidebar instead of pushing everything under the profile bar
     listStyle(n, row) { return n > 5 ? `max-height: ${row * 5}px; overflow-y: auto; overscroll-behavior: contain; padding-right: 2px` : ''; },
@@ -135,7 +108,9 @@ export default {
       try { await c.remove(); this.confirming = null; } catch (e) { c.busy = false; c.err = (e && e.message) || 'Could not delete it.'; }
     }
   },
-  ...hubBindings(["pickerPeople","forumPicked","pickForumMember","unpickForumMember","canSettings","navSearch","canRoles","canSecurity","canSeeAdmin","createOpen","forumForm","onForumName","onForumMembers","createForumNow","dmList","dmMatches","dmUnreadLabel","dmq","dmsChevron","dmsOpen","forumCount","forums","forumsChevron","forumsOpen","go","has","hasOpenAlerts","hasPendingApprovals","me","myUnits","nav","navClass","navClick","newDmOpen","onDmq","openAlertCount","orgChevron","orgOpen","pendingApprovals","ticketDeskOk","toggleCreate","toggleDms","toggleForums","toggleNewDm","toggleOrg"])
+  computed: { ...hubBindings(["toDocked","pickerPeople","forumPicked","pickForumMember","unpickForumMember","canSettings","navSearch","canRoles","canSecurity","canSeeAdmin","createOpen","forumForm","onForumName","onForumMembers","createForumNow","dmList","dmMatches","dmUnreadLabel","dmq","dmsChevron","dmsOpen","forumCount","forums","forumsChevron","forumsOpen","go","has","hasOpenAlerts","hasPendingApprovals","me","myUnits","nav","navClass","navClick","newDmOpen","onDmq","openAlertCount","orgChevron","orgOpen","pendingApprovals","ticketDeskOk","toggleCreate","toggleDms","toggleForums","toggleNewDm","toggleOrg"]).computed,
+    forumBadge() { const n = (this.forums || []).reduce((a, f) => a + (f.unread || 0), 0); return n ? n + ' new' : String((this.forums || []).length); }
+  }
 };
 </script>
 
