@@ -61,12 +61,13 @@ label:not([style*="height"]):not(:has(> svg)) > select,label:not([style*="height
 }
 /* Phones: the messages get the height. Name and actions share one row; the formatting buttons show only while typing. */
 @media (max-width: 900px){
-.hub-chat-bar{flex-wrap:nowrap !important;gap:6px !important;padding:5px 44px 5px 12px !important}
-.hub-chat-bar > div:not(:last-child){flex:1 1 0 !important}
+.hub-chat-bar{flex-wrap:nowrap !important;gap:6px !important;padding:5px 12px !important}
+.hub-chat-bar > div:not(:last-child):not(.hub-seg-more):not(.hub-seg){flex:1 1 0 !important}
 .hub-chat-bar > div > strong,.hub-chat-bar > div > h1{display:block;font-size:15px !important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hub-chat-bar > div > span{font-size:11px !important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hub-chat-bar > div:last-child{flex-wrap:nowrap !important;flex:none;gap:4px !important}
-.hub-chat-bar button{width:32px !important;height:32px !important}
+.hub-chat-bar > button,.hub-seg-more > button,.hub-chat-bar > div:last-child > button{width:32px !important;height:32px !important}
+.hub-seg-more [role=menu] button{width:100% !important;height:auto !important;min-height:40px !important;white-space:nowrap}
 .hub-chat-close{top:5px !important;right:8px !important;width:32px !important;height:32px !important}
 .hub-chat-tabs > button{min-height:32px !important}
 .hub-chat-composer{padding:6px 10px !important;gap:4px !important}
