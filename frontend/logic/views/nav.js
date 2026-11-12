@@ -6,11 +6,11 @@ export function buildNav(ctx) {
   const navBase ='display:flex;align-items:center;gap:12px;width:100%;min-height:44px;padding:0 12px;border:0;border-radius:10px;cursor:pointer;text-align:left;font-size:14px;';
   const sections = ['home', 'profile', 'feed', 'meetings', 'projects', 'approvals', 'security', 'roles', 'calendar', 'comms', 'structure', 'orgunit', 'tickets', 'files', 'share', 'people', 'orgedit', 'widgets', 'ticketdesk', 'settings', 'notes', 'pbx'];
   const nav = {}, go = {}, show = {};
-  const secNeeds = { meetings: 'sessions', projects: 'projects', calendar: 'calendar', comms: 'comms', structure: 'structure', orgunit: 'structure', tickets: 'tickets', files: 'files', notes: 'notes', share: 'secureshare' };
+  const secNeeds = { meetings: 'sessions', projects: 'projects', calendar: 'calendar', comms: 'comms', structure: 'structure', orgunit: 'structure', tickets: 'tickets', files: 'files', notes: 'notes', share: 'secureshare', pbx: 'pbx' };
   const ticketDeskOk = !!has.tickets && !has.structure && (can('tickets', 'Solve') || can('tickets', 'Assign & hand over'));
-  // Calls management (the customer phone system) is for named people only: those given its right, and administrators who manage roles.
-  // It is a front end for now: the right is checked here only, so the server must enforce it once the phone system is connected.
-  const pbxOk = can('pbx', 'Use calls management') || can('roles', 'View roles');
+  // Calls management (the customer phone system) is a widget: it exists once the organization switches it on in Widgets, and only for
+  // the people its "Who can see it" setting names. It is a front end for now, so the server must enforce this once the PBX is connected.
+  const pbxOk = !!has.pbx;
   const secOk = (k) => (k === 'pbx' ? pbxOk : k === 'ticketdesk' ? ticketDeskOk : k === 'orgedit' ? !!this.srv && can('settings', 'Edit organization profile') : k === 'widgets' ? can('home', 'Open widgets page') : k === 'security' ? (can('security', 'View alerts') || can('security', 'View logs')) : k === 'roles' ? can('roles', 'View roles') : k === 'settings' ? can('settings', 'View settings') : !secNeeds[k] || !!has[secNeeds[k]]);
   const pending = !!this._accessPending;   // rights are still arriving: do not call a page "no access" yet
   const curSec = pending || secOk(s.section) ? s.section : 'home';

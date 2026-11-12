@@ -170,6 +170,11 @@
 <button @click="w.nominate" style="height: 38px; border-radius: 10px; border: 1px solid var(--k-4A4426,#4A4426); background: transparent; color: var(--k-FFD66B,#FFD66B); font-weight: 600; cursor: pointer">{{ w.nominateLabel }}</button>
 </template>
 
+<template v-if="w.t.pbx">
+<span style="font-size: 13px; line-height: 1.45; color: var(--k-C9D6CF,#C9D6CF)">Call customers, answer queue calls, send them messages and follow your queues.</span>
+<button @click="w.goPbx" style="height: 40px; border-radius: 10px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">Open Calls management</button>
+</template>
+
 <template v-if="w.t.secureshare">
 <span style="font-size: 13px; line-height: 1.45; color: var(--k-C9D6CF,#C9D6CF)">Send a password-protected one-time secret to a colleague or copy a share link.</span>
 <button @click="w.makeShare" style="height: 40px; border-radius: 10px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">Open Secure Share</button>

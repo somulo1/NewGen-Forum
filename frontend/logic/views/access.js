@@ -18,7 +18,7 @@ export function buildAccess(ctx) {
   // Which features (and so which sidebar items and pages) exist for this person: the ones the organization switched on for them. It is
   // the organization's choice, not each person's own list: the person's own list only decides what is drawn on their Home. Without the
   // server (the built-in samples) the person's own list decides, as before.
-  const FEATURES = ['tickets', 'projects', 'files', 'secureshare', 'sessions', 'awards', 'notes', 'chat', 'calendar', 'memos', 'newsletter', 'announcements', 'jobposts', 'performance', 'departments', 'sectors', 'branches', 'units'];
+  const FEATURES = ['pbx', 'tickets', 'projects', 'files', 'secureshare', 'sessions', 'awards', 'notes', 'chat', 'calendar', 'memos', 'newsletter', 'announcements', 'jobposts', 'performance', 'departments', 'sectors', 'branches', 'units'];
   const gate = widgetGate(this, s, () => false);
   const W = this.srv ? FEATURES.filter((id) => gate.allows(id)) : s.widgets;
   // A structure level exists when the organization has created at least one of it (People > Organization structure).
@@ -35,8 +35,8 @@ export function buildAccess(ctx) {
   has.jobposts = W.indexOf('jobposts') !== -1 || has.memos || has.newsletter || has.announcements;   // job posts come with communications
   has.structure = has.departments || has.sectors || has.branches || has.units;
   has.comms = has.memos || has.newsletter || has.announcements || has.jobposts;
-  ['tickets', 'projects', 'files', 'secureshare', 'sessions', 'awards', 'notes'].forEach((k) => { has[k] = W.indexOf(k) !== -1; });
-  const optionalMods = ['calendar', 'memos', 'newsletter', 'announcements', 'jobposts', 'departments', 'sectors', 'branches', 'units', 'performance', 'tickets', 'projects', 'files', 'secureshare', 'sessions', 'awards', 'chat'];
+  ['tickets', 'projects', 'files', 'secureshare', 'sessions', 'awards', 'notes', 'pbx'].forEach((k) => { has[k] = W.indexOf(k) !== -1; });
+  const optionalMods = ['pbx', 'calendar', 'memos', 'newsletter', 'announcements', 'jobposts', 'departments', 'sectors', 'branches', 'units', 'performance', 'tickets', 'projects', 'files', 'secureshare', 'sessions', 'awards', 'chat'];
   // Rights can only be given for what the organization has switched on. A page that is not a widget (wall, forums, people, roles,
   // security, settings, the home page and its widget settings) always has its rights, so the first administrator can start giving
   // them. A widget counts when the ORGANIZATION switched it on, whoever can see it; structure levels count once the organization
