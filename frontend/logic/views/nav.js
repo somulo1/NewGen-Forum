@@ -4,14 +4,17 @@ import { needsOf } from '../server/lazy.js';
 export function buildNav(ctx) {
   const { can, has, s, set } = ctx;
   const navBase ='display:flex;align-items:center;gap:12px;width:100%;min-height:44px;padding:0 12px;border:0;border-radius:10px;cursor:pointer;text-align:left;font-size:14px;';
-  const sections = ['home', 'profile', 'feed', 'meetings', 'projects', 'approvals', 'security', 'roles', 'calendar', 'comms', 'structure', 'orgunit', 'tickets', 'files', 'share', 'people', 'orgedit', 'widgets', 'ticketdesk', 'settings', 'notes'];
+  const sections = ['home', 'profile', 'feed', 'meetings', 'projects', 'approvals', 'security', 'roles', 'calendar', 'comms', 'structure', 'orgunit', 'tickets', 'files', 'share', 'people', 'orgedit', 'widgets', 'ticketdesk', 'settings', 'notes', 'pbx'];
   const nav = {}, go = {}, show = {};
   const secNeeds = { meetings: 'sessions', projects: 'projects', calendar: 'calendar', comms: 'comms', structure: 'structure', orgunit: 'structure', tickets: 'tickets', files: 'files', notes: 'notes', share: 'secureshare' };
   const ticketDeskOk = !!has.tickets && !has.structure && (can('tickets', 'Solve') || can('tickets', 'Assign & hand over'));
-  const secOk = (k) => (k === 'ticketdesk' ? ticketDeskOk : k === 'orgedit' ? !!this.srv && can('settings', 'Edit organization profile') : k === 'widgets' ? can('home', 'Open widgets page') : k === 'security' ? (can('security', 'View alerts') || can('security', 'View logs')) : k === 'roles' ? can('roles', 'View roles') : k === 'settings' ? can('settings', 'View settings') : !secNeeds[k] || !!has[secNeeds[k]]);
+  // Calls management (the customer phone system) is for named people only: those given its right, and administrators who manage roles.
+  // It is a front end for now: the right is checked here only, so the server must enforce it once the phone system is connected.
+  const pbxOk = can('pbx', 'Use calls management') || can('roles', 'View roles');
+  const secOk = (k) => (k === 'pbx' ? pbxOk : k === 'ticketdesk' ? ticketDeskOk : k === 'orgedit' ? !!this.srv && can('settings', 'Edit organization profile') : k === 'widgets' ? can('home', 'Open widgets page') : k === 'security' ? (can('security', 'View alerts') || can('security', 'View logs')) : k === 'roles' ? can('roles', 'View roles') : k === 'settings' ? can('settings', 'View settings') : !secNeeds[k] || !!has[secNeeds[k]]);
   const pending = !!this._accessPending;   // rights are still arriving: do not call a page "no access" yet
   const curSec = pending || secOk(s.section) ? s.section : 'home';
-  const labels = { meetings: 'Meetings & standups', projects: 'Projects', calendar: 'Calendar', comms: 'Communications', structure: 'Organization structure', orgedit: 'Manage organization structure', orgunit: 'Organization dashboards', tickets: 'My tickets', ticketdesk: 'Ticket desk', files: 'Files', share: 'Secure share', security: 'Security & logs', roles: 'Roles & rights', widgets: 'Widgets', settings: 'Organization settings', notes: 'Notes' };
+  const labels = { pbx: 'Calls management', meetings: 'Meetings & standups', projects: 'Projects', calendar: 'Calendar', comms: 'Communications', structure: 'Organization structure', orgedit: 'Manage organization structure', orgunit: 'Organization dashboards', tickets: 'My tickets', ticketdesk: 'Ticket desk', files: 'Files', share: 'Secure share', security: 'Security & logs', roles: 'Roles & rights', widgets: 'Widgets', settings: 'Organization settings', notes: 'Notes' };
   // Why a page can't open: its feature is not switched on (404-style), or the role lacks the right (403).
   const denied = pending || secOk(s.section) ? null : { label: labels[s.section] || 'this page', reason: secNeeds[s.section] && !has[secNeeds[s.section]] || (s.section === 'ticketdesk' && (!has.tickets || has.structure)) ? 'off' : 'rights' };
   // plain nav styles, for items built elsewhere (the dashboards of the places I belong to)
@@ -41,5 +44,5 @@ export function buildNav(ctx) {
   if (lazy && this.srv.bootDone) lazy.want(need);
   const ready = this.bootFailed || (this.srv && this.srv.bootDone && (!lazy || lazy.ready(need))) || (!pending && !this.srv);
   const pageLoading = ready ? '' : (KIND[s.section] || 'table');
-  return { denied, pageLoading, curSec, ftab, go, nav, show, tab, tabTo, ticketDeskOk };
+  return { denied, pageLoading, curSec, ftab, go, nav, show, tab, tabTo, ticketDeskOk, pbxOk };
 }

@@ -20,5 +20,6 @@ export const sectionRoutes = {
   "widgets": "/widgets",
   "ticketdesk": "/ticket-desk",
   "settings": "/settings",
-  "notes": "/notes"
+  "notes": "/notes",
+  "pbx": "/calls-management"
 };
