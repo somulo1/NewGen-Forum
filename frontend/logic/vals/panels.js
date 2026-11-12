@@ -103,7 +103,7 @@ export function valsPanels(ctx) {
       if (!this.srv) { this.notify('Sign in to an organization to create forums.', '#FFB86B'); return; }
       this.setState({ forumForm: { ...f, busy: true, err: '' } });
       forumsW.createForum(this, this.srv, { ...f, memberIds: f.picked || [] }).then((id) => {
-        this.setState({ forumForm: { name: '', members: '', picked: [], err: '', busy: false }, create: false, forum: id, panelKind: 'forum', mode: this.isMobileViewport() ? 'page' : 'docked', menu: false, tab: 'discussions', forumsOpen: true });
+        this.setState({ forumForm: { name: '', members: '', picked: [], err: '', busy: false }, create: false, forum: id, panelKind: 'forum', mode: this.isMobileViewport() || this.state.mode === 'page' ? 'page' : 'docked', menu: false, tab: 'discussions', forumsOpen: true });
         this.notify('Forum created.', '#B8F36B');
       }).catch((e) => this.setState({ forumForm: { ...f, busy: false, err: e.message || 'Could not create the forum.' } }));
     },

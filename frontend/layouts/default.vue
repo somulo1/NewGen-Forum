@@ -13,7 +13,7 @@
 
 <div style="flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; align-items: stretch">
 <div style="position: relative; flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; align-items: stretch">
-<main class="hub-main" style="flex: 1 1 auto; min-width: 0; overflow-y: auto; box-sizing: border-box; padding: 24px clamp(4px, 0.5vw, 8px) 120px clamp(16px, 3vw, 40px)">
+<main v-show="!isPage" class="hub-main" style="flex: 1 1 auto; min-width: 0; overflow-y: auto; box-sizing: border-box; padding: 24px clamp(4px, 0.5vw, 8px) 120px clamp(16px, 3vw, 40px)">
 <ErrorPage v-if="fatal" code="500" @leave="clearFatal" />
 <ErrorPage v-else-if="denied" :code="denied.reason === 'off' ? '404' : '403'" :section="denied.label" :reason="denied.reason" />
 <PageSkeleton v-else-if="pageLoading" :kind="pageLoading" />
@@ -82,7 +82,7 @@ import { hubBindings, useHubShell } from '~/composables/useHub';
 
 export default {
   name: 'DefaultLayout',
-  ...hubBindings(["denied","pageLoading","selectMode","themeClass","themeFilter"]),
+  ...hubBindings(["isPage","denied","pageLoading","selectMode","themeClass","themeFilter"]),
   setup() { useHubShell(); const fatal = useState('hubFatal', () => null); return { fatal, clearFatal: () => { fatal.value = null; } }; }
 };
 </script>

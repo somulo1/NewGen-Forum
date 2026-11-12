@@ -25,32 +25,13 @@
 <template v-if="has.chat">
 <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px; margin: 16px 4px 6px 2px">
 <button data-keep="1" @click="openDms" title="Open private chats in the side panel" style="flex: 1; display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: var(--k-9DB0A6,#9DB0A6); cursor: pointer; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"></path></svg>Messages<span style="margin-left: auto; padding: 1px 7px; border-radius: 9px; background: var(--k-22302A,#22302A); color: var(--k-C9D6CF,#C9D6CF); font-size: 11px; letter-spacing: 0">{{ dmUnreadLabel }}</span></button>
-<button aria-label="New private message" data-keep="1" @click="toggleNewDm" style="width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg></button>
 </div>
-<template v-if="newDmOpen">
-<div style="margin: 0 4px 8px; padding: 10px; border-radius: 12px; background: var(--k-1A2520,#1A2520); border: 1px solid var(--k-2A3832,#2A3832); display: flex; flex-direction: column; gap: 6px">
-<input type="search" :value="dmq" @input="onDmq" placeholder="Search anyone…" aria-label="Search people to message" style="height: 34px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 13px">
-<template v-for="(dmm, dmm__i) in dmMatches" :key="dmm__i"><button @click="dmm.open" style="display: flex; align-items: center; gap: 8px; min-height: 38px; padding: 0 6px; border: 0; border-radius: 8px; background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; text-align: left"><UserAvatar :name="dmm.name" :initials="dmm.initials" :color="dmm.color" :size="26" :font-size="10"/><span style="flex: 1; min-width: 0; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ dmm.name }}</span></button></template>
-</div>
-</template>
 </template>
 
 <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px; margin: 16px 4px 6px 2px">
 <button data-keep="1" @click="openForums" title="Open forums in the side panel" style="flex: 1; display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: var(--k-9DB0A6,#9DB0A6); cursor: pointer; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"></circle><path d="M2 20c0-3.5 3-6 7-6s7 2.5 7 6M16 4a3.5 3.5 0 0 1 0 7M18 14c2.5.6 4 2.8 4 6"></path></svg>Forums<span style="margin-left: auto; padding: 1px 7px; border-radius: 9px; background: var(--k-22302A,#22302A); color: var(--k-C9D6CF,#C9D6CF); font-size: 11px; letter-spacing: 0">{{ forumBadge }}</span></button>
-<button aria-label="Create a forum" data-keep="1" @click="toggleCreate" style="width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg></button>
 </div>
 
-<template v-if="createOpen">
-<div style="margin: 4px 4px 10px; padding: 12px; border-radius: 12px; background: var(--k-1A2520,#1A2520); border: 1px solid var(--k-2A3832,#2A3832); display: flex; flex-direction: column; gap: 10px">
-<div style="display: flex; gap: 10px; align-items: center">
-<button aria-label="Upload forum logo" style="width: 44px; height: 44px; border-radius: 12px; border: 1px dashed var(--k-4A5C54,#4A5C54); background: transparent; color: var(--k-9DB0A6,#9DB0A6); cursor: pointer; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg></button>
-<label style="flex: 1; display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Forum name<input type="text" :value="forumForm.name" @input="onForumName" placeholder="e.g. Finance Team" style="height: 34px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA)"></label>
-</div>
-<div style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Invite members<PeoplePicker :people="pickerPeople" :selected="forumPicked" placeholder="Search people by name…" @pick="pickForumMember" @remove="unpickForumMember"/></div>
-<span v-if="forumForm.err" role="alert" style="font-size: 12px; color: #FF9B8A">{{ forumForm.err }}</span>
-<button data-keep="1" :disabled="forumForm.busy" @click="createForumNow" style="height: 38px; border-radius: 9px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">{{ forumForm.busy ? 'Creating…' : 'Create forum' }}</button>
-</div>
-</template>
 
 <template v-if="canSeeAdmin">
 <span style="margin: 14px 12px 4px; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--k-9DB0A6,#9DB0A6)">Admin</span>
@@ -92,8 +73,8 @@ export default {
     // Messages and Forums open the module in the side panel (the first chat with something new, or the latest);
     // the other chats are switched from the panel's icons, or from the list when the chat is fitted to the page
     dock() { if (typeof window !== 'undefined' && window.innerWidth > 900) this.toDocked(); },
-    openDms() { const l = this.dmList || []; if (!l.length) { this.toggleNewDm(); return; } (l.find((d) => d.hasUnread) || l[0]).open(); this.dock(); },
-    openForums() { const l = (this.forums || []).filter((f) => !f.notMember); if (!l.length) { this.toggleCreate(); return; } (l.find((f) => f.hasUnread) || l[0]).open(); this.dock(); },
+    openDms() { const l = this.dmList || []; if (!l.length) { this.go.people(); return; } (l.find((d) => d.hasUnread) || l[0]).open(); this.dock(); },
+    openForums() { const l = (this.forums || []).filter((f) => !f.notMember); if (!l.length) { this.go.people(); return; } (l.find((f) => f.hasUnread) || l[0]).open(); this.dock(); },
     signOut() { useAuth().signOut(); },
     // more than five chats or forums: the list scrolls inside the sidebar instead of pushing everything under the profile bar
     listStyle(n, row) { return n > 5 ? `max-height: ${row * 5}px; overflow-y: auto; overscroll-behavior: contain; padding-right: 2px` : ''; },

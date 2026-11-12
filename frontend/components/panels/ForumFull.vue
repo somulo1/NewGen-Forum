@@ -7,34 +7,24 @@
 <template v-if="!showPanelCall">
 <div style="width: 100%; flex: 1; min-height: 0; box-sizing: border-box; display: flex; flex-direction: column">
 <div style="flex: none; position: relative; z-index: 5; background: var(--k-0F1714,#0F1714); border-bottom: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column">
-<div class="ff-bar hub-chat-bar" style="width: 100%; max-width: 900px; box-sizing: border-box; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; padding: 8px clamp(16px, 3vw, 32px); padding-right: 58px; border: 0; background: var(--k-0F1714,#0F1714)">
+<div class="ff-bar hub-chat-bar" style="width: 100%; box-sizing: border-box; margin: 0; display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; padding: 8px clamp(16px, 3vw, 32px); padding-right: 58px; border: 0; background: var(--k-0F1714,#0F1714)">
 <span :style="`width: 34px; height: 34px; flex: none; border-radius: 10px; background: ${cur.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 14px`">{{ cur.initials }}</span>
 <div style="flex: 1 1 200px; min-width: 0; display: flex; flex-direction: column">
 <h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 17px; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ cur.name }}</h1>
 <span :title="cur.about" style="font-size: 13px; color: var(--k-9DB0A6,#9DB0A6); overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ cur.members }} members · {{ cur.online }} online</span>
 </div>
-<div style="display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto">
+<div role="tablist" aria-label="Forum views" class="hub-seg" style="display: inline-flex; flex-wrap: wrap; flex: none; padding: 3px; border-radius: 12px; background: var(--k-121B17,#121B17); border: 1px solid var(--k-2A3832,#2A3832)"><button v-for="v in views" :key="v.k" role="tab" :aria-selected="v.on" @click="v.go" :style="`height: 30px; padding: 0 12px; border: 0; border-radius: 9px; cursor: pointer; font-size: 13px; font-weight: 600; white-space: nowrap; background: ${v.on ? '#B8F36B' : 'transparent'}; color: ${v.on ? '#0F1714' : 'var(--k-C9D6CF,#C9D6CF)'}`">{{ v.label }}</button></div>
+<div style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-left: auto">
 <button @click="toggleInvite" aria-label="Invite members" title="Invite members" style="display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; flex: none; border-radius: 50%; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; padding: 0; background: #B8F36B; color: #0F1714; border-color: var(--k-B8F36B,#B8F36B)"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="4"></circle><path d="M2 21a7 7 0 0 1 14 0M19 8v6M16 11h6"></path></svg></button>
 <button v-if="canVoiceCall" @click="voiceCall" aria-label="Voice call" title="Voice call" style="display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; flex: none; border-radius: 50%; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; padding: 0"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"></path></svg></button>
 <button v-if="canVideoCall" @click="videoCall" aria-label="Video call" title="Video call" style="display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; flex: none; border-radius: 50%; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; padding: 0"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3" y="6" width="13" height="12" rx="2"></rect><path d="M16 10l5-3v10l-5-3z"></path></svg></button>
-<template v-if="fit === 'page'"><button class="hub-d" @click="toFull" aria-label="Full screen" title="Full screen" style="display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; flex: none; border-radius: 50%; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; padding: 0"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"></path></svg></button></template>
-<template v-if="fit !== 'page'"><button class="hub-ph" @click="toPage" aria-label="Fit to page" title="Fit to page" style="display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; flex: none; border-radius: 50%; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; padding: 0"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M15 4v16"></path></svg></button></template>
-<button class="hub-ph" @click="toDocked" aria-label="Side panel" title="Side panel" style="display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; flex: none; border-radius: 50%; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; padding: 0"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M15 4v16"></path></svg></button>
+<span class="hub-sep" aria-hidden="true" style="width: 1px; height: 24px; flex: none; align-self: center; background: var(--k-2A3832,#2A3832)"></span>
+<template v-if="fit !== 'page'"><button class="hub-ph" @click="toPage" aria-label="Fit to page" title="Fit to page" style="display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; flex: none; border-radius: 50%; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; padding: 0"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M7 12h10M9.5 9.5L7 12l2.5 2.5M14.5 9.5L17 12l-2.5 2.5"></path></svg></button></template>
+<button class="hub-ph" @click="toDocked" aria-label="Side panel" title="Side panel" style="display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; flex: none; border-radius: 50%; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; padding: 0"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M14 4v16"></path><rect x="14" y="4" width="7" height="16" rx="1" fill="currentColor" stroke="none" opacity="0.55"></rect></svg></button>
 <button @click="toMin" aria-label="Minimize" title="Minimize" style="display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; flex: none; border-radius: 50%; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; padding: 0"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path></svg></button>
 </div>
 </div>
-<button class="hub-chat-close" @click="toClosed" aria-label="Close forum" title="Close forum" style="position: absolute; top: 8px; right: 12px; z-index: 6; display: flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-16201C,#16201C); color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; padding: 0"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
-<div style="border-top: 1px solid var(--k-24322C,#24322C); border-bottom: 1px solid var(--k-24322C,#24322C)">
-<div role="tablist" class="ff-tabs hub-chat-tabs" style="max-width: 900px; box-sizing: border-box; margin: 0 auto; padding: 0 clamp(8px, 2vw, 24px); min-width: 0; display: flex; gap: 2px; overflow-x: auto">
-<button role="tab" @click="tabTo.discussions" :style="tab.discussions">Discussions</button>
-<button role="tab" @click="tabTo.polls" :style="tab.polls">Polls ({{ pollView.count }})</button>
-<template v-if="has.sessions"><button role="tab" @click="tabTo.sessions" :style="tab.sessions">Meetings</button></template>
-<button role="tab" @click="tabTo.calls" :style="tab.calls">Calls</button>
-<button role="tab" @click="tabTo.members" :style="tab.members">Members</button>
-<button role="tab" @click="tabTo.files" :style="tab.files">Files</button>
-<button role="tab" @click="tabTo.about" :style="tab.about">About</button>
-</div>
-</div>
+<button v-if="fit !== 'page'" class="hub-chat-close" @click="toClosed" aria-label="Close forum" title="Close forum" style="position: absolute; top: 8px; right: 12px; z-index: 6; display: flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-16201C,#16201C); color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; padding: 0"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
 </div>
 
 <template v-if="inviteOpen">
@@ -47,12 +37,12 @@
 </div>
 </template>
 
-<template v-if="ftab.calls"><div style="flex: 1; min-height: 0; overflow-y: auto"><div style="max-width: 1100px; margin: 0 auto; padding: 18px clamp(16px, 3vw, 32px)"><CallHistory /></div></div></template>
+<template v-if="ftab.calls"><div style="flex: 1; min-height: 0; overflow-y: auto"><div style="max-width: 1200px; margin: 0 auto; padding: 18px clamp(16px, 3vw, 32px)"><CallHistory /></div></div></template>
 
 <template v-if="ftab.discussions">
 <div style="flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px">
 <div :ref="chatRef" @click="onActivityClick" style="width: 100%; flex: 1; min-height: 0; box-sizing: border-box; overflow-y: auto">
-<div style="max-width: 900px; min-height: 100%; box-sizing: border-box; margin: 0 auto; padding: 18px clamp(16px, 3vw, 32px); display: flex; flex-direction: column; gap: 5px">
+<div style="max-width: 1200px; min-height: 100%; box-sizing: border-box; margin: 0 auto; padding: 18px clamp(16px, 3vw, 32px); display: flex; flex-direction: column; gap: 5px">
 <PageSkeleton v-if="chatLoading" kind="chat" bare />
 <template v-if="olderCount > 0 || moreOlder"><button type="button" @click="showOlder" style="align-self: center; height: 32px; padding: 0 14px; border-radius: 16px; border: 1px solid var(--k-6B7A72,#6B7A72); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; font-size: 12px">{{ olderCount > 0 ? 'Show ' + olderCount + ' earlier ' + (olderCount === 1 ? 'message' : 'messages') : 'Load earlier messages' }}</button></template>
 <template v-for="(u, u__i) in cur.topics" :key="u__i">
@@ -76,7 +66,7 @@
 </template>
 
 <template v-if="ftab.sessions">
-<div style="flex: 1; min-height: 0; overflow-y: auto"><div style="max-width: 1100px; margin: 0 auto; padding: 18px clamp(16px, 3vw, 32px)">
+<div style="flex: 1; min-height: 0; overflow-y: auto"><div style="max-width: 1200px; margin: 0 auto; padding: 18px clamp(16px, 3vw, 32px)">
 <div style="display: flex; flex-direction: column; gap: 14px">
 <div style="padding: 24px; border-radius: 16px; background: var(--k-1A2520,#1A2520); border: 1px solid var(--k-2A3832,#2A3832); display: flex; flex-wrap: wrap; gap: 16px; align-items: center">
 <div style="flex: 1 1 280px; display: flex; flex-direction: column; gap: 4px"><strong style="font-size: 18px">Start a meeting or standup</strong><span style="color: var(--k-9DB0A6,#9DB0A6)">Video, audio or screen share with forum members. Recordings and notes are saved to the forum.</span></div>
@@ -89,10 +79,10 @@
 </div>
 </template>
 
-<template v-if="ftab.polls"><div style="flex: 1; min-height: 0; overflow-y: auto"><div style="max-width: 1100px; margin: 0 auto; padding: 18px clamp(16px, 3vw, 32px)"><ForumPolls /></div></div></template>
+<template v-if="ftab.polls"><div style="flex: 1; min-height: 0; overflow-y: auto"><div style="max-width: 1200px; margin: 0 auto; padding: 18px clamp(16px, 3vw, 32px)"><ForumPolls /></div></div></template>
 
 <template v-if="ftab.members">
-<div style="flex: 1; min-height: 0; overflow-y: auto"><div style="max-width: 1100px; margin: 0 auto; padding: 18px clamp(16px, 3vw, 32px)">
+<div style="flex: 1; min-height: 0; overflow-y: auto"><div style="max-width: 1200px; margin: 0 auto; padding: 18px clamp(16px, 3vw, 32px)">
 <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap"><strong style="font-size: 15px; flex: 1">{{ cur.members }} {{ cur.members === 1 ? 'member' : 'members' }}</strong>
 <button v-if="canAddToForum" type="button" @click="toggleAdd" :aria-expanded="addOpen" aria-label="Add a person to this forum" style="display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 16px; border-radius: 17px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; font-size: 13px; cursor: pointer"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>Add</button></div>
 <div v-if="canAddToForum && addOpen" style="margin-bottom: 14px; padding: 12px; border-radius: 12px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-B8F36B,#B8F36B); display: flex; flex-direction: column; gap: 8px">
@@ -119,7 +109,7 @@
 </template>
 
 <template v-if="ftab.about">
-<div style="flex: 1; min-height: 0; overflow-y: auto"><div style="max-width: 1100px; margin: 0 auto; padding: 18px clamp(16px, 3vw, 32px)">
+<div style="flex: 1; min-height: 0; overflow-y: auto"><div style="max-width: 1200px; margin: 0 auto; padding: 18px clamp(16px, 3vw, 32px)">
 <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px">
 <div style="padding: 18px; border-radius: 14px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 6px"><span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6); text-transform: uppercase; letter-spacing: 0.06em">Description</span><span>{{ cur.about }}</span></div>
 <div style="padding: 18px; border-radius: 14px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 6px"><span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6); text-transform: uppercase; letter-spacing: 0.06em">Who can join</span><span>{{ cur.privacy }}</span></div>
@@ -131,10 +121,10 @@
 
 <template v-if="ftab.discussions">
 <div style="flex: none; border-top: 1px solid var(--k-24322C,#24322C); background: var(--k-0F1714,#0F1714)">
-<div v-if="cur.typingText" role="status" aria-live="polite" style="max-width: 900px; margin: 0 auto; padding: 6px clamp(16px, 3vw, 32px) 0; font-size: 12px; color: var(--k-7CC4FF,#7CC4FF); font-style: italic">{{ cur.typingText }}</div>
-<template v-if="replyBar.active"><div style="max-width: 900px; margin: 0 auto; padding: 8px clamp(16px, 3vw, 32px) 0"><div style="display: flex; align-items: center; gap: 8px; margin: 0 0 6px; padding: 6px 10px; border-left: 3px solid var(--k-B8F36B,#B8F36B); border-radius: 6px; background: var(--k-16201C,#16201C); font-size: 12px; color: var(--k-9DB0A6,#9DB0A6); min-width: 0"><span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">Replying to <strong style="color: var(--k-E8EFEA,#E8EFEA)">{{ replyBar.who }}</strong>: {{ replyBar.snippet }}</span><button type="button" aria-label="Cancel reply" @click="replyBar.cancel" style="width: 24px; height: 24px; border: 0; border-radius: 12px; background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer">✕</button></div></div></template>
+<div v-if="cur.typingText" role="status" aria-live="polite" style="max-width: 1200px; margin: 0 auto; padding: 6px clamp(16px, 3vw, 32px) 0; font-size: 12px; color: var(--k-7CC4FF,#7CC4FF); font-style: italic">{{ cur.typingText }}</div>
+<template v-if="replyBar.active"><div style="max-width: 1200px; margin: 0 auto; padding: 8px clamp(16px, 3vw, 32px) 0"><div style="display: flex; align-items: center; gap: 8px; margin: 0 0 6px; padding: 6px 10px; border-left: 3px solid var(--k-B8F36B,#B8F36B); border-radius: 6px; background: var(--k-16201C,#16201C); font-size: 12px; color: var(--k-9DB0A6,#9DB0A6); min-width: 0"><span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">Replying to <strong style="color: var(--k-E8EFEA,#E8EFEA)">{{ replyBar.who }}</strong>: {{ replyBar.snippet }}</span><button type="button" aria-label="Cancel reply" @click="replyBar.cancel" style="width: 24px; height: 24px; border: 0; border-radius: 12px; background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer">✕</button></div></div></template>
 <ChatAttachBar/>
-<div class="hub-chat-composer" style="max-width: 900px; margin: 0 auto; position: relative; padding: 12px clamp(16px, 3vw, 32px); display: grid; grid-template-columns: max-content minmax(0, 1fr) 42px; grid-template-rows: auto auto; gap: 6px; align-items: stretch">
+<div class="hub-chat-composer" style="max-width: 1200px; margin: 0 auto; position: relative; padding: 12px clamp(16px, 3vw, 32px); display: grid; grid-template-columns: max-content minmax(0, 1fr) 42px; grid-template-rows: auto auto; gap: 6px; align-items: stretch">
 <div style="grid-column: 1; grid-row: 1; display: flex; align-items: center; gap: 4px">
 <label title="Attach files" style="position: relative; width: 38px; height: 38px; flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--k-C9D6CF,#C9D6CF); cursor: pointer"><input type="file" multiple="" aria-label="Attach files" :disabled="composerOff" @change="attachForum" style="position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer"><svg aria-hidden="true" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11.5l-8.2 8.2a5 5 0 0 1-7.1-7.1L13.2 4a3.4 3.4 0 0 1 4.8 4.8l-8.5 8.5a1.8 1.8 0 0 1-2.5-2.5L14.8 7"></path></svg></label>
 <EmojiButton :size="38" @pick="pickEmojiForum"/>
@@ -165,11 +155,17 @@ export default {
   props: { fit: { type: String, default: 'screen' } },
   computed: {
     ...hubBindings(["canVoiceCall","canVideoCall","chatLoading","olderCount","moreOlder","showOlder","mentionList","onActivityClick","canAddToForum","addErr","addOpen","addBusy","toggleAdd","addPersonToForum","pickerPeople","forumMemberIds","pickEmojiForum","attachForum","chatRef","replyBar","chatCtl","closeChatFolder","composerNote","composerOff","cur","fKey","fdraft","fileFolders","ftab","has","inviteOpen","inviteText","inviteErr","inviteBusy","onInviteText","sendInvites","isFullForum","isPageForum","onFDraftValue","openChatFolder","pollView","selectedChatFolder","sendForum","showPanelCall","tab","tabTo","toClosed","toDocked","toFull","toMin","toPage","toggleInvite","videoCall","voiceCall"]).computed,
+    // the forum's views as one switch in the header: Discussions, Polls, Meetings, Calls, Members, Files, About
+    views() {
+      const t = this.ftab || {}, go = this.tabTo || {};
+      return [['discussions', 'Discussions'], ['polls', 'Polls (' + ((this.pollView && this.pollView.count) || 0) + ')'], ...(this.has && this.has.sessions ? [['sessions', 'Meetings']] : []), ['calls', 'Calls'], ['members', 'Members'], ['files', 'Files'], ['about', 'About']]
+        .map(([k, label]) => ({ k, label, on: !!t[k], go: go[k] }));
+    },
     shown() { return this.fit === 'page' ? !!this.isPageForum : !!this.isFullForum; },
     rootStyle() {
       const base = 'background: var(--k-0F1714,#0F1714); display: flex; flex-direction: row; overflow: hidden; box-sizing: border-box;';
       return this.fit === 'page'
-        ? base + ' position: absolute; inset: 24px 12px 12px 12px; z-index: 30; border-radius: 22px; border: 2px solid var(--k-6B7A72,#6B7A72); box-shadow: none'
+        ? base + ' position: absolute; inset: 0; z-index: 30; border-radius: 0; border: 0; box-shadow: none'
         : base + ' position: fixed; inset: 0; z-index: 40';
     }
   }
@@ -177,8 +173,10 @@ export default {
 </script>
 
 <style>
+/* fitted to the page the chat is a page like any other: no close button, so its header needs no room for one */
+.hub-fitpage .hub-chat-bar { padding-right: clamp(16px, 3vw, 32px) !important; }
 /* The forum reads like a chat on every screen: my messages sit on the right, everyone else's on the left */
-.ff-msg { box-sizing: border-box; width: fit-content; min-width: min(100%, 320px); max-width: 78%; }
+.ff-msg { box-sizing: border-box; width: fit-content; min-width: min(100%, 380px); max-width: 85%; }
 .ff-mine { margin-left: auto; flex-direction: row-reverse; background: var(--k-2C3D34,#2C3D34) !important; border-color: var(--k-3A5446,#3A5446) !important; border-radius: 14px 4px 14px 14px !important; }
 .ff-other { margin-right: auto; border-radius: 4px 14px 14px 14px !important; }
 @media (max-width: 700px) {

@@ -94,9 +94,11 @@ export class HubLogic extends DCLogic {
         patch.profileOf = null;
       }
       // on a phone a chat is always a page between the top bar and the tab bar (never full screen over them)
-      if (patch.mode === 'full' && this.isMobileViewport()) patch.mode = 'page';
+      // chats and their calls have two sizes only: the side panel and fitted to the page (full screen was removed)
+      if (patch.mode === 'full') patch.mode = 'page';
       if (patch.mode === 'docked' && this.isPhoneViewport() && ['dm', 'forum'].includes(patch.panelKind || this.state.panelKind)) patch.mode = 'page';
-      if (patch.section !== undefined && patch.section !== this.state.section &&
+      // a chat fitted to the page stands in for the page: opening any sidebar page (even the one under it) puts the chat away
+      if (patch.section !== undefined && (patch.section !== this.state.section || this.state.mode === 'page') &&
           this.isMobileViewport() && ['dm', 'forum'].includes(this.state.panelKind) &&
           !['closed', 'min'].includes(this.state.mode)) {
         patch.mode = 'min';
