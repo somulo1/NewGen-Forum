@@ -20,6 +20,12 @@
 <span class="hub-sep" aria-hidden="true" style="width: 1px; height: 24px; flex: none; align-self: center; background: var(--k-2A3832,#2A3832)"></span>
 <template v-if="fit !== 'page'"><button class="hub-ph" @click="toPage" aria-label="Fit to page" title="Fit to page" style="display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; flex: none; border-radius: 50%; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; padding: 0"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M7 12h10M9.5 9.5L7 12l2.5 2.5M14.5 9.5L17 12l-2.5 2.5"></path></svg></button></template>
 <button class="hub-ph" @click="toDocked" aria-label="Side panel" title="Side panel" style="display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; flex: none; border-radius: 50%; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; padding: 0"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M14 4v16"></path><rect x="14" y="4" width="7" height="16" rx="1" fill="currentColor" stroke="none" opacity="0.55"></rect></svg></button>
+<div class="hub-seg-more" style="position: relative; flex: none">
+<button type="button" aria-label="Views: discussions, polls, calls, members, files, about" title="More" aria-haspopup="menu" :aria-expanded="moreOpen" @click="moreOpen = !moreOpen" :style="`width: 34px; height: 34px; padding: 0; border-radius: 50%; border: 1px solid var(--k-2A3832,#2A3832); background: ${moreOpen ? 'var(--k-2C3D34,#2C3D34)' : 'transparent'}; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; display: flex; align-items: center; justify-content: center`"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="12" cy="19" r="1.8"></circle></svg></button>
+<div v-if="moreOpen" role="menu" aria-label="Show" style="position: absolute; top: 40px; right: 0; z-index: 31; width: 190px; padding: 6px; border-radius: 12px; background: var(--k-1D2A25,#1D2A25); border: 1px solid var(--k-34453D,#34453D); box-shadow: 0 12px 30px rgba(0,0,0,0.35); display: flex; flex-direction: column; gap: 2px">
+<button v-for="v in views" :key="v.k" type="button" role="menuitemradio" :aria-checked="v.on" @click="v.go(); moreOpen = false" :style="`display: flex; align-items: center; justify-content: space-between; min-height: 40px; padding: 0 12px; border: 0; border-radius: 8px; cursor: pointer; text-align: left; font-size: 13px; background: ${v.on ? 'var(--k-2C3D34,#2C3D34)' : 'transparent'}; color: var(--k-E8EFEA,#E8EFEA); font-weight: ${v.on ? 600 : 500}`">{{ v.label }}<span v-if="v.on" aria-hidden="true" style="color: #B8F36B">●</span></button>
+</div>
+</div>
 <button @click="toMin" aria-label="Minimize" title="Minimize" style="display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; flex: none; border-radius: 50%; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; padding: 0"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path></svg></button>
 </div>
 <button v-if="fit !== 'page'" class="hub-chat-close" @click="toClosed" aria-label="Close forum" title="Close forum" style="position: absolute; top: 8px; right: 12px; z-index: 6; display: flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-16201C,#16201C); color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; padding: 0"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
@@ -151,6 +157,7 @@ export default {
   name: 'ForumFull',
   components: { CallScreen, ChatRail, ChatSharedFiles, SecureInboxCard },
   props: { fit: { type: String, default: 'screen' } },
+  data() { return { moreOpen: false }; },
   computed: {
     ...hubBindings(["canVoiceCall","canVideoCall","chatLoading","olderCount","moreOlder","showOlder","mentionList","onActivityClick","canAddToForum","addErr","addOpen","addBusy","toggleAdd","addPersonToForum","pickerPeople","forumMemberIds","pickEmojiForum","attachForum","chatRef","replyBar","chatCtl","closeChatFolder","composerNote","composerOff","cur","fKey","fdraft","fileFolders","ftab","has","inviteOpen","inviteText","inviteErr","inviteBusy","onInviteText","sendInvites","isFullForum","isPageForum","onFDraftValue","openChatFolder","pollView","selectedChatFolder","sendForum","showPanelCall","tab","tabTo","toClosed","toDocked","toFull","toMin","toPage","toggleInvite","videoCall","voiceCall"]).computed,
     // the forum's views as one switch in the header: Discussions, Polls, Calls, Members, Files, About
@@ -171,6 +178,15 @@ export default {
 </script>
 
 <style>
+/* phones: the views move behind the vertical ⋮ so the name and the icon buttons keep their room */
+.hub-seg-more { display: none !important; }
+@media (max-width: 700px) {
+  .hub-chat-bar .hub-seg { display: none !important; }
+  .hub-chat-bar .hub-seg-more { display: block !important; }
+  .hub-chat-bar .hub-sep { display: none !important; }
+  .hub-chat-bar { flex-wrap: nowrap !important; gap: 6px !important; }
+  .hub-chat-bar strong, .hub-chat-bar h1 { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+}
 /* fitted to the page the chat is a page like any other: no close button, so its header needs no room for one */
 .hub-fitpage .hub-chat-bar { padding-right: clamp(16px, 3vw, 32px) !important; }
 /* The forum reads like a chat on every screen: my messages sit on the right, everyone else's on the left */
