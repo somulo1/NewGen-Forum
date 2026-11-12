@@ -1,12 +1,13 @@
 <!-- Private chat, full screen or fitted to the page (beside the sidebar) -->
 <template><template v-if="shown">
 <section :aria-label="fit === 'page' ? 'Private chat fit to page' : 'Private chat full screen'" :class="fit === 'page' ? 'hub-fitpage' : 'hub-screen'" :style="rootStyle">
-<ChatRail kind="dm" />
+<ChatRail :open="railOpen" @close="railOpen = false" kind="dm" />
 <div style="position: relative; flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden">
 <CallScreen variant="full" :fit="fit" />
 <template v-if="!showPanelCall">
 <div style="position: relative; flex: none; border-bottom: 1px solid var(--k-24322C,#24322C); background: var(--k-0F1714,#0F1714)">
 <div class="hub-chat-bar" style="margin: 0; padding: 8px clamp(16px, 3vw, 32px); padding-right: 58px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px">
+<button type="button" class="hub-chatlist-btn" :aria-label="'All private chats'" :title="'All private chats'" @click="railOpen = true" style="width: 34px; height: 34px; flex: none; padding: 0; border-radius: 50%; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; align-items: center; justify-content: center"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"></path></svg></button>
 <UserAvatar :name="cur.name" :initials="cur.initials" :color="cur.color" :size="34" :font-size="14"/>
 <div style="flex: 1 1 200px; min-width: 0; display: flex; flex-direction: column"><strong style="font-family: 'Space Grotesk', sans-serif; font-size: 17px">{{ cur.name }}</strong><span style="font-size: 13px; color: var(--k-9DB0A6,#9DB0A6)"><span :style="`color: ${cur.dotColor}`">●</span> {{ cur.subline }}</span></div>
 <div role="tablist" aria-label="Chat views" class="hub-seg" style="display: inline-flex; flex: none; padding: 3px; border-radius: 12px; background: var(--k-121B17,#121B17); border: 1px solid var(--k-2A3832,#2A3832)"><button v-for="v in views" :key="v.k" role="tab" :aria-selected="v.on" @click="v.go" :style="`height: 30px; padding: 0 14px; border: 0; border-radius: 9px; cursor: pointer; font-size: 13px; font-weight: 600; white-space: nowrap; background: ${v.on ? '#B8F36B' : 'transparent'}; color: ${v.on ? '#0F1714' : 'var(--k-C9D6CF,#C9D6CF)'}`">{{ v.label }}</button></div>
@@ -88,7 +89,7 @@ export default {
   name: 'PrivateChatFull',
   components: { CallScreen, ChatRail, ChatSharedFiles, SecureInboxCard },
   props: { fit: { type: String, default: 'screen' } },
-  data() { return { moreOpen: false }; },
+  data() { return { moreOpen: false, railOpen: false }; },
   computed: {
     ...hubBindings(["canVoiceCall","canVideoCall","olderCount","moreOlder","showOlder","pickEmojiForum","attachForum","closeChatFolder","composerNote","composerOff","cur","dmPriv","fKey","fdraft","fileFolders","isFullDm","isPanelCalls","isPanelChat","isPanelFiles","goPanelChat","goPanelCalls","goPanelFiles","openChatFolder","replyBar","selectedChatFolder","isPageDm","onFDraftValue","sendForum","showPanelCall","toClosed","toDocked","toFull","toMin","toPage","videoCall","voiceCall"]).computed,
     views() { return [['chat', 'Chat', this.isPanelChat, this.goPanelChat], ['files', 'Files', this.isPanelFiles, this.goPanelFiles], ['calls', 'Calls', this.isPanelCalls, this.goPanelCalls]].map(([k, label, on, go]) => ({ k, label, on: !!on, go })); },

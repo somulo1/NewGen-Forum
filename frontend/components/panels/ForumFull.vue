@@ -1,13 +1,14 @@
 <!-- Forum, full screen or fitted to the page (beside the sidebar) -->
 <template><template v-if="shown">
 <section :aria-label="fit === 'page' ? 'Forum fit to page' : 'Forum full screen'" :class="fit === 'page' ? 'hub-fitpage' : 'hub-screen'" :style="rootStyle">
-<ChatRail kind="forum" />
+<ChatRail :open="railOpen" @close="railOpen = false" kind="forum" />
 <div style="position: relative; flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden">
 <CallScreen variant="full" :fit="fit" />
 <template v-if="!showPanelCall">
 <div style="width: 100%; flex: 1; min-height: 0; box-sizing: border-box; display: flex; flex-direction: column">
 <div style="flex: none; position: relative; z-index: 5; background: var(--k-0F1714,#0F1714); border-bottom: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column">
 <div class="ff-bar hub-chat-bar" style="width: 100%; box-sizing: border-box; margin: 0; display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; padding: 8px clamp(16px, 3vw, 32px); padding-right: 58px; border: 0; background: var(--k-0F1714,#0F1714)">
+<button type="button" class="hub-chatlist-btn" :aria-label="'All forums'" :title="'All forums'" @click="railOpen = true" style="width: 34px; height: 34px; flex: none; padding: 0; border-radius: 50%; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; align-items: center; justify-content: center"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"></path></svg></button>
 <span :style="`width: 34px; height: 34px; flex: none; border-radius: 10px; background: ${cur.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 14px`">{{ cur.initials }}</span>
 <div style="flex: 1 1 200px; min-width: 0; display: flex; flex-direction: column">
 <h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 17px; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ cur.name }}</h1>
@@ -157,7 +158,7 @@ export default {
   name: 'ForumFull',
   components: { CallScreen, ChatRail, ChatSharedFiles, SecureInboxCard },
   props: { fit: { type: String, default: 'screen' } },
-  data() { return { moreOpen: false }; },
+  data() { return { moreOpen: false, railOpen: false }; },
   computed: {
     ...hubBindings(["canVoiceCall","canVideoCall","chatLoading","olderCount","moreOlder","showOlder","mentionList","onActivityClick","canAddToForum","addErr","addOpen","addBusy","toggleAdd","addPersonToForum","pickerPeople","forumMemberIds","pickEmojiForum","attachForum","chatRef","replyBar","chatCtl","closeChatFolder","composerNote","composerOff","cur","fKey","fdraft","fileFolders","ftab","has","inviteOpen","inviteText","inviteErr","inviteBusy","onInviteText","sendInvites","isFullForum","isPageForum","onFDraftValue","openChatFolder","pollView","selectedChatFolder","sendForum","showPanelCall","tab","tabTo","toClosed","toDocked","toFull","toMin","toPage","toggleInvite","videoCall","voiceCall"]).computed,
     // the forum's views as one switch in the header: Discussions, Polls, Calls, Members, Files, About

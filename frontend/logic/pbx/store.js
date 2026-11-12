@@ -39,6 +39,27 @@ const QUEUES = [
 
 const DISPOSITIONS = ['Resolved', 'Promise to pay', 'Payment made', 'Call back requested', 'Wrong number', 'No answer', 'Escalated', 'KYC follow-up', 'Fraud report', 'Complaint'];
 
+// ---- call routing (PBX: these become the PBX's IVR, ring group, time condition and queue settings) ----
+function seedRouting() {
+  return {
+    ivr: { greeting: 'Welcome to our customer care. For loans press 1. For your wallet press 2. To report fraud press 3. To speak to someone press 0.', timeoutSec: 8, retries: 2,
+      options: [{ key: '1', to: 'Collections' }, { key: '2', to: 'Customer care' }, { key: '3', to: 'Fraud' }, { key: '0', to: 'Customer care' }, { key: '9', to: 'Repeat menu' }] },
+    groups: [{ name: 'Collections team', strategy: 'Longest idle first', members: ['1001', '1002', '1006'], ringSec: 20 }, { name: 'Care team', strategy: 'Ring all', members: ['1001', '1003', '1004'], ringSec: 25 }],
+    hours: { mon: ['08:00', '18:00'], tue: ['08:00', '18:00'], wed: ['08:00', '18:00'], thu: ['08:00', '18:00'], fri: ['08:00', '18:00'], sat: ['09:00', '13:00'], sun: null },
+    afterHours: 'Voicemail', holidays: [{ date: '2026-12-12', name: 'Jamhuri Day' }, { date: '2026-12-25', name: 'Christmas Day' }, { date: '2026-12-26', name: 'Boxing Day' }],
+    callbacks: true, announcePosition: true, announceEverySec: 45, maxWaitSec: 300
+  };
+}
+function seedCampaigns() {
+  return [
+    { id: 'k1', name: 'Arrears follow-up (Nov)', queue: 'Collections', status: 'Paused', retries: 2, retryMin: 60, window: ['09:00', '17:00'], list: [{ customerId: 'c2', tries: 1, result: 'No answer' }, { customerId: 'c6', tries: 1, result: 'Promise to pay' }, { customerId: 'c4', tries: 0, result: '' }] },
+    { id: 'k2', name: 'KYC reminders', queue: 'Onboarding', status: 'Draft', retries: 1, retryMin: 120, window: ['10:00', '16:00'], list: [{ customerId: 'c3', tries: 0, result: '' }, { customerId: 'c7', tries: 0, result: '' }] }
+  ];
+}
+function seedCallbacks() {
+  return [{ id: 'cb1', number: '+254745778899', customerId: 'c5', queue: 'Customer care', askedAt: now() - 25 * MIN, status: 'Waiting' }];
+}
+
 function seedHistory() {
   const rows = [
     ['in', 'c2', 'Answered', 4 * MIN + 12000, 'Promise to pay', 2 * HOUR, true],
@@ -63,15 +84,15 @@ function seedThreads() {
 
 function seedVoicemail() {
   return [
-    { id: 'v1', number: '+254708123456', customerId: null, at: now() - 3 * DAY - HOUR, duration: 38000, heard: false, transcript: 'Hi, I was charged twice for my wallet top-up yesterday. Please call me back on this number.' },
-    { id: 'v2', number: '+254722987654', customerId: 'c2', at: now() - 26 * HOUR, duration: 21000, heard: true, transcript: 'This is Peter, about the business loan. I will be in the office after 2 pm.' }
+    { id: 'v1', box: 'Customer care', number: '+254708123456', customerId: null, at: now() - 3 * DAY - HOUR, duration: 38000, heard: false, transcript: 'Hi, I was charged twice for my wallet top-up yesterday. Please call me back on this number.' },
+    { id: 'v2', box: 'My voicemail', number: '+254722987654', customerId: 'c2', at: now() - 26 * HOUR, duration: 21000, heard: true, transcript: 'This is Peter, about the business loan. I will be in the office after 2 pm.' }
   ];
 }
 
 const DEFAULT_SETTINGS = {
   extension: '1001', callerId: 'Main line (0709 000 000)', callerIds: ['Main line (0709 000 000)', 'Collections (0709 000 100)', 'Customer care (0709 000 200)'],
-  forwardAlways: '', forwardBusy: '', forwardNoAnswer: '', noAnswerSec: 25, dnd: false, autoAnswer: false, recordAll: true,
-  ringDevice: 'Browser', wrapUpSec: 30, tune: 'Calm care', tuneGreeting: true, maskNumbers: true, greeting: 'Default greeting', blocked: ['+254799000111'],
+  forwardAlways: '', forwardBusy: '', forwardNoAnswer: '', noAnswerSec: 25, dnd: false, autoAnswer: false,
+  ringDevice: 'Browser', mic: '', speaker: '', alertWaitSec: 60, alertSla: 85, wrapUpSec: 30, tune: 'Calm care', tuneGreeting: true, maskNumbers: true, greeting: 'Default greeting', blocked: ['+254799000111'],
   queues: { 'Collections': true, 'Customer care': true, 'Onboarding': false, 'Fraud': false }
 };
 
@@ -88,6 +109,13 @@ export const pbx = reactive({
   history: saved.history || seedHistory(),
   threads: saved.threads || seedThreads(),
   voicemail: saved.voicemail || seedVoicemail(),
+  routing: saved.routing || seedRouting(),
+  campaigns: saved.campaigns || seedCampaigns(),
+  callbacks: saved.callbacks || seedCallbacks(),
+  dnc: saved.dnc || ['+254711556677'],              // customers who asked not to be called (do-not-call list)
+  greetings: saved.greetings || [],                  // my recorded voicemail greetings (data URLs, this browser only)
+  alerts: [],                                        // wallboard alerts raised by the clock
+  quality: { mos: 4.3, jitter: 8, loss: 0.2, rtt: 64 },   // the live call's line quality
   settings: { ...DEFAULT_SETTINGS, ...(saved.settings || {}) },
   presence: saved.presence || 'Available',          // Available, Away, Busy, Do not disturb, Lunch, Off work
   call: null,                                        // the live call, see newCall()
@@ -100,7 +128,7 @@ export const pbx = reactive({
 });
 
 function persist() {
-  try { localStorage.setItem(KEY, JSON.stringify({ history: pbx.history.slice(0, 300), threads: pbx.threads, voicemail: pbx.voicemail, settings: pbx.settings, presence: pbx.presence })); } catch (e) { /* private window */ }
+  try { localStorage.setItem(KEY, JSON.stringify({ history: pbx.history.slice(0, 300), threads: pbx.threads, voicemail: pbx.voicemail, settings: pbx.settings, presence: pbx.presence, routing: pbx.routing, campaigns: pbx.campaigns, callbacks: pbx.callbacks, dnc: pbx.dnc, greetings: pbx.greetings })); } catch (e) { /* private window */ }
 }
 
 // ---- helpers ----
@@ -142,15 +170,18 @@ let seq = 0;
 function newCall(dir, number, extra) {
   const c = customerByNumber(number);
   return { id: 'call' + (++seq) + '-' + now(), dir, number: norm(number), customerId: c ? c.id : null, state: dir === 'out' ? 'Dialling' : 'Talking', startedAt: now(), answeredAt: dir === 'in' ? now() : null,
-    muted: false, onHold: false, recording: pbx.settings.recordAll, recPaused: false, dtmf: '', note: '', conference: [], transferTo: '', transferMode: null, queue: (extra && extra.queue) || '', ...extra };
+    muted: false, onHold: false, recording: true,   // every call is recorded, start to end, and cannot be paused: calls must be auditable
+     dtmf: '', note: '', conference: [], transferTo: '', transferMode: null, queue: (extra && extra.queue) || '', ...extra };
 }
 
-export function dial(number) {
+export function dial(number, opts) {
+  opts = opts || {};
   const n = norm(number);
   if (!n || n.replace(/\D/g, '').length < 3) return 'Enter a number to call.';
   if (pbx.settings.blocked.includes(n)) return 'This number is blocked. Remove it from Settings > Blocked numbers to call it.';
+  if (pbx.dnc.includes(n) && !opts.override) return 'This customer is on the do-not-call list. Remove them in Campaigns > Do not call to call them.';
   if (pbx.call) holdCurrent();
-  pbx.call = newCall('out', n, { callerId: pbx.settings.callerId });
+  pbx.call = newCall('out', n, { callerId: pbx.settings.callerId, campaign: opts.campaign || '' });
   const id = pbx.call.id;
   snd.startRingback();
   // PBX: the far end answers (or not); simulated after a few seconds
@@ -203,7 +234,7 @@ export function endCall(result) {
   const c = pbx.call; if (!c) return;
   const answered = !!c.answeredAt;
   snd.stopRingback(); snd.hangup();
-  const row = { id: 'h' + now(), dir: c.dir, customerId: c.customerId, number: c.number, result: result || (answered ? 'Answered' : 'Cancelled'), duration: answered ? now() - c.answeredAt : 0, disposition: '', at: c.startedAt, recorded: answered && c.recording, note: c.note, agent: 'You', queue: c.queue, conference: c.conference.slice() };
+  const row = { id: 'h' + now(), dir: c.dir, customerId: c.customerId, number: c.number, result: result || (answered ? 'Answered' : 'Cancelled'), duration: answered ? now() - c.answeredAt : 0, disposition: '', at: c.startedAt, recorded: answered, note: c.note, agent: 'You', queue: c.queue, conference: c.conference.slice() };
   pbx.history.unshift(row);
   pbx.call = pbx.held.length ? Object.assign(pbx.held.pop(), { onHold: false }) : null;
   if (answered) pbx.wrap = { historyId: row.id, left: pbx.settings.wrapUpSec, disposition: '', note: c.note };
@@ -260,6 +291,28 @@ export function saveSettings() { persist(); }
 export function markHeard(v) { v.heard = true; persist(); }
 export function deleteVoicemail(id) { pbx.voicemail = pbx.voicemail.filter((v) => v.id !== id); persist(); }
 
+// ---- callbacks, campaigns, do-not-call, greetings ----
+export function callBack(cb) { const err = dial(cb.number); if (!err) { cb.status = 'Called back'; persist(); } return err; }
+export function dropCallback(id) { pbx.callbacks = pbx.callbacks.filter((c) => c.id !== id); persist(); }
+export function saveRouting() { persist(); }
+export function campaignNext(k) {
+  // the next customer due: not reached yet, tries left, and not on the do-not-call list
+  return k.list.find((r) => !/Promise to pay|Payment made|Resolved|Do not call/.test(r.result) && r.tries <= k.retries && !pbx.dnc.includes(norm((customerOf(r.customerId) || {}).phone))) || null;
+}
+export function campaignDial(k) {
+  const r = campaignNext(k); if (!r) { k.status = 'Finished'; persist(); return 'Everyone on this list has been reached or has no tries left.'; }
+  const c = customerOf(r.customerId);
+  const err = dial(c.phone, { campaign: k.name });
+  if (!err) { r.tries++; r.result = 'Dialled'; k.status = 'Running'; persist(); }
+  return err;
+}
+export function campaignResult(k, customerId, result) { const r = k.list.find((x) => x.customerId === customerId); if (r) { r.result = result; if (result === 'Do not call') addDnc(customerOf(customerId).phone); persist(); } }
+export function newCampaign(name, queue, ids) { pbx.campaigns.unshift({ id: 'k' + now(), name, queue, status: 'Draft', retries: 2, retryMin: 60, window: ['09:00', '17:00'], list: ids.map((id) => ({ customerId: id, tries: 0, result: '' })) }); persist(); }
+export function addDnc(n) { n = norm(n); if (n && !pbx.dnc.includes(n)) { pbx.dnc.push(n); persist(); } }
+export function removeDnc(n) { pbx.dnc = pbx.dnc.filter((x) => x !== n); persist(); }
+export function addGreeting(g) { pbx.greetings.unshift(g); pbx.greetings.splice(5); persist(); }
+export function removeGreeting(i) { pbx.greetings.splice(i, 1); persist(); }
+
 // ---- the clock: call timers, wrap-up countdown, and a live-looking wallboard ----
 let timer = 0;
 export function startClock() {
@@ -267,6 +320,18 @@ export function startClock() {
   timer = window.setInterval(() => {
     pbx.tick = now();
     if (pbx.wrap && pbx.wrap.left > 0) { pbx.wrap.left--; if (pbx.wrap.left === 0) finishWrap(); }
+    if (pbx.call && pbx.call.answeredAt) {
+      const q = pbx.quality, j = (x, d, lo, hi) => Math.min(hi, Math.max(lo, x + (Math.random() - 0.5) * d));
+      q.jitter = Math.round(j(q.jitter, 6, 2, 60)); q.loss = +j(q.loss, 0.6, 0, 6).toFixed(1); q.rtt = Math.round(j(q.rtt, 20, 30, 400));
+      q.mos = +Math.max(1, Math.min(4.5, 4.5 - q.jitter / 40 - q.loss / 2 - q.rtt / 600)).toFixed(1);
+    }
+    pbx.queues.forEach((q) => {
+      const key = q.name;
+      const bad = q.longest > pbx.settings.alertWaitSec ? 'Longest wait in ' + key + ' is over ' + pbx.settings.alertWaitSec + 's' : q.sla < pbx.settings.alertSla ? key + ' service level is below ' + pbx.settings.alertSla + '%' : '';
+      const i = pbx.alerts.findIndex((a) => a.queue === key);
+      if (bad && i === -1) pbx.alerts.unshift({ queue: key, text: bad, at: now() });
+      if (!bad && i !== -1) pbx.alerts.splice(i, 1);
+    });
     if (Math.random() < 0.08) {
       const q = pbx.queues[Math.floor(Math.random() * pbx.queues.length)];
       q.waiting = Math.max(0, q.waiting + (Math.random() < 0.5 ? -1 : 1));
