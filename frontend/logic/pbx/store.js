@@ -3,6 +3,7 @@
 // simulated in the browser so the screens can be built and reviewed. Every place that must talk to the real PBX is marked "PBX:".
 // What the viewer changes (history, notes, settings) is kept in this browser only, so a reload does not lose the demo.
 import { reactive } from 'vue';
+import * as snd from './sounds.js';
 
 const KEY = 'hub.pbx.v1';
 const now = () => Date.now();
@@ -70,7 +71,7 @@ function seedVoicemail() {
 const DEFAULT_SETTINGS = {
   extension: '1001', callerId: 'Main line (0709 000 000)', callerIds: ['Main line (0709 000 000)', 'Collections (0709 000 100)', 'Customer care (0709 000 200)'],
   forwardAlways: '', forwardBusy: '', forwardNoAnswer: '', noAnswerSec: 25, dnd: false, autoAnswer: false, recordAll: true,
-  ringDevice: 'Browser', wrapUpSec: 30, maskNumbers: true, greeting: 'Default greeting', blocked: ['+254799000111'],
+  ringDevice: 'Browser', wrapUpSec: 30, tune: 'Calm care', tuneGreeting: true, maskNumbers: true, greeting: 'Default greeting', blocked: ['+254799000111'],
   queues: { 'Collections': true, 'Customer care': true, 'Onboarding': false, 'Fraud': false }
 };
 
@@ -151,12 +152,14 @@ export function dial(number) {
   if (pbx.call) holdCurrent();
   pbx.call = newCall('out', n, { callerId: pbx.settings.callerId });
   const id = pbx.call.id;
+  snd.startRingback();
   // PBX: the far end answers (or not); simulated after a few seconds
   setTimeout(() => { if (pbx.call && pbx.call.id === id && pbx.call.state === 'Dialling') pbx.call.state = 'Ringing'; }, 900);
   setTimeout(() => {
     if (!pbx.call || pbx.call.id !== id || pbx.call.state !== 'Ringing') return;
+    snd.stopRingback();
     if (Math.random() < 0.15) { endCall('No answer'); return; }
-    pbx.call.state = 'Talking'; pbx.call.answeredAt = now();
+    pbx.call.state = 'Talking'; pbx.call.answeredAt = now(); snd.connected();
   }, 3200);
   return '';
 }
@@ -168,6 +171,7 @@ export function simulateIncoming(queue) {
     persist(); return;
   }
   const c = pbx.customers[Math.floor(Math.random() * pbx.customers.length)];
+  snd.startRing();
   pbx.incoming = { number: c.phone, customerId: c.id, queue: queue || (Math.random() < 0.5 ? 'Customer care' : 'Collections'), at: now(), waited: Math.floor(Math.random() * 60) };
   if (pbx.settings.autoAnswer) setTimeout(answer, 1500);
 }
@@ -176,10 +180,11 @@ export function answer() {
   const inc = pbx.incoming; if (!inc) return;
   if (pbx.call) holdCurrent();
   pbx.call = newCall('in', inc.number, { queue: inc.queue });
-  pbx.incoming = null;
+  pbx.incoming = null; snd.stopRing(); snd.connected();
 }
 export function decline(toVoicemail) {
   const inc = pbx.incoming; if (!inc) return;
+  snd.stopRing();
   pbx.history.unshift({ id: 'h' + now(), dir: 'in', customerId: inc.customerId, number: inc.number, result: toVoicemail ? 'Sent to voicemail' : 'Declined', duration: 0, disposition: '', at: now(), recorded: false, note: '', agent: 'You' });
   pbx.incoming = null; persist();
 }
@@ -192,11 +197,12 @@ export function swapTo(id) {
   if (pbx.call) { pbx.call.onHold = true; pbx.held.push(pbx.call); }
   next.onHold = false; pbx.call = next;
 }
-export function sendDtmf(k) { if (pbx.call) pbx.call.dtmf = (pbx.call.dtmf + k).slice(-24); }
+export function sendDtmf(k) { snd.keyTone(k); if (pbx.call) pbx.call.dtmf = (pbx.call.dtmf + k).slice(-24); }
 
 export function endCall(result) {
   const c = pbx.call; if (!c) return;
   const answered = !!c.answeredAt;
+  snd.stopRingback(); snd.hangup();
   const row = { id: 'h' + now(), dir: c.dir, customerId: c.customerId, number: c.number, result: result || (answered ? 'Answered' : 'Cancelled'), duration: answered ? now() - c.answeredAt : 0, disposition: '', at: c.startedAt, recorded: answered && c.recording, note: c.note, agent: 'You', queue: c.queue, conference: c.conference.slice() };
   pbx.history.unshift(row);
   pbx.call = pbx.held.length ? Object.assign(pbx.held.pop(), { onHold: false }) : null;
