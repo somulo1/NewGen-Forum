@@ -22,7 +22,7 @@ const CUSTOMERS = [
 
 const AGENTS = [
   { ext: '1001', name: 'You', me: true, status: 'Available', queues: ['Collections', 'Customer care'], calls: 0, talk: 0 },
-  { ext: '1002', name: 'Kevin Odenda', status: 'On a call', queues: ['Collections'], calls: 14, talk: 52 * MIN, since: now() - 3 * MIN, with: '+254722987654' },
+  { ext: '1002', name: 'Kevin Ondede', status: 'On a call', queues: ['Collections'], calls: 14, talk: 52 * MIN, since: now() - 3 * MIN, with: '+254722987654' },
   { ext: '1003', name: 'Salmon Eze', status: 'Available', queues: ['Customer care', 'Onboarding'], calls: 9, talk: 31 * MIN },
   { ext: '1004', name: 'Daisy Moraa', status: 'Wrap-up', queues: ['Customer care'], calls: 11, talk: 40 * MIN, since: now() - 40000 },
   { ext: '1005', name: 'Tom Kiprono', status: 'Away', queues: ['Onboarding'], calls: 6, talk: 18 * MIN },
