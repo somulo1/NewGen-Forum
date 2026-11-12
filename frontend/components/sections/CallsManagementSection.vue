@@ -426,7 +426,7 @@ export default {
 .pbx-row.center { justify-content: center; }
 .pbx-card { padding: 16px; border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .pbx-grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 16px; }
-@media (prefers-reduced-motion: reduce) { .pbx-field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--k-C9D6CF,#C9D6CF); }
+.pbx-field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--k-C9D6CF,#C9D6CF); }
 .pbx-field input, .pbx-field select, .pbx-field textarea, .pbx textarea, .pbx-search { box-sizing: border-box; width: 100%; min-height: 40px; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font: inherit; font-size: 14px; }
 .pbx-search { width: auto; flex: 1 1 220px; }
 .pbx-check { display: flex; align-items: center; gap: 8px; font-size: 13px; }
