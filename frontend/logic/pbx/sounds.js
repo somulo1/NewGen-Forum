@@ -81,7 +81,11 @@ export function startTune(name, withGreeting) {
   };
   schedule(); st.timer = setInterval(schedule, 100);
   loop = st;
-  if (withGreeting) speak(GREETING, { duck: true });
+  // the greeting: a recorded human voice when one is chosen (best), otherwise the AI voice reading the text
+  if (withGreeting) {
+    const g = typeof withGreeting === 'object' ? withGreeting : {};
+    if (g.url) playClip(g.url); else speak(g.text || GREETING, { duck: true, voice: g.voice });
+  }
 }
 export function stopTune() {
   if (loop) {
@@ -92,6 +96,17 @@ export function stopTune() {
   }
   stopSpeech();
 }
+
+// a recorded greeting over the tune, with the music stepping back while it plays
+let clip = null;
+export function playClip(url) {
+  stopClip();
+  const el = new Audio(url); clip = el;
+  const duck = (down) => { if (loop) { try { loop.music.gain.setTargetAtTime(down ? 0.3 : 1, audio().currentTime, 0.4); } catch (e) { /* closed */ } } };
+  duck(true); el.onended = () => { duck(false); if (clip === el) clip = null; };
+  el.play().catch(() => duck(false));
+}
+function stopClip() { if (clip) { clip.pause(); clip = null; } }
 
 // ---- the sample "AI" voice ----
 // The browser's own speech, made to sound like a care agent: the most natural voice it has, read sentence by sentence with
@@ -106,9 +121,12 @@ const voicesReady = () => new Promise((res) => {
   setTimeout(res, 1500);
 });
 // the best English voice the device has: neural and "natural" voices first, then known smooth female voices, then any English one
-export function bestVoice() {
-  const en = voices().filter((v) => /^en([-_]|$)/i.test(v.lang));
-  const score = (v) => {
+export function englishVoices() { return voices().filter((v) => /^en([-_]|$)/i.test(v.lang)).sort((a, b) => voiceScore(b) - voiceScore(a)); }
+export function bestVoice(name) {
+  if (name) { const v = voices().find((x) => x.name === name); if (v) return v; }
+  return englishVoices()[0] || null;
+}
+function voiceScore(v) {
     let s = 0; const n = v.name;
     if (/natural|neural|online/i.test(n)) s += 50;
     if (/Google UK English Female|Google US English|Samantha|Serena|Karen|Moira|Tessa|Fiona|Libby|Sonia|Aria|Jenny|Ava|Allison|Susan|Hazel|Zira|female/i.test(n)) s += 20;
@@ -116,11 +134,10 @@ export function bestVoice() {
     if (/compact|espeak|robot|novelty|whisper|bells|bad news|zarvox|trinoids|albert|fred|junior/i.test(n)) s -= 60;
     if (!v.localService) s += 3;   // network voices are usually the higher-quality ones
     return s;
-  };
-  return en.sort((a, b) => score(b) - score(a))[0] || null;
 }
 export function stopSpeech() {
   speechRun++;
+  stopClip();
   if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel();
 }
 // break the text into sentences, and long sentences at their commas, so each piece is read with its own natural intonation
@@ -134,7 +151,7 @@ export async function speak(text, opts) {
   const run = speechRun, ss = window.speechSynthesis;
   await voicesReady();
   if (run !== speechRun) return;
-  const v = bestVoice(), parts = phrases(text);
+  const v = bestVoice(opts && opts.voice), parts = phrases(text);
   // the music steps back while the voice speaks, then comes up again
   const duck = (down) => { if (opts && opts.duck && loop) { try { loop.music.gain.setTargetAtTime(down ? 0.35 : 1, audio().currentTime, 0.4); } catch (e) { /* closed */ } } };
   duck(true);

@@ -114,7 +114,8 @@ export const pbx = reactive({
   callbacks: saved.callbacks || seedCallbacks(),
   dnc: saved.dnc || ['+254711556677'],              // customers who asked not to be called (do-not-call list)
   greetings: saved.greetings || [],                  // my recorded voicemail greetings (data URLs, this browser only)
-  alerts: [],                                        // wallboard alerts raised by the clock
+  alerts: [],
+  alertsOff: {},                                     // alerts closed with ×: they stay away until that problem clears                                        // wallboard alerts raised by the clock
   quality: { mos: 4.3, jitter: 8, loss: 0.2, rtt: 64 },   // the live call's line quality
   settings: { ...DEFAULT_SETTINGS, ...(saved.settings || {}) },
   presence: saved.presence || 'Available',          // Available, Away, Busy, Do not disturb, Lunch, Off work
@@ -295,6 +296,7 @@ export function deleteVoicemail(id) { pbx.voicemail = pbx.voicemail.filter((v) =
 export function callBack(cb) { const err = dial(cb.number); if (!err) { cb.status = 'Called back'; persist(); } return err; }
 export function dropCallback(id) { pbx.callbacks = pbx.callbacks.filter((c) => c.id !== id); persist(); }
 export function saveRouting() { persist(); }
+export function dismissAlert(a) { pbx.alertsOff[a.queue] = a.text; pbx.alerts = pbx.alerts.filter((x) => x !== a); }
 export function campaignNext(k) {
   // the next customer due: not reached yet, tries left, and not on the do-not-call list
   return k.list.find((r) => !/Promise to pay|Payment made|Resolved|Do not call/.test(r.result) && r.tries <= k.retries && !pbx.dnc.includes(norm((customerOf(r.customerId) || {}).phone))) || null;
@@ -329,7 +331,8 @@ export function startClock() {
       const key = q.name;
       const bad = q.longest > pbx.settings.alertWaitSec ? 'Longest wait in ' + key + ' is over ' + pbx.settings.alertWaitSec + 's' : q.sla < pbx.settings.alertSla ? key + ' service level is below ' + pbx.settings.alertSla + '%' : '';
       const i = pbx.alerts.findIndex((a) => a.queue === key);
-      if (bad && i === -1) pbx.alerts.unshift({ queue: key, text: bad, at: now() });
+      if (!bad) delete pbx.alertsOff[key];
+      if (bad && i === -1 && pbx.alertsOff[key] !== bad) pbx.alerts.unshift({ queue: key, text: bad, at: now() });
       if (!bad && i !== -1) pbx.alerts.splice(i, 1);
     });
     if (Math.random() < 0.08) {

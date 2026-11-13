@@ -14,13 +14,13 @@
       </select>
     </label>
   </header>
-  <nav class="pbx-tabs" role="tablist" aria-label="Calls management">
+  <nav v-show="!pbx.call" class="pbx-tabs" role="tablist" aria-label="Calls management">
     <button v-for="t in tabs" :key="t.k" type="button" role="tab" :aria-selected="tab === t.k" :class="{ on: tab === t.k }" @click="tab = t.k">{{ t.l }}<span v-if="t.n" class="pbx-count">{{ t.n }}</span></button>
   </nav>
   </div>
   <div class="pbx-layout">
   <!-- dial pad -->
-  <aside class="pbx-dialcol" aria-label="Dial pad">
+  <aside v-if="showDial" class="pbx-dialcol" aria-label="Dial pad">
     <div class="pbx-card">
       <input class="pbx-number" v-model="number" inputmode="tel" placeholder="Number or customer name" aria-label="Number to call" @keydown.enter="callNumber">
       <ul v-if="numberMatches.length" class="pbx-list">
@@ -37,7 +37,7 @@
       <span v-if="dialErr" role="alert" class="pbx-err">{{ dialErr }}</span>
     </div>
   </aside>
-  <div class="pbx-center">
+  <div v-show="!pbx.call" class="pbx-center">
   <!-- after-call work -->
   <section v-if="pbx.wrap && !pbx.call" class="pbx-wrap" aria-label="After-call work">
     <div class="pbx-row between"><strong>How did the call end?</strong><span class="pbx-sub">Saves by itself in {{ pbx.wrap.left }}s</span></div>
@@ -130,7 +130,7 @@
 
   <!-- monitoring / wallboard -->
   <section v-if="tab === 'monitor'" class="pbx-mon">
-    <div v-for="a in pbx.alerts" :key="a.queue" class="pbx-alert" role="alert">⚠ {{ a.text }} <span class="pbx-sub">since {{ fmtWhen(a.at) }}</span></div>
+    <div v-for="a in pbx.alerts" :key="a.queue" class="pbx-alert" role="alert"><span class="grow">⚠ {{ a.text }} <span class="pbx-sub">since {{ fmtWhen(a.at) }}</span></span><button type="button" class="pbx-x" :aria-label="'Dismiss: ' + a.text" @click="dismissAlert(a)">×</button></div>
     <div class="pbx-kpis">
       <div class="pbx-kpi"><span>Waiting now</span><strong>{{ totals.waiting }}</strong></div>
       <div class="pbx-kpi"><span>Longest wait</span><strong>{{ totals.longest }}s</strong></div>
@@ -208,7 +208,15 @@
       <h2>Customer care tune</h2>
       <span class="pbx-sub">What customers hear while they wait in a queue or are on hold. A sample tune with a sample AI greeting until the phone system plays the real one.</span>
       <label class="pbx-field">Tune<select v-model="pbx.settings.tune" @change="saveSettings"><option v-for="t in tuneNames" :key="t">{{ t }}</option></select></label>
-      <label class="pbx-check"><input type="checkbox" v-model="pbx.settings.tuneGreeting" @change="saveSettings"> Play the spoken greeting first</label>
+      <label class="pbx-check"><input type="checkbox" v-model="pbx.settings.tuneGreeting" @change="saveSettings"> Play the greeting first</label>
+      <template v-if="pbx.settings.tuneGreeting">
+        <label class="pbx-field">Greeting voice<select v-model="pbx.settings.greetingSource" @change="saveSettings"><option value="">AI voice</option><option v-for="g in pbx.greetings" :key="g.at" :value="String(g.at)">My recording · {{ fmtWhen(g.at) }}</option></select></label>
+        <template v-if="!pbx.settings.greetingSource">
+          <label class="pbx-field">AI voice<select v-model="pbx.settings.voiceName" @change="saveSettings"><option value="">Best on this device</option><option v-for="(v, i) in voiceList" :key="v.name" :value="v.name">{{ v.name }}{{ i === 0 ? ' (recommended)' : '' }}</option></select></label>
+          <label class="pbx-field">What it says<textarea v-model="pbx.settings.greetingText" rows="4" @change="saveSettings" :placeholder="defaultGreeting"></textarea></label>
+          <span class="pbx-sub">The AI voice is your device's own. For the most natural sound, record the greeting in a calm voice under My voicemail greeting and choose it above.</span>
+        </template>
+      </template>
       <div class="pbx-row"><button type="button" class="pbx-btn ghost" @click="previewTune">{{ tuneOn ? 'Stop' : 'Listen' }}</button><button type="button" class="pbx-btn ghost" @click="simulateIncoming()">Test an inbound call</button></div>
       <h2>Blocked numbers</h2>
       <ul class="pbx-list"><li v-for="(b, i) in pbx.settings.blocked" :key="b"><span class="grow">{{ showNumber(b) }}</span><button type="button" class="pbx-link" @click="pbx.settings.blocked.splice(i, 1); saveSettings()">Unblock</button></li></ul>
@@ -217,8 +225,7 @@
   </section>
   </div>
   <!-- the live call: built like Hub's voice call screen -->
-  <aside v-if="pbx.call" class="pbx-callpanel" aria-label="Current call" :style="{ width: callW + 'px' }">
-    <button type="button" class="pbx-grip" aria-label="Drag to resize the call panel. Arrow keys also resize." @pointerdown="startResize" @keydown.left.prevent="callW = clampW(callW + 24)" @keydown.right.prevent="callW = clampW(callW - 24)"><span></span></button>
+  <aside v-if="pbx.call" class="pbx-callpanel" aria-label="Current call">
     <div class="pbx-callscreen">
     <div class="pbx-cs-top">
       <span class="pbx-cs-q">{{ pbx.call.dir === 'in' ? 'Inbound' : 'Outbound' }}<template v-if="pbx.call.queue"> · {{ pbx.call.queue }}</template><template v-else> · as {{ pbx.call.callerId }}</template></span>
@@ -268,8 +275,8 @@
 </template>
 
 <script>
-import { TUNES, startTune, stopTune, keyTone } from '~/logic/pbx/sounds.js';
-import { removeGreeting, addGreeting } from '~/logic/pbx/store.js';
+import { TUNES, GREETING, startTune, stopTune, keyTone, englishVoices } from '~/logic/pbx/sounds.js';
+import { removeGreeting, addGreeting, dismissAlert } from '~/logic/pbx/store.js';
 import { pbx, dial, simulateIncoming, answer, decline, endCall, toggleHold, swapTo, sendDtmf, transfer, completeTransfer, cancelTransfer, addToConference, dropFromConference, park, unpark, finishWrap,
   sendMessage, startThread, supervise, setAgentQueue, setPresence, saveSettings, markHeard, deleteVoicemail, startClock, stopClock, customerOf, customerByNumber, showNumber, fmtDur, fmtWhen, money, norm, logAudit } from '~/logic/pbx/store.js';
 
@@ -278,7 +285,7 @@ const KEYS = [['1', ''], ['2', 'ABC'], ['3', 'DEF'], ['4', 'GHI'], ['5', 'JKL'],
 export default {
   name: 'CallsManagementSection',
   data() {
-    return { pbx, tab: 'history', callW: 380, number: '', dialErr: '', panel: '', target: '', who: 'Customers', box: 'All boxes', devices: { mics: [], speakers: [], asked: false }, recording: null, recSecs: 0, recErr: '', tuneOn: false, hearHold: false, hq: '', hf: 'All', cq: '', thread: null, draft: '', playing: null, revealed: {}, supNote: '', blockNo: '',
+    return { pbx, tab: 'history', callW: 380, number: '', dialErr: '', panel: '', target: '', who: 'Customers', box: 'All boxes', devices: { mics: [], speakers: [], asked: false }, recording: null, recSecs: 0, recErr: '', tuneOn: false, voicesTick: 0, hearHold: false, hq: '', hf: 'All', cq: '', thread: null, draft: '', playing: null, revealed: {}, supNote: '', blockNo: '',
       keys: KEYS, presences: ['Available', 'Away', 'Busy', 'Lunch', 'Do not disturb', 'Off work'],
       templates: [
         { l: 'Payment reminder', t: (c) => 'Hello ' + (c ? c.name.split(' ')[0] : '') + ', a reminder that your payment on ' + (c ? c.account : 'your account') + ' is due. Reply PAY for the paybill details.' },
@@ -286,7 +293,7 @@ export default {
         { l: 'KYC documents', t: () => 'Please upload a clear photo of your ID and a selfie in the app to finish verification.' }
       ] };
   },
-  mounted() { startClock(); this.loadDevices(false); try { const w = +localStorage.getItem('hub.pbx.callW'); if (w) this.callW = this.clampW(w); } catch (e) { /* private window */ } },
+  mounted() { startClock(); this.loadDevices(false); if (window.speechSynthesis) { const bump = () => { this.voicesTick++; }; window.speechSynthesis.addEventListener ? window.speechSynthesis.addEventListener('voiceschanged', bump) : (window.speechSynthesis.onvoiceschanged = bump); bump(); } try { const w = +localStorage.getItem('hub.pbx.callW'); if (w) this.callW = this.clampW(w); } catch (e) { /* private window */ } },
   beforeUnmount() { stopClock(); stopTune(); },
   watch: { 'pbx.call.onHold'(v) { if (!v && this.hearHold) { stopTune(); this.hearHold = false; } }, 'pbx.call'(v) { if (!v) { this.panel = ''; if (this.hearHold) { stopTune(); this.hearHold = false; } } } },
   computed: {
@@ -316,6 +323,10 @@ export default {
     boxes() { return ['All boxes', 'My voicemail'].concat(this.pbx.queues.map((q) => q.name)); },
     qualityTone() { const m = this.pbx.quality.mos; return m >= 4 ? 'ok' : m >= 3.5 ? 'mid' : 'bad'; },
     qualityLabel() { const m = this.pbx.quality.mos; return m >= 4 ? 'Clear line' : m >= 3.5 ? 'Fair line' : 'Poor line'; },
+    // the dial pad only sits beside the tabs you call from (and during a call)
+    showDial() { return !!this.pbx.call || ['history', 'contacts', 'voicemail'].includes(this.tab); },
+    defaultGreeting() { return GREETING; },
+    voiceList() { void this.voicesTick; return englishVoices(); },
     tuneNames() { return Object.keys(TUNES); },
     incomingCustomer() { return this.pbx.incoming && this.pbx.incoming.customerId ? customerOf(this.pbx.incoming.customerId) : null; },
     liveCustomer() { return this.pbx.call && this.pbx.call.customerId ? customerOf(this.pbx.call.customerId) : null; },
@@ -352,7 +363,7 @@ export default {
     callTo(n) { this.dialErr = dial(n); },
     togglePanel(p) { this.panel = this.panel === p ? '' : p; },
     doTransfer(mode) { transfer(this.target, mode); this.target = ''; this.panel = ''; },
-    removeGreeting,
+    removeGreeting, dismissAlert,
     clampW(w) { return Math.max(320, Math.min(Math.round(window.innerWidth * 0.6), w)); },
     // drag the panel's left edge to widen or narrow the call, like the chat side panel
     startResize(e) {
@@ -386,7 +397,12 @@ export default {
         this._recT = setInterval(() => { this.recSecs++; if (this.recSecs >= 30) rec.stop(); }, 1000);
       } catch (e) { this.recErr = 'The browser did not allow the microphone.'; }
     },
-    previewTune() { if (this.tuneOn) { stopTune(); this.tuneOn = false; return; } startTune(this.pbx.settings.tune, this.pbx.settings.tuneGreeting); this.tuneOn = true; },
+    previewTune() { if (this.tuneOn) { stopTune(); this.tuneOn = false; return; } startTune(this.pbx.settings.tune, this.greeting()); this.tuneOn = true; },
+    greeting() {
+      const st = this.pbx.settings; if (!st.tuneGreeting) return false;
+      const rec = st.greetingSource && this.pbx.greetings.find((g) => String(g.at) === st.greetingSource);
+      return rec ? { url: rec.url } : { text: (st.greetingText || '').trim() || GREETING, voice: st.voiceName };
+    },
     // on hold the customer hears the care tune; the agent can listen in to what they hear
     toggleHear() { if (this.hearHold) { stopTune(); this.hearHold = false; } else { startTune(this.pbx.settings.tune, false); this.hearHold = true; } },
     reveal(n) { this.revealed = { ...this.revealed, [n]: true }; logAudit('Showed the number ' + showNumber(n) + ' (' + (customerByNumber(n) || { name: 'unknown caller' }).name + ')'); },
@@ -531,7 +547,7 @@ export default {
 .pbx-dial > .pbx-card { width: 100%; max-width: 420px; }
 .pbx-chip-q { height: 30px; padding: 0 12px; border-radius: 15px; font-size: 12px; font-weight: 600; display: flex; align-items: center; }
 .pbx-chip-q.ok { background: rgba(184,243,107,.12); color: #B8F36B; } .pbx-chip-q.mid { background: rgba(255,184,107,.14); color: #FFB86B; } .pbx-chip-q.bad { background: rgba(255,155,138,.16); color: #FF9B8A; }
-.pbx-alert { padding: 10px 14px; border-radius: 12px; background: rgba(255,155,138,.12); border: 1px solid #FF9B8A; color: var(--k-FFD3CA,#FFD3CA); font-size: 13px; }
+.pbx-alert { display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 14px; border-radius: 12px; background: rgba(255,155,138,.12); border: 1px solid #FF9B8A; color: var(--k-FFD3CA,#FFD3CA); font-size: 13px; }
 .pbx-key { width: 32px; height: 32px; flex: none; border-radius: 8px; background: var(--k-22302A,#22302A); display: flex; align-items: center; justify-content: center; font-weight: 700; }
 .pbx-sub-card { padding: 12px; border-radius: 12px; background: var(--k-121B17,#121B17); display: flex; flex-direction: column; gap: 10px; }
 .pbx-field.inline { flex-direction: row; align-items: center; gap: 8px; }
@@ -577,5 +593,29 @@ export default {
   .pbx-dialcol { position: static; flex-basis: auto; }
   .pbx-callpanel { position: fixed; inset: 64px 0 64px 0; width: auto !important; max-height: none; z-index: 60; border-radius: 0; background: var(--k-121B17,#121B17); }
   .pbx-grip { display: none; }
+}
+
+/* ---- layout fixes: the dial pad keeps its own width; during a call only the dial pad and the call share the page ---- */
+.pbx-dialcol { flex: 0 0 340px !important; width: 340px; min-width: 0; }
+.pbx-dialcol .pbx-card { box-sizing: border-box; }
+.pbx-dialcol .pbx-keys { max-width: 100%; gap: 8px; }
+.pbx-dialcol .pbx-keys button { height: 54px; }
+.pbx-dialcol .pbx-number { font-size: 20px; height: 50px; }
+.pbx-dialcol .pbx-btn.big { min-width: 0; flex: 1; }
+.pbx-search { flex: none; }
+.pbx-row .pbx-search, form.pbx-row .pbx-search { flex: 1 1 200px; }
+.pbx-callpanel { flex: 1 1 auto !important; min-width: 0; width: auto !important; max-height: none; position: static; }
+.pbx-callpanel .pbx-callscreen { min-height: min(620px, calc(100vh - 220px)) !important; }
+.pbx-callpanel .pbx-cs-body { flex-direction: row; }
+.pbx-callpanel .pbx-cs-side { flex: 0 0 300px; }
+.pbx-callpanel .pbx-cs-face { width: 104px !important; height: 104px !important; font-size: 34px !important; }
+.pbx-callpanel .pbx-cs-name { font-size: 22px; }
+.pbx-callpanel .pbx-ctl { width: 66px; height: 60px; border-radius: 16px; }
+.pbx-callpanel .pbx-ctl span { display: block; }
+@media (max-width: 1300px) { .pbx-callpanel .pbx-cs-body { flex-direction: column; } .pbx-callpanel .pbx-cs-side { flex-basis: auto; } }
+@media (max-width: 1100px) {
+  .pbx-dialcol { flex-basis: auto !important; width: auto; }
+  .pbx-callpanel { position: fixed !important; inset: 64px 0 64px 0; z-index: 60; }
+  .pbx-callpanel .pbx-ctl { width: 50px; height: 50px; } .pbx-callpanel .pbx-ctl span { display: none; }
 }
 </style>
