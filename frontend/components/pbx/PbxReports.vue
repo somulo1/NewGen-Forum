@@ -49,7 +49,7 @@
       <thead><tr><th>Agent</th><th>Calls</th><th>Answered</th><th>Missed</th><th>Talk time</th><th>Average call</th><th>Promise to pay</th></tr></thead>
       <tbody><tr v-for="a in pageOf('ag', byAgent)" :key="a.ext"><td><strong>{{ a.name }}</strong><span class="pbx-sub block">Ext {{ a.ext }}</span></td><td>{{ a.calls }}</td><td>{{ a.answered }}</td><td>{{ a.missed }}</td><td>{{ fmtDur(a.talk * 1000) }}</td><td>{{ fmtDur((a.answered ? a.talk / a.answered : 0) * 1000) }}</td><td>{{ a.ptp }}</td></tr></tbody>
     </table></div>
-<PbxPager :total="byAgent.length" :page="pg['ag'] || 1" @update:page="setPage('ag', $event)" />
+<PbxPager :size="25" :total="byAgent.length" :page="pg['ag'] || 1" @update:page="setPage('ag', $event)" />
   </div>
 </section>
 </template>
@@ -107,7 +107,7 @@ export default {
   mounted() { const el = this.$refs.chart; if (el && window.ResizeObserver) { this._ro = new ResizeObserver(([e]) => { this.W = Math.max(280, Math.round(e.contentRect.width)); }); this._ro.observe(el); } },
   beforeUnmount() { if (this._ro) this._ro.disconnect(); },
   methods: {
-    pageOf(key, rows, size) { const n = size || 10, p = this.pg[key] || 1; return rows.slice((p - 1) * n, p * n); },
+    pageOf(key, rows, size) { const n = size || 25, p = this.pg[key] || 1; return rows.slice((p - 1) * n, p * n); },
     setPage(key, p) { this.pg = { ...this.pg, [key]: p }; },
     fmtDur,
     pctOf(a, b) { return b ? Math.round((a / b) * 100) : 0; },

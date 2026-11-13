@@ -17,7 +17,7 @@
       <tr v-if="!rows.length"><td colspan="7" class="pbx-empty">No recordings match.</td></tr>
     </tbody>
   </table></div>
-<PbxPager :total="rows.length" :page="pg['rec'] || 1" @update:page="setPage('rec', $event)" />
+<PbxPager :size="25" :total="rows.length" :page="pg['rec'] || 1" @update:page="setPage('rec', $event)" />
   <div class="pbx-row">
     <label class="pbx-field inline">Keep recordings for<select v-model="pbx.settings.keepDays" @change="saveSettings"><option :value="90">90 days</option><option :value="180">6 months</option><option :value="365">1 year</option><option :value="2555">7 years</option></select></label>
     <span class="pbx-sub">Played recordings and downloads are written to the compliance log. Playback here is a sample; the phone system streams the real audio.</span>
@@ -41,7 +41,7 @@ export default {
     }
   },
   methods: {
-    pageOf(key, rows, size) { const n = size || 10, p = this.pg[key] || 1; return rows.slice((p - 1) * n, p * n); },
+    pageOf(key, rows, size) { const n = size || 25, p = this.pg[key] || 1; return rows.slice((p - 1) * n, p * n); },
     setPage(key, p) { this.pg = { ...this.pg, [key]: p }; },
     showNumber, fmtDur, fmtWhen, saveSettings,
     name(h) { const c = h.customerId ? customerOf(h.customerId) : customerByNumber(h.number); return c ? c.name : showNumber(h.number); },

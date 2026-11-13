@@ -1,7 +1,7 @@
 <!-- Calls management: the customer phone system (softphone, call history, customer messaging, voicemail, queue monitoring).
      Front end only for now: calls are simulated in logic/pbx/store.js until the PBX is connected. -->
 <template>
-<div class="pbx">
+<div :class="['pbx', { 'has-side': pbx.call && !callFull }]" :style="pbx.call && !callFull ? { '--pbx-side': callW + 'px', '--pbx-top': topPx + 'px' } : null">
   <div class="pbx-top">
   <header class="pbx-head">
     <h1>Calls management</h1>
@@ -69,16 +69,22 @@
           <tr v-if="!historyRows.length"><td colspan="7" class="pbx-empty">No calls match.</td></tr>
         </tbody>
       </table>
-<PbxPager :total="historyRows.length" :page="pg['h'] || 1" @update:page="setPage('h', $event)" />
+<PbxPager :size="25" :total="historyRows.length" :page="pg['h'] || 1" @update:page="setPage('h', $event)" />
     </div>
   </section>
 
   <!-- customers -->
   <section v-if="tab === 'contacts'" class="pbx-card">
     <div class="pbx-seg" role="radiogroup" aria-label="Show" style="align-self: flex-start"><button v-for="w in ['Customers', 'Colleagues']" :key="w" type="button" role="radio" :aria-checked="who === w" :class="{ on: who === w }" @click="who = w">{{ w }}</button></div>
-    <ul v-if="who === 'Colleagues'" class="pbx-list">
-      <li v-for="a in pbx.agents.filter((x) => !x.me)" :key="a.ext"><UserAvatar :name="a.name" :initials="initials(a.name)" color="#B8F36B" :size="32" :font-size="11"/><span class="grow"><strong>{{ a.name }}</strong><span class="pbx-sub block">Ext {{ a.ext }} · {{ a.queues.join(', ') }}</span></span><span :class="['pbx-pill', agentTone(a.status)]">{{ a.status }}</span><button type="button" class="pbx-btn small go" :disabled="a.status === 'Logged out'" @click="callTo(a.ext)">Call</button></li>
-    </ul>
+    <div v-if="who === 'Colleagues'" class="pbx-colleagues">
+      <div v-for="a in pageOf('col', colleagues, 40)" :key="a.ext" class="pbx-colrow">
+        <span class="pbx-colav"><UserAvatar :name="a.name" :initials="initials(a.name)" :color="avatarColor(a.name)" :size="28" :font-size="10"/><span :class="['pbx-dot', agentTone(a.status) === 'busy' ? 'mid' : agentTone(a.status)]" :title="a.status" aria-hidden="true"></span></span>
+        <span class="grow"><strong>{{ a.name }}</strong> <span class="pbx-sub">· {{ a.ext }} · {{ a.status }}</span></span>
+        <button type="button" class="pbx-btn tiny go" :disabled="a.status === 'Logged out'" :aria-label="'Call ' + a.name" @click="callTo(a.ext)">Call</button>
+        <button type="button" class="pbx-btn tiny ghost" :aria-label="'Message ' + a.name" @click="messageColleague(a)">Message</button>
+      </div>
+    </div>
+    <PbxPager v-if="who === 'Colleagues'" :total="colleagues.length" :size="40" :page="pg.col || 1" @update:page="setPage('col', $event)" />
     <template v-else>
     <input v-model="cq" type="search" placeholder="Search customers by name, account or number" aria-label="Search customers" class="pbx-search">
     <div class="pbx-cards">
@@ -152,7 +158,7 @@
           <td><label class="pbx-switch"><input type="checkbox" :checked="!!pbx.settings.queues[q.name]" @change="setAgentQueue(q.name, $event.target.checked)"><span class="pbx-vh">Take {{ q.name }} calls</span></label></td>
         </tr></tbody>
       </table></div>
-<PbxPager :total="pbx.queues.length" :page="pg['q'] || 1" @update:page="setPage('q', $event)" />
+<PbxPager :size="25" :total="pbx.queues.length" :page="pg['q'] || 1" @update:page="setPage('q', $event)" />
     </div>
     <div class="pbx-card">
       <h2>Agents</h2>
@@ -167,13 +173,13 @@
           <td><div v-if="a.status === 'On a call' && !a.me" class="pbx-row"><button v-for="h in ['Listen', 'Whisper', 'Barge in']" :key="h" type="button" class="pbx-btn small ghost" @click="superviseNow(a, h)">{{ h }}</button></div><span v-else class="pbx-sub">—</span></td>
         </tr></tbody>
       </table></div>
-<PbxPager :total="pbx.agents.length" :page="pg['a'] || 1" @update:page="setPage('a', $event)" />
+<PbxPager :size="25" :total="pbx.agents.length" :page="pg['a'] || 1" @update:page="setPage('a', $event)" />
       <p v-if="supNote" class="pbx-note" role="status">{{ supNote }}</p>
     </div>
     <div class="pbx-card">
       <h2>Compliance log</h2>
       <ul class="pbx-list"><li v-for="(a, i) in pageOf('log', pbx.audit)" :key="i"><span class="grow">{{ a.what }}</span><span class="pbx-sub">{{ fmtWhen(a.at) }}</span></li><li v-if="!pbx.audit.length" class="pbx-empty">Nothing yet. Showing a customer's number and listening in are recorded here.</li></ul>
-<PbxPager :total="pbx.audit.length" :page="pg['log'] || 1" @update:page="setPage('log', $event)" />
+<PbxPager :size="25" :total="pbx.audit.length" :page="pg['log'] || 1" @update:page="setPage('log', $event)" />
     </div>
   </section>
 
@@ -231,6 +237,10 @@
   </div>
   <!-- the live call: built like Hub's voice call screen -->
   <aside v-if="pbx.call" :class="['pbx-callpanel', callFull ? 'full' : 'side']" aria-label="Current call">
+    <template v-if="!callFull">
+      <button type="button" class="pbx-grip" aria-label="Drag to resize the call panel. Arrow keys also resize." @pointerdown="startResize" @keydown.left.prevent="callW = clampW(callW + 24)" @keydown.right.prevent="callW = clampW(callW - 24)"><span></span></button>
+      <button type="button" class="pbx-expand" aria-label="Expand the call" title="Expand the call" @click="tab = 'history'"><svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 15v5h-5M4 4l6 6M20 20l-6-6"></path></svg></button>
+    </template>
     <div class="pbx-callscreen">
     <div class="pbx-cs-top">
       <span class="pbx-cs-q">{{ pbx.call.dir === 'in' ? 'Inbound' : 'Outbound' }}<template v-if="pbx.call.queue"> · {{ pbx.call.queue }}</template><template v-else> · as {{ pbx.call.callerId }}</template></span>
@@ -281,6 +291,7 @@
 </template>
 
 <script>
+import { useHubStore } from '~/composables/useHub';
 import { TUNES, GREETING, startTune, stopTune, keyTone, englishVoices } from '~/logic/pbx/sounds.js';
 import { removeGreeting, addGreeting, dismissAlert } from '~/logic/pbx/store.js';
 import { pbx, dial, simulateIncoming, answer, decline, endCall, toggleHold, swapTo, sendDtmf, transfer, completeTransfer, cancelTransfer, addToConference, dropFromConference, park, unpark, finishWrap,
@@ -291,7 +302,7 @@ const KEYS = [['1', ''], ['2', 'ABC'], ['3', 'DEF'], ['4', 'GHI'], ['5', 'JKL'],
 export default {
   name: 'CallsManagementSection',
   data() {
-    return { pg: {}, pbx, tab: 'history', callW: 380, number: '', dialErr: '', panel: '', target: '', who: 'Customers', box: 'All boxes', devices: { mics: [], speakers: [], asked: false }, recording: null, recSecs: 0, recErr: '', tuneOn: false, voicesTick: 0, simOpen: false, hearHold: false, hq: '', hf: 'All', cq: '', thread: null, draft: '', playing: null, revealed: {}, supNote: '', blockNo: '',
+    return { pg: {}, pbx, tab: 'history', callW: 380, topPx: 72, number: '', dialErr: '', panel: '', target: '', who: 'Customers', box: 'All boxes', devices: { mics: [], speakers: [], asked: false }, recording: null, recSecs: 0, recErr: '', tuneOn: false, voicesTick: 0, simOpen: false, hearHold: false, hq: '', hf: 'All', cq: '', thread: null, draft: '', playing: null, revealed: {}, supNote: '', blockNo: '',
       keys: KEYS, presences: ['Available', 'Away', 'Busy', 'Lunch', 'Do not disturb', 'Off work'],
       templates: [
         { l: 'Payment reminder', t: (c) => 'Hello ' + (c ? c.name.split(' ')[0] : '') + ', a reminder that your payment on ' + (c ? c.account : 'your account') + ' is due. Reply PAY for the paybill details.' },
@@ -299,8 +310,8 @@ export default {
         { l: 'KYC documents', t: () => 'Please upload a clear photo of your ID and a selfie in the app to finish verification.' }
       ] };
   },
-  mounted() { startClock(); this.loadDevices(false); if (window.speechSynthesis) { const bump = () => { this.voicesTick++; }; window.speechSynthesis.addEventListener ? window.speechSynthesis.addEventListener('voiceschanged', bump) : (window.speechSynthesis.onvoiceschanged = bump); bump(); } try { const w = +localStorage.getItem('hub.pbx.callW'); if (w) this.callW = this.clampW(w); } catch (e) { /* private window */ } },
-  beforeUnmount() { stopClock(); stopTune(); },
+  mounted() { this.measureTop(); this._onRs = () => { this.measureTop(); this.callW = this.clampW(this.callW); }; window.addEventListener('resize', this._onRs); startClock(); this.loadDevices(false); if (window.speechSynthesis) { const bump = () => { this.voicesTick++; }; window.speechSynthesis.addEventListener ? window.speechSynthesis.addEventListener('voiceschanged', bump) : (window.speechSynthesis.onvoiceschanged = bump); bump(); } try { const w = +localStorage.getItem('hub.pbx.callW'); if (w) this.callW = this.clampW(w); } catch (e) { /* private window */ } },
+  beforeUnmount() { window.removeEventListener('resize', this._onRs); stopClock(); stopTune(); },
   watch: { 'pbx.call.onHold'(v) { if (!v && this.hearHold) { stopTune(); this.hearHold = false; } }, 'pbx.call'(v) { if (!v) { this.panel = ''; if (this.hearHold) { stopTune(); this.hearHold = false; } } } },
   computed: {
     tabs() {
@@ -332,6 +343,8 @@ export default {
     // the dial pad only sits beside the tabs you call from (and during a call)
     // the calling tabs (history, contacts, voicemail) show the dial pad; during a call they give the rest of the page to the call,
     // and on any other tab the call stays visible as a side panel on the right
+    // the colleague's own photo when Hub has one, otherwise their initials in a steady colour
+    colleagues() { return this.pbx.agents.filter((x) => !x.me); },
     showDial() { return ['history', 'contacts', 'voicemail'].includes(this.tab); },
     callFull() { return !!this.pbx.call && this.showDial; },
     defaultGreeting() { return GREETING; },
@@ -361,7 +374,7 @@ export default {
     presenceTone() { return { Available: 'ok', Away: 'mid', Lunch: 'mid', Busy: 'bad', 'Do not disturb': 'bad', 'Off work': 'off' }[this.pbx.presence] || 'off'; }
   },
   methods: {
-    pageOf(key, rows, size) { const n = size || 10, p = this.pg[key] || 1; return rows.slice((p - 1) * n, p * n); },
+    pageOf(key, rows, size) { const n = size || 25, p = this.pg[key] || 1; return rows.slice((p - 1) * n, p * n); },
     setPage(key, p) { this.pg = { ...this.pg, [key]: p }; },
     simulateIncoming, answer, decline, endCall, toggleHold, swapTo, sendDtmf, completeTransfer, cancelTransfer, addToConference, dropFromConference, park, unpark, finishWrap, setAgentQueue, setPresence, saveSettings, markHeard, deleteVoicemail,
     customerOf, showNumber, fmtDur, fmtWhen, money, keyTone,
@@ -375,6 +388,11 @@ export default {
     togglePanel(p) { this.panel = this.panel === p ? '' : p; },
     doTransfer(mode) { transfer(this.target, mode); this.target = ''; this.panel = ''; },
     removeGreeting, dismissAlert,
+    // a colleague is messaged in Hub's own private chat
+    avatarColor(n) { const c = ['#7CC4FF', '#B8F36B', '#C9B6FF', '#FFB86B', '#6EE7C8', '#F49AC1', '#FFD66B']; let h = 0; for (const ch of String(n)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return c[h % c.length]; },
+    messageColleague(a) { const { logic } = useHubStore(); if (logic && logic.openDm) logic.openDm(a.name); },
+    // the side panel starts where the page content starts, so it lines up with the chat side panel
+    measureTop() { const m = document.querySelector('.hub-main'); if (m) this.topPx = Math.round(m.getBoundingClientRect().top) + 12; },
     clampW(w) { return Math.max(320, Math.min(Math.round(window.innerWidth * 0.6), w)); },
     // drag the panel's left edge to widen or narrow the call, like the chat side panel
     startResize(e) {
@@ -645,4 +663,49 @@ export default {
 @media (max-width: 1100px) {
   .pbx-callpanel.side { position: fixed !important; top: auto; right: 12px; bottom: 76px; left: auto; inset: auto 12px 76px auto; width: min(360px, calc(100vw - 24px)) !important; max-height: 60vh; z-index: 60; box-shadow: 0 16px 40px rgba(0,0,0,0.45); }
 }
+
+/* ---- compact rows: many calls fit on one page ---- */
+.pbx-table { font-size: 13px; }
+.pbx-table th { padding: 6px 8px; position: sticky; top: 0; background: var(--k-16201C,#16201C); }
+.pbx-table td { padding: 5px 8px; line-height: 1.3; vertical-align: middle; border-bottom: 1px dotted var(--k-2A3832,#2A3832); }
+.pbx-table td .block { display: inline; margin-left: 6px; }
+.pbx-table .pbx-btn.small { height: 26px; padding: 0 10px; font-size: 12px; }
+.pbx-table .pbx-pill { padding: 1px 8px; }
+.pbx-list li { padding: 5px 6px; border-bottom: 1px dotted var(--k-2A3832,#2A3832); }
+.pbx-btn.tiny { height: 26px; padding: 0 10px; font-size: 12px; border-radius: 13px; }
+.pbx-colleagues { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 24px; }
+@media (max-width: 760px) { .pbx-colleagues { grid-template-columns: 1fr; } }
+.pbx-colrow { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 2px 4px; border-bottom: 1px dotted var(--k-2A3832,#2A3832); font-size: 13px; min-width: 0; }
+.pbx-colrow .grow { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---- the call side panel: same place and height as the chat side panel, resizable, expandable ---- */
+.pbx.has-side { padding-right: calc(var(--pbx-side, 380px) + 8px); }
+.pbx-callpanel.side { position: fixed !important; top: var(--pbx-top, 76px); right: 12px; bottom: 12px; width: var(--pbx-side, 380px) !important; max-height: none; flex: none !important; z-index: 40; border-radius: 22px; border: 2px solid var(--k-6B7A72,#6B7A72); background: var(--k-131D19,#131D19); box-sizing: border-box; }
+.pbx-callpanel.side .pbx-callscreen { border: 0; border-radius: 20px; height: 100%; }
+.pbx-callpanel.side .pbx-cs-body { flex: 1; overflow-y: auto; }
+.pbx-callpanel .pbx-grip { display: flex; left: 0; }
+.pbx-expand { position: absolute; top: 10px; right: 10px; z-index: 4; width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-16201C,#16201C); color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.pbx-callpanel.side .pbx-cs-top { padding-right: 48px; }
+
+/* ---- every screen size ---- */
+.pbx { min-width: 0; }
+.pbx-head { flex-wrap: wrap; }
+.pbx-head h1 { font-size: clamp(20px, 3vw, 24px); }
+.pbx-tabs { scrollbar-width: thin; }
+.pbx-table-wrap { max-width: 100%; }
+@media (max-width: 1100px) {
+  .pbx.has-side { padding-right: 0; }
+  .pbx-callpanel.side { top: auto; left: 12px; right: 12px; bottom: 76px; width: auto !important; height: min(70vh, 560px); }
+  .pbx-callpanel .pbx-grip { display: none; }
+}
+@media (max-width: 600px) {
+  .pbx-head { gap: 8px; }
+  .pbx-head .pbx-btn { height: 34px; padding: 0 12px; }
+  .pbx-presence { height: 34px; }
+  .pbx-tabs button { padding: 0 10px; font-size: 13px; }
+  .pbx-card { padding: 12px; }
+  .pbx-callpanel.side { left: 0; right: 0; bottom: 64px; border-radius: 18px 18px 0 0; height: 75vh; }
+}
+.pbx-colav { position: relative; flex: none; display: inline-flex; }
+.pbx-colav .pbx-dot { position: absolute; right: -2px; bottom: -2px; width: 9px; height: 9px; border: 2px solid var(--k-16201C,#16201C); }
 </style>

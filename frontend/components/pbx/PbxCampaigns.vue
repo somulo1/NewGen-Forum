@@ -23,7 +23,7 @@
         <td><select class="pbx-search" :value="r.result" :aria-label="'Result for ' + cust(r).name" @change="campaignResult(k, r.customerId, $event.target.value)"><option value="">—</option><option v-for="o in outcomes" :key="o">{{ o }}</option></select></td>
       </tr></tbody>
     </table></div>
-<PbxPager :total="k.list.length" :page="pg[k.id] || 1" @update:page="setPage(k.id, $event)" />
+<PbxPager :size="25" :total="k.list.length" :page="pg[k.id] || 1" @update:page="setPage(k.id, $event)" />
   </div>
 
   <div class="pbx-grid2">
@@ -53,7 +53,7 @@ export default {
   name: 'PbxCampaigns',
   data() { return { pg: {}, pbx, open: null, msg: {}, name: '', queue: 'Collections', picked: [], dncNo: '', outcomes: ['No answer', 'Busy', 'Promise to pay', 'Payment made', 'Call back requested', 'Wrong number', 'Do not call', 'Resolved'] }; },
   methods: {
-    pageOf(key, rows, size) { const n = size || 10, p = this.pg[key] || 1; return rows.slice((p - 1) * n, p * n); },
+    pageOf(key, rows, size) { const n = size || 25, p = this.pg[key] || 1; return rows.slice((p - 1) * n, p * n); },
     setPage(key, p) { this.pg = { ...this.pg, [key]: p }; },
     campaignResult, addDnc, removeDnc,
     cust(r) { return customerOf(r.customerId) || { name: 'Customer', account: '', status: '' }; },
