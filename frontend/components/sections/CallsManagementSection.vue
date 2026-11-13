@@ -2,6 +2,7 @@
      Front end only for now: calls are simulated in logic/pbx/store.js until the PBX is connected. -->
 <template>
 <div class="pbx">
+  <div class="pbx-top">
   <header class="pbx-head">
     <h1>Calls management</h1>
     <span class="pbx-demo" title="Calls, sounds and data are samples until the phone system is connected">Sample mode</span>
@@ -13,66 +14,13 @@
       </select>
     </label>
   </header>
-
-  <!-- the live call: built like Hub's voice call screen -->
-  <section v-if="pbx.call" class="pbx-callscreen" aria-label="Current call">
-    <div class="pbx-cs-top">
-      <span class="pbx-cs-q">{{ pbx.call.dir === 'in' ? 'Inbound' : 'Outbound' }}<template v-if="pbx.call.queue"> · {{ pbx.call.queue }}</template><template v-else> · as {{ pbx.call.callerId }}</template></span>
-      <span class="pbx-chip-rec" title="Every call is recorded for audit"><span aria-hidden="true"></span>REC</span>
-      <span v-if="pbx.call.answeredAt" :class="['pbx-chip-q', qualityTone]" :title="`Line quality ${pbx.quality.mos} of 4.5 · jitter ${pbx.quality.jitter} ms · loss ${pbx.quality.loss}% · delay ${pbx.quality.rtt} ms`">{{ qualityLabel }}</span>
-      <span class="pbx-chip-time">{{ liveTimer }}</span>
-    </div>
-    <div class="pbx-cs-body">
-      <div class="pbx-cs-main">
-        <UserAvatar :class="['pbx-cs-face', { talking: callState === 'Talking' && !pbx.call.muted, ringing: /Dialling|Ringing/.test(callState) }]" :name="liveName" :initials="initials(liveName)" color="#7CC4FF" :size="104" :font-size="34"/>
-        <strong class="pbx-cs-name">{{ liveName }}</strong>
-        <span class="pbx-sub">{{ showNumber(pbx.call.number, revealed[pbx.call.number]) }} <button v-if="pbx.settings.maskNumbers && !revealed[pbx.call.number]" type="button" class="pbx-link" @click="reveal(pbx.call.number)">Show</button></span>
-        <span :class="['pbx-cs-state', { hold: pbx.call.onHold }]">{{ pbx.call.transferMode === 'consulting' ? 'Talking to ' + pbx.call.transferTo + ' · customer on hold' : pbx.call.onHold ? 'On hold · customer hears ' + pbx.settings.tune : callState }}</span>
-        <div v-if="liveCustomer" class="pbx-cs-facts">
-          <span>{{ liveCustomer.account }}</span><span>{{ liveCustomer.product }}</span><span>{{ money(liveCustomer.balance) }}</span>
-          <span :class="{ warn: /arrears|Frozen/.test(liveCustomer.status) }">{{ liveCustomer.status }}</span><span :class="{ warn: liveCustomer.kyc !== 'Verified' }">KYC {{ liveCustomer.kyc }}</span>
-        </div>
-        <div v-if="pbx.call.transferMode === 'consulting'" class="pbx-row center"><button type="button" class="pbx-btn go" @click="completeTransfer">Complete transfer</button><button type="button" class="pbx-btn ghost" @click="cancelTransfer">Back to the customer</button></div>
-        <div v-if="pbx.call.conference.length" class="pbx-cs-facts"><span v-for="(p, i) in pbx.call.conference" :key="i">{{ p.who }} <button type="button" class="pbx-link" :aria-label="'Remove ' + p.who" @click="dropFromConference(i)">×</button></span></div>
-        <div v-if="pbx.held.length || pbx.parked.length" class="pbx-strip">
-          <div v-for="h in pbx.held" :key="h.id" class="pbx-chip"><span>On hold · {{ nameFor(h) }}</span><button type="button" class="pbx-link" @click="swapTo(h.id)">Switch</button></div>
-          <div v-for="p in pbx.parked" :key="p.slot" class="pbx-chip"><span>Parked {{ p.slot }} · {{ nameFor(p.call) }}</span><button type="button" class="pbx-link" @click="unpark(p.slot)">Pick up</button></div>
-        </div>
-      </div>
-      <aside v-if="panel" class="pbx-cs-side" :aria-label="panelTitle">
-        <div class="pbx-row between"><strong>{{ panelTitle }}</strong><button type="button" class="pbx-x" aria-label="Close" @click="panel = ''">×</button></div>
-        <template v-if="panel === 'keys'">
-          <div class="pbx-keys small"><button v-for="k in keys" :key="k[0]" type="button" @click="sendDtmf(k[0])"><strong>{{ k[0] }}</strong></button></div>
-          <span class="pbx-sub">Sent: {{ pbx.call.dtmf || 'nothing yet' }}</span>
-        </template>
-        <template v-if="panel === 'transfer' || panel === 'conf'">
-          <input v-model="target" list="pbx-targets" class="pbx-search" :placeholder="panel === 'transfer' ? 'Extension, queue or number' : 'Who to add (up to 5)'" :aria-label="panelTitle">
-          <datalist id="pbx-targets"><option v-for="t in targets" :key="t" :value="t"></option></datalist>
-          <div v-if="panel === 'transfer'" class="pbx-row"><button type="button" class="pbx-btn go" :disabled="!target" @click="doTransfer('attended')">Talk first</button><button type="button" class="pbx-btn ghost" :disabled="!target" @click="doTransfer('blind')">Transfer now</button></div>
-          <button v-else type="button" class="pbx-btn go" :disabled="!target" @click="addToConference(target); target = ''">Add to call</button>
-        </template>
-        <textarea v-if="panel === 'notes'" v-model="pbx.call.note" rows="8" placeholder="What was agreed. Saved with the call."></textarea>
-      </aside>
-    </div>
-    <div class="pbx-cs-bar" role="toolbar" aria-label="Call controls">
-      <button v-for="c in controls" :key="c.k" type="button" :class="['pbx-ctl', c.cls]" :aria-pressed="c.pressed" :aria-label="c.label" @click="c.run"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" v-html="c.icon"></svg><span>{{ c.label }}</span></button>
-    </div>
-  </section>
-
-  <!-- after-call work -->
-  <section v-if="pbx.wrap && !pbx.call" class="pbx-wrap" aria-label="After-call work">
-    <div class="pbx-row between"><strong>How did the call end?</strong><span class="pbx-sub">Saves by itself in {{ pbx.wrap.left }}s</span></div>
-    <div class="pbx-tags"><button v-for="d in pbx.dispositions" :key="d" type="button" :class="['pbx-tag', { on: pbx.wrap.disposition === d }]" @click="pbx.wrap.disposition = d">{{ d }}</button></div>
-    <textarea v-model="pbx.wrap.note" rows="2" placeholder="Notes for the customer record"></textarea>
-    <div class="pbx-row"><button type="button" class="pbx-btn go" @click="finishWrap">Save</button></div>
-  </section>
-
   <nav class="pbx-tabs" role="tablist" aria-label="Calls management">
     <button v-for="t in tabs" :key="t.k" type="button" role="tab" :aria-selected="tab === t.k" :class="{ on: tab === t.k }" @click="tab = t.k">{{ t.l }}<span v-if="t.n" class="pbx-count">{{ t.n }}</span></button>
   </nav>
-
+  </div>
+  <div class="pbx-layout">
   <!-- dial pad -->
-  <section v-if="tab === 'dial'" class="pbx-dial">
+  <aside class="pbx-dialcol" aria-label="Dial pad">
     <div class="pbx-card">
       <input class="pbx-number" v-model="number" inputmode="tel" placeholder="Number or customer name" aria-label="Number to call" @keydown.enter="callNumber">
       <ul v-if="numberMatches.length" class="pbx-list">
@@ -88,8 +36,15 @@
       </label>
       <span v-if="dialErr" role="alert" class="pbx-err">{{ dialErr }}</span>
     </div>
+  </aside>
+  <div class="pbx-center">
+  <!-- after-call work -->
+  <section v-if="pbx.wrap && !pbx.call" class="pbx-wrap" aria-label="After-call work">
+    <div class="pbx-row between"><strong>How did the call end?</strong><span class="pbx-sub">Saves by itself in {{ pbx.wrap.left }}s</span></div>
+    <div class="pbx-tags"><button v-for="d in pbx.dispositions" :key="d" type="button" :class="['pbx-tag', { on: pbx.wrap.disposition === d }]" @click="pbx.wrap.disposition = d">{{ d }}</button></div>
+    <textarea v-model="pbx.wrap.note" rows="2" placeholder="Notes for the customer record"></textarea>
+    <div class="pbx-row"><button type="button" class="pbx-btn go" @click="finishWrap">Save</button></div>
   </section>
-
   <!-- history -->
   <section v-if="tab === 'history'" class="pbx-card">
     <div class="pbx-row wrap">
@@ -260,6 +215,55 @@
       <form class="pbx-row" @submit.prevent="block"><input v-model="blockNo" class="grow pbx-search" placeholder="Number to block" aria-label="Number to block"><button type="submit" class="pbx-btn ghost">Block</button></form>
     </div>
   </section>
+  </div>
+  <!-- the live call: built like Hub's voice call screen -->
+  <aside v-if="pbx.call" class="pbx-callpanel" aria-label="Current call" :style="{ width: callW + 'px' }">
+    <button type="button" class="pbx-grip" aria-label="Drag to resize the call panel. Arrow keys also resize." @pointerdown="startResize" @keydown.left.prevent="callW = clampW(callW + 24)" @keydown.right.prevent="callW = clampW(callW - 24)"><span></span></button>
+    <div class="pbx-callscreen">
+    <div class="pbx-cs-top">
+      <span class="pbx-cs-q">{{ pbx.call.dir === 'in' ? 'Inbound' : 'Outbound' }}<template v-if="pbx.call.queue"> · {{ pbx.call.queue }}</template><template v-else> · as {{ pbx.call.callerId }}</template></span>
+      <span class="pbx-chip-rec" title="Every call is recorded for audit"><span aria-hidden="true"></span>REC</span>
+      <span v-if="pbx.call.answeredAt" :class="['pbx-chip-q', qualityTone]" :title="`Line quality ${pbx.quality.mos} of 4.5 · jitter ${pbx.quality.jitter} ms · loss ${pbx.quality.loss}% · delay ${pbx.quality.rtt} ms`">{{ qualityLabel }}</span>
+      <span class="pbx-chip-time">{{ liveTimer }}</span>
+    </div>
+    <div class="pbx-cs-body">
+      <div class="pbx-cs-main">
+        <UserAvatar :class="['pbx-cs-face', { talking: callState === 'Talking' && !pbx.call.muted, ringing: /Dialling|Ringing/.test(callState) }]" :name="liveName" :initials="initials(liveName)" color="#7CC4FF" :size="104" :font-size="34"/>
+        <strong class="pbx-cs-name">{{ liveName }}</strong>
+        <span class="pbx-sub">{{ showNumber(pbx.call.number, revealed[pbx.call.number]) }} <button v-if="pbx.settings.maskNumbers && !revealed[pbx.call.number]" type="button" class="pbx-link" @click="reveal(pbx.call.number)">Show</button></span>
+        <span :class="['pbx-cs-state', { hold: pbx.call.onHold }]">{{ pbx.call.transferMode === 'consulting' ? 'Talking to ' + pbx.call.transferTo + ' · customer on hold' : pbx.call.onHold ? 'On hold · customer hears ' + pbx.settings.tune : callState }}</span>
+        <div v-if="liveCustomer" class="pbx-cs-facts">
+          <span>{{ liveCustomer.account }}</span><span>{{ liveCustomer.product }}</span><span>{{ money(liveCustomer.balance) }}</span>
+          <span :class="{ warn: /arrears|Frozen/.test(liveCustomer.status) }">{{ liveCustomer.status }}</span><span :class="{ warn: liveCustomer.kyc !== 'Verified' }">KYC {{ liveCustomer.kyc }}</span>
+        </div>
+        <div v-if="pbx.call.transferMode === 'consulting'" class="pbx-row center"><button type="button" class="pbx-btn go" @click="completeTransfer">Complete transfer</button><button type="button" class="pbx-btn ghost" @click="cancelTransfer">Back to the customer</button></div>
+        <div v-if="pbx.call.conference.length" class="pbx-cs-facts"><span v-for="(p, i) in pbx.call.conference" :key="i">{{ p.who }} <button type="button" class="pbx-link" :aria-label="'Remove ' + p.who" @click="dropFromConference(i)">×</button></span></div>
+        <div v-if="pbx.held.length || pbx.parked.length" class="pbx-strip">
+          <div v-for="h in pbx.held" :key="h.id" class="pbx-chip"><span>On hold · {{ nameFor(h) }}</span><button type="button" class="pbx-link" @click="swapTo(h.id)">Switch</button></div>
+          <div v-for="p in pbx.parked" :key="p.slot" class="pbx-chip"><span>Parked {{ p.slot }} · {{ nameFor(p.call) }}</span><button type="button" class="pbx-link" @click="unpark(p.slot)">Pick up</button></div>
+        </div>
+      </div>
+      <aside v-if="panel" class="pbx-cs-side" :aria-label="panelTitle">
+        <div class="pbx-row between"><strong>{{ panelTitle }}</strong><button type="button" class="pbx-x" aria-label="Close" @click="panel = ''">×</button></div>
+        <template v-if="panel === 'keys'">
+          <div class="pbx-keys small"><button v-for="k in keys" :key="k[0]" type="button" @click="sendDtmf(k[0])"><strong>{{ k[0] }}</strong></button></div>
+          <span class="pbx-sub">Sent: {{ pbx.call.dtmf || 'nothing yet' }}</span>
+        </template>
+        <template v-if="panel === 'transfer' || panel === 'conf'">
+          <input v-model="target" list="pbx-targets" class="pbx-search" :placeholder="panel === 'transfer' ? 'Extension, queue or number' : 'Who to add (up to 5)'" :aria-label="panelTitle">
+          <datalist id="pbx-targets"><option v-for="t in targets" :key="t" :value="t"></option></datalist>
+          <div v-if="panel === 'transfer'" class="pbx-row"><button type="button" class="pbx-btn go" :disabled="!target" @click="doTransfer('attended')">Talk first</button><button type="button" class="pbx-btn ghost" :disabled="!target" @click="doTransfer('blind')">Transfer now</button></div>
+          <button v-else type="button" class="pbx-btn go" :disabled="!target" @click="addToConference(target); target = ''">Add to call</button>
+        </template>
+        <textarea v-if="panel === 'notes'" v-model="pbx.call.note" rows="8" placeholder="What was agreed. Saved with the call."></textarea>
+      </aside>
+    </div>
+    <div class="pbx-cs-bar" role="toolbar" aria-label="Call controls">
+      <button v-for="c in controls" :key="c.k" type="button" :class="['pbx-ctl', c.cls]" :aria-pressed="c.pressed" :aria-label="c.label" @click="c.run"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" v-html="c.icon"></svg><span>{{ c.label }}</span></button>
+    </div>
+    </div>
+  </aside>
+  </div>
 </div>
 </template>
 
@@ -274,7 +278,7 @@ const KEYS = [['1', ''], ['2', 'ABC'], ['3', 'DEF'], ['4', 'GHI'], ['5', 'JKL'],
 export default {
   name: 'CallsManagementSection',
   data() {
-    return { pbx, tab: 'dial', number: '', dialErr: '', panel: '', target: '', who: 'Customers', box: 'All boxes', devices: { mics: [], speakers: [], asked: false }, recording: null, recSecs: 0, recErr: '', tuneOn: false, hearHold: false, hq: '', hf: 'All', cq: '', thread: null, draft: '', playing: null, revealed: {}, supNote: '', blockNo: '',
+    return { pbx, tab: 'history', callW: 380, number: '', dialErr: '', panel: '', target: '', who: 'Customers', box: 'All boxes', devices: { mics: [], speakers: [], asked: false }, recording: null, recSecs: 0, recErr: '', tuneOn: false, hearHold: false, hq: '', hf: 'All', cq: '', thread: null, draft: '', playing: null, revealed: {}, supNote: '', blockNo: '',
       keys: KEYS, presences: ['Available', 'Away', 'Busy', 'Lunch', 'Do not disturb', 'Off work'],
       templates: [
         { l: 'Payment reminder', t: (c) => 'Hello ' + (c ? c.name.split(' ')[0] : '') + ', a reminder that your payment on ' + (c ? c.account : 'your account') + ' is due. Reply PAY for the paybill details.' },
@@ -282,13 +286,13 @@ export default {
         { l: 'KYC documents', t: () => 'Please upload a clear photo of your ID and a selfie in the app to finish verification.' }
       ] };
   },
-  mounted() { startClock(); this.loadDevices(false); },
+  mounted() { startClock(); this.loadDevices(false); try { const w = +localStorage.getItem('hub.pbx.callW'); if (w) this.callW = this.clampW(w); } catch (e) { /* private window */ } },
   beforeUnmount() { stopClock(); stopTune(); },
   watch: { 'pbx.call.onHold'(v) { if (!v && this.hearHold) { stopTune(); this.hearHold = false; } }, 'pbx.call'(v) { if (!v) { this.panel = ''; if (this.hearHold) { stopTune(); this.hearHold = false; } } } },
   computed: {
     tabs() {
       const missed = this.pbx.history.filter((h) => /Missed/.test(h.result) && Date.now() - h.at < 86400000).length;
-      return [{ k: 'dial', l: 'Dial pad' }, { k: 'history', l: 'Call history', n: missed }, { k: 'contacts', l: 'Contacts' }, { k: 'messages', l: 'Messages', n: this.pbx.threads.reduce((a, t) => a + t.unread, 0) },
+      return [{ k: 'history', l: 'Call history', n: missed }, { k: 'contacts', l: 'Contacts' }, { k: 'messages', l: 'Messages', n: this.pbx.threads.reduce((a, t) => a + t.unread, 0) },
         { k: 'voicemail', l: 'Voicemail', n: this.pbx.voicemail.filter((v) => !v.heard).length }, { k: 'recordings', l: 'Recordings' }, { k: 'campaigns', l: 'Campaigns' },
         { k: 'monitor', l: 'Monitoring', n: this.pbx.alerts.length }, { k: 'reports', l: 'Reports' }, { k: 'routing', l: 'Routing', n: this.pbx.callbacks.filter((c) => c.status === 'Waiting').length }, { k: 'settings', l: 'Settings' }];
     },
@@ -345,10 +349,18 @@ export default {
     dirTone(h) { return /Missed|Declined|voicemail/.test(h.result) ? 'bad' : h.dir === 'in' ? 'in' : 'out'; },
     agentTone(s) { return { Available: 'ok', 'On a call': 'busy', Ringing: 'busy', 'Wrap-up': 'mid', Away: 'mid', Lunch: 'mid' }[s] || 'off'; },
     callNumber() { const n = this.numberMatches.length === 1 ? this.numberMatches[0].phone : this.number; this.dialErr = dial(n); if (!this.dialErr) this.number = ''; },
-    callTo(n) { this.dialErr = dial(n); if (this.dialErr) this.tab = 'dial'; },
+    callTo(n) { this.dialErr = dial(n); },
     togglePanel(p) { this.panel = this.panel === p ? '' : p; },
     doTransfer(mode) { transfer(this.target, mode); this.target = ''; this.panel = ''; },
     removeGreeting,
+    clampW(w) { return Math.max(320, Math.min(Math.round(window.innerWidth * 0.6), w)); },
+    // drag the panel's left edge to widen or narrow the call, like the chat side panel
+    startResize(e) {
+      const x0 = e.clientX, w0 = this.callW;
+      const move = (m) => { this.callW = this.clampW(w0 + (x0 - m.clientX)); };
+      const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); try { localStorage.setItem('hub.pbx.callW', String(this.callW)); } catch (err) { /* private window */ } };
+      window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); e.preventDefault();
+    },
     async loadDevices(ask) {
       try {
         if (!navigator.mediaDevices) return;
@@ -539,4 +551,31 @@ export default {
 .pbx-bar { flex: 0 0 40%; height: 8px; border-radius: 4px; background: var(--k-121B17,#121B17); overflow: hidden; }
 .pbx-bar span { display: block; height: 100%; background: #C9B6FF; }
 .pbx-row.wrap { flex-wrap: wrap; }
+.pbx-top { position: sticky; top: -24px; z-index: 20; margin-top: -24px; padding-top: 24px; background: var(--k-0F1714,#0F1714); display: flex; flex-direction: column; gap: 12px; }
+.pbx-layout { display: flex; align-items: flex-start; gap: 16px; }
+.pbx-dialcol { flex: 0 0 300px; position: sticky; top: 120px; }
+.pbx-dialcol > .pbx-card { width: 100%; max-width: none; }
+.pbx-center { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+.pbx-callpanel { flex: none; position: sticky; top: 120px; max-height: calc(100vh - 200px); display: flex; border-radius: 20px; }
+.pbx-callpanel .pbx-callscreen { flex: 1; min-width: 0; min-height: 0; max-height: 100%; overflow-y: auto; }
+.pbx-grip { position: absolute; left: -7px; top: 0; bottom: 0; width: 14px; padding: 0; border: 0; background: transparent; cursor: ew-resize; z-index: 3; touch-action: none; display: flex; align-items: center; justify-content: center; }
+.pbx-grip span { width: 4px; height: 44px; border-radius: 2px; background: var(--k-3A4A42,#3A4A42); }
+.pbx-grip:hover span, .pbx-grip:focus-visible span { background: #B8F36B; }
+/* the call in the side panel is compact, like Hub's side-panel call screen */
+.pbx-callpanel .pbx-cs-body { flex-direction: column; padding: 0 14px 10px; }
+.pbx-callpanel .pbx-cs-side { flex-basis: auto; }
+.pbx-callpanel .pbx-cs-main { padding: 10px 0; }
+.pbx-callpanel .pbx-cs-face { width: 72px !important; height: 72px !important; font-size: 24px !important; }
+.pbx-callpanel .pbx-cs-name { font-size: 18px; }
+.pbx-callpanel .pbx-cs-bar { gap: 6px; padding: 10px 12px 14px; }
+.pbx-callpanel .pbx-ctl { width: 46px; height: 46px; border-radius: 14px; }
+.pbx-callpanel .pbx-ctl span { display: none; }
+.pbx-callpanel .pbx-cs-top { flex-wrap: wrap; padding: 10px 14px; }
+.pbx-callscreen { min-height: 0 !important; }
+@media (max-width: 1100px) {
+  .pbx-layout { flex-direction: column; align-items: stretch; }
+  .pbx-dialcol { position: static; flex-basis: auto; }
+  .pbx-callpanel { position: fixed; inset: 64px 0 64px 0; width: auto !important; max-height: none; z-index: 60; border-radius: 0; background: var(--k-121B17,#121B17); }
+  .pbx-grip { display: none; }
+}
 </style>

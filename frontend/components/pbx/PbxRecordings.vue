@@ -26,13 +26,13 @@
 
 <script>
 import { pbx, customerOf, customerByNumber, showNumber, fmtDur, fmtWhen, logAudit, saveSettings } from '~/logic/pbx/store.js';
-import { speak } from '~/logic/pbx/sounds.js';
+import { speak, stopSpeech } from '~/logic/pbx/sounds.js';
 
 export default {
   name: 'PbxRecordings',
   data() { return { pbx, q: '', from: '', outcome: '', playing: null }; },
   created() { if (!this.pbx.settings.keepDays) this.pbx.settings.keepDays = 365; },
-  beforeUnmount() { if (this.playing && window.speechSynthesis) window.speechSynthesis.cancel(); },
+  beforeUnmount() { if (this.playing) stopSpeech(); },
   computed: {
     rows() {
       const q = this.q.trim().toLowerCase(), from = this.from ? new Date(this.from).getTime() : 0;
@@ -43,7 +43,7 @@ export default {
     showNumber, fmtDur, fmtWhen, saveSettings,
     name(h) { const c = h.customerId ? customerOf(h.customerId) : customerByNumber(h.number); return c ? c.name : showNumber(h.number); },
     play(h) {
-      if (this.playing === h.id) { window.speechSynthesis && window.speechSynthesis.cancel(); this.playing = null; return; }
+      if (this.playing === h.id) { stopSpeech(); this.playing = null; return; }
       this.playing = h.id; logAudit('Played the recording of the call with ' + this.name(h) + ' (' + fmtWhen(h.at) + ')');
       speak('Sample recording. Call with ' + this.name(h) + '. ' + (h.note || 'No notes were saved for this call.'));
     },
