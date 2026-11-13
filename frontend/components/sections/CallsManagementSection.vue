@@ -15,7 +15,7 @@
       </select>
     </label>
   </header>
-  <nav v-show="!pbx.call" class="pbx-tabs" role="tablist" aria-label="Calls management">
+  <nav class="pbx-tabs" role="tablist" aria-label="Calls management">
     <button v-for="t in tabs" :key="t.k" type="button" role="tab" :aria-selected="tab === t.k" :class="{ on: tab === t.k }" @click="tab = t.k">{{ t.l }}<span v-if="t.n" class="pbx-count">{{ t.n }}</span></button>
   </nav>
   </div>
@@ -38,7 +38,7 @@
       <span v-if="dialErr" role="alert" class="pbx-err">{{ dialErr }}</span>
     </div>
   </aside>
-  <div v-show="!pbx.call" class="pbx-center">
+  <div v-show="!callFull" class="pbx-center">
   <!-- after-call work -->
   <section v-if="pbx.wrap && !pbx.call" class="pbx-wrap" aria-label="After-call work">
     <div class="pbx-row between"><strong>How did the call end?</strong><span class="pbx-sub">Saves by itself in {{ pbx.wrap.left }}s</span></div>
@@ -230,7 +230,7 @@
   </section>
   </div>
   <!-- the live call: built like Hub's voice call screen -->
-  <aside v-if="pbx.call" class="pbx-callpanel" aria-label="Current call">
+  <aside v-if="pbx.call" :class="['pbx-callpanel', callFull ? 'full' : 'side']" aria-label="Current call">
     <div class="pbx-callscreen">
     <div class="pbx-cs-top">
       <span class="pbx-cs-q">{{ pbx.call.dir === 'in' ? 'Inbound' : 'Outbound' }}<template v-if="pbx.call.queue"> · {{ pbx.call.queue }}</template><template v-else> · as {{ pbx.call.callerId }}</template></span>
@@ -330,7 +330,10 @@ export default {
     qualityTone() { const m = this.pbx.quality.mos; return m >= 4 ? 'ok' : m >= 3.5 ? 'mid' : 'bad'; },
     qualityLabel() { const m = this.pbx.quality.mos; return m >= 4 ? 'Clear line' : m >= 3.5 ? 'Fair line' : 'Poor line'; },
     // the dial pad only sits beside the tabs you call from (and during a call)
-    showDial() { return !!this.pbx.call || ['history', 'contacts', 'voicemail'].includes(this.tab); },
+    // the calling tabs (history, contacts, voicemail) show the dial pad; during a call they give the rest of the page to the call,
+    // and on any other tab the call stays visible as a side panel on the right
+    showDial() { return ['history', 'contacts', 'voicemail'].includes(this.tab); },
+    callFull() { return !!this.pbx.call && this.showDial; },
     defaultGreeting() { return GREETING; },
     voiceList() { void this.voicesTick; return englishVoices(); },
     tuneNames() { return Object.keys(TUNES); },
@@ -445,7 +448,7 @@ export default {
 .pbx .grow { flex: 1; min-width: 0; }
 .pbx .warn { color: var(--k-FFB86B,#FFB86B); }
 .pbx-vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-.pbx-demo { font-size: 12px; padding: 4px 10px; border-radius: 12px; background: var(--k-3A2E1C,#3A2E1C); color: var(--k-FFB86B,#FFB86B); }
+.pbx-demo { font-size: 12px; padding: 4px 10px; border-radius: 12px; background: rgba(255,184,107,0.16); color: var(--k-FFB86B,#FFB86B); }
 .pbx-presence { position: relative; display: inline-flex; align-items: center; gap: 8px; padding: 0 4px 0 12px; height: 38px; border-radius: 19px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-16201C,#16201C); }
 .pbx-presence select { height: 34px; border: 0; background: transparent; color: var(--k-E8EFEA,#E8EFEA); font-size: 13px; }
 .pbx-dot { width: 10px; height: 10px; border-radius: 50%; }
@@ -625,5 +628,21 @@ export default {
   .pbx-dialcol { flex-basis: auto !important; width: auto; }
   .pbx-callpanel { position: fixed !important; inset: 64px 0 64px 0; z-index: 60; }
   .pbx-callpanel .pbx-ctl { width: 50px; height: 50px; } .pbx-callpanel .pbx-ctl span { display: none; }
+}
+
+/* ---- the call as a side panel while you work in another tab ---- */
+.pbx-top { z-index: 30; }
+.pbx-callpanel.side { flex: 0 0 360px !important; width: 360px !important; position: sticky !important; top: 120px; max-height: calc(100vh - 170px); }
+.pbx-callpanel.side .pbx-callscreen { min-height: 0 !important; }
+.pbx-callpanel.side .pbx-cs-body { flex-direction: column; padding: 0 14px 10px; }
+.pbx-callpanel.side .pbx-cs-side { flex: none; }
+.pbx-callpanel.side .pbx-cs-main { padding: 8px 0; }
+.pbx-callpanel.side .pbx-cs-face { width: 64px !important; height: 64px !important; font-size: 22px !important; }
+.pbx-callpanel.side .pbx-cs-name { font-size: 17px; }
+.pbx-callpanel.side .pbx-cs-bar { gap: 6px; padding: 8px 10px 12px; }
+.pbx-callpanel.side .pbx-ctl { width: 44px; height: 44px; border-radius: 14px; }
+.pbx-callpanel.side .pbx-ctl span { display: none; }
+@media (max-width: 1100px) {
+  .pbx-callpanel.side { position: fixed !important; top: auto; right: 12px; bottom: 76px; left: auto; inset: auto 12px 76px auto; width: min(360px, calc(100vw - 24px)) !important; max-height: 60vh; z-index: 60; box-shadow: 0 16px 40px rgba(0,0,0,0.45); }
 }
 </style>
