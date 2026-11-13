@@ -9,7 +9,7 @@
   <div class="pbx-table-wrap"><table class="pbx-table">
     <thead><tr><th>Customer</th><th>Direction</th><th>Outcome</th><th>Length</th><th>When</th><th>Agent</th><th></th></tr></thead>
     <tbody>
-      <tr v-for="h in rows" :key="h.id">
+      <tr v-for="h in pageOf('rec', rows)" :key="h.id">
         <td><strong>{{ name(h) }}</strong><span class="pbx-sub block">{{ showNumber(h.number) }}</span></td>
         <td>{{ h.dir === 'in' ? 'Inbound' : 'Outbound' }}</td><td>{{ h.disposition || '—' }}</td><td>{{ fmtDur(h.duration) }}</td><td class="nowrap">{{ fmtWhen(h.at) }}</td><td>{{ h.agent }}</td>
         <td><div class="pbx-row"><button type="button" class="pbx-btn small ghost" @click="play(h)">{{ playing === h.id ? 'Stop' : 'Play' }}</button><button type="button" class="pbx-btn small ghost" @click="download(h)">Download</button></div></td>
@@ -17,6 +17,7 @@
       <tr v-if="!rows.length"><td colspan="7" class="pbx-empty">No recordings match.</td></tr>
     </tbody>
   </table></div>
+<PbxPager :total="rows.length" :page="pg['rec'] || 1" @update:page="setPage('rec', $event)" />
   <div class="pbx-row">
     <label class="pbx-field inline">Keep recordings for<select v-model="pbx.settings.keepDays" @change="saveSettings"><option :value="90">90 days</option><option :value="180">6 months</option><option :value="365">1 year</option><option :value="2555">7 years</option></select></label>
     <span class="pbx-sub">Played recordings and downloads are written to the compliance log. Playback here is a sample; the phone system streams the real audio.</span>
@@ -30,7 +31,7 @@ import { speak, stopSpeech } from '~/logic/pbx/sounds.js';
 
 export default {
   name: 'PbxRecordings',
-  data() { return { pbx, q: '', from: '', outcome: '', playing: null }; },
+  data() { return { pg: {}, pbx, q: '', from: '', outcome: '', playing: null }; },
   created() { if (!this.pbx.settings.keepDays) this.pbx.settings.keepDays = 365; },
   beforeUnmount() { if (this.playing) stopSpeech(); },
   computed: {
@@ -40,6 +41,8 @@ export default {
     }
   },
   methods: {
+    pageOf(key, rows, size) { const n = size || 10, p = this.pg[key] || 1; return rows.slice((p - 1) * n, p * n); },
+    setPage(key, p) { this.pg = { ...this.pg, [key]: p }; },
     showNumber, fmtDur, fmtWhen, saveSettings,
     name(h) { const c = h.customerId ? customerOf(h.customerId) : customerByNumber(h.number); return c ? c.name : showNumber(h.number); },
     play(h) {

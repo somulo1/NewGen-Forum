@@ -57,7 +57,7 @@
       <table class="pbx-table">
         <thead><tr><th></th><th>Customer</th><th>Result</th><th>Outcome</th><th>Duration</th><th>When</th><th></th></tr></thead>
         <tbody>
-          <tr v-for="h in historyRows" :key="h.id">
+          <tr v-for="h in pageOf('h', historyRows)" :key="h.id">
             <td><span :class="['pbx-dir', dirTone(h)]">{{ dirIcon(h) }}</span></td>
             <td><strong>{{ nameFor(h) }}</strong><span class="pbx-sub block">{{ showNumber(h.number) }}</span><span v-if="h.note" class="pbx-sub block clip" :title="h.note">{{ h.note }}</span></td>
             <td>{{ h.result }}</td>
@@ -69,6 +69,7 @@
           <tr v-if="!historyRows.length"><td colspan="7" class="pbx-empty">No calls match.</td></tr>
         </tbody>
       </table>
+<PbxPager :total="historyRows.length" :page="pg['h'] || 1" @update:page="setPage('h', $event)" />
     </div>
   </section>
 
@@ -143,7 +144,7 @@
       <h2>Queues</h2>
       <div class="pbx-table-wrap"><table class="pbx-table">
         <thead><tr><th>Queue</th><th>Waiting</th><th>Longest</th><th>Answered</th><th>Abandoned</th><th>Service level</th><th>Avg wait</th><th>Avg talk</th><th>I take calls</th></tr></thead>
-        <tbody><tr v-for="q in pbx.queues" :key="q.name">
+        <tbody><tr v-for="q in pageOf('q', pbx.queues)" :key="q.name">
           <td><strong>{{ q.name }}</strong><span class="pbx-sub block">{{ q.number }}</span></td>
           <td :class="{ warn: q.waiting > 2 }">{{ q.waiting }}</td><td :class="{ warn: q.longest > q.target * 3 }">{{ q.longest }}s</td><td>{{ q.answered }}</td><td>{{ q.abandoned }}</td>
           <td><span :class="['pbx-sla', q.sla >= 90 ? 'ok' : q.sla >= 80 ? 'mid' : 'bad']">{{ q.sla }}%</span><span class="pbx-sub block">answered within {{ q.target }}s</span></td>
@@ -151,12 +152,13 @@
           <td><label class="pbx-switch"><input type="checkbox" :checked="!!pbx.settings.queues[q.name]" @change="setAgentQueue(q.name, $event.target.checked)"><span class="pbx-vh">Take {{ q.name }} calls</span></label></td>
         </tr></tbody>
       </table></div>
+<PbxPager :total="pbx.queues.length" :page="pg['q'] || 1" @update:page="setPage('q', $event)" />
     </div>
     <div class="pbx-card">
       <h2>Agents</h2>
       <div class="pbx-table-wrap"><table class="pbx-table">
         <thead><tr><th>Agent</th><th>Status</th><th>For</th><th>Queues</th><th>Calls today</th><th>Talk time</th><th>Supervise</th></tr></thead>
-        <tbody><tr v-for="a in pbx.agents" :key="a.ext">
+        <tbody><tr v-for="a in pageOf('a', pbx.agents)" :key="a.ext">
           <td><strong>{{ a.name }}</strong><span class="pbx-sub block">Ext {{ a.ext }}</span></td>
           <td><span :class="['pbx-pill', agentTone(a.status)]">{{ a.status }}</span></td>
           <td>{{ a.since ? fmtDur(pbx.tick - a.since) : '—' }}</td>
@@ -165,11 +167,13 @@
           <td><div v-if="a.status === 'On a call' && !a.me" class="pbx-row"><button v-for="h in ['Listen', 'Whisper', 'Barge in']" :key="h" type="button" class="pbx-btn small ghost" @click="superviseNow(a, h)">{{ h }}</button></div><span v-else class="pbx-sub">—</span></td>
         </tr></tbody>
       </table></div>
+<PbxPager :total="pbx.agents.length" :page="pg['a'] || 1" @update:page="setPage('a', $event)" />
       <p v-if="supNote" class="pbx-note" role="status">{{ supNote }}</p>
     </div>
     <div class="pbx-card">
       <h2>Compliance log</h2>
-      <ul class="pbx-list"><li v-for="(a, i) in pbx.audit" :key="i"><span class="grow">{{ a.what }}</span><span class="pbx-sub">{{ fmtWhen(a.at) }}</span></li><li v-if="!pbx.audit.length" class="pbx-empty">Nothing yet. Showing a customer's number and listening in are recorded here.</li></ul>
+      <ul class="pbx-list"><li v-for="(a, i) in pageOf('log', pbx.audit)" :key="i"><span class="grow">{{ a.what }}</span><span class="pbx-sub">{{ fmtWhen(a.at) }}</span></li><li v-if="!pbx.audit.length" class="pbx-empty">Nothing yet. Showing a customer's number and listening in are recorded here.</li></ul>
+<PbxPager :total="pbx.audit.length" :page="pg['log'] || 1" @update:page="setPage('log', $event)" />
     </div>
   </section>
 
@@ -287,7 +291,7 @@ const KEYS = [['1', ''], ['2', 'ABC'], ['3', 'DEF'], ['4', 'GHI'], ['5', 'JKL'],
 export default {
   name: 'CallsManagementSection',
   data() {
-    return { pbx, tab: 'history', callW: 380, number: '', dialErr: '', panel: '', target: '', who: 'Customers', box: 'All boxes', devices: { mics: [], speakers: [], asked: false }, recording: null, recSecs: 0, recErr: '', tuneOn: false, voicesTick: 0, simOpen: false, hearHold: false, hq: '', hf: 'All', cq: '', thread: null, draft: '', playing: null, revealed: {}, supNote: '', blockNo: '',
+    return { pg: {}, pbx, tab: 'history', callW: 380, number: '', dialErr: '', panel: '', target: '', who: 'Customers', box: 'All boxes', devices: { mics: [], speakers: [], asked: false }, recording: null, recSecs: 0, recErr: '', tuneOn: false, voicesTick: 0, simOpen: false, hearHold: false, hq: '', hf: 'All', cq: '', thread: null, draft: '', playing: null, revealed: {}, supNote: '', blockNo: '',
       keys: KEYS, presences: ['Available', 'Away', 'Busy', 'Lunch', 'Do not disturb', 'Off work'],
       templates: [
         { l: 'Payment reminder', t: (c) => 'Hello ' + (c ? c.name.split(' ')[0] : '') + ', a reminder that your payment on ' + (c ? c.account : 'your account') + ' is due. Reply PAY for the paybill details.' },
@@ -354,6 +358,8 @@ export default {
     presenceTone() { return { Available: 'ok', Away: 'mid', Lunch: 'mid', Busy: 'bad', 'Do not disturb': 'bad', 'Off work': 'off' }[this.pbx.presence] || 'off'; }
   },
   methods: {
+    pageOf(key, rows, size) { const n = size || 10, p = this.pg[key] || 1; return rows.slice((p - 1) * n, p * n); },
+    setPage(key, p) { this.pg = { ...this.pg, [key]: p }; },
     simulateIncoming, answer, decline, endCall, toggleHold, swapTo, sendDtmf, completeTransfer, cancelTransfer, addToConference, dropFromConference, park, unpark, finishWrap, setAgentQueue, setPresence, saveSettings, markHeard, deleteVoicemail,
     customerOf, showNumber, fmtDur, fmtWhen, money, keyTone,
     initials(n) { return String(n || '?').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase(); },
@@ -509,9 +515,9 @@ export default {
 .pbx-transcript { margin: 4px 0; font-size: 14px; color: var(--k-C9D6CF,#C9D6CF); }
 .pbx-mon { display: flex; flex-direction: column; gap: 16px; }
 .pbx-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
-.pbx-kpi { padding: 14px 16px; border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 6px; }
+.pbx-kpi { padding: 10px 14px; border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 6px; }
 .pbx-kpi span { font-size: 12px; color: var(--k-9DB0A6,#9DB0A6); }
-.pbx-kpi strong { font-family: 'Space Grotesk', sans-serif; font-size: 26px; }
+.pbx-kpi strong { font-family: 'Space Grotesk', sans-serif; font-size: 22px; }
 .pbx-sla { font-weight: 700; } .pbx-sla.ok { color: #B8F36B; } .pbx-sla.mid { color: #FFB86B; } .pbx-sla.bad { color: #FF9B8A; }
 .pbx-pill { display: inline-flex; padding: 2px 10px; border-radius: 10px; font-size: 12px; font-weight: 600; }
 .pbx-pill.ok { background: rgba(184,243,107,.15); color: #B8F36B; } .pbx-pill.busy { background: rgba(124,196,255,.15); color: #7CC4FF; }
@@ -559,10 +565,10 @@ export default {
 .pbx-legend { display: flex; gap: 14px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6); }
 .pbx-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
 .pbx-legend .in, .pbx-chart .in { background: #7CC4FF; fill: #7CC4FF; } .pbx-legend .out, .pbx-chart .out { background: #B8F36B; fill: #B8F36B; } .pbx-legend .bad, .pbx-chart .bad { background: #FF9B8A; fill: #FF9B8A; }
-.pbx-chart { width: 100%; height: auto; }
+.pbx-chart { display: block; width: 100%; }
 .pbx-gridline { stroke: var(--k-24322C,#24322C); stroke-width: 1; }
 .pbx-axis { fill: var(--k-9DB0A6,#9DB0A6); font-size: 10px; }
-.pbx-hours { display: flex; align-items: flex-end; gap: 6px; height: 140px; }
+.pbx-hours { display: flex; align-items: flex-end; gap: 6px; height: 96px; }
 .pbx-hour { flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 4px; }
 .pbx-hour span { width: 100%; border-radius: 4px 4px 0 0; background: #7CC4FF; }
 .pbx-hour small { font-size: 10px; color: var(--k-9DB0A6,#9DB0A6); }

@@ -19,7 +19,7 @@
   <div class="pbx-card">
     <h2>Calls by day</h2>
     <div class="pbx-legend"><span><i class="in"></i>Inbound</span><span><i class="out"></i>Outbound</span><span><i class="bad"></i>Abandoned</span></div>
-    <svg class="pbx-chart" :viewBox="`0 0 ${W} ${H + 22}`" role="img" :aria-label="'Calls per day over the last ' + days + ' days'">
+    <svg ref="chart" class="pbx-chart" :style="`height: ${H + 22}px`" :viewBox="`0 0 ${W} ${H + 22}`" role="img" :aria-label="'Calls per day over the last ' + days + ' days'">
       <line v-for="g in grid" :key="g.v" :x1="0" :x2="W" :y1="g.y" :y2="g.y" class="pbx-gridline"/>
       <text v-for="g in grid" :key="'t' + g.v" x="0" :y="g.y - 3" class="pbx-axis">{{ g.v }}</text>
       <g v-for="(d, i) in series" :key="d.label">
@@ -47,8 +47,9 @@
     <h2>By agent</h2>
     <div class="pbx-table-wrap"><table class="pbx-table">
       <thead><tr><th>Agent</th><th>Calls</th><th>Answered</th><th>Missed</th><th>Talk time</th><th>Average call</th><th>Promise to pay</th></tr></thead>
-      <tbody><tr v-for="a in byAgent" :key="a.ext"><td><strong>{{ a.name }}</strong><span class="pbx-sub block">Ext {{ a.ext }}</span></td><td>{{ a.calls }}</td><td>{{ a.answered }}</td><td>{{ a.missed }}</td><td>{{ fmtDur(a.talk * 1000) }}</td><td>{{ fmtDur((a.answered ? a.talk / a.answered : 0) * 1000) }}</td><td>{{ a.ptp }}</td></tr></tbody>
+      <tbody><tr v-for="a in pageOf('ag', byAgent)" :key="a.ext"><td><strong>{{ a.name }}</strong><span class="pbx-sub block">Ext {{ a.ext }}</span></td><td>{{ a.calls }}</td><td>{{ a.answered }}</td><td>{{ a.missed }}</td><td>{{ fmtDur(a.talk * 1000) }}</td><td>{{ fmtDur((a.answered ? a.talk / a.answered : 0) * 1000) }}</td><td>{{ a.ptp }}</td></tr></tbody>
     </table></div>
+<PbxPager :total="byAgent.length" :page="pg['ag'] || 1" @update:page="setPage('ag', $event)" />
   </div>
 </section>
 </template>
@@ -61,7 +62,7 @@ function rnd(seed) { const x = Math.sin(seed) * 10000; return x - Math.floor(x);
 
 export default {
   name: 'PbxReports',
-  data() { return { pbx, days: 14, queue: '', W: 720, H: 180, periods: [{ d: 7, l: '7 days' }, { d: 14, l: '14 days' }, { d: 30, l: '30 days' }] }; },
+  data() { return { pg: {}, pbx, days: 14, queue: '', W: 720, H: 130, periods: [{ d: 7, l: '7 days' }, { d: 14, l: '14 days' }, { d: 30, l: '30 days' }] }; },
   computed: {
     weight() { const i = this.pbx.queues.findIndex((q) => q.name === this.queue); return i === -1 ? 1 : [0.45, 0.3, 0.17, 0.08][i] || 0.1; },
     series() {
@@ -102,7 +103,12 @@ export default {
       }).filter((a) => !this.queue || a.queues.includes(this.queue));
     }
   },
+  // the chart is drawn at the width it really has, so it fills the card without growing tall
+  mounted() { const el = this.$refs.chart; if (el && window.ResizeObserver) { this._ro = new ResizeObserver(([e]) => { this.W = Math.max(280, Math.round(e.contentRect.width)); }); this._ro.observe(el); } },
+  beforeUnmount() { if (this._ro) this._ro.disconnect(); },
   methods: {
+    pageOf(key, rows, size) { const n = size || 10, p = this.pg[key] || 1; return rows.slice((p - 1) * n, p * n); },
+    setPage(key, p) { this.pg = { ...this.pg, [key]: p }; },
     fmtDur,
     pctOf(a, b) { return b ? Math.round((a / b) * 100) : 0; },
     x(i) { return i * (this.W / this.series.length) + 3; },

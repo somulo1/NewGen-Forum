@@ -17,12 +17,13 @@
     <span v-if="msg[k.id]" role="status" class="pbx-sub">{{ msg[k.id] }}</span>
     <div v-if="open === k.id" class="pbx-table-wrap"><table class="pbx-table">
       <thead><tr><th>Customer</th><th>Tries</th><th>Last result</th><th>Set result</th></tr></thead>
-      <tbody><tr v-for="r in k.list" :key="r.customerId">
+      <tbody><tr v-for="r in pageOf(k.id, k.list)" :key="r.customerId">
         <td><strong>{{ cust(r).name }}</strong><span class="pbx-sub block">{{ cust(r).account }} · {{ cust(r).status }}</span><span v-if="isDnc(r)" class="pbx-pill off">Do not call</span></td>
         <td>{{ r.tries }}</td><td>{{ r.result || '—' }}</td>
         <td><select class="pbx-search" :value="r.result" :aria-label="'Result for ' + cust(r).name" @change="campaignResult(k, r.customerId, $event.target.value)"><option value="">—</option><option v-for="o in outcomes" :key="o">{{ o }}</option></select></td>
       </tr></tbody>
     </table></div>
+<PbxPager :total="k.list.length" :page="pg[k.id] || 1" @update:page="setPage(k.id, $event)" />
   </div>
 
   <div class="pbx-grid2">
@@ -50,8 +51,10 @@ import { pbx, campaignDial, campaignResult, newCampaign, addDnc, removeDnc, cust
 
 export default {
   name: 'PbxCampaigns',
-  data() { return { pbx, open: null, msg: {}, name: '', queue: 'Collections', picked: [], dncNo: '', outcomes: ['No answer', 'Busy', 'Promise to pay', 'Payment made', 'Call back requested', 'Wrong number', 'Do not call', 'Resolved'] }; },
+  data() { return { pg: {}, pbx, open: null, msg: {}, name: '', queue: 'Collections', picked: [], dncNo: '', outcomes: ['No answer', 'Busy', 'Promise to pay', 'Payment made', 'Call back requested', 'Wrong number', 'Do not call', 'Resolved'] }; },
   methods: {
+    pageOf(key, rows, size) { const n = size || 10, p = this.pg[key] || 1; return rows.slice((p - 1) * n, p * n); },
+    setPage(key, p) { this.pg = { ...this.pg, [key]: p }; },
     campaignResult, addDnc, removeDnc,
     cust(r) { return customerOf(r.customerId) || { name: 'Customer', account: '', status: '' }; },
     isDnc(r) { return this.pbx.dnc.includes(norm(this.cust(r).phone)); },
