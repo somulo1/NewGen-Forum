@@ -103,10 +103,17 @@ export function playClip(url) {
   stopClip();
   const el = new Audio(url); clip = el;
   const duck = (down) => { if (loop) { try { loop.music.gain.setTargetAtTime(down ? 0.3 : 1, audio().currentTime, 0.4); } catch (e) { /* closed */ } } };
-  duck(true); el.onended = () => { duck(false); if (clip === el) clip = null; };
-  el.play().catch(() => duck(false));
+  duck(true);
+  // resolves when the recording has finished (or could not play), so a caller's journey can go on to the next step
+  return new Promise((res) => {
+    const done = () => { duck(false); if (clip === el) clip = null; res(); };
+    el.onended = done; el.onerror = done; el.onpause = () => { if (clip !== el) res(); };
+    el.play().catch(done);
+  });
 }
-function stopClip() { if (clip) { clip.pause(); clip = null; } }
+// the music only, quieter or louder (e.g. while the agent's phone rings)
+export function tuneLevel(v) { if (loop) { try { loop.music.gain.setTargetAtTime(v, audio().currentTime, 0.3); } catch (e) { /* closed */ } } }
+function stopClip() { if (clip) { const c = clip; clip = null; c.pause(); } }
 
 // ---- the sample "AI" voice ----
 // The browser's own speech, made to sound like a care agent: the most natural voice it has, read sentence by sentence with

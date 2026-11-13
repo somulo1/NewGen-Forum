@@ -196,13 +196,14 @@ export function dial(number, opts) {
   return '';
 }
 
-export function simulateIncoming(queue) {
+export function simulateIncoming(queue, customerId) {
   if (pbx.incoming) return;
   if (pbx.settings.dnd || pbx.presence === 'Do not disturb' || pbx.presence === 'Off work') {
     pbx.history.unshift({ id: 'h' + now(), dir: 'in', customerId: null, number: '+2547' + Math.floor(10000000 + Math.random() * 89999999), result: 'Missed (DND)', duration: 0, disposition: '', at: now(), recorded: false, note: '', agent: 'You' });
     persist(); return;
   }
-  const c = pbx.customers[Math.floor(Math.random() * pbx.customers.length)];
+  // a chosen customer, a new caller (null), or (when not given) a random sample customer
+  const c = customerId ? customerOf(customerId) : customerId === null ? { phone: '+2547' + Math.floor(10000000 + Math.random() * 89999999), id: null } : pbx.customers[Math.floor(Math.random() * pbx.customers.length)];
   snd.startRing();
   pbx.incoming = { number: c.phone, customerId: c.id, queue: queue || (Math.random() < 0.5 ? 'Customer care' : 'Collections'), at: now(), waited: Math.floor(Math.random() * 60) };
   if (pbx.settings.autoAnswer) setTimeout(answer, 1500);

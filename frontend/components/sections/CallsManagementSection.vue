@@ -5,6 +5,7 @@
   <div class="pbx-top">
   <header class="pbx-head">
     <h1>Calls management</h1>
+    <button type="button" class="pbx-btn ghost small" @click="simOpen = true" title="Hear what customers hear when they call, then take the call">Call in as a customer</button>
     <span class="pbx-demo" title="Calls, sounds and data are samples until the phone system is connected">Sample mode</span>
     <label class="pbx-presence">
       <span :class="['pbx-dot', presenceTone]" aria-hidden="true"></span>
@@ -217,7 +218,7 @@
           <span class="pbx-sub">The AI voice is your device's own. For the most natural sound, record the greeting in a calm voice under My voicemail greeting and choose it above.</span>
         </template>
       </template>
-      <div class="pbx-row"><button type="button" class="pbx-btn ghost" @click="previewTune">{{ tuneOn ? 'Stop' : 'Listen' }}</button><button type="button" class="pbx-btn ghost" @click="simulateIncoming()">Test an inbound call</button></div>
+      <div class="pbx-row"><button type="button" class="pbx-btn ghost" @click="previewTune">{{ tuneOn ? 'Stop' : 'Listen' }}</button><button type="button" class="pbx-btn ghost" @click="simOpen = true">Call in as a customer</button></div>
       <h2>Blocked numbers</h2>
       <ul class="pbx-list"><li v-for="(b, i) in pbx.settings.blocked" :key="b"><span class="grow">{{ showNumber(b) }}</span><button type="button" class="pbx-link" @click="pbx.settings.blocked.splice(i, 1); saveSettings()">Unblock</button></li></ul>
       <form class="pbx-row" @submit.prevent="block"><input v-model="blockNo" class="grow pbx-search" placeholder="Number to block" aria-label="Number to block"><button type="submit" class="pbx-btn ghost">Block</button></form>
@@ -271,6 +272,7 @@
     </div>
   </aside>
   </div>
+  <PbxCustomerSim v-if="simOpen" :greeting="greeting()" @close="simOpen = false" />
 </div>
 </template>
 
@@ -285,7 +287,7 @@ const KEYS = [['1', ''], ['2', 'ABC'], ['3', 'DEF'], ['4', 'GHI'], ['5', 'JKL'],
 export default {
   name: 'CallsManagementSection',
   data() {
-    return { pbx, tab: 'history', callW: 380, number: '', dialErr: '', panel: '', target: '', who: 'Customers', box: 'All boxes', devices: { mics: [], speakers: [], asked: false }, recording: null, recSecs: 0, recErr: '', tuneOn: false, voicesTick: 0, hearHold: false, hq: '', hf: 'All', cq: '', thread: null, draft: '', playing: null, revealed: {}, supNote: '', blockNo: '',
+    return { pbx, tab: 'history', callW: 380, number: '', dialErr: '', panel: '', target: '', who: 'Customers', box: 'All boxes', devices: { mics: [], speakers: [], asked: false }, recording: null, recSecs: 0, recErr: '', tuneOn: false, voicesTick: 0, simOpen: false, hearHold: false, hq: '', hf: 'All', cq: '', thread: null, draft: '', playing: null, revealed: {}, supNote: '', blockNo: '',
       keys: KEYS, presences: ['Available', 'Away', 'Busy', 'Lunch', 'Do not disturb', 'Off work'],
       templates: [
         { l: 'Payment reminder', t: (c) => 'Hello ' + (c ? c.name.split(' ')[0] : '') + ', a reminder that your payment on ' + (c ? c.account : 'your account') + ' is due. Reply PAY for the paybill details.' },
