@@ -44,7 +44,10 @@ export function buildTickets(ctx) {
   const tickets = s.tickets.map((t) => {
     const c = calc(t);
     const to = recipientOf(t, this.org, has);
-    return { ...t, to, toLabel: recipientLabel(to), isMine: t.raisedBy === 'Sam', prioStyle: prio(t.prio), statusLabel: t.step === 2 && t.hold ? 'On hold' : stepNames[t.step], slaLabel: c.sla, slaBadgeStyle: badge(c.color), remainingLabel: c.remainingLabel, handlerLabel: t.handler || 'Unassigned',
+    // plain status for tables: Raised, Assigned, Resolved or Closed, and "Escalated: Assigned" when it was escalated
+    const baseSt = t.step >= 4 ? 'Closed' : t.step === 3 ? 'Resolved' : t.step >= 1 ? 'Assigned' : 'Raised';
+    return { ...t, to, toLabel: recipientLabel(to), toName: to && to.name ? to.name : 'Ticket desk', simpleStatus: t.escalated ? 'Escalated: ' + baseSt : baseSt,
+      hasEvidence: (t.activity || []).some((a) => a.kind === 'file'), descShort: (t.unsealed ? '' : String(t.desc || '')).replace(/\s+/g, ' ').trim(), isMine: t.raisedBy === 'Sam', prioStyle: prio(t.prio), statusLabel: t.step === 2 && t.hold ? 'On hold' : stepNames[t.step], slaLabel: c.sla, slaBadgeStyle: badge(c.color), remainingLabel: c.remainingLabel, handlerLabel: t.handler || 'Unassigned',
       open: () => this.setState({ ticketOpen: t.id, ticketFrom: null, tagOpen: false, tcomment: '' }), _c: c };
   });
   const nOpen = tickets.filter((t) => t.step < 3).length;

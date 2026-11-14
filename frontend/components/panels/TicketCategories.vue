@@ -10,6 +10,10 @@
 <template v-else><span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Only people who can set up ticket categories can change it.</span></template>
 </div>
 </template>
+<div v-if="catMgr.intake.show" style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 16px 18px; border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C)">
+<div style="flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; gap: 2px"><strong style="font-size: 15px">Who can send here</strong><span style="font-size: 13px; color: var(--k-9DB0A6,#9DB0A6)">{{ catMgr.intake.note }}</span></div>
+<select :value="catMgr.intake.value" :disabled="!catMgr.intake.canEdit" @change="catMgr.intake.onChange" aria-label="Who can send here" style="height: 38px; max-width: 100%; padding: 0 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font: inherit; font-size: 13px"><option v-for="o in catMgr.intake.options" :key="o.value" :value="o.value">{{ o.label }}</option></select>
+</div>
 <div style="display: flex; flex-direction: column; gap: 10px">
 <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px">
 <div style="flex: 1 1 320px; display: flex; flex-direction: column; gap: 2px"><strong style="font-size: 15px">{{ catMgr.title }}</strong><span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">{{ catMgr.note }}</span></div>

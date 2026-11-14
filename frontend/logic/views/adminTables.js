@@ -7,18 +7,19 @@ export function buildAdminTables(ctx) {
   const { C, O, can, apGroups, agoLabel, rightMeta, defaultCats, deskTickets, myTickets, alertsAll, alertsRange, logsRange, allLogs, chip, corePeople, f8, flowItem, fmtDay, has, modEnabled, modInfo, nowMs, rKey, requestsShown, rightOf, rightsDef, roleScope, ruleDefs, ruleOn, ruleSev, s, sec, sevColor, tickets, titleOf, toggleRight, tz9, visibleRoles } = ctx;
   // =============== Tables for existing pages ===============
   const prioColor = { High: '#FF9B8A', Medium: '#FFB86B', Low: '#9DB0A6' };
-  const ticketCols = [{ label: 'ID', filter: 'text' }, { label: 'Title', filter: 'text' }];
-  const ticketCells = (t) => [C.t(t.id, { mono: true, nowrap: true }), C.t(t.title, { strong: true })];
+  // ID, title, then a one-line description (cut with … and opening the ticket) and whether evidence is attached
+  const ticketCols = [{ label: 'ID', filter: 'text' }, { label: 'Title', filter: 'text' }, { label: 'Description', filter: 'text' }, { label: 'Evidence', filter: 'select' }];
+  const ticketCells = (t) => [C.t(t.id, { mono: true, nowrap: true }), C.t(t.title, { strong: true, clip: 200 }), C.t(t.descShort || '—', { clip: 240, run: t.descShort ? t.open : undefined, color: '#C9D6CF', fv: t.descShort }), C.b(t.hasEvidence ? 'Yes' : 'No', t.hasEvidence ? '#B8F36B' : '#9DB0A6', { fv: t.hasEvidence ? 'Yes' : 'No' })];
   const tailCols = [{ label: 'Priority', filter: 'select' }, { label: 'Status', filter: 'select' }, { label: 'TAT', filter: 'select' }, { label: 'Handling', filter: 'select' }, { label: 'Raised', filter: 'date' }, { label: '', align: 'right' }];
-  const tailCells = (t) => [C.b(t.prio, prioColor[t.prio]), C.t(t.statusLabel + (t.escalated ? ' · escalated' : ''), { fv: t.statusLabel }), C.b(t.slaLabel, t._c.color, { sub: t.remainingLabel }), C.t(t.handlerLabel), C.t(fmtDay(t.createdAt), { fv: t.createdAt, nowrap: true }), C.a([{ label: 'View', kind: 'primary', run: t.open }])];
+  const tailCells = (t) => [C.b(t.prio, prioColor[t.prio]), C.t(t.simpleStatus, { fv: t.simpleStatus, nowrap: true }), C.b(t.slaLabel, t._c.color, { sub: t.remainingLabel }), C.t(t.handlerLabel), C.t(fmtDay(t.createdAt), { fv: t.createdAt, nowrap: true }), C.a([{ label: 'View', kind: 'primary', run: t.open }])];
   // My tickets: what you raised, and where each one is now.
-  const ticketsTable = { id: 'tickets-mine', pageSize: 10, minWidth: '1060px', emptyText: 'You have not raised any tickets yet.',
+  const ticketsTable = { id: 'tickets-mine', pageSize: 10, minWidth: '1500px', emptyText: 'You have not raised any tickets yet.',
     cols: ticketCols.concat([{ label: 'Sent to', filter: 'select' }, { label: 'Category', filter: 'select' }]).concat(tailCols),
-    rows: myTickets.map((t) => ({ tint: t._c.sla === 'Overdue' ? '#FF9B8A' : '', cells: ticketCells(t).concat([C.t(t.toLabel, { fv: t.toLabel }), C.t(t.cat)]).concat(tailCells(t)) })) };
+    rows: myTickets.map((t) => ({ tint: t._c.sla === 'Overdue' ? '#FF9B8A' : '', cells: ticketCells(t).concat([C.t(t.toName, { fv: t.toName }), C.t(t.cat)]).concat(tailCells(t)) })) };
   // Ticket desk: every ticket received when the organization has no department, unit, branch or sector. Sorted by priority, then by how urgent the TAT is.
   const prioRank = { High: 0, Medium: 1, Low: 2 };
   const deskRows = deskTickets.slice().sort((a, b) => (a.step >= 3) - (b.step >= 3) || prioRank[a.prio] - prioRank[b.prio] || a._c.rem - b._c.rem);
-  const deskTable = { id: 'ticket-desk', pageSize: 10, minWidth: '1100px', emptyText: 'No tickets have been received.',
+  const deskTable = { id: 'ticket-desk', pageSize: 10, minWidth: '1500px', emptyText: 'No tickets have been received.',
     cols: ticketCols.concat([{ label: 'From', filter: 'select' }, { label: 'Category', filter: 'select' }]).concat(tailCols),
     rows: deskRows.map((t) => ({ tint: t._c.sla === 'Overdue' ? '#FF9B8A' : '', cells: ticketCells(t).concat([C.t(t.fromDept || t.raisedBy), C.t(t.cat)]).concat(tailCells(t)) })) };
   const deskCats = Array.from(new Set(deskTickets.map((t) => t.cat))).map((c) => { const list = deskTickets.filter((t) => t.cat === c); return { name: c, total: list.length, open: list.filter((t) => t.step < 3).length, overdue: list.filter((t) => t._c.sla === 'Overdue').length }; }).sort((a, b) => b.open - a.open);
@@ -240,7 +241,8 @@ export function buildAdminTables(ctx) {
   // a person raises tickets and business requests here; communications are sent from a place's dashboard
   const ntKind = s.nt.kind === 'request' && canRequest ? 'request' : 'ticket';
   const ntType = ntKind === 'request' ? 'departments' : tLevels.indexOf(s.nt.toType) !== -1 ? s.nt.toType : (tLevels[0] || 'desk');
-  const ntRecs = ntType === 'desk' ? [] : (O[ntType] || []);
+  // a place that only takes escalations from one chosen place is never somewhere to send a ticket or business request
+  const ntRecs = ntType === 'desk' ? [] : (O[ntType] || []).filter((r) => !(s.ticketIntake || {})[r.id]);
   const ntName = ntRecs.some((r) => r.name === s.nt.toName) ? s.nt.toName : (ntRecs[0] ? ntRecs[0].name : '');
   const ntRecip = ntType === 'desk' ? { type: 'desk', name: 'Ticket desk' } : { type: ntType, name: ntName };
   const ntCatList = catsFor(s.unitCats, ntRecip, defaultCats);

@@ -33,7 +33,11 @@ export function buildOrg(ctx) {
   // (moving it up a level into my own place is fine). The server enforces the same rule.
   const myPlace = (this.dir || []).find((p) => this.srv && p.name === this.srv.me.name) || {};
   const myOf = { departments: myPlace.dept, units: myPlace.unit, branches: myPlace.loc, sectors: myPlace.sector };
+  // a place that only takes escalations from one chosen place shows (with its categories) only to the members of that place
+  const inPlace = (id) => Object.keys(myOf).some((t) => { const rec = (O[t] || []).find((x) => x.id === id); return !!rec && myOf[t] === rec.name; });
   const escRecs = (type) => type === 'desk' ? [{ id: 'desk', name: 'Ticket team' }] : (O[type] || []).filter((r) => {
+    const only = (s.ticketIntake || {})[r.id];
+    if (only && !inPlace(only)) return false;
     if (!cur_t) return true;
     if (cur_t.to && cur_t.to.type === type && cur_t.to.name === r.name) return false;
     if (cur_t.to && cur_t.to.type === type && myOf[type] === r.name) return false;
@@ -148,7 +152,7 @@ export function buildOrg(ctx) {
     out.comms = full.comms.map((c) => { const st = (tickets || []).find((y) => y.id === c.ref); return { id: c.ref, uid: c.id, date: c.date, at: c.at || '', dir: c.dir, type: c.type, subject: st ? st.title : 'Communication', cp: c.cp, status: c.status, ok: c.ok, open: !!c.open, assignee: c.assignee || '', from: c.from || '', fromUnit: !!c.from_unit, fromServer: true }; });
     // business requests are raised from the ticket form: each one opens on the ticket page
     out.reqs = full.requests.map((q) => { const st = (tickets || []).find((y) => y.id === q.ref); return { ...q, id: q.ref, uid: q.id, title: st ? st.title : q.subject, fromUnit: !!q.from_unit, fromServer: true, real: q }; });
-    out.tks = full.tickets.map((x) => { const st = (tickets || []).find((y) => y.id === x.ref); return { id: x.ref, uid: x.id, date: x.date, at: x.at || '', dir: x.dir, title: st ? st.title : x.category + ' ticket', cp: x.cp, status: x.status, ok: x.ok, open: !!x.open, assignee: x.assignee || '', from: x.from || '', fromUnit: !!x.from_unit, real: null, fromServer: true }; });
+    out.tks = full.tickets.map((x) => { const st = (tickets || []).find((y) => y.id === x.ref); return { st, id: x.ref, uid: x.id, date: x.date, at: x.at || '', dir: x.dir, title: st ? st.title : x.category + ' ticket', cp: x.cp, status: x.status, ok: x.ok, open: !!x.open, assignee: x.assignee || '', from: x.from || '', fromUnit: !!x.from_unit, real: null, fromServer: true }; });
     out.people = full.people || [];
     return out;
   };
@@ -183,7 +187,7 @@ export function buildOrg(ctx) {
       const recvHere = (t) => t.to.type === type && t.to.name === r.name;
       const real = tickets.filter((t) => recvHere(t) || (type === 'departments' && t.fromDept === r.name)).map((t) => {
         const dirn = recvHere(t) ? (t.escalated ? 'Escalated' : 'Received') : 'Sent';
-        return { id: t.id, date: t.createdAt, dir: dirn, title: t.title, cp: dirn === 'Sent' ? t.to.name : t.fromDept, status: t.slaLabel === 'Overdue' ? 'Overdue' : t.statusLabel, ok: t._c.sla !== 'Overdue' && t._c.sla !== 'Solved late', real: t };
+        return { st: t, id: t.id, date: t.createdAt, dir: dirn, title: t.title, cp: dirn === 'Sent' ? t.to.name : t.fromDept, status: t.slaLabel === 'Overdue' ? 'Overdue' : t.statusLabel, ok: t._c.sla !== 'Overdue' && t._c.sla !== 'Solved late', real: t };
       });
       tks = real.concat(tks.filter((x) => !real.some((r) => r.id === x.id)));
     }
@@ -432,8 +436,12 @@ export function buildOrg(ctx) {
     if (ouTab === 'reqs') ouTable = { id: 'ou-r-' + key, pageSize: 10, minWidth: '900px', cols: [{ label: 'Request', filter: 'text' }, { label: 'Date', filter: 'date' }, { label: 'Direction', filter: 'select' }, { label: 'From', filter: 'select' }, { label: 'Title', filter: 'text' }, { label: 'With', filter: 'select' }, { label: 'Assigned to', filter: 'select' }, { label: 'Status', filter: 'select' }, { label: 'Action', align: 'right' }],
       rows: D.reqs.filter((c) => c.dir === (s.ouReqDir || 'Received')).sort(byOpenThenNew).map((c) => ({ tint: c.status === 'Overdue' ? '#FF9B8A' : '', cells: [C.t(c.ref, { mono: true }), C.t(fmtDay(c.date), { fv: c.date, nowrap: true }), dirCell(c.dir), C.t(c.from || '', { sub: c.fromUnit ? 'from the place' : c.from ? 'from a person' : '', fv: c.from || '' }), C.t(c.title || c.subject, { strong: true, sub: c.subject }), C.t(c.cp), C.t(c.assignee || 'Not assigned yet', { fv: c.assignee || '' }), C.b(c.status, stC(c.status)),
         C.a(c.uid ? [{ label: 'View', kind: 'primary', run: openTicketPage(c) }] : [])] })) };
-    if (ouTab === 'tks') ouTable = { id: 'ou-t-' + key, pageSize: 10, minWidth: '900px', cols: [{ label: 'Ticket', filter: 'text' }, { label: 'Date', filter: 'date' }, { label: 'Direction', filter: 'select' }, { label: 'From', filter: 'select' }, { label: 'Title', filter: 'text' }, { label: 'With', filter: 'select' }, { label: 'Assigned to', filter: 'select' }, { label: 'Status', filter: 'select' }, { label: 'Action', align: 'right' }],
-      rows: D.tks.filter((c) => c.dir === (s.ouTkDir || 'Received')).sort(byOpenThenNew).map((c) => ({ tint: c.status === 'Overdue' ? '#FF9B8A' : '', cells: [C.t(c.id, { mono: true }), C.t(fmtDay(c.date), { fv: c.date, nowrap: true }), dirCell(c.dir), C.t(c.from || '', { sub: c.fromUnit ? 'from the place' : c.from ? 'from a person' : '', fv: c.from || '' }), C.t(c.title, { strong: true }), C.t(c.cp), C.t(c.assignee || 'Not assigned yet', { fv: c.assignee || '' }), C.b(c.status, stC(c.status)),
+    // a one-line description that opens the ticket, evidence yes/no, and a plain status (Escalated: Assigned …)
+    const tkDesc = (c) => { const d = c.st && !c.st.unsealed ? String(c.st.desc || '').replace(/\s+/g, ' ').trim() : ''; return C.t(d || '—', { clip: 240, run: d ? openTicketPage(c) : undefined, color: '#C9D6CF', fv: d }); };
+    const tkEv = (c) => { const y = !!(c.st && (c.st.activity || []).some((a) => a.kind === 'file')); return C.b(y ? 'Yes' : 'No', y ? '#B8F36B' : '#9DB0A6', { fv: y ? 'Yes' : 'No' }); };
+    const tkStatus = (c) => { if (!c.st) return c.status; const t = c.st, b = t.step >= 4 ? 'Closed' : t.step === 3 ? 'Resolved' : t.step >= 1 ? 'Assigned' : 'Raised'; return t.escalated ? 'Escalated: ' + b : b; };
+    if (ouTab === 'tks') ouTable = { id: 'ou-t-' + key, pageSize: 10, minWidth: '1400px', cols: [{ label: 'Ticket', filter: 'text' }, { label: 'Date', filter: 'date' }, { label: 'Direction', filter: 'select' }, { label: 'From', filter: 'select' }, { label: 'Title', filter: 'text' }, { label: 'Description', filter: 'text' }, { label: 'Evidence', filter: 'select' }, { label: 'With', filter: 'select' }, { label: 'Assigned to', filter: 'select' }, { label: 'Status', filter: 'select' }, { label: 'Action', align: 'right' }],
+      rows: D.tks.filter((c) => c.dir === (s.ouTkDir || 'Received')).sort(byOpenThenNew).map((c) => ({ tint: c.status === 'Overdue' ? '#FF9B8A' : '', cells: [C.t(c.id, { mono: true }), C.t(fmtDay(c.date), { fv: c.date, nowrap: true }), dirCell(c.dir), C.t(c.from || '', { sub: c.fromUnit ? 'from the place' : c.from ? 'from a person' : '', fv: c.from || '' }), C.t(c.title, { strong: true, clip: 200 }), tkDesc(c), tkEv(c), C.t(c.cp), C.t(c.assignee || 'Not assigned yet', { fv: c.assignee || '' }), C.b(tkStatus(c), stC(c.status), { fv: tkStatus(c) }),
         C.a([{ label: 'View', kind: 'primary', run: openTicketPage(c) }])] })) };
     // the people placed in this part (and everyone the part's own record lists), with their profile one click away
     // each person's results in the period: what they worked on, resolved or passed on within the turnaround, out of what was decided

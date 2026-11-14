@@ -85,6 +85,29 @@ func (s *Service) Private(r chi.Router) {
 		w.WriteHeader(204)
 		return nil
 	}))
+	// places that take tickets only by escalation from one chosen place
+	r.Get("/tickets/intake", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
+		l, err := s.Intakes(r.Context(), p)
+		if err != nil {
+			return err
+		}
+		httpx.JSON(w, 200, map[string]any{"intake": l})
+		return nil
+	}))
+	r.Put("/tickets/intake", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
+		var in struct {
+			Unit     uuid.UUID  `json:"unit"`
+			OnlyFrom *uuid.UUID `json:"only_from"`
+		}
+		if err := httpx.Decode(r, &in, 4<<10); err != nil {
+			return err
+		}
+		if err := s.SetIntake(r.Context(), p, in.Unit, in.OnlyFrom); err != nil {
+			return err
+		}
+		w.WriteHeader(204)
+		return nil
+	}))
 	r.Get("/tickets/categories", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
 		var ref *uuid.UUID
 		if v, err := uuid.Parse(r.URL.Query().Get("to_ref")); err == nil {

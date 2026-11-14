@@ -1,4 +1,5 @@
 import * as orgW from '~/logic/server/widgets/org.js';
+import * as ticketsW from '~/logic/server/widgets/tickets.js';
 import { catsFor } from '~/logic/ticketRouting.js';
 import { askConfirm, confirmed } from '~/logic/confirm.js';
 
@@ -39,7 +40,16 @@ export function buildCatMgr(ctx) {
     onInput: (e) => this.setState({ ouThr: { key: unitKey, value: e.target.value } }),
     save: () => { const v = Number(thr); if (!(v >= 50 && v <= 100)) { this.notify('Choose a threshold between 50 and 100%.', '#FFB86B'); return; } if (this.srv) { orgW.setTarget(this, this.srv, unitKey, Math.round(v)).then(() => { this.setState({ ouThr: null }); this.notify('Performance threshold saved at ' + Math.round(v) + '%.', '#B8F36B'); }).catch((e) => this.notify(e.message || 'Could not save the threshold.', '#FF9B8A')); return; } this.setState((st) => ({ targets: { ...st.targets, [unitKey]: Math.round(v) }, ouThr: null })); this.notify('Performance threshold saved at ' + Math.round(v) + '%.', '#B8F36B'); },
     discard: () => this.setState({ ouThr: null }), note: thrNum + '% of what ' + target.name + ' receives should be resolved within its time limit.' };
-  return { catMgr: { active: true, threshold, editor, dirty, save: () => this.saveWork(), discard: () => this.discardWork(), noAccessNote: target.canManage ? '' : 'You can view these categories. Ask an admin to give your role the "Set up ticket categories" right to change them.', key, canManage: target.canManage, title: target.type === 'desk' ? 'Ticket desk categories' : 'Ticket categories for ' + target.name,
+  // Who can send here: anyone, or only one chosen place, by escalation. Then this place is not offered when sending tickets or
+  // business requests, and only that place's members see it (and these categories) when they escalate. Saved at once.
+  const LV = { departments: 'Department', units: 'Unit', branches: 'Branch', sectors: 'Sector' };
+  const ownRec = target.type !== 'desk' ? recOf(target.type, (s.ou || '').split(':')[1]) : null;
+  const onlyFrom = ownRec ? ((s.ticketIntake || {})[ownRec.id] || '') : '';
+  const intake = { show: !!ownRec && !!this.srv, value: onlyFrom, canEdit: target.canManage,
+    options: [{ value: '', label: 'Anyone: tickets, business requests and escalations' }].concat(Object.keys(LV).flatMap((t) => (O[t] || []).filter((r) => r.id && r.id !== (ownRec && ownRec.id)).map((r) => ({ value: r.id, label: 'Only escalations from ' + r.name + ' (' + LV[t].toLowerCase() + ')' })))),
+    note: onlyFrom ? target.name + ' is hidden when people send tickets or business requests. Only members of the chosen place see it, and these categories, when they escalate.' : 'Anyone can send tickets and business requests here, or escalate to it.',
+    onChange: (e) => { const v = e.target.value || null; ticketsW.setIntake(this, this.srv, ownRec.id, v).then(() => this.notify(v ? target.name + ' now only takes escalations from the chosen place.' : target.name + ' takes tickets from anyone again.', '#B8F36B')).catch((err) => this.notify(err.message || 'Could not save.', '#FF9B8A')); } };
+  return { catMgr: { active: true, intake, threshold, editor, dirty, save: () => this.saveWork(), discard: () => this.discardWork(), noAccessNote: target.canManage ? '' : 'You can view these categories. Ask an admin to give your role the "Set up ticket categories" right to change them.', key, canManage: target.canManage, title: target.type === 'desk' ? 'Ticket desk categories' : 'Ticket categories for ' + target.name,
     usingDefaults: !own.length && !working, startOwn: () => this.startOwnCats(key, defaultCats),
     note: own.length ? 'Tickets sent here can only use these categories. Each has its own TAT and priority, and its members take new tickets automatically until you delink them.' : 'No categories of its own yet, so the organization defaults apply. Create your own to set TATs, priorities and who always takes them.',
     rows: list.map((c) => ({ id: c.id, name: c.name, tat: c.tat, prio: c.prio, custom: c.custom,       summary: c.members.slice(0, 3).map(person), extra: Math.max(0, c.members.length - 3), count: c.members.length, manage: () => this.openCatEdit(c.id, c.members),

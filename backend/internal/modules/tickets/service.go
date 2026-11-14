@@ -326,6 +326,14 @@ func (s *Service) Create(ctx context.Context, p *tenant.Principal, in CreateIn) 
 				return httpx.Err(403, "no_department_access", "Only people with access to departments can send business requests.")
 			}
 		}
+		// a place that only takes escalations from one chosen place cannot be sent tickets or business requests directly
+		if in.ToRef != nil {
+			if from, fromName, err := intakeOf(ctx, tx, *in.ToRef); err != nil {
+				return err
+			} else if from != nil {
+				return httpx.Err(403, "intake_closed", "That place only takes tickets escalated from "+fromName+". Send it somewhere else.")
+			}
+		}
 		if in.FromRef != nil {
 			// only someone who belongs to the place (or heads it) and may open its dashboard sends on its behalf
 			var fromKind string
@@ -1030,6 +1038,9 @@ func (s *Service) Act(ctx context.Context, p *tenant.Principal, id uuid.UUID, a 
 						return httpx.Bad("That " + a.ToType + " does not exist.")
 					}
 					if err := escalationAllowed(ctx, tx, p.Person, cur, a.ToType, *a.ToRef, name); err != nil {
+						return err
+					}
+					if err := checkIntakeEscalation(ctx, tx, p.Person, *a.ToRef, name); err != nil {
 						return err
 					}
 					dest = "the " + a.ToType + " " + name

@@ -86,7 +86,10 @@ async function loadSettings(logic, srv) {
     (unitCats[key] = unitCats[key] || []).push({ id: c.id, name: c.name, tat: c.tat_hours, prio: c.priority, members: (c.members || []).map((id) => srv.nameOf.get(id)).filter(Boolean) });
   });
   srv.ticketCats = categories;
-  logic.setState((st) => ({ tset: { ...st.tset, cats, start: cfg.start, end: cfg.end, pause: cfg.pause, notify: cfg.notify, nearPct: cfg.nearPct, escalate: cfg.escalate }, unitCats, requestTat, commTat }));
+  // places that take tickets only by escalation from one chosen place: { [unit id]: chosen place id }
+  let intake = {};
+  try { (await srv.request('GET', '/tickets/intake')).intake.forEach((x) => { intake[x.unit] = x.only_from; }); } catch (e) { intake = {}; }
+  logic.setState((st) => ({ ticketIntake: intake, tset: { ...st.tset, cats, start: cfg.start, end: cfg.end, pause: cfg.pause, notify: cfg.notify, nearPct: cfg.nearPct, escalate: cfg.escalate }, unitCats, requestTat, commTat }));
 }
 const hm = (v) => { const p = String(v || '0:0').split(':'); return (Number(p[0]) || 0) * 60 + (Number(p[1]) || 0); };
 
@@ -244,6 +247,12 @@ export async function raise(logic, srv, nt, cat, target) {
     ...(srv.emailDetails !== false ? { details: { title: nt.title, description: nt.desc || '', files: (nt.files || []).length } } : {}) });
   for (const f of (nt.files || []).map((x) => x.file).filter(Boolean)) await upload(srv, conv.id, f);
   return reload(logic, srv, conv.id);
+}
+
+// A place chooses to take tickets only by escalation from one other place (onlyFrom = that place's id), or anyone (null).
+export async function setIntake(logic, srv, unitId, onlyFrom) {
+  await srv.request('PUT', '/tickets/intake', { unit: unitId, only_from: onlyFrom || null });
+  logic.setState((st) => { const m = { ...(st.ticketIntake || {}) }; if (onlyFrom) m[unitId] = onlyFrom; else delete m[unitId]; return { ticketIntake: m }; });
 }
 
 // ---- settings: a unit's own categories (the "Ticket categories" table) ----
