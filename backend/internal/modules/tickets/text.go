@@ -28,9 +28,10 @@ type Comment struct {
 }
 
 const (
-	maxTitle   = 200
-	maxDesc    = 10000
-	maxComment = 5000
+	maxTitle      = 2000 // characters; the subject is also held to maxTitleWords words
+	maxTitleWords = 250
+	maxDesc       = 10000
+	maxComment    = 5000
 )
 
 func textCtx(org, id uuid.UUID, table, col string) crypto.Context {

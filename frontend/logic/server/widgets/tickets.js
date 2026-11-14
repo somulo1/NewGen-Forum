@@ -4,6 +4,7 @@
 // The ticket's conversation only lists the people on it. Very old tickets whose text or files were sealed in that conversation
 // are still opened from there, and only when the server has nothing for them. The clock (TAT) runs on the server.
 import * as files from '../files.js';
+import { ensure as ensureDashboard } from './org.js';
 
 export const name = 'tickets';
 
@@ -125,10 +126,19 @@ export async function load(logic, srv) {
   watchSettings(logic, srv);
 }
 
+// After a ticket or business request is sent or changes: the dashboards show it at once. The one open now is fetched again
+// straight away; every other one is fetched again the next time it is opened.
+function refreshDashboards(logic, srv) {
+  if (srv.ouAsked) srv.ouAsked.clear();
+  const open = logic.state.section === 'orgunit' && logic.state.ou;
+  if (open) try { ensureDashboard(logic, srv, open, true); } catch (e) { /* the dashboard catches up on its own */ }
+}
+
 export async function reload(logic, srv, uid) {
   const t = await srv.request('GET', `/tickets/${uid}`);
   const row = await mapTicket(srv, t);
   logic.setState((st) => ({ tickets: st.tickets.some((x) => x.uid === uid) ? st.tickets.map((x) => (x.uid === uid ? row : x)) : [row].concat(st.tickets) }));
+  refreshDashboards(logic, srv);
   showFiles(logic, srv, [row]);
   return row;
 }

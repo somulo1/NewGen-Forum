@@ -90,6 +90,7 @@ export function valsTickets(ctx) {
     ntOpen: s.ntOpen, nt: s.nt, ntCats, ntPrios, ntForm: ctx.ntForm,
     toggleNewTicket: () => this.setState((st) => ({ ntOpen: !st.ntOpen })),
     ntSetTitle: (e) => { const v = e.target.value; this.setState((st) => ({ nt: { ...st.nt, title: v } })); },
+    ntTitleWords: (() => { const n = String((s.nt && s.nt.title) || '').split(/\s+/).filter(Boolean).length; return { n, over: n > 250, label: n + ' / 250 words' }; })(),
     ntAttach: (e) => { const list = this.capFiles((this.state.nt.files || []).length, Array.from(e.target.files || [])).map((f) => this.fileInfo(f)); e.target.value = ''; this.setState((st) => ({ nt: { ...st.nt, files: (st.nt.files || []).concat(list) } })); },
     ntRemoveFile: (i) => this.setState((st) => ({ nt: { ...st.nt, files: (st.nt.files || []).filter((_, k) => k !== i) } })),
     ntSetDesc: (e) => { const v = typeof e === 'string' ? e : e.target.value; this.setState((st) => ({ nt: { ...st.nt, desc: v } })); },
@@ -99,6 +100,7 @@ export function valsTickets(ctx) {
       const st0 = this.state.nt;
       const subject = st0.title.trim() || plainText(st0.desc).trim().split('\n')[0].slice(0, 120);
       if (!subject) { this.notify('Say what it is about: write the issue or some details.', '#FFB86B'); return; }
+      if (subject.split(/\s+/).filter(Boolean).length > 250) { this.notify('Keep the subject to 250 words or fewer.', '#FFB86B'); return; }
       if (ntTargets.hasLevels && !ntTargets.name) { this.notify('Choose where to send it.', '#FFB86B'); return; }
       const nt = { ...st0, title: subject };
       const cat = ntCatSel;

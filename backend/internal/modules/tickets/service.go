@@ -303,6 +303,10 @@ func (s *Service) Create(ctx context.Context, p *tenant.Principal, in CreateIn) 
 	if in.Title, err = cleanText(in.Title, maxTitle, "The subject"); err != nil {
 		return nil, err
 	}
+	// a ticket's or business request's subject is 250 words at most
+	if len(strings.Fields(in.Title)) > maxTitleWords {
+		return nil, httpx.Bad(fmt.Sprintf("Keep the subject to %d words or fewer.", maxTitleWords))
+	}
 	if in.Description, err = cleanText(in.Description, maxDesc, "The description"); err != nil {
 		return nil, err
 	}
