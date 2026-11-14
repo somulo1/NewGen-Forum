@@ -856,11 +856,11 @@ func (s *Service) Private(r chi.Router) {
 		return nil
 	}))
 	r.Get("/comms/engagement", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
-		l, err := s.Engagement(r.Context(), p)
+		l, ppl, err := s.Engagement(r.Context(), p)
 		if err != nil {
 			return err
 		}
-		httpx.JSON(w, 200, map[string]any{"comms": l})
+		httpx.JSON(w, 200, map[string]any{"comms": l, "people": ppl})
 		return nil
 	}))
 	r.Post("/comms/{id}/remind", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
@@ -1264,21 +1264,9 @@ type EngRow struct {
 	MedianMins *int       `json:"median_read_mins"`
 }
 
-// Engagement measures the latest published communications (up to 300) of the types the person may see insights for,
-// in one query, so the overview does not ask the server once per communication.
-func (s *Service) Engagement(ctx context.Context, p *tenant.Principal) ([]EngRow, error) {
-	out := []EngRow{}
-	err := s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
-		types := []string{}
-		for t, r := range insightRight {
-			if ok, err := authz.Can(ctx, tx, p.Person, r[0], r[1]); err == nil && ok {
-				types = append(types, t)
-			}
-		}
-		if len(types) == 0 {
-			return httpx.ErrForbidden
-		}
-		rs, err := tx.Query(ctx, `with cc as (
+// engCTE: the latest published communications (heads, copies sent together counted once), who each reached (aud), who read
+// (fr) and who acknowledged (fa). $1 is the types the caller may see.
+const engCTE = `with cc as (
 				select id, coalesce(batch, id) k, conversation_id, by_person, coalesce(published_at, created_at) t0, type, ref
 				from hub.comms where status = 'Published' and type = any($1)),
 			heads as (select k, min(t0) t0, (array_agg(id order by t0, id))[1] comm, (array_agg(type order by t0, id))[1] type, (array_agg(ref order by t0, id))[1] ref
@@ -1289,7 +1277,30 @@ func (s *Service) Engagement(ctx context.Context, p *tenant.Principal) ([]EngRow
 			fr as (select cc.k, r.person_id pid, min(r.at) at from cc join heads h on h.k = cc.k join hub.comm_reads r on r.comm_id = cc.id
 				join aud on aud.k = cc.k and aud.pid = r.person_id group by cc.k, r.person_id),
 			fa as (select distinct cc.k, a.person_id pid from cc join heads h on h.k = cc.k join hub.comm_acks a on a.comm_id = cc.id
-				join aud on aud.k = cc.k and aud.pid = a.person_id)
+				join aud on aud.k = cc.k and aud.pid = a.person_id)`
+
+// People counts distinct people across every communication measured: each person once, however many they received.
+type People struct {
+	Reached int `json:"reached"`
+	Behind  int `json:"behind"` // people with at least one communication still unread
+}
+
+// Engagement measures the latest published communications (up to 300) of the types the person may see insights for,
+// in one query, so the overview does not ask the server once per communication.
+func (s *Service) Engagement(ctx context.Context, p *tenant.Principal) ([]EngRow, *People, error) {
+	out := []EngRow{}
+	ppl := &People{}
+	err := s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
+		types := []string{}
+		for t, r := range insightRight {
+			if ok, err := authz.Can(ctx, tx, p.Person, r[0], r[1]); err == nil && ok {
+				types = append(types, t)
+			}
+		}
+		if len(types) == 0 {
+			return httpx.ErrForbidden
+		}
+		rs, err := tx.Query(ctx, engCTE+`
 			select h.comm, h.k, h.type, h.ref, h.t0,
 				(select count(*) from aud where aud.k = h.k), (select count(*) from fr where fr.k = h.k),
 				(select count(*) from fr where fr.k = h.k and fr.at <= h.t0 + interval '48 hours'), (select count(*) from fa where fa.k = h.k),
@@ -1314,9 +1325,14 @@ func (s *Service) Engagement(ctx context.Context, p *tenant.Principal) ([]EngRow
 			}
 			out = append(out, e)
 		}
-		return rs.Err()
+		rs.Close()
+		if err := rs.Err(); err != nil {
+			return err
+		}
+		return tx.QueryRow(ctx, engCTE+`
+			select count(distinct aud.pid), count(distinct aud.pid) filter (where not exists (select 1 from fr where fr.k = aud.k and fr.pid = aud.pid)) from aud`, types).Scan(&ppl.Reached, &ppl.Behind)
 	})
-	return out, err
+	return out, ppl, err
 }
 
 // Remind sends a reminder only to the people a communication has not reached yet (in every place it went), instead of

@@ -52,8 +52,10 @@ func (s *Service) AddMembers(ctx context.Context, p *tenant.Principal, id uuid.U
 				return err
 			}
 		}
-		if err := s.myDevice(ctx, tx, p.Account, by); err != nil {
-			return err
+		if kind != "ticket" {
+			if err := s.myDevice(ctx, tx, p.Account, by); err != nil {
+				return err
+			}
 		}
 		if kind == "project" {
 			// a project's team is only people whose role or own rights allow projects
@@ -82,8 +84,10 @@ func (s *Service) AddMembers(ctx context.Context, p *tenant.Principal, id uuid.U
 		if err != nil {
 			return err
 		}
-		if err := checkCovers(keys, epoch, devs); err != nil {
-			return err
+		if kind != "ticket" { // a ticket's people need no key (tickets are not end-to-end encrypted)
+			if err := checkCovers(keys, epoch, devs); err != nil {
+				return err
+			}
 		}
 		mb := &pgx.Batch{}
 		for _, m := range ms {

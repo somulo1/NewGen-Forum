@@ -196,6 +196,31 @@ func (s *Service) Private(r chi.Router) {
 		httpx.JSON(w, 200, t)
 		return nil
 	}))
+	// an attachment: the raw bytes, with its name and type in the query
+	r.Put("/tickets/{id}/files", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
+		tid, err := id(r)
+		if err != nil {
+			return err
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, s.A.Cfg.MaxUpload+1)
+		f, err := s.AddFile(r.Context(), p, tid, r.URL.Query().Get("name"), r.URL.Query().Get("type"), r.Body, r.ContentLength)
+		if err != nil {
+			return err
+		}
+		httpx.JSON(w, 201, f)
+		return nil
+	}))
+	r.Get("/tickets/{id}/files/{file}", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
+		tid, err := id(r)
+		if err != nil {
+			return err
+		}
+		fid, err := uuid.Parse(chi.URLParam(r, "file"))
+		if err != nil {
+			return httpx.ErrNotFound
+		}
+		return s.ServeFile(r.Context(), p, tid, fid, w, r)
+	}))
 	r.Post("/tickets/{id}/comments", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
 		tid, err := id(r)
 		if err != nil {

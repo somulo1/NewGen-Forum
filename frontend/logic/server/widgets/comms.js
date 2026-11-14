@@ -89,7 +89,8 @@ export async function acknowledge(logic, srv, c) {
 
 // Everything the engagement overview needs, in one request.
 export async function engagement(srv) {
-  return (await srv.request('GET', '/comms/engagement')).comms;
+  const r = await srv.request('GET', '/comms/engagement');
+  return { comms: r.comms || [], people: r.people || null };
 }
 
 // Reminds only the people a communication has not reached yet (at most once every 6 hours).

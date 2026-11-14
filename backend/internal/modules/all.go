@@ -29,6 +29,8 @@ func All(a *app.App, au *auth.Service) []server.Module {
 	ap := approvals.New(a)
 	fs := files.New(a, ap)
 	ch := chat.New(a)
+	tk := tickets.New(a)
+	tk.Store = fs.Store                                                      // ticket attachments live with the other files
 	ch.Purge = func(ctx context.Context) { _, _, _ = fs.PurgeDue(ctx, 200) } // a deleted post's files leave storage at once
 	return []server.Module{
 		org.New(a, au),
@@ -39,7 +41,7 @@ func All(a *app.App, au *auth.Service) []server.Module {
 		keys.New(a),
 		ch,
 		calls.New(a),
-		tickets.New(a),
+		tk,
 		projects.New(a, ap),
 		comms.New(a, ap),
 		fs,

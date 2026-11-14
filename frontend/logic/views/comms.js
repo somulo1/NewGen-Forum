@@ -25,6 +25,9 @@ const FORMS = {
 };
 const MODULE_OF = { Announcement: 'announcements', Memo: 'memos', Newsletter: 'newsletter', 'Job post': 'jobposts' };
 
+// "A, B, C + 4 more": long lists of people or places are never spelled out in full
+const plusMore = (list, n) => (list.length > n ? list.slice(0, n).join(', ') + ' + ' + (list.length - n) + ' more' : list.join(', '));
+
 // renderVals step: comms. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildComms(ctx) {
   const { C, O, can, chip, chipS, flowById, fmtDay, forums, has, holdsRef, makeRequest, recOf, roleNameOf, ruleSentence, s, set, todayISO, typeName } = ctx;
@@ -143,7 +146,7 @@ export function buildComms(ctx) {
   const commView = oc ? {
     open: true, ref: oc.id, status: oc.status, statusColor: oc.status === 'Published' ? '#B8F36B' : '#FFB86B', close: () => this.setState({ commOpen: null, commIns: null }), type: oc.type, typeColor: commColor[oc.type], title: oc.title, summary: oc.summary, hasSummary: !!oc.summary, body: oc.body,
     meta: (oc.by === 'Samwel Okoth Omulo' ? 'You' : oc.by) + (oc.byDept ? ' · ' + oc.byDept : '') + ' · ' + fmtDay(oc.date) + ' · ' + oc.status,
-    to: oc.to.join(', '), toList: oc.to.slice(), hasTo: oc.to.length > 0, readNum: Number(oc.read) || 0, fromInitials: ((oc.by === 'Samwel Okoth Omulo' ? 'You' : oc.by) || '?').split(' ').map((x) => x[0]).join('').slice(0, 2).toUpperCase(),
+    to: plusMore(oc.to, 3), toList: oc.to.slice(), hasTo: oc.to.length > 0, readNum: Number(oc.read) || 0, fromInitials: ((oc.by === 'Samwel Okoth Omulo' ? 'You' : oc.by) || '?').split(' ').map((x) => x[0]).join('').slice(0, 2).toUpperCase(),
     fields: (FORMS[oc.type] || []).filter((f) => (oc.fields || {})[f.key]).map((f) => ({ label: f.label, value: f.kind === 'date' ? fmtDay(oc.fields[f.key]) : oc.fields[f.key] })),
     files: (oc.files || []).map((f) => ({ name: f.name, meta: f.meta || '', open: () => commsW.openFile(this.srv, f).catch((e) => this.notify(e.message || 'Could not open it.', '#FF9B8A')) })),
     hasFiles: (oc.files || []).length > 0,
@@ -157,7 +160,7 @@ export function buildComms(ctx) {
     measure: (() => {
       const m = measureOf(s.commIns && s.commIns.totals);
       const remindState = (s.commRemind && s.commRemind.uid === oc.uid) ? s.commRemind : {};
-      return { ...m, target: TARGET, unreadShown: m.unread.slice(0, 40), moreUnread: Math.max(0, m.unread.length - 40), reminding: !!remindState.busy, remindNote: remindState.note || '',
+      return { ...m, target: TARGET, unreadShown: m.unread.slice(0, 6), moreUnread: Math.max(0, m.unread.length - 6), reminding: !!remindState.busy, remindNote: remindState.note || '',
         remind: () => {
           if (!m.unread.length || remindState.busy) return;
           this.setState({ commRemind: { uid: oc.uid, busy: true, note: '' } });
@@ -166,7 +169,7 @@ export function buildComms(ctx) {
         } };
     })(),
     // who acknowledged it, across every place it went to
-    ackedBy: (s.commIns && s.commIns.totals && s.commIns.totals.acknowledged_by) || [],
+    ackedBy: (s.commIns && s.commIns.totals && s.commIns.totals.acknowledged_by) || [], ackedLine: plusMore((s.commIns && s.commIns.totals && s.commIns.totals.acknowledged_by) || [], 5),
     canAck: !!this.srv && oc.status === 'Published' && !oc.mine && !oc.iAcked, acked: !!oc.iAcked,
     acknowledge: () => commsW.acknowledge(this, this.srv, oc).then(() => this.notify('Acknowledged.', '#B8F36B')).catch((e) => this.notify(e.message || 'Could not acknowledge it.', '#FF9B8A')),
   } : { open: false };
@@ -175,10 +178,10 @@ export function buildComms(ctx) {
   const E = s.commEng || { loading: false, err: '', rows: [] };
   const loadEngagement = async () => {
     if (!this.srv || this.state.commEng.loading) return;
-    this.setState({ commEng: { loading: true, err: '', rows: this.state.commEng.rows || [], at: 0 } });
+    this.setState({ commEng: { loading: true, err: '', rows: this.state.commEng.rows || [], people: this.state.commEng.people, at: 0 } });
     try {
       // one request measures everything; copies sent together (same batch) are one row
-      const list = await commsW.engagement(this.srv);
+      const { comms: list, people } = await commsW.engagement(this.srv);
       const groups = new Map();
       list.forEach((x) => groups.set(x.comm, [x]));   // the server returns one row per communication, people counted once
       const rows = [];
@@ -189,7 +192,7 @@ export function buildComms(ctx) {
           m: { audience, read, read48, acked, readPct: pctOf(read, audience), read48Pct: pctOf(read48, audience), ackPct: pctOf(acked, audience), medianMins, median: fmtMins(medianMins), unreadN: Math.max(0, audience - read), landed: pctOf(read, audience) >= TARGET } });
       });
       rows.sort((a, b) => (a.at < b.at ? 1 : -1));
-      this.setState({ commEng: { loading: false, err: '', rows, at: Date.now() } });
+      this.setState({ commEng: { loading: false, err: '', rows, people, at: Date.now() } });
     } catch (e) { this.setState({ commEng: { loading: false, err: (e && e.message) || 'Could not load engagement.', rows: [], at: 0 } }); }
   };
   const pct = (r) => (r.audience ? Math.min(100, Math.round((r.read / r.audience) * 100)) : 0);
@@ -206,11 +209,11 @@ export function buildComms(ctx) {
     openIt: () => { this.setState({ commPage: 'engagement', commOpen: null }); loadEngagement(); }, close: () => this.setState({ commPage: '' }), refresh: loadEngagement,
     // the measures that answer "did our communication reach people?": what WhatsApp can never show
     kpis: (() => {
-      const R = E.rows.filter((r) => r.m), aud = R.reduce((n, r) => n + r.m.audience, 0), avg = (f) => (R.length ? Math.round(R.reduce((n, r) => n + f(r), 0) / R.length) : 0);
+      const R = E.rows.filter((r) => r.m), avg = (f) => (R.length ? Math.round(R.reduce((n, r) => n + f(r), 0) / R.length) : 0);
       const meds = R.map((r) => r.m.medianMins).filter((x) => x != null).sort((a, b) => a - b);
       return [{ label: 'Published', n: R.length }, { label: 'Average read rate', n: avg((r) => r.m.readPct) + '%' }, { label: 'Read within 48 hours', n: avg((r) => r.m.read48Pct) + '%' },
         { label: 'Acknowledged', n: avg((r) => r.m.ackPct) + '%' }, { label: 'Reached the 80% target', n: R.filter((r) => r.m.landed).length + ' of ' + R.length },
-        { label: 'Median time to read', n: fmtMins(meds.length ? meds[Math.floor(meds.length / 2)] : null) }, { label: 'People still to read', n: R.reduce((n, r) => n + r.m.unreadN, 0) + ' of ' + aud }];
+        { label: 'Median time to read', n: fmtMins(meds.length ? meds[Math.floor(meds.length / 2)] : null) }, { label: 'People still to read', n: E.people ? E.people.behind + ' of ' + E.people.reached : '–' }];   // distinct people: each person once, however many they received
     })(),
     avgRead: null,
     // week by week: of everyone reached by what was published that week, how many read it (the day-14 / day-90 proof)

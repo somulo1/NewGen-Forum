@@ -315,11 +315,14 @@ func (s *Service) Create(ctx context.Context, p *tenant.Principal, in CreateIn) 
 		if err != nil {
 			return err
 		}
-		if len(devs) == 0 {
-			return httpx.Err(409, "no_devices", "Set up secure messaging on this device first.")
-		}
-		if err := checkCovers(in.Keys, 1, devs); err != nil {
-			return err
+		// a ticket's conversation only lists the people on it: tickets are not end-to-end encrypted, so it needs no keys
+		if in.Kind != "ticket" {
+			if len(devs) == 0 {
+				return httpx.Err(409, "no_devices", "Set up secure messaging on this device first.")
+			}
+			if err := checkCovers(in.Keys, 1, devs); err != nil {
+				return err
+			}
 		}
 		dek, _, err := s.A.OrgDEK(ctx, tx, p.Org)
 		if err != nil {

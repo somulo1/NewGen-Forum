@@ -1,8 +1,8 @@
-// Tickets: the Tickets widget, My tickets, the Ticket desk and each ticket's page. A ticket's title, description and comments
-// are kept by the server (encrypted at rest, shown only to the people on it), next to the operational facts it acts on (category,
-// priority, step, due time). Its attachments stay end-to-end encrypted in the ticket's conversation. Tickets raised before
-// that change keep their text sealed in the conversation, and are still opened from there. The clock (TAT) runs on the server.
-import { newConversationKey, wrap, b64, unb64 } from '../e2ee.js';
+// Tickets: the Tickets widget, My tickets, the Ticket desk and each ticket's page. Tickets are not end-to-end encrypted: the
+// title, description, comments and attachments are kept by the server and shown only to the people on the ticket, next to the
+// operational facts it acts on (category, priority, step, due time). Opening a ticket is one request with nothing to decrypt.
+// The ticket's conversation only lists the people on it. Very old tickets whose text or files were sealed in that conversation
+// are still opened from there, and only when the server has nothing for them. The clock (TAT) runs on the server.
 import * as files from '../files.js';
 
 export const name = 'tickets';
@@ -26,11 +26,20 @@ export function when(iso) {
 
 const me = (srv, name) => (name === srv.me.name ? 'Sam' : name);
 
-async function mapTicket(srv, t) {
-  let detail = t, msgs = [];
-  try { detail = await srv.request('GET', `/tickets/${t.id}`); } catch (e) { /* keep the list row */ }
-  if (t.participant !== false) try { msgs = (await srv.request('GET', `/conversations/${t.id}/messages?limit=100`)).messages; } catch (e) { /* not a participant: the text stays sealed */ }
-  const opened = await Promise.all(msgs.map(async (m) => ({ m, pl: await srv.vault.openMessage(m) })));
+// tickets raised before encryption was dropped: their text and files were sealed in the conversation
+const LEGACY_BEFORE = '2026-11-15';
+async function legacyMessages(srv, t, detail) {
+  if (t.participant === false || (detail.title && t.created_at >= LEGACY_BEFORE)) return [];
+  try {
+    const msgs = (await srv.request('GET', `/conversations/${t.id}/messages?limit=100`)).messages;
+    return Promise.all(msgs.map(async (m) => ({ m, pl: await srv.vault.openMessage(m) })));
+  } catch (e) { return []; }
+}
+
+async function mapTicket(srv, t, preloaded) {
+  let detail = preloaded || t;
+  if (!preloaded) try { detail = await srv.request('GET', `/tickets/${t.id}`); } catch (e) { /* keep the list row */ }
+  const opened = await legacyMessages(srv, t, detail);
   opened.sort((a, b) => (a.m.id < b.m.id ? -1 : 1));
   const sealedHead = opened.find(({ pl }) => pl && pl.title !== undefined);
   const first = detail.title ? { title: detail.title, desc: detail.description || '' } : sealedHead ? sealedHead.pl : null;
@@ -42,6 +51,7 @@ async function mapTicket(srv, t) {
     if (pl.text !== undefined) activity.push({ who: me(srv, m.sender_name), kind: 'comment', text: pl.text, time: when(m.created_at), at: m.created_at, mid: m.id });
     else if (pl.name) activity.push({ who: me(srv, m.sender_name), kind: 'file', text: pl.name, meta: pl.meta || '', isImg: !!pl.isImg, url: '', ref: pl.fileId ? { fileId: pl.fileId, key: pl.key, type: pl.type || '', isImg: !!pl.isImg, isVideo: !!pl.isVideo } : null, time: when(m.created_at), at: m.created_at, mid: m.id });
   });
+  (detail.files || []).forEach((f) => activity.push({ who: me(srv, f.by), kind: 'file', text: f.name, meta: fmtSize(f.size), isImg: /^image\//.test(f.type), url: '', plain: { ticket: t.id, id: f.id, type: f.type }, time: when(f.created_at), at: f.created_at, mid: f.id }));
   activity.sort((a, b) => (a.at < b.at ? -1 : 1));
   const toType = TYPE[t.to_type] || 'desk';
   const toName = t.to_ref ? srv.unitName.get(t.to_ref) || '' : '';
@@ -75,10 +85,22 @@ async function loadSettings(logic, srv) {
 }
 const hm = (v) => { const p = String(v || '0:0').split(':'); return (Number(p[0]) || 0) * 60 + (Number(p[1]) || 0); };
 
-// Attachments are encrypted files: fetch and open each one, then show it on its ticket.
+const fmtSize = (n) => (n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB');
+
+// an attachment: downloaded once per session and shown from a local address
+const plainUrls = new Map();
+function plainUrl(srv, f) {
+  if (!plainUrls.has(f.id)) {
+    plainUrls.set(f.id, srv.bytes('GET', `/tickets/${f.ticket}/files/${f.id}`).then((b) => URL.createObjectURL(new Blob([b], { type: f.type || 'application/octet-stream' })))
+      .catch((e) => { plainUrls.delete(f.id); throw e; }));
+  }
+  return plainUrls.get(f.id);
+}
+
+// Fetches each attachment, then shows it on its ticket (old sealed ones are opened as before).
 function showFiles(logic, srv, rows) {
-  return rows.flatMap((t) => (t.activity || []).filter((a) => a.ref && !a.url).map((a) => {
-    return files.openUrl(srv, a.ref).then((url) => {
+  return rows.flatMap((t) => (t.activity || []).filter((a) => (a.ref || a.plain) && !a.url).map((a) => {
+    return (a.plain ? plainUrl(srv, a.plain) : files.openUrl(srv, a.ref)).then((url) => {
       logic.setState((st) => ({ tickets: st.tickets.map((x) => (x.uid !== t.uid ? x : { ...x, activity: x.activity.map((y) => (y.mid === a.mid ? { ...y, url } : y)) })) }));
     }).catch(() => { /* the file is gone or sealed for someone else */ });
   }));
@@ -122,15 +144,11 @@ export async function comment(logic, srv, t, text) {
   return reload(logic, srv, t.uid);
 }
 
-// Gives a person a key to the ticket's conversation if they are not on it yet.
+// Puts a person on the ticket if they are not on it yet (no keys: tickets are not end-to-end encrypted).
 async function ensureMember(srv, t, pid) {
-  const conv = await srv.vault.conversation(t.uid, true);
-  if ((conv.members || []).some((m) => m.person === pid)) return;
-  const key = await srv.vault.keyFor(t.uid, conv.epoch);
-  const { devices } = await srv.request('POST', '/e2ee/people/devices', { people: [pid] });
-  const keys = await srv.vault.wrapFor(t.uid, conv.epoch, key, devices);
-  await srv.request('POST', `/conversations/${t.uid}/members`, { people: [pid], device: srv.vault.deviceId, keys });
-  srv.vault.convs.delete(t.uid);
+  const { members } = await srv.request('GET', `/conversations/${t.uid}`).catch(() => ({ members: null }));
+  if (members && members.some((m) => m.person === pid)) return;
+  await srv.request('POST', `/conversations/${t.uid}/members`, { people: [pid] });
 }
 // The categories a place sets on its dashboard decide who handles a ticket. A ticket raised before its category had people (or a
 // business request or communication, which goes to the place's heads) is given to them here: someone on it adds them (they hold
@@ -186,13 +204,13 @@ export async function escalate(logic, srv, t, e) {
   return act(logic, srv, t, { do: 'escalate', to_type: toType, to_ref: toRef, person: pid, category: e.cat || undefined, why: e.why || undefined });
 }
 
-// Attaches files (evidence, screenshots) to a ticket: each is encrypted on this device and shared with the people on it.
+// Attaches files (evidence, screenshots) to a ticket: sent as they are, for the people on it.
+async function upload(srv, uid, f) {
+  const q = new URLSearchParams({ name: f.name, type: f.type || '' });
+  await srv.bytes('PUT', `/tickets/${uid}/files?${q}`, new Uint8Array(await f.arrayBuffer()));
+}
 export async function attach(logic, srv, t, list) {
-  for (const f of list) {
-    const up = await files.upload(srv, t.uid, f);
-    const sealed = await srv.vault.seal(t.uid, { name: up.name, meta: up.meta, type: up.type, isImg: up.isImg, isVideo: up.isVideo, fileId: up.fileId, key: up.key });
-    await srv.request('POST', `/conversations/${t.uid}/messages`, { ...sealed, type: 'text' });
-  }
+  for (const f of list) await upload(srv, t.uid, f);
   return reload(logic, srv, t.uid);
 }
 
@@ -202,25 +220,18 @@ export async function raise(logic, srv, nt, cat, target) {
   const toRef = toType === 'desk' ? undefined : srv.structure[target.type].get(target.name);
   const cats = srv.ticketCats || [];
   const server = cats.find((c) => c.name === cat.name && ((c.unit_type === toType && c.unit_ref === toRef) || c.unit_type === 'desk'));
-  // the people who can read it (its subject, details and attachments are encrypted for them): the category's people and, for a
+  // the people who can read it: the category's people and, for a
   // business request or communication, the heads of the place it goes to, so they can open it and assign it
   const heads = toRef && (target.kind === 'request' || target.kind === 'communication') ? (((srv.unitList || []).find((u) => u.id === toRef) || {}).heads || []).map((h) => h.id) : [];
   const members = [...new Set(((server && server.members) || []).concat(heads))];
-  const { devices } = await srv.request('POST', '/e2ee/people/devices', { people: [...new Set([srv.me.person, ...members])] });
-  const key = newConversationKey();
-  const keys = await Promise.all(devices.map(async (d) => ({ epoch: 1, device: d.id, wrapped_key: b64(await wrap(key, unb64(d.identity_key))) })));
-  // the conversation holds the people on the ticket and the key to its attachments
-  const conv = await srv.request('POST', '/conversations', { kind: 'ticket', members: members.filter((m) => m !== srv.me.person), keys });
-  for (const f of (nt.files || []).map((x) => x.file).filter(Boolean)) {
-    const up = await files.upload(srv, conv.id, f);
-    const fs = await srv.vault.seal(conv.id, { name: up.name, meta: up.meta, type: up.type, isImg: up.isImg, isVideo: up.isVideo, fileId: up.fileId, key: up.key });
-    await srv.request('POST', `/conversations/${conv.id}/messages`, { ...fs, type: 'text' });
-  }
+  // the conversation only lists the people on the ticket (no keys)
+  const conv = await srv.request('POST', '/conversations', { kind: 'ticket', members: members.filter((m) => m !== srv.me.person) });
   await srv.request('POST', '/tickets', { conversation: conv.id, title: nt.title, description: nt.desc || '', category: cat.name, priority: cat.prio || nt.prio, to_type: toType, to_ref: toRef, kind: target.kind === 'request' || target.kind === 'communication' ? target.kind : 'ticket',
     // sent from a place's dashboard: on that place's behalf
     ...(target.from ? { from_ref: srv.structure[target.from.level].get(target.from.name) } : {}),
     // emails about this ticket may show these (only sent when the organization allows details in emails; files are never included)
     ...(srv.emailDetails !== false ? { details: { title: nt.title, description: nt.desc || '', files: (nt.files || []).length } } : {}) });
+  for (const f of (nt.files || []).map((x) => x.file).filter(Boolean)) await upload(srv, conv.id, f);
   return reload(logic, srv, conv.id);
 }
 

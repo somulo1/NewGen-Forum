@@ -1,5 +1,6 @@
 // Package tickets is the ticket desk: routing, timing (TAT), hand-over and escalation. The subject, description and comments
-// of a ticket are kept by the server, encrypted at rest (see text.go); its attachments stay end-to-end encrypted in its conversation.
+// of a ticket are kept by the server, encrypted at rest (see text.go); its attachments are plain files on the server (files.go).
+// Tickets are not end-to-end encrypted: their conversation only lists the people on them.
 package tickets
 
 import (
@@ -16,6 +17,7 @@ import (
 
 	"hub/internal/app"
 	"hub/internal/authz"
+	"hub/internal/blob"
 	"hub/internal/httpx"
 	"hub/internal/integrity"
 	"hub/internal/notify"
@@ -23,7 +25,10 @@ import (
 	"hub/internal/tenant"
 )
 
-type Service struct{ A *app.App }
+type Service struct {
+	A     *app.App
+	Store blob.Store // where attachments are kept (set by the files module)
+}
 
 func New(a *app.App) *Service { return &Service{A: a} }
 
@@ -82,6 +87,7 @@ type Ticket struct {
 	Title        string      `json:"title,omitempty"`
 	Description  string      `json:"description,omitempty"`
 	Comments     []Comment   `json:"comments,omitempty"`
+	Files        []File      `json:"files,omitempty"`
 	// what the person asking may do with it (single-ticket reads): assign or reassign (head of the receiving department), escalate
 	// (that head, or the person working on it)
 	CanAssign   bool `json:"can_assign"`
@@ -711,6 +717,9 @@ func (s *Service) Get(ctx context.Context, p *tenant.Principal, id uuid.UUID) (*
 			return err
 		}
 		t.Participant = &in
+		if t.Files, err = s.files(ctx, tx, id); err != nil {
+			return err
+		}
 		return s.fillText(ctx, tx, p.Org, []*Ticket{t}, true)
 	})
 	return t, err
@@ -718,7 +727,7 @@ func (s *Service) Get(ctx context.Context, p *tenant.Principal, id uuid.UUID) (*
 
 func (s *Service) changed(ctx context.Context, p *tenant.Principal, t *Ticket) {
 	facts := *t // the whole organization hears about changes: never the text
-	facts.Title, facts.Description, facts.Comments = "", "", nil
+	facts.Title, facts.Description, facts.Comments, facts.Files = "", "", nil, nil
 	d, _ := json.Marshal(&facts)
 	s.A.Publish(ctx, realtime.Event{Type: "ticket.updated", Channel: realtime.OrgChannel(p.Org), Org: p.Org.String(), Actor: p.Person.String(), Data: d})
 	s.A.Publish(ctx, realtime.Event{Type: "ticket.updated", Channel: realtime.ConvChannel(t.ID), Org: p.Org.String(), Actor: p.Person.String(), Data: d})

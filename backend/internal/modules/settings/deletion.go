@@ -95,7 +95,7 @@ func (m *Module) DeletionDue(ctx context.Context) ([]uuid.UUID, error) {
 func (m *Module) FileRefs(ctx context.Context, org uuid.UUID) ([]string, error) {
 	var out []string
 	err := m.A.DB.WithOrg(ctx, org, func(tx pgx.Tx) error {
-		rs, err := tx.Query(ctx, `select blob_key from hub.files where blob_key is not null union select ref from hub.blob_purge where org_id=$1`, org)
+		rs, err := tx.Query(ctx, `select blob_key from hub.files where blob_key is not null union select blob_key from hub.ticket_files union select ref from hub.blob_purge where org_id=$1`, org)
 		if err != nil {
 			return err
 		}
