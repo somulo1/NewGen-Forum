@@ -169,7 +169,7 @@ export default {
 .cs-panel .cs-ctl { width: 44px !important; height: 44px !important; border-radius: 14px !important; }
 .cs-panel .cs-ctl span { display: none; }
 .cs-panel .cs-leave { height: 44px !important; padding: 0 16px !important; border-radius: 22px !important; font-size: 13px !important; }
-@media (max-width: 900px) { .cs-main { inset: 0 0 var(--hub-tab, 64px) 0 !important; border-radius: 0 !important; border: 0 !important; } }
+@media (max-width: 900px) { .cs-main { position: fixed !important; inset: 64px 0 var(--hub-tab, 64px) 0 !important; z-index: 45 !important; border-radius: 0 !important; border: 0 !important; } }
 /* phones: the call scrolls, so every control can be reached, and the controls (with End call) stay pinned at the bottom */
 @media (max-width: 900px) {
   .cs-root { overflow-y: auto !important; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
