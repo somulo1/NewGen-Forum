@@ -38,3 +38,6 @@ Thumbs.db
 # Sample/Test Data
 #sample/
 #samples/
+
+# Private documents (pitch decks, proposals): kept on this computer only, never pushed
+docs/
