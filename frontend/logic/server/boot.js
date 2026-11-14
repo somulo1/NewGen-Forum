@@ -58,6 +58,8 @@ export async function startServerSync(logic, request, session, bytes) {
     if (logic.srv.session && session && logic.srv.session.account !== session.account && typeof window !== 'undefined') window.location.reload();
     return logic.srv;
   }
+  // calls first: asked for before anything else, so a call ringing me during a reload shows its card as soon as I am signed in
+  const earlyLive = request('GET', '/calls/live').catch(() => null);
   const { device, deviceId } = await openDevice(request, session);
   keyBackup.finish(request, session.account, device).catch(() => {});   // the account's keys are kept safe on the server for the next browser
   const me = await request('GET', '/me');
@@ -65,6 +67,8 @@ export async function startServerSync(logic, request, session, bytes) {
   const srv = { request, bytes, vault, session, me, personOf: new Map(), nameOf: new Map(), reload: {} };
   logic.srv = srv;
   logic.loaded = new Set();
+  callsW.listen(logic, srv);
+  callsW.loadLive(logic, srv, earlyLive).catch(() => {});
   vault.onNewDevice = (acct, n) => {
     const who = (logic.dir.find((p) => p.uid === vault.personOfAcct.get(acct)) || {}).name || 'A colleague';
     logic.notify(who + ' now has ' + (n === 1 ? 'a new device' : n + ' new devices') + ' that can read your shared chats. If you did not expect that, compare security codes with them (open their profile card).', '#FFB86B');
@@ -123,7 +127,6 @@ export async function startServerSync(logic, request, session, bytes) {
   // ticket ratings are fetched again the next time the list shows
   try { srv.rt && srv.rt.on('ticket.updated', () => { srv.fbTkPage = undefined; if (logic.state.tkFbList) logic.setState({ tkFbList: null }); }); } catch (e) { /* no live connection */ }
   ['ticket.updated', 'approval.changed', 'notification', 'comm.published'].forEach((t) => { try { srv.rt && srv.rt.on(t, staleDash); } catch (e) { /* no live connection */ } });
-  callsW.listen(logic, srv);
   callsW.loadHistory(logic, srv).catch(() => {});
   setTimeout(() => callsW.checkFeedback(logic, srv).catch(() => {}), 4000);
   // what a live notification may need to refresh

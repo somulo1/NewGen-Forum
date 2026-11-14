@@ -27,6 +27,7 @@
 </div>
 <button v-if="fit !== 'page'" class="hub-chat-close" aria-label="Close chat" title="Close chat" @click="toClosed" style="position: absolute; top: 8px; right: 12px; z-index: 6; display: flex; align-items: center; justify-content: center; width: 38px; height: 38px; padding: 0; border-radius: 50%; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-16201C,#16201C); color: var(--k-E8EFEA,#E8EFEA); cursor: pointer"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
 </div>
+<LiveCallBanner />
 <div style="max-width: 1200px; width: 100%; margin: 0 auto; box-sizing: border-box"><DmPrivacy /></div>
 
 <div v-if="isPanelCalls" style="flex: 1; min-height: 0; overflow-y: auto"><div style="max-width: 1200px; margin: 0 auto; padding: 18px clamp(16px, 3vw, 32px)"><CallHistory /></div></div>

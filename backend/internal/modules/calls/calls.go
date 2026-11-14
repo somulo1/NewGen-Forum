@@ -466,6 +466,56 @@ func (m *Module) History(ctx context.Context, p *tenant.Principal, limit int, be
 	return out, err
 }
 
+// LiveCall is a call happening right now that the person can see: one they are on, are being rung for, or that is running in a
+// forum or private chat they belong to. Shown after sign-in (and after a reload) so a ringing call or a call in progress is never
+// missed while the rest of the app is still loading.
+type LiveCall struct {
+	*Call
+	Invited   bool `json:"invited"`    // I am on the call's list (rung, or invited to the meeting)
+	InCall    bool `json:"in_call"`    // I am connected to it right now (another tab or device)
+	RingingMe bool `json:"ringing_me"` // it is still ringing me and nobody has hung up on my side
+	Joined    int  `json:"joined"`     // people connected now
+}
+
+// Live lists the calls in progress the person may see or join, newest first.
+func (m *Module) Live(ctx context.Context, p *tenant.Principal) ([]*LiveCall, error) {
+	out := []*LiveCall{}
+	err := m.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
+		rs, err := tx.Query(ctx, sel+` where c.status in ('ringing','active') and c.started_at > now() - interval '12 hours'
+			and (exists (select 1 from hub.call_participants cp where cp.call_id = c.id and cp.person_id = $1)
+			     or (c.conversation_id is not null and exists (select 1 from hub.conversation_members cm where cm.conversation_id = c.conversation_id and cm.account_id = $2 and cm.left_at is null)))
+			order by c.started_at desc limit 20`, p.Person, p.Account)
+		if err != nil {
+			return err
+		}
+		for rs.Next() {
+			c, err := scan(rs)
+			if err != nil {
+				rs.Close()
+				return err
+			}
+			out = append(out, &LiveCall{Call: c})
+		}
+		rs.Close()
+		for _, l := range out {
+			var invited, inCall, declined bool
+			var joined int
+			if err := tx.QueryRow(ctx, `select
+				coalesce(bool_or(cp.person_id = $2 and cp.invited), false),
+				coalesce(bool_or(cp.person_id = $2 and cp.joined_at is not null and cp.left_at is null), false),
+				coalesce(bool_or(cp.person_id = $2 and cp.joined_at is null and cp.left_at is not null), false),
+				count(*) filter (where cp.joined_at is not null and cp.left_at is null)
+				from hub.call_participants cp where cp.call_id = $1`, l.ID, p.Person).Scan(&invited, &inCall, &declined, &joined); err != nil {
+				return err
+			}
+			l.Invited, l.InCall, l.Joined = invited, inCall, joined
+			l.RingingMe = l.Status == "ringing" && l.Host != p.Person && invited && !inCall && !declined
+		}
+		return nil
+	})
+	return out, err
+}
+
 // ---- events from the calls service ----
 
 // Consume applies the calls service's events (someone joined, someone left, the room closed) to the history. The worker
@@ -627,6 +677,14 @@ func (m *Module) Private(r chi.Router) {
 			return err
 		}
 		httpx.JSON(w, 200, map[string]any{"deleted": n})
+		return nil
+	}))
+	r.Get("/calls/live", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
+		l, err := m.Live(r.Context(), p)
+		if err != nil {
+			return err
+		}
+		httpx.JSON(w, 200, map[string]any{"calls": l})
 		return nil
 	}))
 	r.Get("/calls/history", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {

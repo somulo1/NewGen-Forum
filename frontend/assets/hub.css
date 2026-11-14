@@ -158,3 +158,8 @@ main h1{font-size:22px !important}
   .hub-shell{position:fixed;inset:0;height:auto !important;height:100dvh !important}
   .hub-header{position:relative;z-index:58;flex:none}
 }
+
+/* A call in progress that I can join glows wherever it shows (chat header, bubble, list rows, sidebar) */
+@keyframes hubLiveGlow{0%{box-shadow:0 0 0 0 rgba(184,243,107,.75)}70%{box-shadow:0 0 0 12px rgba(184,243,107,0)}100%{box-shadow:0 0 0 0 rgba(184,243,107,0)}}
+.hub-live-glow{animation:hubLiveGlow 1.6s ease-out infinite}
+@media (prefers-reduced-motion: reduce){.hub-live-glow{animation:none;outline:2px solid #B8F36B;outline-offset:2px}}

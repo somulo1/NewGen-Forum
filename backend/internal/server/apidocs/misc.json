@@ -1012,5 +1012,61 @@
     "uuid"
    ]
   }
+ },
+ "GET /v1/calls/live": {
+  "summary": "Calls in progress I can see or join",
+  "description": "Calls ringing or active in the last 12 hours that I am on, or that run in a private chat or forum I belong to. Asked for first after sign-in so a call ringing me during a reload shows at once, and calls in progress glow where I can join them. Newest first, at most 20.",
+  "access": "any signed-in member of the organization (token issued with `org`)",
+  "response": {
+   "calls": [
+    {
+     "id": "uuid",
+     "kind": "string. voice | video",
+     "context": "string. dm | forum | meeting | standup",
+     "conversation": "uuid",
+     "host": "uuid",
+     "host_name": "string",
+     "status": "string. ringing | active",
+     "started_at": "timestamp",
+     "answered_at": "timestamp",
+     "duration_seconds": "integer",
+     "invited": "boolean. I am on the call's list",
+     "in_call": "boolean. I am connected to it now (another tab or device)",
+     "ringing_me": "boolean. It is still ringing me",
+     "joined": "integer. People connected now"
+    }
+   ]
+  }
+ },
+ "POST /v1/calls/quality": {
+  "summary": "Report how a call sounded and looked",
+  "description": "When a call ends the browser reports its connection quality, for the call quality reports.",
+  "access": "any signed-in member of the organization (token issued with `org`)",
+  "body": {
+   "mode": "string. mesh | sfu",
+   "samples": "integer",
+   "rtt_ms": "number",
+   "loss_pct": "number",
+   "jitter_ms": "number",
+   "weak_samples": "integer",
+   "reconnects": "integer",
+   "join_ms": "number"
+  },
+  "response": "204 No Content"
+ },
+ "GET /v1/people/{id}/photo": {
+  "summary": "A person's profile photo",
+  "description": "The photo image of a person in my organization.",
+  "access": "any signed-in member of the organization (token issued with `org`)",
+  "response": "image bytes, or 404 when they have no photo"
+ },
+ "PUT /v1/org/units/{id}/head": {
+  "summary": "Set the head role of a place",
+  "description": "Chooses which role heads this department, branch, sector or unit: people who hold it and are placed there head the place.",
+  "access": "people who can manage the organization structure",
+  "body": {
+   "role": "string. Role key, or empty to clear"
+  },
+  "response": "204 No Content"
  }
 }

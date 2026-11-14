@@ -33,11 +33,12 @@
 </div>
 <button class="hub-panel-close" :aria-label="isDM ? 'Close chat panel' : 'Close forum panel'" :title="isDM ? 'Close chat' : 'Close forum'" @click="toClosed" style="position: absolute; top: 10px; right: 10px; z-index: 41; width: 38px; height: 38px; padding: 0; border-radius: 50%; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-16201C,#16201C); color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
 </div>
+<LiveCallBanner />
 <div v-if="panelChips.length > 1" data-no-busy class="hub-panel-chips" style="flex: none; display: flex; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--k-24322C,#24322C); overflow-x: auto">
 <template v-for="(f, f__i) in panelChips" :key="f__i">
 <span v-if="f.sep" aria-hidden="true" style="flex: none; width: 1px; margin: 4px 4px; background: var(--k-34453D,#34453D)"></span>
 <span style="position: relative; flex: none; width: 36px; height: 36px">
-<button :aria-label="`${f.name}${f.hasUnread ? `, ${f.unread} unread messages` : ''}`" :title="f.name" @click="f.open" :style="f.chipStyle"><UserAvatar v-if="f.avatar" :name="f.name" :initials="f.initials" :color="f.color" :size="32" :font-size="12"/><template v-else>{{ f.initials }}</template></button>
+<button :aria-label="`${f.name}${f.hasUnread ? `, ${f.unread} unread messages` : ''}`" :title="f.name" @click="f.open" :class="{ 'hub-live-glow': !!(liveConv || {})[f.conv || f.sid] }" :style="f.chipStyle"><UserAvatar v-if="f.avatar" :name="f.name" :initials="f.initials" :color="f.color" :size="32" :font-size="12"/><template v-else>{{ f.initials }}</template></button>
 <span v-if="f.hasUnread" :style="f.unreadStyle">{{ f.unread > 99 ? '99+' : f.unread }}</span>
 </span>
 </template>
@@ -113,7 +114,7 @@ export default {
   components: { CallScreen, SecureInboxCard },
   data() { return { moreOpen: false }; },
   computed: {
-    ...hubBindings(["canVoiceCall","canVideoCall","chatLoading","olderCount","moreOlder","showOlder","mentionList","onActivityClick","isPanelMembers","goPanelMembers","chatCtl","canAddToForum","addOpen","addErr","addBusy","toggleAdd","addPersonToForum","pickerPeople","forumMemberIds","pickEmojiForum","attachForum","chatRef","composerNote","composerOff","cur","dmPriv","fKey","fdraft","goPanelChat","goPanelPolls","gripStyle","isDM","isDocked","isPanelChat","replyBar","isPanelCalls","goPanelCalls","isPanelPolls","menuOpen","onFDraftValue","panelChips","panelStyle","pollView","resizeKey","sendForum","showPanelCall","startDrag","toClosed","toFull","toMin","toPage","toggleMenu","videoCall","voiceCall"]).computed,
+    ...hubBindings(["liveConv","canVoiceCall","canVideoCall","chatLoading","olderCount","moreOlder","showOlder","mentionList","onActivityClick","isPanelMembers","goPanelMembers","chatCtl","canAddToForum","addOpen","addErr","addBusy","toggleAdd","addPersonToForum","pickerPeople","forumMemberIds","pickEmojiForum","attachForum","chatRef","composerNote","composerOff","cur","dmPriv","fKey","fdraft","goPanelChat","goPanelPolls","gripStyle","isDM","isDocked","isPanelChat","replyBar","isPanelCalls","goPanelCalls","isPanelPolls","menuOpen","onFDraftValue","panelChips","panelStyle","pollView","resizeKey","sendForum","showPanelCall","startDrag","toClosed","toFull","toMin","toPage","toggleMenu","videoCall","voiceCall"]).computed,
     // the chat's views sit behind the ⋯ button so the side panel keeps its height for the conversation
     moreItems() {
       const v = this; const dm = v.isDM;

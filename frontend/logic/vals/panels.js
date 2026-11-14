@@ -8,7 +8,18 @@ export function valsPanels(ctx) {
   // private chats with the newest message first (a chat that just got a message jumps to the top)
   const lastOf = (d) => { const m = d.msgs && d.msgs[d.msgs.length - 1]; return m ? (Date.parse(m.at) || (m.pending ? Date.now() : 0)) : 0; };
   const dmsByActivity = s.dms.slice().sort((a, b) => lastOf(b) - lastOf(a));
+  // calls in progress I am not in yet, by conversation: they glow on the chat, its list row, the bubble and the sidebar
+  const myCall = s.call && s.call.callId;
+  const live = (s.liveCalls || []).filter((c) => c.id !== myCall && !c.in_call && (c.status === 'active' || c.context !== 'dm'));
+  const liveByConv = {};
+  live.forEach((c) => { if (c.conversation && (c.context === 'dm' || c.context === 'forum')) liveByConv[c.conversation] = c; });
+  const liveText = (c) => (c.kind === 'video' ? 'Video call' : 'Voice call') + ' in progress' + (c.joined ? ' · ' + c.joined + (c.joined === 1 ? ' person' : ' people') + ' in it' : '');
+  const curConv = isDM ? s.dmId : (((s.forumsLive || []).find((f) => f.id === s.forum)) || {}).sid;
+  const curLiveCall = curConv ? liveByConv[curConv] : null;
   return {
+    curLive: curLiveCall ? { text: liveText(curLiveCall), video: curLiveCall.kind === 'video', join: () => this.joinLive(curLiveCall) } : null,
+    liveConv: Object.fromEntries(Object.entries(liveByConv).map(([k, c]) => [k, { text: liveText(c), join: () => this.joinLive(c) }])),
+    liveCounts: { dm: live.filter((c) => c.context === 'dm').length, forum: live.filter((c) => c.context === 'forum').length, meeting: live.filter((c) => c.context !== 'dm' && c.context !== 'forum' && c.invited).length },
     panelStyle,
     chatCtl, chatGate, composerOff: !chatGate.allowed, composerNote: chatGate.reason, dmPriv, incomingView, pollView,
     panelTab: s.panelTab, isPanelChat: s.panelTab === 'chat', isPanelPolls: s.panelTab === 'polls', isPanelCalls: s.panelTab === 'calls', isPanelFiles: s.panelTab === 'files',
@@ -42,10 +53,10 @@ export function valsPanels(ctx) {
     // The strip shows this kind of conversation (forums, or chats) and, after a divider, anything of the other kind with unread
     // messages, so you can see and open what is waiting from either screen.
     panelChips: (() => {
-      const mine = (isDM ? dmsByActivity.map((d) => { const pr = dmPerson(d.with); const on = d.id === s.dmId; return { name: d.with, initials: pr.initials, unread: d.unread, hasUnread: d.unread > 0, open: () => this.openDm(d.with),
+      const mine = (isDM ? dmsByActivity.map((d) => { const pr = dmPerson(d.with); const on = d.id === s.dmId; return { conv: d.id, name: d.with, initials: pr.initials, unread: d.unread, hasUnread: d.unread > 0, open: () => this.openDm(d.with),
       chipStyle: 'flex:none;width:36px;height:36px;border-radius:50%;cursor:pointer;font-weight:700;font-size:12px;color:#0F1714;font-family:inherit;background:' + pr.color + ';border:2px solid ' + (on ? '#E8EFEA' : 'transparent') + ';opacity:' + (on ? '1' : '0.65'),
       unreadStyle: 'position:absolute;top:-5px;right:-6px;min-width:17px;height:17px;padding:0 4px;box-sizing:border-box;border-radius:9px;background:#C9B6FF;color:#0F1714;font:700 10px sans-serif;display:flex;align-items:center;justify-content:center;pointer-events:none' }; }) : forums).map((c) => ({ ...c, avatar: isDM, sep: false }));
-      const dmChip = (d) => { const pr = dmPerson(d.with); return { name: d.with, initials: pr.initials, unread: d.unread, hasUnread: true, avatar: true, color: pr.color, open: () => this.openDm(d.with),
+      const dmChip = (d) => { const pr = dmPerson(d.with); return { conv: d.id, name: d.with, initials: pr.initials, unread: d.unread, hasUnread: true, avatar: true, color: pr.color, open: () => this.openDm(d.with),
         chipStyle: 'flex:none;width:36px;height:36px;border-radius:50%;cursor:pointer;font-weight:700;font-size:12px;color:#0F1714;font-family:inherit;background:' + pr.color + ';border:2px solid transparent',
         unreadStyle: 'position:absolute;top:-5px;right:-6px;min-width:17px;height:17px;padding:0 4px;box-sizing:border-box;border-radius:9px;background:#C9B6FF;color:#0F1714;font:700 10px sans-serif;display:flex;align-items:center;justify-content:center;pointer-events:none' }; };
       const other = isDM ? forums.filter((f) => f.hasUnread).map((f) => ({ ...f, avatar: false })) : s.dms.filter((d) => d.unread > 0).map(dmChip);

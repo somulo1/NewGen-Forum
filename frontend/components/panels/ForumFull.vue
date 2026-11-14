@@ -30,6 +30,7 @@
 </div>
 <button v-if="fit !== 'page'" class="hub-chat-close" @click="toClosed" aria-label="Close forum" title="Close forum" style="position: absolute; top: 8px; right: 12px; z-index: 6; display: flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-16201C,#16201C); color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; padding: 0"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
 </div>
+<LiveCallBanner />
 
 <template v-if="inviteOpen">
 <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; padding: 16px; border-radius: 14px; border: 1px solid var(--k-B8F36B,#B8F36B); background: var(--k-16201C,#16201C)">

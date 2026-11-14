@@ -566,6 +566,27 @@ export async function decline(srv, callId) {
   await srv.request('POST', `/calls/${callId}/decline`, {}).catch(() => {});
 }
 
+// Calls in progress that I can see or join (my private chats, my forums, meetings I am invited to). Fetched first thing after
+// sign-in, before the rest of the app loads, so a call ringing me during a reload shows its card at once, and a call already
+// running in one of my chats glows where I can join it. Kept fresh by the call events and a light poll.
+export async function loadLive(logic, srv, prefetched) {
+  let res = prefetched ? await prefetched : null;
+  if (!res) { try { res = await srv.request('GET', '/calls/live'); } catch (e) { return; } }
+  const list = (res && res.calls) || [];
+  logic.setState({ liveCalls: list });
+  const mine = logic.state.call && logic.state.call.callId;
+  const ring = list.find((c) => c.ringing_me && c.id !== mine && !(srv.doneCalls && srv.doneCalls.has(c.id)) && (c.context === 'dm' || c.context === 'forum'));
+  if (ring && !logic.state.incoming && !logic.state.call) {
+    logic.setState({ incoming: { name: ring.host_name, kind: ring.kind, callId: ring.id, context: ring.context, conversation: ring.conversation } });
+    startRing();
+    notifyW.show({ title: (ring.kind === 'video' ? 'Video call' : 'Call') + ' from ' + (ring.host_name || 'a colleague'), body: 'Click to answer in Hub', tag: 'call:' + ring.id, urgent: true });
+    clearTimeout(srv.ringT);
+    srv.ringT = setTimeout(() => { const inc = logic.state.incoming; if (inc && inc.callId === ring.id) { stopRing(); logic.setState({ incoming: null }); } }, 45000);
+  }
+}
+let liveT = 0;
+const refreshLive = (logic, srv) => { clearTimeout(liveT); liveT = setTimeout(() => loadLive(logic, srv), 400); };
+
 // Incoming rings and calls that start in my forums or meetings arrive on my account channel.
 export function listen(logic, srv) {
   const rt = srv.rt || (srv.rt = connectRealtime(srv));
@@ -589,6 +610,9 @@ export function listen(logic, srv) {
   };
   rt.on('call.incoming', onCall);
   rt.on('call.started', onCall);
+  // the list of calls in progress follows every call event, and a slow poll catches anything missed while offline
+  ['call.incoming', 'call.started', 'call.answered', 'call.ended', 'call.declined', 'call.joined', 'call.left'].forEach((t) => { try { rt.on(t, () => refreshLive(logic, srv)); } catch (e) { /* no live connection */ } });
+  clearInterval(srv.liveI); srv.liveI = setInterval(() => { if (!document.hidden) loadLive(logic, srv); }, 20000);
   // Answered or ended somewhere else (another tab or device of mine, or the caller hung up): stop ringing here.
   rt.on('call.answered', (ev) => {
     const d = ev.data || {};

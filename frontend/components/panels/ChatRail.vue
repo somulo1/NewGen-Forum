@@ -20,8 +20,9 @@
 <div class="nav-scroll" style="flex: 1; min-height: 0; overflow-y: auto; padding: 0 8px 12px; display: flex; flex-direction: column; gap: 2px">
 <template v-if="kind === 'dm'">
 <button v-for="d in shownDms" :key="d.key" type="button" class="nav-row" title="Press and hold, or right-click, to delete" @click="rowClick($event, d)" @pointerdown="pressStart(d)" @pointerup="pressEnd" @pointerleave="pressEnd" @pointercancel="pressEnd" @contextmenu.prevent="ask(d)" @keydown.delete="ask(d)" :style="d.style + ';min-height:56px'">
-<span style="position: relative; width: 36px; height: 36px; flex: none"><UserAvatar :name="d.name" :initials="d.initials" :color="d.color" :size="36" :font-size="12"/><span :style="`position: absolute; right: -1px; bottom: -1px; width: 10px; height: 10px; border-radius: 50%; background: ${d.dot}; border: 2px solid var(--k-121B17,#121B17)`"></span></span>
+<span :class="{ 'hub-live-glow': !!(liveConv || {})[d.key] }" style="position: relative; width: 36px; height: 36px; flex: none; border-radius: 50%"><UserAvatar :name="d.name" :initials="d.initials" :color="d.color" :size="36" :font-size="12"/><span :style="`position: absolute; right: -1px; bottom: -1px; width: 10px; height: 10px; border-radius: 50%; background: ${d.dot}; border: 2px solid var(--k-121B17,#121B17)`"></span></span>
 <span style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ d.name }}</span><span :style="`font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: ${d.typing ? '#7CC4FF' : 'var(--k-9DB0A6,#9DB0A6)'}`">{{ d.last }}</span></span>
+<button v-if="(liveConv || {})[d.key]" type="button" class="hub-live-glow" :title="(liveConv || {})[d.key].text" @click.stop="(liveConv || {})[d.key].join()" style="flex: none; height: 26px; padding: 0 10px; border-radius: 13px; border: 0; background: #B8F36B; color: #0F1714; font-size: 12px; font-weight: 700; cursor: pointer">Join</button>
 <span v-if="d.hasUnread" style="min-width: 20px; height: 20px; padding: 0 6px; box-sizing: border-box; border-radius: 10px; background: #C9B6FF; color: #0F1714; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center">{{ d.unread }}</span>
 </button>
 <template v-if="adding">
@@ -35,8 +36,9 @@
 </template>
 <template v-else>
 <button v-for="f in shownForums" :key="f.key" type="button" class="nav-row" title="Press and hold, or right-click, to delete" @click="rowClick($event, f)" @pointerdown="pressStart(f)" @pointerup="pressEnd" @pointerleave="pressEnd" @pointercancel="pressEnd" @contextmenu.prevent="ask(f)" @keydown.delete="ask(f)" :style="f.rowStyle + ';min-height:52px'">
-<span :style="`width: 34px; height: 34px; flex: none; border-radius: 10px; background: ${f.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 12px`">{{ f.initials }}</span>
+<span :class="{ 'hub-live-glow': !!(liveConv || {})[f.sid] }" :style="`width: 34px; height: 34px; flex: none; border-radius: 10px; background: ${f.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 12px`">{{ f.initials }}</span>
 <span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ f.name }}</span>
+<button v-if="(liveConv || {})[f.sid]" type="button" class="hub-live-glow" :title="(liveConv || {})[f.sid].text" @click.stop="(liveConv || {})[f.sid].join()" style="flex: none; height: 26px; padding: 0 10px; border-radius: 13px; border: 0; background: #B8F36B; color: #0F1714; font-size: 12px; font-weight: 700; cursor: pointer">Join</button>
 <span v-if="f.hasUnread" style="min-width: 20px; height: 20px; padding: 0 6px; box-sizing: border-box; border-radius: 10px; background: #B8F36B; color: #0F1714; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center">{{ f.unread }}</span>
 </button>
 </template>
@@ -71,7 +73,7 @@ export default {
     async create() { await this.createForumNow(); if (!this.forumForm.err) this.adding = false; }
   },
   computed: {
-    ...hubBindings(['dmList', 'forums', 'dmMatches', 'onDmq', 'forumForm', 'onForumName', 'createForumNow', 'pickerPeople', 'forumPicked', 'pickForumMember', 'unpickForumMember']).computed,
+    ...hubBindings(['liveConv', 'dmList', 'forums', 'dmMatches', 'onDmq', 'forumForm', 'onForumName', 'createForumNow', 'pickerPeople', 'forumPicked', 'pickForumMember', 'unpickForumMember']).computed,
     // people found by the search who have no chat with me yet: picking one opens a fresh chat
     freshPeople() { const have = new Set((this.dmList || []).map((d) => d.name)); return (this.dmMatches || []).filter((m) => !have.has(m.name)); },
     needle() { return this.q.trim().toLowerCase(); },

@@ -138,6 +138,13 @@ export const forumActions = {
     const d = this.dir.find((x) => x.name === inc.name) || { initials: inc.name.split(' ').map((x) => x[0]).join(''), color: '#C9B6FF' };
     this.startDmCall(inc.kind, inc.name, d.initials, d.color, 'in');
   },
+  // Join a call already in progress (in one of my chats or forums, or a meeting I am invited to), from its glowing button.
+  joinLive(c) {
+    if (!c || !this.srv) return;
+    const dm = c.context === 'dm' ? this.state.dms.find((d) => d.id === c.conversation) : null;
+    this.setState({ incoming: { name: dm ? dm.with : c.host_name, kind: c.kind, callId: c.id, context: c.context, conversation: c.conversation } });
+    this.acceptIncoming();
+  },
   declineIncoming() {
     clearTimeout(this._incT);
     stopRing(); hangup();
