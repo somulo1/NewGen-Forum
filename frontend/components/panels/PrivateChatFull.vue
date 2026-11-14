@@ -32,21 +32,21 @@
 
 <div v-if="isPanelCalls" style="flex: 1; min-height: 0; overflow-y: auto"><div style="max-width: 1200px; margin: 0 auto; padding: 18px clamp(16px, 3vw, 32px)"><CallHistory /></div></div>
 <ChatSharedFiles v-if="isPanelFiles" :folders="fileFolders" :selected-folder="selectedChatFolder" :color="cur.color" :open-folder="openChatFolder" :close-folder="closeChatFolder"/>
-<div v-if="isPanelChat" style="flex: 1; min-height: 0; overflow-y: auto">
-<div style="max-width: 1200px; margin: 0 auto; padding: 18px clamp(16px, 3vw, 32px); display: flex; flex-direction: column; gap: 5px">
+<div v-if="isPanelChat" class="cw-bg" style="flex: 1; min-height: 0; overflow-y: auto">
+<div style="max-width: 1000px; margin: 0 auto; padding: 14px clamp(10px, 3vw, 28px); display: flex; flex-direction: column; gap: 4px">
 <span style="align-self: center; font-size: 11px; color: var(--k-9DB0A6,#9DB0A6); padding: 4px 10px; border-radius: 10px; background: var(--k-1A2520,#1A2520)">Today</span>
 <template v-if="olderCount > 0 || moreOlder"><button type="button" @click="showOlder" style="align-self: center; height: 32px; padding: 0 14px; border-radius: 16px; border: 1px solid var(--k-6B7A72,#6B7A72); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; font-size: 12px">{{ olderCount > 0 ? 'Show ' + olderCount + ' earlier ' + (olderCount === 1 ? 'message' : 'messages') : 'Load earlier messages' }}</button></template>
 <template v-for="(u, u__i) in cur.chat" :key="u__i">
 <div :style="u.rowStyle + ';touch-action:pan-y'" @pointerdown="u.startHold" @pointermove="u.moveHold" @pointerup="u.stopHold" @pointerleave="u.stopHold" @pointercancel="u.stopHold" @contextmenu="u.openActions">
-<UserAvatar :name="u.who" :initials="u.initials" :color="u.color" :size="32"/>
-<div :style="u.bubbleStyle">
-<div style="display: flex; gap: 8px; align-items: baseline"><strong style="font-size: 13px">{{ u.who }}</strong><span style="font-size: 11px; color: var(--k-9DB0A6,#9DB0A6)">{{ u.time }}</span><button type="button" @click.stop="u.openActions($event)" aria-label="Message options" style="margin-left: auto; width: 26px; height: 24px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--k-9DB0A6,#9DB0A6); cursor: pointer">⋯</button></div>
+
+<div :class="['cw-b', { 'cw-mine': u.mine }]" :style="u.bubbleStyle">
+<button type="button" class="cw-opt" @click.stop="u.openActions($event)" aria-label="Message options" style="width: 24px; height: 22px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--k-9DB0A6,#9DB0A6); cursor: pointer">⋯</button>
 <template v-if="u.hasReply"><div style="margin: 4px 0 0; padding: 4px 8px; border-left: 3px solid var(--k-B8F36B,#B8F36B); border-radius: 4px; background: rgba(0,0,0,.2); font-size: 12px; color: var(--k-9DB0A6,#9DB0A6); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap"><strong style="color: var(--k-C9D6CF,#C9D6CF)">{{ u.replyWho }}</strong> {{ u.replySnippet }}</div></template>
-<template v-if="u.hasText && !u.hasFile"><p v-html="u.htmlText" style="margin: 4px 0 0; font-size: 14px; line-height: 1.45; overflow-wrap: anywhere"></p></template>
+<template v-if="u.hasText && !u.hasFile"><p class="cw-t"><span v-html="u.htmlText"></span><span class="cw-sp" aria-hidden="true"></span></p></template>
 <template v-if="u.hasShared"><SharedPostCard :sid="u.sid"/></template>
-<template v-if="u.hasFile"><MediaCollage :files="u.fileList" framed :max-h="380" :row="170"/></template><template v-if="u.hasText && u.hasFile"><p v-html="u.htmlText" style="margin: 6px 0 0; font-size: 14px; line-height: 1.45; overflow-wrap: anywhere"></p></template>
+<template v-if="u.hasFile"><MediaCollage :files="u.fileList" framed :max-h="380" :row="170"/></template><template v-if="u.hasText && u.hasFile"><p class="cw-t"><span v-html="u.htmlText"></span><span class="cw-sp" aria-hidden="true"></span></p></template>
 <template v-if="u.hasSecureShare"><SecureInboxCard :share="u.secureShare"/></template>
-<div v-if="u.reply" style="margin-top: 6px"><button type="button" @click.stop="u.reply" aria-label="Reply to this message" style="height: 26px; padding: 0 10px; border: 0; border-radius: 13px; background: var(--k-22302A,#22302A); color: var(--k-C9D6CF,#C9D6CF); cursor: pointer; font-size: 12px">↩ Reply<template v-if="u.replies"> · {{ u.replies }} earlier</template></button></div>
+<span class="cw-time">{{ u.time }}</span><button v-if="u.reply" type="button" class="cw-rep" @click.stop="u.reply" aria-label="Reply to this message" title="Reply">↩</button>
 
 <div v-if="u.menuOpen" role="group" aria-label="Message actions" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--k-405047,#405047)">
 <button type="button" @click.stop="u.deleteForMe" style="height: 30px; padding: 0 10px; border: 1px solid var(--k-526259,#526259); border-radius: 8px; background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; font-size: 12px">Delete for me</button>

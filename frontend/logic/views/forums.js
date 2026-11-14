@@ -87,8 +87,8 @@ export function buildForums(ctx) {
     deleteForEveryone: deleteForEveryone ? () => { this.setState({ messageMenu: null }); askConfirm({ title: 'Delete this message?', body: 'It is deleted for everyone, for good.' }).then((ok) => { if (ok) deleteForEveryone(); }); } : null
   });
   const fStyle = (m) => (m.who === 'Sam' || m.who === 'You'
-    ? { ...m, who: 'You', mine: true, rowStyle: 'display:flex;gap:10px;flex-direction:row-reverse', bubbleStyle: 'max-width:85%;min-width:min(70%,340px);box-sizing:border-box;padding:7px 12px;border-radius:14px 4px 14px 14px;background:var(--k-2C3D34,#2C3D34)' }
-    : { ...m, mine: false, rowStyle: 'display:flex;gap:10px', bubbleStyle: 'flex:1;min-width:0;padding:7px 12px;border-radius:4px 12px 12px 12px;background:var(--k-1A2520,#1A2520)' });
+    ? { ...m, who: 'You', mine: true, rowStyle: 'display:flex;gap:6px;flex-direction:row-reverse', bubbleStyle: 'position:relative;width:fit-content;max-width:min(80%,620px);min-width:84px;box-sizing:border-box;padding:6px 9px 7px;border-radius:10px 3px 10px 10px;background:var(--k-2C3D34,#2C3D34);box-shadow:0 1px 1px rgba(0,0,0,.22)' }
+    : { ...m, mine: false, rowStyle: 'display:flex;gap:6px', bubbleStyle: 'position:relative;width:fit-content;max-width:min(80%,620px);min-width:84px;box-sizing:border-box;padding:6px 9px 7px;border-radius:3px 10px 10px 10px;background:var(--k-1A2520,#1A2520);box-shadow:0 1px 1px rgba(0,0,0,.22)' });
   const forumMessages = ((s.orgBlocks || {}).blockForumChats ? [] : baseMsgs.slice().reverse().concat(addedHere)).map((message) => {
     const key = 'forum:' + cur.id + ':' + message.id;
     const source = message.source;
@@ -151,8 +151,9 @@ export function buildForums(ctx) {
         id: key, who, initials: pp.initials, color: pp.color, time: m.time, text: m.text || '', htmlText: richTextHtml(m.text),
         hasText: !!m.text, hasFile: !!m.file, fileList: [].concat(m.file || []), ...quote(m), reply: replyFn(who, m),
         replies: 0, mine, secureShare: sharesById[m.secureShareId] || null, hasSecureShare: !!sharesById[m.secureShareId],
-        rowStyle: 'display:flex;gap:10px;' + (mine ? 'flex-direction:row-reverse' : ''),
-        bubbleStyle: 'max-width:85%;min-width:min(70%,340px);box-sizing:border-box;padding:7px 12px;border-radius:' + (mine ? '14px 4px 14px 14px;background:var(--k-2C3D34,#2C3D34)' : '4px 14px 14px 14px;background:var(--k-1A2520,#1A2520)'),
+        // like a phone chat: the bubble fits its text, the time sits in its bottom corner, nothing else takes room
+        rowStyle: 'display:flex;gap:6px;' + (mine ? 'flex-direction:row-reverse' : ''),
+        bubbleStyle: mine ? 'position:relative;width:fit-content;max-width:min(80%,620px);min-width:84px;box-sizing:border-box;padding:6px 9px 7px;border-radius:10px 3px 10px 10px;background:var(--k-2C3D34,#2C3D34);box-shadow:0 1px 1px rgba(0,0,0,.22)' : 'position:relative;width:fit-content;max-width:min(80%,620px);min-width:84px;box-sizing:border-box;padding:6px 9px 7px;border-radius:3px 10px 10px 10px;background:var(--k-1A2520,#1A2520);box-shadow:0 1px 1px rgba(0,0,0,.22)',
         ...actions
       };
     }).filter((message) => !s.hiddenChatMessages[message.messageKey] && !s.removedChatMessages[message.messageKey]);

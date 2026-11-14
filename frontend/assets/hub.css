@@ -166,3 +166,23 @@ main h1{font-size:22px !important}
 @keyframes hubLiveGlow{0%{box-shadow:0 0 0 0 rgba(184,243,107,.75)}70%{box-shadow:0 0 0 12px rgba(184,243,107,0)}100%{box-shadow:0 0 0 0 rgba(184,243,107,0)}}
 .hub-live-glow{animation:hubLiveGlow 1.6s ease-out infinite}
 @media (prefers-reduced-motion: reduce){.hub-live-glow{animation:none;outline:2px solid #B8F36B;outline-offset:2px}}
+
+/* Chat bubbles (private chats and forum panels): sized to their text like a phone chat, one standard font and spacing, the time
+   tucked into the bottom corner, options and reply only on hover (long-press on phones) so nothing wastes room. */
+.cw-b{font-size:14.5px;line-height:1.42;font-weight:400;letter-spacing:0.005em;color:var(--k-C9D6CF,#C9D6CF);-webkit-font-smoothing:antialiased}
+/* the message itself: regular weight in a soft off-white, easy to read for long; the sender's name above it is smaller, bolder and
+   in their colour, and the time is dimmer still, so the three never blur together */
+.cw-b p.cw-t{margin:0;font-size:14.5px;line-height:1.42;font-weight:400;color:var(--k-C9D6CF,#C9D6CF);overflow-wrap:anywhere;word-break:normal}
+.cw-b p.cw-t strong,.cw-b p.cw-t b{font-weight:600;color:var(--k-E8EFEA,#E8EFEA)}
+.cw-b > strong{font-size:12.5px !important;font-weight:600 !important;letter-spacing:0.01em;margin-bottom:2px;opacity:.95}
+.cw-b p.cw-t p{margin:0}
+.cw-sp{display:inline-block;width:52px;height:1px;vertical-align:baseline}
+.cw-time{position:absolute;right:8px;bottom:4px;font-size:10.5px;line-height:1;color:var(--k-7F9188,#7F9188);white-space:nowrap;pointer-events:none}
+.cw-opt{position:absolute;top:2px;right:2px;opacity:0;transition:opacity .15s;border-radius:6px !important;background:rgba(0,0,0,.25) !important;z-index:2}
+.cw-b:hover .cw-opt,.cw-opt:focus-visible{opacity:1}
+.cw-rep{position:absolute;top:50%;right:-34px;transform:translateY(-50%);width:28px;height:28px;border-radius:50%;border:0;background:var(--k-22302A,#22302A);color:var(--k-C9D6CF,#C9D6CF);cursor:pointer;opacity:0;transition:opacity .15s;font-size:14px}
+.cw-mine .cw-rep{right:auto;left:-34px}
+.cw-b:hover .cw-rep,.cw-rep:focus-visible{opacity:1}
+@media (hover:none){.cw-opt{display:none}.cw-rep{opacity:.55}}
+/* a calm chat background: a soft vertical wash with a faint grain, quieter than a patterned wallpaper */
+.cw-bg{background:radial-gradient(1200px 600px at 50% -10%,rgba(184,243,107,.045),transparent 60%),radial-gradient(900px 500px at 100% 110%,rgba(124,196,255,.04),transparent 60%),radial-gradient(rgba(255,255,255,.028) 1px,transparent 1.2px) 0 0/22px 22px,var(--k-0F1714,#0F1714)}
