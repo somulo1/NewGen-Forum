@@ -25,7 +25,7 @@
 </template>
 <template v-if="call.isVideo">
 <template v-if="call.sharing">
-<div class="cs-share" style="flex: 1; min-height: 280px; border-radius: 18px; background: var(--k-16201C,#16201C); border: 2px solid var(--k-B8F36B,#B8F36B); position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 20px; text-align: center">
+<div class="cs-share" @dblclick="expand($event)" style="flex: 1; min-height: 280px; border-radius: 18px; background: var(--k-16201C,#16201C); border: 2px solid var(--k-B8F36B,#B8F36B); position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 20px; text-align: center"><button type="button" class="cs-expand" :aria-label="isFull ? 'Exit full screen' : 'Make the presentation full screen'" :title="isFull ? 'Exit full screen' : 'Make the presentation full screen'" @click.stop="expand($event)"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path :d="isFull ? 'M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5' : 'M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5'"></path></svg></button>
 <CallVideo stream-key="screen" fit="contain"/>
 <div class="cs-share-bar" style="position: absolute; left: 12px; right: 12px; bottom: 12px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px 8px 14px; border-radius: 14px; background: rgba(10,16,13,0.82); color: #E8EFEA"><span style="font-size: 13px; display: flex; align-items: center; gap: 8px"><span style="width: 8px; height: 8px; border-radius: 50%; background: #B8F36B" aria-hidden="true"></span>You are presenting. Everyone in the meeting sees this.</span><button @click="toggleShare" style="height: 34px; padding: 0 14px; border-radius: 17px; border: 0; background: #FF9B8A; color: #0F1714; font-weight: 600; cursor: pointer">Stop presenting</button></div>
 </div>
@@ -36,16 +36,17 @@
 </div>
 </template>
 <template v-if="call.notSharing">
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(var(--cs-tile, 260px), 1fr)); gap: 12px; align-content: start">
-<template v-for="(tl, tl__i) in call.tiles" :key="tl__i">
-<div class="cs-tile" :style="tl.style">
-<template v-if="tl.camOff"><UserAvatar :name="tl.name" :initials="tl.initials" :color="tl.color" :size="76" :font-size="26"/></template>
-<template v-if="tl.camOn && tl.videoKey"><CallVideo :stream-key="tl.videoKey"/></template><template v-if="tl.camOn && !tl.videoKey"><div :style="`position: absolute; inset: 0; background: ${tl.camBg}; display: flex; align-items: flex-end; justify-content: center`"><span :style="`width: 46%; aspect-ratio: 1 / 1.1; border-radius: 50% 50% 18% 18%; background: ${tl.color}; opacity: 0.55`"></span></div></template>
-<span style="position: absolute; left: 10px; bottom: 10px; height: 28px; padding: 0 10px; border-radius: 14px; background: rgba(10,16,13,0.75); font-size: 12px; display: flex; align-items: center; gap: 6px">{{ tl.name }}<template v-if="tl.muted"><svg aria-label="Muted" role="img" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--k-FF9B8A,#FF9B8A)" stroke-width="2" stroke-linecap="round"><path d="M9 9v2a3 3 0 0 0 5 2.2M15 10V5a3 3 0 0 0-6 0M5 11a7 7 0 0 0 11.5 5.3M19 11a7 7 0 0 1-.5 2.5M12 18v3M3 3l18 18"></path></svg></template></span>
-<template v-if="tl.netPaused"><span style="position: absolute; top: 10px; left: 10px; font-size: 11px; font-weight: 600; color: var(--k-FFB86B,#FFB86B)">Poor connection</span></template><template v-if="tl.hand"><span style="position: absolute; top: 10px; left: 10px; height: 28px; padding: 0 10px; border-radius: 14px; background: #FFD66B; color: #0F1714; font-size: 12px; font-weight: 700; display: flex; align-items: center">Hand raised</span></template>
-<template v-if="tl.speaking"><span style="position: absolute; top: 10px; right: 10px; font-size: 11px; font-weight: 600; color: var(--k-B8F36B,#B8F36B)">Speaking</span></template>
-<template v-if="tl.mod"><span style="position: absolute; right: 8px; bottom: 8px"><ModControls :tile="tl"/></span></template>
+<template v-if="spot">
+<div class="cs-spot">
+<div class="cs-spot-main"><CallTile :tl="spot" big @focus="focusKey = null" @fullscreen="expand($event)"/></div>
+<div class="cs-spot-strip" role="list" aria-label="Other participants">
+<div v-for="(tl, tl__i) in call.tiles.filter((x) => tileKey(x) !== focusKey)" :key="tileKey(tl) + tl__i" role="listitem" class="cs-spot-item"><CallTile :tl="tl" @focus="focusKey = tileKey(tl)" @fullscreen="expand($event)"/></div>
 </div>
+</div>
+</template>
+<div v-else style="display: grid; grid-template-columns: repeat(auto-fit, minmax(var(--cs-tile, 260px), 1fr)); gap: 12px; align-content: start">
+<template v-for="(tl, tl__i) in call.tiles" :key="tl__i">
+<CallTile :tl="tl" @focus="focusKey = tileKey(tl)" @fullscreen="expand($event)"/>
 </template>
 </div>
 </template>
@@ -105,12 +106,30 @@
 
 <script>
 import { hubBindings } from '~/composables/useHub';
+import CallTile from './CallTile.vue';
 
 export default {
   name: 'CallScreen',
+  components: { CallTile },
   props: { variant: { type: String, default: 'main' }, fit: { type: String, default: 'screen' } },
+  data() { return { isFull: false, focusKey: null }; },
+  mounted() { this._fs = () => { this.isFull = !!document.fullscreenElement && !!this.$el && this.$el.contains && this.$el.contains(document.fullscreenElement); }; document.addEventListener('fullscreenchange', this._fs); },
+  beforeUnmount() { document.removeEventListener('fullscreenchange', this._fs); },
+  methods: {
+    tileKey(t) { return t.videoKey || t.name; },
+    // enlarge one video or the presentation to fill the screen (button or double-click); again, or Esc, goes back
+    expand(e) {
+      const card = e.target.closest('.cs-tile, .cs-share');
+      if (!card) return;
+      if (document.fullscreenElement) { document.exitFullscreen().catch(() => {}); return; }
+      const go = card.requestFullscreen || card.webkitRequestFullscreen;
+      if (go) Promise.resolve(go.call(card)).catch(() => {});
+    }
+  },
   computed: {
     ...hubBindings(["pickEmojiCall","call","callKey","closeCallPanel","endCall","onCallDraft","openCallChat","openCallPeople","sendCallMsg","gripStyle","panelStyle","resizeKey","showMeetingDock","showMeetingFull","showPanelCall","startDrag","callToDock","callToFull","callToMin","toDocked","toFull","toMin","toPage","toggleCam","toggleHand","toggleMic","toggleRec","toggleShare"]).computed,
+    // the participant enlarged in the call (the others line up in a scrollable row below); gone if they left
+    spot() { const k = this.focusKey; return (k && ((this.call && this.call.tiles) || []).find((t) => this.tileKey(t) === k)) || null; },
     visible() { return this.variant === 'main' ? !!this.showMeetingFull : this.variant === 'dock' ? !!this.showMeetingDock : !!this.showPanelCall; },
     compact() { return this.variant === 'panel' || this.variant === 'dock'; },
     winBtn() { return 'width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; display: flex; align-items: center; justify-content: center; flex: none'; },
@@ -130,6 +149,18 @@ export default {
 </script>
 
 <style>
+.cs-spot { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+.cs-spot-main { flex: 1; min-height: 220px; display: flex; }
+.cs-spot-main .cs-tile video { object-fit: contain !important; background: #000; }
+.cs-spot-strip { flex: none; display: flex; gap: 10px; overflow-x: auto; overflow-y: hidden; padding-bottom: 4px; scrollbar-width: thin; overscroll-behavior-x: contain; }
+.cs-spot-item { flex: 0 0 180px; }
+.cs-spot-item .cs-tile { min-height: 0 !important; }
+.cs-panel .cs-spot-item { flex-basis: 120px; }
+.cs-expand { position: absolute; top: 8px; right: 8px; z-index: 3; width: 32px; height: 32px; border-radius: 50%; border: 0; background: rgba(10,16,13,0.7); color: #E8EFEA; cursor: pointer; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity .15s; }
+.cs-tile:hover .cs-expand, .cs-share:hover .cs-expand, .cs-expand:focus-visible { opacity: 1; }
+@media (hover: none) { .cs-expand { opacity: 1; } }
+.cs-tile:fullscreen, .cs-share:fullscreen { border-radius: 0 !important; border: 0 !important; background: #000 !important; }
+.cs-tile:fullscreen video, .cs-share:fullscreen video { object-fit: contain !important; }
 .cs-main, .cs-full { --cs-tile: 260px; }
 .cs-panel { --cs-tile: 120px; }
 .cs-panel .cs-tile { min-height: 0 !important; border-radius: 12px !important; }
