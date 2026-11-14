@@ -87,7 +87,7 @@
 <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center">
 <label style="position: relative; height: 38px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 13px"><input type="file" multiple="" aria-label="Attach files to ticket" @change="attachTicket" style="position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11.5l-8.2 8.2a5 5 0 0 1-7.1-7.1L13.2 4a3.4 3.4 0 0 1 4.8 4.8l-8.5 8.5a1.8 1.8 0 0 1-2.5-2.5L14.8 7"></path></svg>Attach file</label>
 <EmojiButton :size="38" shape="10px" @pick="pickEmojiTicket"/>
-<button @click="toggleTag" style="height: 38px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; font-size: 13px">@ Tag someone</button>
+<button v-if="canTag && tagPeople.length" @click="toggleTag" style="height: 38px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; font-size: 13px">@ Tag someone</button>
 <button @click="postTComment" style="margin-left: auto; height: 38px; padding: 0 18px; border-radius: 10px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">Comment</button>
 </div>
 </template>
@@ -197,7 +197,7 @@ import { hubBindings } from '~/composables/useHub';
 
 export default {
   name: 'TicketsSection',
-  ...hubBindings(["ntForm","ticketBackLabel","pickEmojiTicket","attachTicket","canRaise","closeTicket","createTicket","esc","handover","has","nt","ntBtnStyle","ntCatSel","ntCats","ntTargets","ntOpen","ntPrios","ntSetDesc","ntAttach","ntRemoveFile","ntSetTitle","onTCommentValue","onActivityClick","postTComment","showTicketList","showTicketView","tagOpen","tagPeople","tcomment","myTicketStats","ticketStats","tickets","ticketsTable","tk","toggleNewTicket","toggleTag"])
+  ...hubBindings(["canTag","ntForm","ticketBackLabel","pickEmojiTicket","attachTicket","canRaise","closeTicket","createTicket","esc","handover","has","nt","ntBtnStyle","ntCatSel","ntCats","ntTargets","ntOpen","ntPrios","ntSetDesc","ntAttach","ntRemoveFile","ntSetTitle","onTCommentValue","onActivityClick","postTComment","showTicketList","showTicketView","tagOpen","tagPeople","tcomment","myTicketStats","ticketStats","tickets","ticketsTable","tk","toggleNewTicket","toggleTag"])
 };
 </script>
 

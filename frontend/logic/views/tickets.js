@@ -185,8 +185,13 @@ export function buildTickets(ctx) {
       activity: cur_t.activity.map((a) => ({ ...a, htmlText: withMentions(richTextHtml(a.text)), initials: ini(a.who), color: pColor[a.who] || '#9DB0A6', isEvent: a.kind === 'event', isComment: a.kind === 'comment', isFile: a.kind === 'file', isImg: !!a.isImg, url: a.url || '', meta: a.meta || '' }))
     };
   }
-  // people you can tag in a ticket comment: the ones on that ticket
-  const tagNames = cur_t ? [...new Set([cur_t.raisedBy, cur_t.handler].concat(cur_t.assignees || []))].filter((n) => n && n !== 'Sam') : [];
+  // tagging on a ticket is only for the people who own it: whoever raised it, whoever is assigned to resolve it, and the heads of
+  // the dashboard it went to and the one it came from. They can tag each other, and nobody else can tag.
+  const tagCircle = cur_t ? [...new Set([cur_t.raisedBy, cur_t.handler].concat(cur_t.assignees || [], cur_t.toHeads || [], cur_t.fromHeads || []))].filter(Boolean) : [];
+  const myName = this.srv ? this.srv.me.name : 'Sam';
+  const canTag = !!cur_t && (tagCircle.includes('Sam') || tagCircle.includes(myName));
+  const ticketPeople = tagCircle.filter((n) => n !== 'Sam' && n !== myName);
+  const tagNames = canTag ? ticketPeople : [];
   const tagPeople = tagNames.map((n) => ({ name: n, tag: () => this.setState((st) => ({ tcomment: (st.tcomment && !/\s$/.test(st.tcomment) ? st.tcomment + ' ' : st.tcomment) + '@' + n + ' ', tagOpen: false })) }));
   const autoNotifs = [];
   // only for tickets this person raised or is working on now: someone it was handed away from hears nothing more (unless tagged)
@@ -226,5 +231,5 @@ export function buildTickets(ctx) {
   ].map((r) => ({ ...r, checked: !!ts.notify[r.key], toggle: () => setTs((t) => ({ notify: { ...t.notify, [r.key]: !t.notify[r.key] } })) }));
   const people = [];
   const defaultCats = ts.cats.map((c) => ({ name: c.name, tat: tatHours(c.name) }));
-  return { defaultCats, deskStats, deskTickets, myTicketStats, myTickets, badge, chip, cur_t, dayH, ini, nOpen, nOver, nSoon, notifList, notifyRules, ntCats, ntPrios, pColor, pauseRules, people, setTs, tagNames, tagPeople, tatText, ticketStats, tickets, tk, ts, tsetCats };
+  return { defaultCats, deskStats, deskTickets, myTicketStats, myTickets, badge, chip, cur_t, dayH, ini, nOpen, nOver, nSoon, notifList, notifyRules, ntCats, ntPrios, pColor, pauseRules, people, setTs, tagNames, ticketPeople, canTag, tagPeople, tatText, ticketStats, tickets, tk, ts, tsetCats };
 }

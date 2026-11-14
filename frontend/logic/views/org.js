@@ -4,7 +4,7 @@ import * as commsW from '~/logic/server/widgets/comms.js';
 import * as approvalsW from '~/logic/server/widgets/approvals.js';
 // renderVals step: org. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildOrg(ctx) {
-  const { C, badge, can, cur_t, fmtDay, has, isoAdd, projects, refName, roleDefs, s, tagNames, tatText, tickets, todayISO, ts } = ctx;
+  const { C, badge, can, cur_t, fmtDay, has, isoAdd, projects, refName, roleDefs, s, tagNames, ticketPeople, tatText, tickets, todayISO, ts } = ctx;
   // =============== Organization structure ===============
   const O = this.org;
   const typeName = { sectors: 'Sector', branches: 'Branch', units: 'Unit', departments: 'Department' };
@@ -52,7 +52,7 @@ export function buildOrg(ctx) {
       const all = this.srv.ticketCats || [];
       const c = all.find((x) => x.name === cat && x.unit_type === TB[type] && x.unit_ref === r.id) || all.find((x) => x.name === cat && x.unit_type === 'desk');
       const named = ((c && c.members) || []).map((id) => this.dir.find((p) => p.uid === id)).filter(Boolean);
-      const pool = (type === 'desk' ? this.dir.filter((p) => tagNames.indexOf(p.name) !== -1) : membersOf(type, r.name)).filter((p) => named.indexOf(p) === -1);
+      const pool = (type === 'desk' ? this.dir.filter((p) => ticketPeople.indexOf(p.name) !== -1) : membersOf(type, r.name)).filter((p) => named.indexOf(p) === -1);
       return named.concat(pool).slice(0, 6);
     }
     const pool = type === 'desk' ? this.dir.filter((p) => tagNames.indexOf(p.name) !== -1) : membersOf(type, r.name);
