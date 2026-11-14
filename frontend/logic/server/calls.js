@@ -7,7 +7,7 @@
 import { connectRealtime } from './realtime.js';
 import * as notifyW from '~/logic/browserNotify.js';
 import * as dmsW from './widgets/dms.js';
-import { connectSfu, leaveSfu, applySfu, sendChatSfu, sfuActive, control, sfuStats, setSfuUpload, sfuVideoPaused } from './sfuCall.js';
+import { connectSfu, leaveSfu, applySfu, sendChatSfu, sfuActive, control, sfuStats, setSfuUpload, sfuVideoPaused, localScreenTrack } from './sfuCall.js';
 import { startQualityWatch, stopQualityWatch, noteReconnect, noteJoined, newLadder, stepLadder, resetLadder, upBad, downBad } from './callQuality.js';
 import { startRing, stopRing, startRingback, stopRingback, connected, hangup, joinedTone, handTone } from '../tones.js';
 import { retryDelay } from './backoff.js';
@@ -15,8 +15,9 @@ import { retryDelay } from './backoff.js';
 const FALLBACK_ICE = [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun.cloudflare.com:3478' }];
 
 const media = { local: null, screen: null, remote: new Map(), audio: new Map(), tracks: new Map(), version: 0, listeners: new Set() };
-export const streamFor = (key) => (key === 'local' ? media.screen || media.local : media.remote.get(key) || null);
-export const trackFor = (key) => media.tracks.get(key) || null;
+// 'screen' is my own shared screen (the presenter's preview); 'local' is my camera (or my screen while I share)
+export const streamFor = (key) => (key === 'screen' ? media.screen : key === 'local' ? media.screen || media.local : media.remote.get(key) || null);
+export const trackFor = (key) => (key === 'screen' ? (sfuActive() ? localScreenTrack() : null) : media.tracks.get(key) || null);
 export const onMedia = (fn) => { media.listeners.add(fn); return () => media.listeners.delete(fn); };
 const changed = () => { media.version++; media.listeners.forEach((fn) => fn(media.version)); };
 
@@ -466,6 +467,7 @@ export async function applyLocal(logic) {
       media.screen = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: { ideal: 15, max: 15 } } });
       const track = media.screen.getVideoTracks()[0];
       track.contentHint = 'text';   // keep slides and documents readable: fewer frames rather than blurred text
+      changed();   // the presenter's own preview shows the shared screen at once
       track.onended = () => logic.setState({ sharing: false });
       await Promise.all([...(room ? room.pcs.values() : [])].map(async (pc) => { const snd = pc.getSenders().find((x) => x.track && x.track.kind === 'video'); if (snd) await snd.replaceTrack(track); else pc.addTrack(track, media.screen); }));
       tuneAll();
@@ -473,6 +475,7 @@ export async function applyLocal(logic) {
   } else if (!s.sharing && media.screen) {
     media.screen.getTracks().forEach((t) => t.stop());
     media.screen = null;
+    changed();
     const cam = media.local && media.local.getVideoTracks()[0];
     // back to the camera, unless my video is paused for the connection
     await Promise.all([...(room ? room.pcs.values() : [])].map(async (pc) => { const snd = pc.getSenders().find((x) => x.track && x.track.kind === 'video'); if (snd) await snd.replaceTrack(net && net.up.level === 2 ? null : cam || null); }));

@@ -1,6 +1,6 @@
 <!-- One participant's live video in a call tile. The stream lives in logic/server/calls.js (outside reactive state). -->
 <template>
-<video ref="v" autoplay playsinline muted :style="`position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; ${mirror ? 'transform: scaleX(-1)' : ''}`"></video>
+<video ref="v" autoplay playsinline muted :style="`position: absolute; inset: 0; width: 100%; height: 100%; object-fit: ${fit}; background: #000; ${mirror ? 'transform: scaleX(-1)' : ''}`"></video>
 </template>
 
 <script>
@@ -8,10 +8,11 @@ import { streamFor, trackFor, onMedia } from '~/logic/server/calls.js';
 
 export default {
   name: 'CallVideo',
-  props: { streamKey: { type: String, required: true } },
+  props: { streamKey: { type: String, required: true }, fit: { type: String, default: 'cover' } },
   computed: { mirror() { return this.streamKey === 'local'; } },
-  mounted() { this.attach(); this.off = onMedia(() => this.attach()); },
-  beforeUnmount() { if (this.off) this.off(); this.release(); },
+  // a track that is not there yet (my screen share still starting in a big room) is looked for again shortly
+  mounted() { this.attach(); this.off = onMedia(() => this.attach()); this.poll = setInterval(() => { if (!this.cur && !(this.$refs.v && this.$refs.v.srcObject)) this.attach(); }, 700); },
+  beforeUnmount() { if (this.off) this.off(); clearInterval(this.poll); this.release(); },
   watch: { streamKey() { this.attach(); } },
   methods: {
     release() { if (this.cur && this.$refs.v) { try { this.cur.detach(this.$refs.v); } catch (e) { /* gone */ } } this.cur = null; },

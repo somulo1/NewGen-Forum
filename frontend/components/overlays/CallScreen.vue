@@ -25,11 +25,9 @@
 </template>
 <template v-if="call.isVideo">
 <template v-if="call.sharing">
-<div class="cs-share" style="flex: 1; min-height: 280px; border-radius: 18px; background: var(--k-16201C,#16201C); border: 2px solid var(--k-B8F36B,#B8F36B); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 20px; text-align: center">
-<svg aria-hidden="true" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="var(--k-B8F36B,#B8F36B)" stroke-width="1.6" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"></rect><path d="M8 20h8M12 16v4M12 7v6M9 10l3-3 3 3"></path></svg>
-<strong style="font-size: 18px">You are presenting your screen</strong>
-<span style="color: var(--k-9DB0A6,#9DB0A6); font-size: 13px">Everyone in the meeting can see it.</span>
-<button @click="toggleShare" style="height: 40px; padding: 0 18px; border-radius: 20px; border: 0; background: #FF9B8A; color: #0F1714; font-weight: 600; cursor: pointer">Stop presenting</button>
+<div class="cs-share" style="flex: 1; min-height: 280px; border-radius: 18px; background: var(--k-16201C,#16201C); border: 2px solid var(--k-B8F36B,#B8F36B); position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 20px; text-align: center">
+<CallVideo stream-key="screen" fit="contain"/>
+<div class="cs-share-bar" style="position: absolute; left: 12px; right: 12px; bottom: 12px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px 8px 14px; border-radius: 14px; background: rgba(10,16,13,0.82); color: #E8EFEA"><span style="font-size: 13px; display: flex; align-items: center; gap: 8px"><span style="width: 8px; height: 8px; border-radius: 50%; background: #B8F36B" aria-hidden="true"></span>You are presenting. Everyone in the meeting sees this.</span><button @click="toggleShare" style="height: 34px; padding: 0 14px; border-radius: 17px; border: 0; background: #FF9B8A; color: #0F1714; font-weight: 600; cursor: pointer">Stop presenting</button></div>
 </div>
 <div style="display: flex; gap: 10px; overflow-x: auto">
 <template v-for="(tl, tl__i) in call.tiles" :key="tl__i">

@@ -19,6 +19,8 @@ const TILES_EVERY = 250;
 
 const S = { room: null, key: null, chatKey: null, vids: new Map(), audio: new Map(), timers: {}, canSpeak: false, info: null };
 export const sfuActive = () => !!S.room;
+// my own shared screen in a big room, so the presenter can see what everyone is seeing
+export const localScreenTrack = () => { const lp = S.room && S.room.localParticipant; if (!lp) return null; const p = [...lp.videoTrackPublications.values()].find((x) => x.source === 'screen_share'); return (p && p.track) || null; };
 
 async function hkdf(raw, salt, info) {
   const k = await crypto.subtle.importKey('raw', raw, 'HKDF', false, ['deriveBits']);
