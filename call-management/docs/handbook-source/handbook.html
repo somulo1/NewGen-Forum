@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Call management service — handbook</title>
+<style>
+  @page { size: A4; margin: 16mm 14mm 18mm; }
+  :root { --ink: #14201b; --muted: #55665e; --line: #c9d5cf; --soft: #eef3f0; --acc: #2f7d32; --acc2: #1d5fa8; --warn: #a35b00; --bad: #b3261e; }
+  * { box-sizing: border-box; }
+  body { font-family: "DejaVu Sans", Arial, sans-serif; color: var(--ink); font-size: 10.2pt; line-height: 1.45; margin: 0; }
+  h1 { font-size: 24pt; margin: 0 0 6pt; }
+  h2 { font-size: 15pt; margin: 18pt 0 6pt; padding-bottom: 3pt; border-bottom: 2px solid var(--acc); page-break-after: avoid; }
+  h3 { font-size: 11.5pt; margin: 12pt 0 4pt; page-break-after: avoid; }
+  p { margin: 4pt 0 6pt; }
+  .muted { color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; margin: 6pt 0 10pt; font-size: 9pt; page-break-inside: avoid; }
+  th, td { text-align: left; vertical-align: top; padding: 3.5pt 5pt; border-bottom: 1px dotted var(--line); }
+  th { background: var(--soft); border-bottom: 1px solid var(--line); }
+  .cover { height: 250mm; display: flex; flex-direction: column; justify-content: center; page-break-after: always; }
+  .cover .tag { color: var(--acc); font-weight: bold; letter-spacing: .08em; text-transform: uppercase; font-size: 9pt; }
+  .box { border: 1px solid var(--line); border-radius: 8px; padding: 8pt 10pt; margin: 6pt 0 10pt; background: #fafcfb; page-break-inside: avoid; }
+  .box.warn { border-color: #e2b56c; background: #fff8ec; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8pt; }
+  figure { margin: 6pt 0 12pt; page-break-inside: avoid; }
+  figcaption { font-size: 8.5pt; color: var(--muted); margin-top: 3pt; }
+  svg { width: 100%; height: auto; }
+  svg text { font-family: "DejaVu Sans", Arial, sans-serif; }
+  .toc li { margin: 2pt 0; }
+  .break { page-break-before: always; }
+  code { font-family: "DejaVu Sans Mono", monospace; font-size: 8.6pt; background: var(--soft); padding: 0 2pt; border-radius: 3px; }
+  ul, ol { margin: 3pt 0 8pt; padding-left: 16pt; }
+  .pill { display: inline-block; padding: 0 6pt; border-radius: 8pt; font-size: 8pt; background: var(--soft); }
+</style>
+</head>
+<body>
+
+<section class="cover">
+  <div class="tag">Design document · not yet built</div>
+  <h1>Call management service</h1>
+  <p style="font-size:13pt">How our customer phone system will work, from first principles to every feature: VoIP, inbound and outbound calls, caller identification from the loan system, the Yeastar PBX, security, compliance and the rollout.</p>
+  <p class="muted">Companion to the detailed Markdown documents in <code>backend/call-management/docs/</code>. Where a Yeastar API detail is marked <span class="pill">verify</span>, it must be checked against Yeastar's developer guide for our PBX edition before coding.</p>
+  <h3>Contents</h3>
+  <ol class="toc">
+    <li>The goal and the big picture</li>
+    <li>VoIP from scratch: signalling, media, codecs, WebRTC, trunks, NAT, quality</li>
+    <li>Architecture: the pieces and how they trust each other</li>
+    <li>Yeastar: what we use and what is open source</li>
+    <li>Inbound calls, step by step</li>
+    <li>Caller identification with the LMS, and unknown callers</li>
+    <li>Outbound calls and campaigns</li>
+    <li>Every call feature in detail</li>
+    <li>The call lifecycle (states)</li>
+    <li>Data, API and live events</li>
+    <li>Security and compliance (Kenya)</li>
+    <li>Operations: sizing, monitoring, failures</li>
+    <li>Rollout, decisions needed, and what was forgotten</li>
+  </ol>
+</section>
+
+<h2>1. The goal and the big picture</h2>
+<p>Agents call customers on their personal phones and take customer calls <b>from inside Hub</b>, with no desk phone. Every call is matched to the right customer from the loan system the moment it rings, is recorded for audit, routed to the right team, measured, and visible to supervisors. Only the people the organization allows can use any of it, and every sensitive action is logged.</p>
+
+<figure>
+<svg viewBox="0 0 760 330" role="img" aria-label="Architecture overview">
+  <defs><marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#55665e"/></marker></defs>
+  <rect x="10" y="10" width="300" height="70" rx="10" fill="#e8f1ec" stroke="#2f7d32"/>
+  <text x="160" y="35" text-anchor="middle" font-weight="bold" font-size="13">Hub in the browser</text>
+  <text x="160" y="55" text-anchor="middle" font-size="10">Calls management screens</text>
+  <text x="160" y="70" text-anchor="middle" font-size="10">+ Yeastar WebRTC softphone (audio)</text>
+  <rect x="10" y="130" width="300" height="120" rx="10" fill="#eaf1fb" stroke="#1d5fa8"/>
+  <text x="160" y="152" text-anchor="middle" font-weight="bold" font-size="13">Call service (callsvc, Go)</text>
+  <text x="25" y="172" font-size="9.5">• PBX connector (Open API + events)</text>
+  <text x="25" y="187" font-size="9.5">• Call state (Postgres + Redis)</text>
+  <text x="25" y="202" font-size="9.5">• Caller ID resolver (LMS + cache)</text>
+  <text x="25" y="217" font-size="9.5">• Recording archiver · Campaign dialer</text>
+  <text x="25" y="232" font-size="9.5">• Messaging · Reports · Audit log</text>
+  <rect x="450" y="130" width="300" height="120" rx="10" fill="#f6efe3" stroke="#a35b00"/>
+  <text x="600" y="152" text-anchor="middle" font-weight="bold" font-size="13">Yeastar P-Series PBX</text>
+  <text x="465" y="172" font-size="9.5">• Extensions (agents), queues, IVR</text>
+  <text x="465" y="187" font-size="9.5">• Routing, time conditions, ring groups</text>
+  <text x="465" y="202" font-size="9.5">• Recording, voicemail, CDR</text>
+  <text x="465" y="217" font-size="9.5">• Open API: REST + event WebSocket</text>
+  <text x="465" y="232" font-size="9.5">• WebRTC gateway for browsers</text>
+  <rect x="450" y="10" width="300" height="70" rx="10" fill="#f3f3f3" stroke="#777"/>
+  <text x="600" y="35" text-anchor="middle" font-weight="bold" font-size="13">Carriers (SIP trunks)</text>
+  <text x="600" y="55" text-anchor="middle" font-size="10">Safaricom / Airtel / SIP provider</text>
+  <text x="600" y="70" text-anchor="middle" font-size="10">→ customers' personal phones</text>
+  <rect x="10" y="280" width="300" height="44" rx="10" fill="#f3f3f3" stroke="#777"/>
+  <text x="160" y="300" text-anchor="middle" font-weight="bold" font-size="12">Loan Management System (LMS)</text>
+  <text x="160" y="316" text-anchor="middle" font-size="9.5">customers, numbers, accounts — read-only API</text>
+  <rect x="450" y="280" width="300" height="44" rx="10" fill="#f3f3f3" stroke="#777"/>
+  <text x="600" y="300" text-anchor="middle" font-weight="bold" font-size="12">SMS / WhatsApp providers</text>
+  <text x="600" y="316" text-anchor="middle" font-size="9.5">sender ID, templates, delivery reports</text>
+  <line x1="160" y1="80" x2="160" y2="128" stroke="#55665e" marker-end="url(#a)"/><text x="168" y="108" font-size="9">HTTPS + live WSS (token)</text>
+  <path d="M300 60 C 380 60, 380 160, 448 165" fill="none" stroke="#a35b00" stroke-dasharray="5 3" marker-end="url(#a)"/><text x="330" y="100" font-size="9" fill="#a35b00">SIP/WSS + SRTP audio</text>
+  <line x1="310" y1="190" x2="448" y2="190" stroke="#55665e" marker-end="url(#a)"/><line x1="448" y1="205" x2="312" y2="205" stroke="#55665e" marker-end="url(#a)"/>
+  <text x="380" y="185" text-anchor="middle" font-size="9">API calls</text><text x="380" y="220" text-anchor="middle" font-size="9">events</text>
+  <line x1="600" y1="128" x2="600" y2="82" stroke="#55665e" marker-end="url(#a)"/><text x="608" y="108" font-size="9">G.711 trunks</text>
+  <line x1="160" y1="250" x2="160" y2="278" stroke="#55665e" marker-end="url(#a)"/>
+  <path d="M310 240 C 380 260, 380 290, 448 300" fill="none" stroke="#55665e" marker-end="url(#a)"/>
+</svg>
+<figcaption>Figure 1. The whole system. Audio goes browser ↔ PBX ↔ carrier. Everything else (who is calling, state, records) goes through the call service.</figcaption>
+</figure>
+
+<table><tr><th>Component</th><th>Does</th><th>Never does</th></tr>
+<tr><td>Hub frontend</td><td>Screens; the softphone (Yeastar WebRTC SDK); redraws from live events</td><td>Talks to the LMS or PBX API directly; holds PBX credentials</td></tr>
+<tr><td>Hub backend</td><td>Sign-in, roles and rights, widget access; issues a 5-minute call-service token</td><td>Call logic</td></tr>
+<tr><td>Call service</td><td>All call logic, state, lookups, recordings, campaigns, messaging, reports, audit</td><td>Keeps LMS data beyond a short cache</td></tr>
+<tr><td>Yeastar PBX</td><td>Registrations, routing, IVR, queues, audio mixing, recording, CDR, trunks</td><td>Knows our customers</td></tr>
+<tr><td>LMS</td><td>Source of truth for customers and accounts</td><td>Gets written to except agreed interaction write-backs</td></tr>
+</table>
+
+<h2 class="break">2. VoIP from scratch</h2>
+<p>A voice call over a data network has two separate halves. <b>Signalling (SIP)</b> sets the call up, changes it and ends it. <b>Media (RTP, encrypted as SRTP)</b> carries the sound in packets of 20 ms. They use different ports and often different paths: "connected but silent" almost always means signalling worked and media was blocked.</p>
+
+<figure>
+<svg viewBox="0 0 760 360" role="img" aria-label="SIP ladder for an outbound call">
+  <defs><marker id="b" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#14201b"/></marker></defs>
+  <g font-size="10.5" font-weight="bold" text-anchor="middle"><text x="80" y="18">Agent browser</text><text x="300" y="18">Yeastar PBX</text><text x="520" y="18">Carrier</text><text x="700" y="18">Customer</text></g>
+  <g stroke="#9aa9a1"><line x1="80" y1="25" x2="80" y2="350"/><line x1="300" y1="25" x2="300" y2="350"/><line x1="520" y1="25" x2="520" y2="350"/><line x1="700" y1="25" x2="700" y2="350"/></g>
+  <g font-size="9.5" stroke="#14201b">
+    <line x1="80" y1="45" x2="298" y2="45" marker-end="url(#b)"/><text x="190" y="41" stroke="none" text-anchor="middle">INVITE (SDP: Opus)</text>
+    <line x1="300" y1="62" x2="82" y2="62" marker-end="url(#b)"/><text x="190" y="58" stroke="none" text-anchor="middle">100 Trying</text>
+    <line x1="300" y1="80" x2="518" y2="80" marker-end="url(#b)"/><text x="410" y="76" stroke="none" text-anchor="middle">INVITE +254712… (G.711)</text>
+    <line x1="520" y1="98" x2="698" y2="98" marker-end="url(#b)"/><text x="610" y="94" stroke="none" text-anchor="middle">mobile network</text>
+    <line x1="520" y1="118" x2="302" y2="118" marker-end="url(#b)"/><text x="410" y="114" stroke="none" text-anchor="middle">180 Ringing</text>
+    <line x1="300" y1="136" x2="82" y2="136" marker-end="url(#b)"/><text x="190" y="132" stroke="none" text-anchor="middle">180 Ringing → ringback</text>
+    <line x1="700" y1="156" x2="522" y2="156" marker-end="url(#b)"/><text x="610" y="152" stroke="none" text-anchor="middle">answered</text>
+    <line x1="520" y1="174" x2="302" y2="174" marker-end="url(#b)"/><text x="410" y="170" stroke="none" text-anchor="middle">200 OK (SDP)</text>
+    <line x1="300" y1="192" x2="82" y2="192" marker-end="url(#b)"/><text x="190" y="188" stroke="none" text-anchor="middle">200 OK (SDP)</text>
+    <line x1="80" y1="210" x2="298" y2="210" marker-end="url(#b)"/><text x="190" y="206" stroke="none" text-anchor="middle">ACK</text>
+  </g>
+  <rect x="80" y="225" width="620" height="30" fill="#e8f1ec" stroke="#2f7d32"/>
+  <text x="390" y="244" font-size="10" text-anchor="middle">SRTP voice (Opus) ⇄ PBX transcodes and records ⇄ RTP voice (G.711) ⇄ customer</text>
+  <g font-size="9.5" stroke="#14201b">
+    <line x1="80" y1="280" x2="298" y2="280" marker-end="url(#b)"/><text x="190" y="276" stroke="none" text-anchor="middle">BYE</text>
+    <line x1="300" y1="298" x2="518" y2="298" marker-end="url(#b)"/><text x="410" y="294" stroke="none" text-anchor="middle">BYE</text>
+    <line x1="520" y1="316" x2="302" y2="316" marker-end="url(#b)"/><text x="410" y="312" stroke="none" text-anchor="middle">200 OK</text>
+    <line x1="300" y1="334" x2="82" y2="334" marker-end="url(#b)"/><text x="190" y="330" stroke="none" text-anchor="middle">200 OK · CDR + recording created</text>
+  </g>
+</svg>
+<figcaption>Figure 2. An outbound call, message by message. The PBX is in the middle of both legs (a back-to-back user agent), which is what lets it record, hold, transfer and monitor.</figcaption>
+</figure>
+
+<div class="grid2">
+<table><tr><th>SIP message</th><th>Meaning</th></tr>
+<tr><td><code>REGISTER</code></td><td>"Extension 1001 is reachable here" (repeated)</td></tr>
+<tr><td><code>INVITE</code> / re-INVITE</td><td>Start a call / change it (hold = <code>sendonly</code>)</td></tr>
+<tr><td><code>180</code> / <code>183</code></td><td>Ringing / early media (announcements, tunes)</td></tr>
+<tr><td><code>200 OK</code> + <code>ACK</code></td><td>Answered; audio starts</td></tr>
+<tr><td><code>REFER</code></td><td>Transfer</td></tr>
+<tr><td><code>BYE</code> / <code>CANCEL</code></td><td>Hang up / before answer</td></tr>
+<tr><td><code>486</code> <code>480</code> <code>404</code> <code>603</code></td><td>Busy / unavailable / no number / declined</td></tr></table>
+<table><tr><th>Codec</th><th>Per call</th><th>Used between</th></tr>
+<tr><td>G.711 a-law</td><td>~87 kbps</td><td>PBX ↔ Kenyan carriers (standard)</td></tr>
+<tr><td>Opus</td><td>24–40 kbps</td><td>Browser ↔ PBX (WebRTC, adapts to bad networks)</td></tr>
+<tr><td>G.729</td><td>~31 kbps</td><td>Only on very thin links</td></tr>
+<tr><td colspan="3"><b>Plan 100 kbps each way per concurrent call.</b> The PBX transcodes Opus↔G.711 (CPU sizing). Keys pressed travel as RFC 4733 DTMF events, not beeps.</td></tr></table>
+</div>
+
+<h3>WebRTC: Hub is the phone</h3>
+<ol>
+<li>Hub asks the call service for a <b>login signature</b>; the service creates it on the PBX (<code>/openapi/v1.0/sign/create</code>). The extension password never reaches the browser.</li>
+<li>The Yeastar WebRTC SDK registers the extension with SIP over secure WebSocket (e.g. <code>wss://pbx…:8088</code>).</li>
+<li>Audio flows as SRTP with DTLS keys — always encrypted in WebRTC.</li>
+<li>ICE tries every network path; STUN finds the public address; a <b>TURN</b> relay (our coturn server) carries audio when firewalls block direct paths (home and corporate networks).</li>
+</ol>
+
+<div class="grid2">
+<table><tr><th>Quality</th><th>Good</th><th>Poor</th></tr>
+<tr><td>Latency (one way)</td><td>&lt; 150 ms</td><td>&gt; 300 ms</td></tr>
+<tr><td>Jitter</td><td>&lt; 30 ms</td><td>&gt; 50 ms</td></tr>
+<tr><td>Packet loss</td><td>&lt; 1%</td><td>&gt; 3%</td></tr>
+<tr><td>MOS (1–5)</td><td>≥ 4.0</td><td>&lt; 3.5</td></tr></table>
+<table><tr><th>Ports</th><th>Purpose</th></tr>
+<tr><td>TCP 8088 (config.)</td><td>Browser ↔ PBX WebRTC signalling</td></tr>
+<tr><td>UDP/TCP 5060, TLS 5061</td><td>PBX ↔ carrier SIP (carrier IPs only)</td></tr>
+<tr><td>UDP 10000–12000</td><td>RTP/SRTP media (PBX range)</td></tr>
+<tr><td>3478 / 5349 + relay range</td><td>TURN</td></tr></table>
+</div>
+<p><b>Trunks:</b> a SIP trunk from a licensed carrier gives our public numbers (DIDs), a number of <b>channels</b> (simultaneous calls; running out = busy for customers) and the right to present our numbers as caller ID. Use <b>two carriers</b> for failover. All numbers are stored in E.164 (<code>+254712345678</code>).</p>
+
+<h2 class="break">3. Architecture and trust</h2>
+<h3>Why a separate microservice</h3>
+<ul>
+<li>Bursty event load and its own failure mode: a slow call component never slows Hub, and vice versa.</li>
+<li>PBX and LMS credentials live only here; stricter retention and audit for recordings and financial data.</li>
+<li>All Yeastar code sits in one adapter (PBX connector) — replaceable by Asterisk/FreePBX later.</li>
+</ul>
+<h3>How access is enforced on the server</h3>
+<ol>
+<li>Agent signs in to Hub. The Calls management widget is switched on for chosen groups.</li>
+<li>Hub backend issues a signed <b>5-minute token</b> (person, org, calls rights).</li>
+<li>Every request and the live WebSocket carry it; the call service verifies it and checks the right for each action. Refusals are logged.</li>
+</ol>
+<table><tr><th>Right</th><th>Allows</th></tr>
+<tr><td><code>calls.use</code></td><td>Softphone, own calls, customers on own calls</td></tr>
+<tr><td><code>calls.supervise</code></td><td>Team calls, wallboard, listen / whisper / barge</td></tr>
+<tr><td><code>calls.recordings.play</code> / <code>.download</code></td><td>Recordings (download requires a reason)</td></tr>
+<tr><td><code>calls.campaigns.manage</code> / <code>.run</code></td><td>Campaigns</td></tr>
+<tr><td><code>calls.dnc.manage</code>, <code>calls.routing.manage</code>, <code>calls.reports</code>, <code>calls.audit</code></td><td>Do-not-call list, routing, reports, compliance log</td></tr></table>
+
+<figure>
+<svg viewBox="0 0 760 120" role="img" aria-label="Event pipeline">
+  <defs><marker id="c" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#1d5fa8"/></marker></defs>
+  <g font-size="9.5" text-anchor="middle">
+    <rect x="5" y="30" width="115" height="56" rx="8" fill="#f6efe3" stroke="#a35b00"/><text x="62" y="54">PBX event</text><text x="62" y="70">(WebSocket)</text>
+    <rect x="135" y="30" width="115" height="56" rx="8" fill="#eaf1fb" stroke="#1d5fa8"/><text x="192" y="54">Store raw +</text><text x="192" y="70">normalise</text>
+    <rect x="265" y="30" width="115" height="56" rx="8" fill="#eaf1fb" stroke="#1d5fa8"/><text x="322" y="54">Caller lookup</text><text x="322" y="70">cache → LMS</text>
+    <rect x="395" y="30" width="115" height="56" rx="8" fill="#eaf1fb" stroke="#1d5fa8"/><text x="452" y="54">Update state</text><text x="452" y="70">Redis + Postgres</text>
+    <rect x="525" y="30" width="115" height="56" rx="8" fill="#eaf1fb" stroke="#1d5fa8"/><text x="582" y="54">Publish to</text><text x="582" y="70">allowed channels</text>
+    <rect x="655" y="30" width="100" height="56" rx="8" fill="#e8f1ec" stroke="#2f7d32"/><text x="705" y="54">Hub screens</text><text x="705" y="70">redraw</text>
+  </g>
+  <g stroke="#1d5fa8"><line x1="120" y1="58" x2="133" y2="58" marker-end="url(#c)"/><line x1="250" y1="58" x2="263" y2="58" marker-end="url(#c)"/><line x1="380" y1="58" x2="393" y2="58" marker-end="url(#c)"/><line x1="510" y1="58" x2="523" y2="58" marker-end="url(#c)"/><line x1="640" y1="58" x2="653" y2="58" marker-end="url(#c)"/></g>
+  <text x="380" y="110" font-size="9.5" text-anchor="middle" fill="#55665e">Idempotent by PBX call ID: duplicates and out-of-order events are harmless. On reconnect, active calls are re-queried and corrected.</text>
+</svg>
+<figcaption>Figure 3. How a PBX event becomes what an agent and a supervisor see. Hub never treats its own view as truth; it redraws from these events.</figcaption>
+</figure>
+
+<h2>4. Yeastar: what we use, and what is open source</h2>
+<div class="box warn"><b>Correction to an assumption:</b> only Yeastar's native mobile SDKs (<code>linkus-android-sdk</code>, <code>linkus-iOS-MacOS-sdk</code>) are published under the MIT licence. The browser SDK we need (<code>ys-webrtc-sdk-core</code>) is public on GitHub but states no open-source licence, and the PBX and its Open API are commercial. Written confirmation of our right to use them (and the plan that enables them) is a phase-0 task.</div>
+<table><tr><th></th><th>Browser SDK (in Hub)</th><th>Open API (in call service)</th></tr>
+<tr><td>Controls</td><td>The agent's own calls; carries the audio</td><td>Any call; no audio</td></tr>
+<tr><td>Confirmed functions</td><td><code>call</code>, <code>answer</code>, <code>reject</code>, <code>hangup</code>, <code>hold/unhold</code>, <code>mute/unmute</code>, <code>dtmf</code>, <code>blindTransfer</code>, <code>attendedTransfer</code>, <code>startRecord</code>, <code>setSessionStaticStatus</code>; max <b>2 calls</b> per session; events <code>incoming</code>, <code>registered</code>, <code>cdrChange</code>; errors −106…−110 (e.g. −107 logged in elsewhere)</td><td><span class="pill">verify</span> token (get/refresh/revoke), event WebSocket + subscribe + heartbeat, call/CDR/presence/queue events, dial (ring agent then customer), hang up, transfer, park, listen/whisper/barge, queue agent login/pause, CDR search, recording & voicemail download, config read</td></tr>
+<tr><td>Used for</td><td>Answer, hang up, hold, mute, keys, transfers</td><td>Click-to-call via agent, campaigns, supervision, park, queues, records, archiving</td></tr></table>
+<p><b>PBX connector behaviour:</b> token refreshed at 80% of lifetime by one leader replica; 3 s timeout for control, 30 s for downloads; reads retried twice, <b>"dial" never retried</b> (query active calls instead, to avoid calling a customer twice); event socket heartbeat, reconnect with backoff 1→10 s, then resubscribe and reconcile active calls; every raw event stored before processing.</p>
+
+<h2 class="break">5. Inbound calls, step by step</h2>
+<figure>
+<svg viewBox="0 0 760 300" role="img" aria-label="Inbound call journey">
+  <defs><marker id="d" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#14201b"/></marker></defs>
+  <g font-size="9.5" text-anchor="middle">
+    <rect x="5" y="10" width="110" height="50" rx="8" fill="#f3f3f3" stroke="#777"/><text x="60" y="31">1 Customer dials</text><text x="60" y="46">0709 000 200</text>
+    <rect x="135" y="10" width="110" height="50" rx="8" fill="#f6efe3" stroke="#a35b00"/><text x="190" y="31">2 Open?</text><text x="190" y="46">hours · holidays</text>
+    <rect x="265" y="10" width="110" height="50" rx="8" fill="#f6efe3" stroke="#a35b00"/><text x="320" y="31">3 Greeting + menu</text><text x="320" y="46">1 loans · 2 wallet…</text>
+    <rect x="395" y="10" width="110" height="50" rx="8" fill="#f6efe3" stroke="#a35b00"/><text x="450" y="31">4 Queue</text><text x="450" y="46">position · tune</text>
+    <rect x="525" y="10" width="110" height="50" rx="8" fill="#eaf1fb" stroke="#1d5fa8"/><text x="580" y="31">5 Ring agent</text><text x="580" y="46">+ LMS caller card</text>
+    <rect x="655" y="10" width="100" height="50" rx="8" fill="#e8f1ec" stroke="#2f7d32"/><text x="705" y="31">6 Talk</text><text x="705" y="46">recorded</text>
+    <rect x="135" y="110" width="110" height="44" rx="8" fill="#fff" stroke="#b3261e"/><text x="190" y="129">Closed →</text><text x="190" y="144">after-hours msg → VM</text>
+    <rect x="265" y="110" width="110" height="44" rx="8" fill="#fff" stroke="#777"/><text x="320" y="129">No key → repeat</text><text x="320" y="144">→ default option</text>
+    <rect x="395" y="110" width="110" height="44" rx="8" fill="#fff" stroke="#777"/><text x="450" y="125">Press 1 → call-back</text><text x="450" y="138">Too long → queue VM</text><text x="450" y="151">Hang up → abandoned</text>
+    <rect x="525" y="110" width="110" height="44" rx="8" fill="#fff" stroke="#777"/><text x="580" y="129">No answer → next</text><text x="580" y="144">agent (missed logged)</text>
+    <rect x="655" y="110" width="100" height="44" rx="8" fill="#e8f1ec" stroke="#2f7d32"/><text x="705" y="129">7 Wrap-up</text><text x="705" y="144">outcome + notes</text>
+    <rect x="525" y="200" width="230" height="44" rx="8" fill="#eaf1fb" stroke="#1d5fa8"/><text x="640" y="219">8 CDR + recording → archived, joined</text><text x="640" y="234">to the call row; nightly reconciliation</text>
+  </g>
+  <g stroke="#14201b"><line x1="115" y1="35" x2="133" y2="35" marker-end="url(#d)"/><line x1="245" y1="35" x2="263" y2="35" marker-end="url(#d)"/><line x1="375" y1="35" x2="393" y2="35" marker-end="url(#d)"/><line x1="505" y1="35" x2="523" y2="35" marker-end="url(#d)"/><line x1="635" y1="35" x2="653" y2="35" marker-end="url(#d)"/>
+  <line x1="190" y1="60" x2="190" y2="108" marker-end="url(#d)" stroke-dasharray="4 3"/><line x1="320" y1="60" x2="320" y2="108" marker-end="url(#d)" stroke-dasharray="4 3"/><line x1="450" y1="60" x2="450" y2="108" marker-end="url(#d)" stroke-dasharray="4 3"/><line x1="580" y1="60" x2="580" y2="108" marker-end="url(#d)" stroke-dasharray="4 3"/><line x1="705" y1="60" x2="705" y2="108" marker-end="url(#d)"/><line x1="705" y1="154" x2="705" y2="198" marker-end="url(#d)"/></g>
+  <text x="10" y="285" font-size="9.5" fill="#55665e">Orange = PBX does it. Blue = call service. Green = agent in Hub. Dashed = alternative paths.</text>
+</svg>
+<figcaption>Figure 4. An inbound call's journey and every alternative path.</figcaption>
+</figure>
+<table><tr><th>The critical second (step 5)</th><th>Time</th></tr>
+<tr><td>PBX rings extension 1003 and emits the call event</td><td>0 ms</td></tr>
+<tr><td>Connector receives and normalises (<code>call.ringing</code>)</td><td>~50 ms</td></tr>
+<tr><td>Redis cache checked for the caller number</td><td>~60 ms</td></tr>
+<tr><td>LMS lookup on a miss (hard timeout; on timeout show the number, fill the name later)</td><td>≤ 300 ms</td></tr>
+<tr><td>Ringing card in Hub (name, account, status, queue, wait); SDK <code>incoming</code> fires; ring tone</td><td>~350 ms</td></tr></table>
+<table><tr><th>Edge case</th><th>Exactly what happens</th></tr>
+<tr><td>Number withheld</td><td>"Withheld number"; no lookup; identify by verification questions</td></tr>
+<tr><td>Number shared by several customers</td><td>"Used by 2 customers" — no details until the agent picks one and verifies</td></tr>
+<tr><td>Call service down</td><td><b>Calls still ring and connect</b>; no names; reconciled from CDR later</td></tr>
+<tr><td>LMS down / slow</td><td>Number shown, "lookup unavailable", retry button</td></tr>
+<tr><td>Same customer calls 3× in 10 min</td><td>"Called 3 times today" badge</td></tr>
+<tr><td>Fraud-flagged number</td><td>Red tag; account details hidden until verification</td></tr></table>
+
+<h2 class="break">6. Caller identification with the LMS</h2>
+<div class="box"><b>A phone number identifies a phone, not a person.</b> Numbers are recycled, shared, ported and spoofed. So the system <b>identifies</b> (suggests who is calling, instantly) and the agent <b>verifies</b> (asks questions) before any account detail is shown.</div>
+<figure>
+<svg viewBox="0 0 760 270" role="img" aria-label="Caller identification flow">
+  <defs><marker id="e" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#14201b"/></marker></defs>
+  <g font-size="9.5" text-anchor="middle">
+    <rect x="5" y="20" width="120" height="44" rx="8" fill="#eaf1fb" stroke="#1d5fa8"/><text x="65" y="39">Normalise</text><text x="65" y="54">to E.164</text>
+    <rect x="145" y="20" width="120" height="44" rx="8" fill="#eaf1fb" stroke="#1d5fa8"/><text x="205" y="39">Redis cache</text><text x="205" y="54">10 min</text>
+    <rect x="285" y="20" width="120" height="44" rx="8" fill="#f3f3f3" stroke="#777"/><text x="345" y="39">LMS by phone</text><text x="345" y="54">≤ 300 ms</text>
+    <rect x="425" y="5" width="150" height="34" rx="8" fill="#e8f1ec" stroke="#2f7d32"/><text x="500" y="26">1 match → card</text>
+    <rect x="425" y="45" width="150" height="34" rx="8" fill="#fff8ec" stroke="#a35b00"/><text x="500" y="66">many → "pick + verify"</text>
+    <rect x="425" y="85" width="150" height="34" rx="8" fill="#fff" stroke="#b3261e"/><text x="500" y="106">0 → other sources ↓</text>
+    <rect x="600" y="20" width="155" height="60" rx="8" fill="#e8f1ec" stroke="#2f7d32"/><text x="677" y="40">Verify (2 random</text><text x="677" y="54">questions) → unlock</text><text x="677" y="68">balances & history</text>
+    <rect x="5" y="150" width="140" height="44" rx="8" fill="#f3f3f3" stroke="#777"/><text x="75" y="169">a Hub staff</text><text x="75" y="184">directory</text>
+    <rect x="155" y="150" width="140" height="44" rx="8" fill="#f3f3f3" stroke="#777"/><text x="225" y="169">b Our call history</text><text x="225" y="184">(saved names)</text>
+    <rect x="305" y="150" width="140" height="44" rx="8" fill="#f3f3f3" stroke="#777"/><text x="375" y="169">c Unidentified-</text><text x="375" y="184">callers register</text>
+    <rect x="455" y="150" width="140" height="44" rx="8" fill="#f3f3f3" stroke="#777"/><text x="525" y="169">d LMS applicants</text><text x="525" y="184">/ leads</text>
+    <rect x="605" y="150" width="150" height="44" rx="8" fill="#fff" stroke="#777"/><text x="680" y="169">e Nothing: "Unknown</text><text x="680" y="184">caller" → capture form</text>
+    <text x="380" y="230" font-size="10">Every name shows its source ("from LMS", "saved by an agent on 3 Nov", "staff"). Agent-typed names are grey and "unverified".</text>
+    <text x="380" y="248" font-size="10">A known customer on a new number → a number-change request in the LMS process (SIM-swap protection), never edited on the call.</text>
+  </g>
+  <g stroke="#14201b"><line x1="125" y1="42" x2="143" y2="42" marker-end="url(#e)"/><line x1="265" y1="42" x2="283" y2="42" marker-end="url(#e)"/><line x1="405" y1="35" x2="423" y2="22" marker-end="url(#e)"/><line x1="405" y1="45" x2="423" y2="62" marker-end="url(#e)"/><line x1="405" y1="55" x2="423" y2="100" marker-end="url(#e)"/><line x1="575" y1="22" x2="598" y2="40" marker-end="url(#e)"/><line x1="575" y1="62" x2="598" y2="55" marker-end="url(#e)"/><line x1="500" y1="119" x2="380" y2="148" marker-end="url(#e)"/></g>
+</svg>
+<figcaption>Figure 5. From a ringing number to a confident identity, including callers who are not in the LMS.</figcaption>
+</figure>
+<table><tr><th>LMS API we need (read-only + one write)</th><th>Returns</th></tr>
+<tr><td><code>GET /customers?phone=+2547…</code></td><td>customer_id, full_name, phone_type (primary/alternate/next of kin/employer), status, do_not_contact, fraud_flag, kyc_status</td></tr>
+<tr><td><code>GET /customers/{id}/summary</code></td><td>accounts, product, balance, arrears days, next due, last payment, assigned collector</td></tr>
+<tr><td><code>GET /customers/{id}/verification</code></td><td>data to check answers against (never shown in full)</td></tr>
+<tr><td><code>GET /customers/search?q=</code></td><td>search by name / ID / account</td></tr>
+<tr><td><code>POST /customers/{id}/interactions</code></td><td>write back outcome, promise to pay (amount, date), notes</td></tr>
+<tr><td colspan="2">Mutual TLS or IP-restricted key · p95 &lt; 200 ms (index on normalised phone) · numbers cleaned to E.164 in the LMS</td></tr></table>
+<table><tr><th>Field</th><th>Agent before verifying</th><th>Agent verified</th><th>Supervisor</th><th>Fraud team</th></tr>
+<tr><td>Name, account no., product, status</td><td>✔</td><td>✔</td><td>✔</td><td>✔</td></tr>
+<tr><td>Balance, next due, last payment, last 10 transactions</td><td>—</td><td>✔</td><td>✔</td><td>✔</td></tr>
+<tr><td>Full ID number, date of birth</td><td>—</td><td>compare only</td><td>—</td><td>✔</td></tr>
+<tr><td>Fraud notes</td><td>tag only</td><td>tag only</td><td>✔</td><td>✔</td></tr></table>
+<p>Inbound calls need two passed questions even from the registered number (spoofing is cheap); outbound calls we dialled need one. Three failed verifications on an account in 24 h raise a fraud alert.</p>
+
+<h2 class="break">7. Outbound calls and campaigns</h2>
+<figure>
+<svg viewBox="0 0 760 110" role="img" aria-label="Outbound checks">
+  <defs><marker id="f" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#14201b"/></marker></defs>
+  <g font-size="9" text-anchor="middle">
+    <rect x="2" y="20" width="88" height="46" rx="7" fill="#eaf1fb" stroke="#1d5fa8"/><text x="46" y="40">1 Right</text><text x="46" y="54">calls.use</text>
+    <rect x="98" y="20" width="88" height="46" rx="7" fill="#eaf1fb" stroke="#1d5fa8"/><text x="142" y="40">2 Valid</text><text x="142" y="54">E.164, no intl.</text>
+    <rect x="194" y="20" width="88" height="46" rx="7" fill="#eaf1fb" stroke="#1d5fa8"/><text x="238" y="40">3 Not on</text><text x="238" y="54">do-not-call</text>
+    <rect x="290" y="20" width="88" height="46" rx="7" fill="#eaf1fb" stroke="#1d5fa8"/><text x="334" y="40">4 Allowed</text><text x="334" y="54">hours</text>
+    <rect x="386" y="20" width="88" height="46" rx="7" fill="#eaf1fb" stroke="#1d5fa8"/><text x="430" y="40">5 Contact</text><text x="430" y="54">frequency cap</text>
+    <rect x="482" y="20" width="88" height="46" rx="7" fill="#eaf1fb" stroke="#1d5fa8"/><text x="526" y="40">6 Nobody else</text><text x="526" y="54">calling them</text>
+    <rect x="578" y="20" width="88" height="46" rx="7" fill="#eaf1fb" stroke="#1d5fa8"/><text x="622" y="40">7 Our caller</text><text x="622" y="54">ID for queue</text>
+    <rect x="674" y="20" width="84" height="46" rx="7" fill="#e8f1ec" stroke="#2f7d32"/><text x="716" y="40">Dial</text><text x="716" y="54">(SDK / dialer)</text>
+    <text x="380" y="95" font-size="9.5" fill="#55665e">Any failed check refuses the call with a clear message and is written to the audit log.</text>
+  </g>
+  <g stroke="#14201b"><line x1="90" y1="43" x2="96" y2="43" marker-end="url(#f)"/><line x1="186" y1="43" x2="192" y2="43" marker-end="url(#f)"/><line x1="282" y1="43" x2="288" y2="43" marker-end="url(#f)"/><line x1="378" y1="43" x2="384" y2="43" marker-end="url(#f)"/><line x1="474" y1="43" x2="480" y2="43" marker-end="url(#f)"/><line x1="570" y1="43" x2="576" y2="43" marker-end="url(#f)"/><line x1="666" y1="43" x2="672" y2="43" marker-end="url(#f)"/></g>
+</svg>
+<figcaption>Figure 6. Seven checks before any customer is dialled.</figcaption>
+</figure>
+<table><tr><th>Start</th><th>How</th></tr>
+<tr><td>Manual / click-to-call</td><td><code>POST /v1/calls</code> (checks) → SDK <code>call()</code> from the agent's extension; outbound route sets the chosen caller ID</td></tr>
+<tr><td>Call-back task</td><td>From queue "press 1", missed or abandoned calls; first free agent in the queue accepts; 3 tries 15 min apart, then an SMS</td></tr>
+<tr><td>Campaign — preview (default)</td><td>Agent sees the next customer, then presses Call</td></tr>
+<tr><td>Campaign — progressive</td><td>When an agent is free: lock the next row → Open API dial rings the agent, then the customer → result → schedule retry after the gap</td></tr>
+<tr><td>Predictive</td><td><b>Not used</b> — causes silent calls to customers</td></tr></table>
+<p>Results recorded: answered, no answer, busy, rejected, unreachable, failed, cancelled. A campaign ends for a customer on Promise to pay, Payment made, Wrong number or Do not call, or when tries run out.</p>
+
+<h2>8. Every call feature in detail</h2>
+<table><tr><th>Feature</th><th>What happens underneath</th><th>Rules</th></tr>
+<tr><td>Mute</td><td>Browser stops sending mic audio</td><td>Recording continues</td></tr>
+<tr><td>Hold</td><td>re-INVITE <code>sendonly</code>; PBX plays music-on-hold (care tune)</td><td>Reminder at 60 s; wallboard at 3 min</td></tr>
+<tr><td>Keypad</td><td>RFC 4733 DTMF via PBX</td><td>Digits never stored on customer calls</td></tr>
+<tr><td>Blind transfer</td><td>SDK <code>blindTransfer</code>; agent's leg ends</td><td>No answer → target VM or back to queue</td></tr>
+<tr><td>Attended transfer</td><td>Consult leg with customer on hold; complete or go back</td><td>Card, verification and notes travel with the call</td></tr>
+<tr><td>Add someone</td><td>PBX conference bridge mixes audio</td><td>Max 5 parties; join tone</td></tr>
+<tr><td>Park</td><td>Call on slot 7xx; anyone picks up</td><td>Rings back the parker after 2 min</td></tr>
+<tr><td>Recording</td><td>PBX "always record"; archiver downloads → SHA-256 → AES-256 → object storage → delete from PBX</td><td><b>Mandatory, cannot be paused.</b> Plays/downloads audited; download needs a reason</td></tr>
+<tr><td>Voicemail</td><td>Per agent and per queue; stored like recordings; optional transcript</td><td>Queue VM is a task; alert after 2 working hours</td></tr>
+<tr><td>Agent status</td><td>Available, On a call, Wrap-up, Away/Lunch/Busy (queue pause), DND, Offline, per-queue login</td><td>Every change time-stamped for reports</td></tr>
+<tr><td>Supervision</td><td>Listen (hear both) · Whisper (agent hears you) · Barge (all hear you)</td><td><code>calls.supervise</code>, own teams only, all audited</td></tr>
+<tr><td>SMS</td><td>Aggregator, approved sender ID, delivery reports, replies to thread</td><td>"STOP" → opt-out list</td></tr>
+<tr><td>WhatsApp</td><td>Business Platform; templates to start, free text 24 h after the customer writes</td><td>Templates approved in advance</td></tr>
+<tr><td>Wallboard</td><td>Live per queue and agent from Redis, every second</td><td>Alerts: wait, service level, wrap-up/away too long, trunks &gt; 80%, poor line</td></tr>
+<tr><td>Reports</td><td>From our calls table: by day/hour, queue SLA, agent handle time, outcomes, campaigns, first contact resolution</td><td>CSV export; scheduled emails later</td></tr></table>
+
+<h2 class="break">9. The call lifecycle</h2>
+<figure>
+<svg viewBox="0 0 760 210" role="img" aria-label="Call state machine">
+  <defs><marker id="g" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#14201b"/></marker></defs>
+  <g font-size="10" text-anchor="middle">
+    <rect x="5" y="80" width="90" height="36" rx="18" fill="#eaf1fb" stroke="#1d5fa8"/><text x="50" y="102">created</text>
+    <rect x="125" y="20" width="100" height="36" rx="18" fill="#f6efe3" stroke="#a35b00"/><text x="175" y="42">in IVR / queue</text>
+    <rect x="125" y="140" width="100" height="36" rx="18" fill="#eaf1fb" stroke="#1d5fa8"/><text x="175" y="162">dialling</text>
+    <rect x="255" y="80" width="90" height="36" rx="18" fill="#fff8ec" stroke="#a35b00"/><text x="300" y="102">ringing</text>
+    <rect x="375" y="80" width="90" height="36" rx="18" fill="#e8f1ec" stroke="#2f7d32"/><text x="420" y="102">talking</text>
+    <rect x="375" y="10" width="90" height="36" rx="18" fill="#e8f1ec" stroke="#2f7d32"/><text x="420" y="32">on hold</text>
+    <rect x="375" y="150" width="90" height="36" rx="18" fill="#e8f1ec" stroke="#2f7d32"/><text x="420" y="172">transferring</text>
+    <rect x="500" y="80" width="90" height="36" rx="18" fill="#f3f3f3" stroke="#777"/><text x="545" y="102">ended</text>
+    <rect x="625" y="80" width="130" height="36" rx="18" fill="#eaf1fb" stroke="#1d5fa8"/><text x="690" y="102">wrapped + archived</text>
+  </g>
+  <g stroke="#14201b" fill="none"><path d="M95 92 L123 45" marker-end="url(#g)"/><path d="M95 104 L123 152" marker-end="url(#g)"/><path d="M225 40 L253 88" marker-end="url(#g)"/><path d="M225 155 L253 110" marker-end="url(#g)"/><line x1="345" y1="98" x2="373" y2="98" marker-end="url(#g)"/><path d="M410 80 L410 48" marker-end="url(#g)"/><path d="M430 46 L430 78" marker-end="url(#g)"/><path d="M420 116 L420 148" marker-end="url(#g)"/><line x1="465" y1="98" x2="498" y2="98" marker-end="url(#g)"/><line x1="590" y1="98" x2="623" y2="98" marker-end="url(#g)"/><path d="M300 116 C 330 190, 500 190, 540 118" stroke-dasharray="4 3" marker-end="url(#g)"/><path d="M175 20 C 300 -5, 520 0, 545 78" stroke-dasharray="4 3" marker-end="url(#g)"/></g>
+  <text x="420" y="205" font-size="9" fill="#55665e" text-anchor="middle">Dashed: ended without talking (no answer, busy, abandoned, voicemail). Each transition is stored in call_events with a timestamp.</text>
+</svg>
+<figcaption>Figure 7. The states a call moves through. Timers (wait, ring, talk, hold, wrap) are derived from the transitions.</figcaption>
+</figure>
+
+<h2>10. Data, API and live events</h2>
+<table><tr><th>Table</th><th>Holds</th></tr>
+<tr><td><code>calls</code></td><td>One row per call: direction, numbers, DID, trunk, queue, IVR path, agent, customer snapshot + match source, verification, timers, result, outcome, campaign/call-back links, quality</td></tr>
+<tr><td><code>call_events</code>, <code>call_legs</code>, <code>pbx_events_raw</code></td><td>Timeline, participants, raw PBX events (30 days)</td></tr>
+<tr><td><code>recordings</code>, <code>voicemails</code></td><td>Storage key, checksum, encryption key id, retention, legal hold, transcript</td></tr>
+<tr><td><code>agents</code>, <code>agent_status_log</code></td><td>Person ↔ extension, queues; status history</td></tr>
+<tr><td><code>callback_requests</code>, <code>campaigns</code>, <code>campaign_targets</code>, <code>dnc_numbers</code></td><td>Outbound work and controls</td></tr>
+<tr><td><code>unidentified_callers</code>, <code>messages</code>, <code>routing_settings</code></td><td>Non-LMS callers, SMS/WhatsApp, routing mirror</td></tr>
+<tr><td><code>audit_events</code></td><td>Append-only, hash-chained compliance log</td></tr></table>
+<p>Monthly partitions for high-volume tables (5,000 calls/day ≈ 1.8 M calls/year, ~15 events each). Key endpoints: <code>POST /v1/calls</code>, <code>GET /v1/calls</code> (paginated), <code>PUT /v1/calls/{id}/outcome</code>, <code>POST /v1/calls/{id}/verify</code>, <code>GET /v1/lookup</code>, <code>GET /v1/recordings/{id}/stream</code>, <code>/campaigns</code>, <code>/dnc</code>, <code>/monitor</code>, <code>/reports</code>, <code>/routing</code>, <code>/audit</code>. Live WebSocket <code>/v1/live</code> pushes <code>call.ringing</code>, <code>call.updated</code>, <code>call.ended</code>, <code>agent.status</code>, <code>queue.status</code>, <code>alert</code>, <code>callback.new</code>, <code>message.new</code>, with sequence numbers for catch-up after reconnect. The Hub frontend's simulated functions (marked <code>PBX:</code>) map one-to-one onto these.</p>
+
+<h2 class="break">11. Security and compliance (Kenya)</h2>
+<div class="box warn">Engineering checklist, to be confirmed by our legal and compliance team.</div>
+<table><tr><th>Source</th><th>What it requires of us here</th></tr>
+<tr><td>Data Protection Act 2019 + 2021 regulations (ODPC)</td><td>Lawful basis and notice for recording; minimisation; retention limits; security; data-subject access; breach notice within 72 h; registration; a <b>DPIA</b> before go-live</td></tr>
+<tr><td>Central Bank of Kenya (digital credit providers)</td><td>Fair debt collection and communication; no harassment</td></tr>
+<tr><td>Communications Authority of Kenya</td><td>Numbering and caller ID rules; sender IDs; opt-out for marketing SMS</td></tr>
+<tr><td>Consumer Protection Act 2012</td><td>Fair treatment, accurate information</td></tr></table>
+<div class="grid2">
+<table><tr><th>Encryption</th><th></th></tr>
+<tr><td>Agent ↔ PBX</td><td>SRTP + SIP over WSS (TLS 1.2+)</td></tr>
+<tr><td>PBX ↔ carrier</td><td>SIP-TLS + SRTP if supported, else private link/VPN</td></tr>
+<tr><td>Service ↔ LMS</td><td>Mutual TLS</td></tr>
+<tr><td>Recordings</td><td>AES-256-GCM per file, KMS keys, yearly rotation</td></tr></table>
+<table><tr><th>Retention (default)</th><th></th></tr>
+<tr><td>Call records, notes, messages</td><td>7 years</td></tr>
+<tr><td>Recordings, voicemail</td><td>1 year unless legal hold</td></tr>
+<tr><td>Raw PBX events</td><td>30 days</td></tr>
+<tr><td>LMS cache / Audit log</td><td>10 min / 7 years</td></tr></table>
+</div>
+<ul>
+<li><b>Audit (tamper-evident):</b> calls, verifications, number reveals, recording plays/downloads, supervision, DNC/routing/campaign changes, exports, refusals. Each row hashes the previous; daily chain check.</li>
+<li><b>Fraud:</b> no phone-number changes on calls (SIM-swap); random verification questions; international dialling off; PBX SIP open only to carrier IPs; night-time volume alerts; agents see only their own customers; monthly lookup review.</li>
+<li><b>Minimisation:</b> numbers masked by default; snapshot not full LMS record on calls; data-subject export per customer.</li>
+</ul>
+
+<h2>12. Operations</h2>
+<div class="grid2">
+<table><tr><th>Sizing (60 agents, 5,000 calls/day)</th><th></th></tr>
+<tr><td>Peak concurrent calls</td><td>~45</td></tr>
+<tr><td>Trunk channels</td><td>60 (2 carriers × 30)</td></tr>
+<tr><td>Bandwidth at PBX</td><td>~10 Mbps each way</td></tr>
+<tr><td>Recordings (compressed)</td><td>~35 GB / month</td></tr>
+<tr><td>Database</td><td>~3 GB / month</td></tr></table>
+<table><tr><th>Failure</th><th>Customers</th><th>Recovery</th></tr>
+<tr><td>Call service down</td><td>Unaffected</td><td>Restart; reconcile CDR</td></tr>
+<tr><td>LMS down</td><td>Unaffected</td><td>No names; retry</td></tr>
+<tr><td>PBX down</td><td>Calls fail</td><td>PBX HA pair; carrier failover</td></tr>
+<tr><td>One carrier down</td><td>Partial</td><td>Second trunk</td></tr>
+<tr><td>Office internet down</td><td>Inbound fails</td><td>Carrier forwards DIDs to on-call mobiles</td></tr></table>
+</div>
+<p>Monitor: event socket up, event lag &lt; 2 s, LMS p95 &lt; 500 ms, registered agents, trunk use &lt; 80%, carrier failures &lt; 5%, recording backlog, audit chain, PBX disk. Backups: Postgres WAL + nightly (35 days, monthly restore test), recordings versioned + second region, nightly PBX config export. Targets: RTO 1 h, RPO 5 min — calls keep working meanwhile. Environments: dev (test PBX, fake LMS), staging (test trunk, masked LMS, staff phones only), production.</p>
+
+<h2 class="break">13. Rollout, decisions, and what was forgotten</h2>
+<figure>
+<svg viewBox="0 0 760 150" role="img" aria-label="Rollout timeline">
+  <g font-size="9.5">
+    <line x1="20" y1="40" x2="740" y2="40" stroke="#9aa9a1"/>
+    <g text-anchor="middle" fill="#55665e"><text x="20" y="30">wk 1</text><text x="164" y="30">wk 4</text><text x="308" y="30">wk 8</text><text x="452" y="30">wk 12</text><text x="596" y="30">wk 16</text><text x="740" y="30">wk 20</text></g>
+    <rect x="20" y="50" width="72" height="20" rx="4" fill="#f3f3f3" stroke="#777"/><text x="25" y="64">0 Decide</text>
+    <rect x="92" y="75" width="190" height="20" rx="4" fill="#eaf1fb" stroke="#1d5fa8"/><text x="97" y="89">1 Foundations: API verified, softphone, events</text>
+    <rect x="282" y="100" width="150" height="20" rx="4" fill="#e8f1ec" stroke="#2f7d32"/><text x="287" y="114">2 Inbound + LMS identity</text>
+    <rect x="432" y="75" width="180" height="20" rx="4" fill="#fff8ec" stroke="#a35b00"/><text x="437" y="89">3 Outbound, campaigns, wallboard</text>
+    <rect x="612" y="100" width="128" height="20" rx="4" fill="#f6efe3" stroke="#a35b00"/><text x="617" y="114">4 WhatsApp, reports</text>
+    <rect x="20" y="125" width="720" height="16" rx="4" fill="#fafcfb" stroke="#9aa9a1" stroke-dasharray="4 3"/><text x="25" y="137">5 Hardening throughout: load test 2× peak, failover drills, audit checks, penetration test · pilot with 5 agents before everyone</text>
+  </g>
+</svg>
+<figcaption>Figure 8. Indicative rollout.</figcaption>
+</figure>
+<div class="grid2">
+<div>
+<h3>Decisions needed</h3>
+<ol>
+<li>Yeastar on-premises or Cloud edition</li>
+<li>Carriers, channels, second carrier</li>
+<li>Numbers per team; allowed caller IDs</li>
+<li>Written Yeastar licence for Open API + WebRTC SDK</li>
+<li>Headset model; home working (TURN, VPN)</li>
+<li>Who builds the LMS API, and when; phone data clean-up</li>
+<li>LMS write-backs (promise to pay)</li>
+<li>Recording retention; refusal policy</li>
+<li>Collection contact limits, hours, no-call days</li>
+<li>Verification questions</li>
+<li>Who may listen to recordings and supervise</li>
+<li>DPIA and DPO sign-off</li>
+<li>Hours, holidays, after-hours and 24/7 fraud line</li>
+<li>Queues, service level targets, outcome lists</li>
+</ol>
+</div>
+<div>
+<h3>What may have been forgotten</h3>
+<ul>
+<li><b>Swahili</b> greetings and IVR (language choice first?)</li>
+<li>Professionally recorded greetings, menus and hold messages</li>
+<li><b>M-Pesa STK push</b> during a call (Daraja API): a promise to pay becomes a payment immediately</li>
+<li>Customer satisfaction survey after calls</li>
+<li>Speech analytics on transcripts (complaint, fraud, lawyer)</li>
+<li>Quality scoring of sampled calls</li>
+<li>Workforce planning from call history</li>
+<li>Flag for customers in hardship/bereavement to pause collections</li>
+<li>Complaints register linked to calls</li>
+<li>Training mode for new agents</li>
+<li>Number reputation with carriers (avoid "likely scam" labels)</li>
+<li>Mobile app for agents (Linkus SDKs, MIT)</li>
+</ul>
+</div>
+</div>
+<p class="muted">End of handbook. Detail for each section is in the numbered Markdown files beside this PDF.</p>
+</body>
+</html>

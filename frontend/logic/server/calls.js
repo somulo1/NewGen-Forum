@@ -5,6 +5,7 @@
 //   start/join   -> POST /calls or /calls/{id}/join -> { call, token, url }
 //   room socket  -> welcome { you, peers } | peer-joined | peer-left | offer/answer/ice (relayed) | state | chat | mod | ended
 import { connectRealtime } from './realtime.js';
+import { denoiseStream, denoiseTrack } from '~/logic/denoise.js';
 import * as notifyW from '~/logic/browserNotify.js';
 import * as dmsW from './widgets/dms.js';
 import { connectSfu, leaveSfu, applySfu, sendChatSfu, sfuActive, control, sfuStats, setSfuUpload, sfuVideoPaused, localScreenTrack } from './sfuCall.js';
@@ -147,7 +148,7 @@ async function getMedia(kind) {
   if (!md || !md.getUserMedia) return null;
   const tries = kind === 'video' ? [{ audio: VOICE, video: MESH_VIDEO }, { audio: VOICE }, { video: MESH_VIDEO }] : [{ audio: VOICE }, { audio: true }];
   for (const c of tries) {
-    try { return await md.getUserMedia(c); } catch (e) { /* busy, missing or refused: try the next */ }
+    try { const raw = await md.getUserMedia(c); return await denoiseStream(raw); } catch (e) { /* busy, missing or refused: try the next */ }
   }
   return null;
 }
@@ -429,8 +430,9 @@ async function ensureTrack(kind) {
   if (!md || !md.getUserMedia || !room) return false;
   let got;
   try { got = await md.getUserMedia(kind === 'audio' ? { audio: VOICE } : { video: MESH_VIDEO }); } catch (e) { return false; }
-  const track = got.getTracks()[0];
+  let track = got.getTracks()[0];
   if (!track) return false;
+  if (kind === 'audio') { const d = await denoiseTrack(track); if (d) track = d.track; }   // AI noise cancellation, always on
   if (!media.local) media.local = new MediaStream();
   media.local.addTrack(track);
   for (const [peerId, pc] of room.pcs) {

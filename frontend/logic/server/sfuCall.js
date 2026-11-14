@@ -8,6 +8,7 @@
 // Media is encrypted on the device before it leaves (insertable streams) with a key made from the conversation's key, which
 // only members have, so the media server relays video it cannot watch. In-call chat is sealed the same way.
 import { startRingback, stopRingback, connected, joinedTone, handTone } from '../tones.js';
+import { livekitDenoiser } from '~/logic/denoise.js';
 import { noteReconnect } from './callQuality.js';
 
 const enc = new TextEncoder();
@@ -277,7 +278,13 @@ export async function applySfu(ctx) {
   // the person out of the call. Turning one on later asks the browser again, so the person can allow it then.
   const HOW = ' Allow it in the browser (the lock icon in the address bar), then tap it again.';
   if (!!s.mic !== lp.isMicrophoneEnabled) {
-    try { await lp.setMicrophoneEnabled(!!s.mic); } catch (e) {
+    try {
+      await lp.setMicrophoneEnabled(!!s.mic);
+      // AI noise cancellation, always on: the published microphone is the cleaned one
+      const pub = s.mic && [...lp.audioTrackPublications.values()].find((p) => p.source === 'microphone');
+      const t = pub && pub.track;
+      if (t && t.setProcessor && !(t.getProcessor && t.getProcessor())) t.setProcessor(livekitDenoiser()).catch(() => { /* plain microphone, still filtered by the browser */ });
+    } catch (e) {
       ctx.logic.setState({ mic: false });
       ctx.logic.notify('Hub cannot use your microphone, so you are muted. You can still listen.' + HOW, '#FFB86B');
     }
