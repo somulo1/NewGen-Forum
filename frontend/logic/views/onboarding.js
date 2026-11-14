@@ -136,7 +136,20 @@ function buildStructureEd(s, can) {
       const moveTo = se.move[u.id] !== undefined ? se.move[u.id] : (u.parent_id || '');
       const moved = moveTo !== (u.parent_id || '');
       return {
-        headRole: u.head_role || '', headRoles: roleChoices, heads: (u.heads || []).map((h) => h.name),
+        // the head role is decided for the whole level in "Levels your organization uses"
+        headRole: u.head_role || '', headRoles: roleChoices, headRoleName: ((roleChoices.find((r) => r.key === (cfgOf(u.kind).head_role || u.head_role)) || {}).name) || '', heads: (u.heads || []).map((h) => h.name),
+        // who leads it: people holding the level's head role, or the place's own members; choosing one also makes them a member
+        ...(() => {
+          const rk = cfgOf(u.kind).head_role || u.head_role || '';
+          const rn = ((roleChoices.find((r) => r.key === rk) || {}).name) || '';
+          const fieldOf = { sector: 'sector', branch: 'loc', unit: 'unit', department: 'dept' }[u.kind];
+          const cands = (this.dir || []).filter((p) => p.uid && (p.accStatus || 'active') === 'active' && ((rk && (p.role === rk || p.role === rn)) || p[fieldOf] === u.name));
+          const me = this.srv && this.srv.me;
+          const mine = me ? [{ uid: me.person, name: me.name }] : [];
+          const all = cands.map((p) => ({ uid: p.uid, name: p.name })).concat(mine.filter((m) => !cands.some((c) => c.uid === m.uid) && u.head_person === m.uid));
+          return { headPerson: u.head_person || '', headOpts: all.sort((a, b) => a.name.localeCompare(b.name)).slice(0, 200),
+            onHeadPerson: (e) => { const v = e.target.value || null; const who = (all.find((x) => x.uid === v) || {}).name; run(() => orgW.setHeadPerson(this, this.srv, u.id, v), null, v ? who + ' now leads ' + u.name + ' and is a member of it.' : 'Whoever holds the head role leads ' + u.name + ' again.'); } };
+        })(),
         onHead: (e) => { const role = e.target.value; run(() => orgW.setHead(this, this.srv, u.id, role), null, role ? 'The ' + ((roleChoices.find((r) => r.key === role) || {}).name || role) + ' role now heads ' + u.name + '.' : u.name + ' no longer has a head role.'); },
         id: u.id, name: u.name, under: par ? kindLabel(par.kind) + ' ' + par.name : 'Top level', people: n + (n === 1 ? ' person' : ' people'), editing, editName: editing ? se.edit.name : u.name,
         startEdit: () => set({ edit: { id: u.id, name: u.name }, err: '', ok: '' }), cancelEdit: () => set({ edit: null }),
@@ -193,12 +206,12 @@ function buildStructureEd(s, can) {
   const tab = KS.some((x) => x.kind === se.tab) ? se.tab : curKind;
   const needParent = !!parentKind(curKind);
   // the levels panel: which levels the organization uses, what it calls them and which sits under which
-  const draft = se.lvDraft || KINDS.map((x) => { const c = cfgOf(x.kind); return { kind: x.kind, enabled: !!c.enabled, label: c.label || x.label, plural: c.plural || x.plural, parent: c.parent || '' }; });
+  const draft = se.lvDraft || KINDS.map((x) => { const c = cfgOf(x.kind); return { kind: x.kind, enabled: !!c.enabled, label: c.label || x.label, plural: c.plural || x.plural, parent: c.parent || '', head_role: c.head_role || '' }; });
   const setDraft = (kind, patch) => set((cur) => ({ lvDraft: (cur.lvDraft || draft).map((l) => (l.kind === kind ? { ...l, ...patch } : l)), err: '', ok: '' }));
   const levelsPanel = {
     open: !!se.lvOpen || !cfg.some((l) => l.enabled), toggle: () => set({ lvOpen: !se.lvOpen, lvDraft: null }),
     rows: draft.map((l) => ({ ...l, onEnabled: (e) => setDraft(l.kind, { enabled: e.target.checked }), onLabel: (e) => setDraft(l.kind, { label: e.target.value }), onPlural: (e) => setDraft(l.kind, { plural: e.target.value }),
-      onParent: (e) => setDraft(l.kind, { parent: e.target.value }),
+      onParent: (e) => setDraft(l.kind, { parent: e.target.value }), onHeadRole: (e) => setDraft(l.kind, { head_role: e.target.value }), headRoleOpts: roleChoices,
       parentOpts: [{ v: '', l: 'The organization itself' }].concat(draft.filter((x) => x.kind !== l.kind && x.enabled).map((x) => ({ v: x.kind, l: x.label }))) })),
     dirty: !!se.lvDraft,
     save: () => run(() => orgW.saveLevels(this, this.srv, draft), { lvDraft: null, lvOpen: false }, 'Your organization\'s levels were saved.')

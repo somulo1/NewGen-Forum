@@ -444,11 +444,37 @@ func (s *Service) Onboard(ctx context.Context, p *tenant.Principal, list []NewPe
 		// the organization's default role (if it set one) is what a person gets when no role is chosen
 		var defaultKey string
 		_ = tx.QueryRow(ctx, `select r.key from hub.default_role d join hub.roles r on r.id = d.role_id`).Scan(&defaultKey)
+		// every level the organization has places in is mandatory: everyone is placed in a sector, branch, unit and department
+		// (those it uses), so each person has the dashboards their widgets decide
+		haveKind := map[string]bool{}
+		if ks, err := tx.Query(ctx, `select distinct kind from hub.org_units`); err == nil {
+			for ks.Next() {
+				var k string
+				_ = ks.Scan(&k)
+				haveKind[k] = true
+			}
+			ks.Close()
+		}
+		missingLevel := func(n NewPerson) string {
+			for _, x := range []struct {
+				kind string
+				v    *uuid.UUID
+			}{{"sector", n.Sector}, {"branch", n.Branch}, {"unit", n.Unit}, {"department", n.Department}} {
+				if haveKind[x.kind] && x.v == nil {
+					return "Choose a " + x.kind + ": every person must be placed in one."
+				}
+			}
+			return ""
+		}
 		for i := range list {
 			n := list[i]
 			out[i] = Onboarded{Email: n.Email}
 			if err := validate(&n); err != nil {
 				out[i].Status, out[i].Error = "rejected", err.(*httpx.Error).Message
+				continue
+			}
+			if m := missingLevel(n); m != "" {
+				out[i].Status, out[i].Error = "rejected", m
 				continue
 			}
 			out[i].Email = n.Email

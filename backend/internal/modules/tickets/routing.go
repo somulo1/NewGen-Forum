@@ -50,7 +50,7 @@ func (s *Service) routeCandidates(ctx context.Context, tx pgx.Tx, t *Ticket) ([]
 	rs, err := tx.Query(ctx, `select distinct p.id from hub.people p join hub.person_roles pr on pr.person_id = p.id join hub.roles r on r.id = pr.role_id
 		join hub.conversation_members m on m.account_id = p.account_id and m.org_id = p.org_id and m.left_at is null and m.conversation_id = $2
 		where p.status = 'active' and p.id <> $3 and $1 in (p.department_id, p.unit_id, p.branch_id, p.sector_id)
-		  and (r.scope like 'Each %' or exists (select 1 from hub.unit_heads uh where uh.unit_id = $1 and uh.role_id = r.id))`, *t.ToRef, t.ID, t.RaisedBy)
+		  and coalesce(hub.chosen_head($1) = p.id, r.scope like 'Each %' or exists (select 1 from hub.unit_heads uh where uh.unit_id = $1 and uh.role_id = r.id))`, *t.ToRef, t.ID, t.RaisedBy)
 	if err != nil {
 		return nil, err
 	}

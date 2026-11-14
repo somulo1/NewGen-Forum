@@ -1238,7 +1238,7 @@ func (s *Service) reportMissedTAT(ctx context.Context, tx pgx.Tx, nb *notify.Bat
 	}
 	rs, err := tx.Query(ctx, `select distinct p.id from hub.unit_heads uh join hub.person_roles pr on pr.role_id = uh.role_id
 		join hub.people p on p.id = pr.person_id and p.status = 'active'
-		where uh.unit_id = $1 and (p.sector_id = $1 or p.branch_id = $1 or p.unit_id = $1 or p.department_id = $1)
+		where uh.unit_id = $1 and (p.sector_id = $1 or p.branch_id = $1 or p.unit_id = $1 or p.department_id = $1) and coalesce(hub.chosen_head($1) = p.id, true)
 		limit 20`, *t.ToRef)
 	if err != nil {
 		return 0, err
@@ -1407,7 +1407,7 @@ func isHead(ctx context.Context, tx pgx.Tx, person uuid.UUID, t *Ticket) (bool, 
 		select exists (select 1 from hub.people pe join hub.person_roles pr on pr.person_id = pe.id join hub.roles r on r.id = pr.role_id
 			where pe.id = $1 and exists (select 1 from up where up.id in (pe.sector_id, pe.branch_id, pe.unit_id, pe.department_id)
 			  -- a role that heads each place of its kind, or the head role set for this place (or one above it) in Organization structure
-			  and (r.scope like 'Each %' or exists (select 1 from hub.unit_heads uh where uh.unit_id = up.id and uh.role_id = r.id))))`, person, *t.ToRef).Scan(&head)
+			  and coalesce(hub.chosen_head(up.id) = pe.id, r.scope like 'Each %' or exists (select 1 from hub.unit_heads uh where uh.unit_id = up.id and uh.role_id = r.id))))`, person, *t.ToRef).Scan(&head)
 	return head, err
 }
 

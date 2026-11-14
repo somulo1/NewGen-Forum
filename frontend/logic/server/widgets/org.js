@@ -27,9 +27,14 @@ export async function loadLevels(logic, srv) {
   try { srv.levels = await srv.request('GET', '/org/levels'); } catch (e) { srv.levels = srv.levels || { levels: [], set: false }; }
   logic.forceUpdate();
 }
+// chooses who leads a place (null: whoever holds the head role); they are placed in it on the server
+export async function setHeadPerson(logic, srv, unitId, personId) {
+  await srv.request('PUT', `/org/units/${unitId}/head-person`, { person: personId || null });
+  await refresh(logic, srv);
+}
 export async function saveLevels(logic, srv, levels) {
   srv.levels = await srv.request('PUT', '/org/levels', { levels });
-  logic.forceUpdate();
+  await refresh(logic, srv);   // each level's head role was given to all its places: show who heads them now
 }
 // Places people in a part of the organization: the part itself and every part above it, so their record stays consistent.
 export async function addPeople(logic, srv, unitId, personIds) {

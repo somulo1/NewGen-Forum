@@ -1,3 +1,4 @@
+import { widgetGate } from '~/logic/widgetAccess.js';
 import * as orgW from '~/logic/server/widgets/org.js';
 import * as ticketsW from '~/logic/server/widgets/tickets.js';
 import * as commsW from '~/logic/server/widgets/comms.js';
@@ -222,7 +223,10 @@ export function buildOrg(ctx) {
   const unitPerf = {};
   allUnits.forEach((u) => { unitPerf[u.type + ':' + u.r.id] = unitData(u.type, u.r); });
   // the dashboards I may open, in this order, shown near the top of the sidebar as My department, My sector, My branch, My unit
-  const myUnits = ['departments', 'sectors', 'branches', 'units'].filter((t) => has[t] && can(t, 'View dashboard') && recOf(t, O.mine[t])).map((t) => {
+  // which of my places' dashboards I use day to day is decided in widget settings (My department, My sector, My branch, My unit
+  // widgets, and who sees them); I may still open the others I have the right to from Organization
+  const wGate = widgetGate(this, s, can);
+  const myUnits = ['departments', 'sectors', 'branches', 'units'].filter((t) => has[t] && can(t, 'View dashboard') && recOf(t, O.mine[t]) && wGate.allows(t)).map((t) => {
     const r = recOf(t, O.mine[t]);
     const key = t + ':' + r.id;
     const on = s.section === 'orgunit' && s.ou === key;

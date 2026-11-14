@@ -27,6 +27,8 @@ type Unit struct {
 	HeadRole     string `json:"head_role,omitempty"`
 	HeadRoleName string `json:"head_role_name,omitempty"`
 	Heads        []Head `json:"heads,omitempty"`
+	// HeadPerson: the person chosen to lead it (then they alone head it), or nil while the head role decides
+	HeadPerson *uuid.UUID `json:"head_person,omitempty"`
 }
 
 type Head struct {
@@ -47,7 +49,7 @@ var parentKinds = map[string][]string{
 func (s *Service) Structure(ctx context.Context, p *tenant.Principal) ([]Unit, error) {
 	out := []Unit{}
 	err := s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
-		rs, err := tx.Query(ctx, `select u.id, u.kind, u.parent_id, u.name, coalesce(u.code,''), coalesce(t.target_pct, 0), coalesce(r.key,''), coalesce(r.name,'')
+		rs, err := tx.Query(ctx, `select u.id, u.kind, u.parent_id, u.name, coalesce(u.code,''), coalesce(t.target_pct, 0), coalesce(r.key,''), coalesce(r.name,''), hub.chosen_head(u.id)
 			from hub.org_units u left join hub.unit_targets t on t.unit_id = u.id
 			left join hub.unit_heads uh on uh.unit_id = u.id left join hub.roles r on r.id = uh.role_id
 			order by u.kind, u.name`)
@@ -58,7 +60,7 @@ func (s *Service) Structure(ctx context.Context, p *tenant.Principal) ([]Unit, e
 		idx := map[uuid.UUID]int{}
 		for rs.Next() {
 			var u Unit
-			if err := rs.Scan(&u.ID, &u.Kind, &u.Parent, &u.Name, &u.Code, &u.Target, &u.HeadRole, &u.HeadRoleName); err != nil {
+			if err := rs.Scan(&u.ID, &u.Kind, &u.Parent, &u.Name, &u.Code, &u.Target, &u.HeadRole, &u.HeadRoleName, &u.HeadPerson); err != nil {
 				return err
 			}
 			idx[u.ID] = len(out)
@@ -68,12 +70,15 @@ func (s *Service) Structure(ctx context.Context, p *tenant.Principal) ([]Unit, e
 			return err
 		}
 		rs.Close()
-		// the heads: people who hold the unit's head role and are placed in it
-		hs, err := tx.Query(ctx, `select uh.unit_id, p.id, p.first_name || ' ' || p.last_name
+		// the heads: the person chosen to lead it, else the people who hold the unit's head role and are placed in it
+		hs, err := tx.Query(ctx, `select h.unit_id, p.id, p.first_name || ' ' || p.last_name from hub.unit_head_people h join hub.people p on p.id = h.person_id
+			union all
+			select uh.unit_id, p.id, p.first_name || ' ' || p.last_name
 			from hub.unit_heads uh join hub.person_roles pr on pr.role_id = uh.role_id
 			join hub.people p on p.id = pr.person_id and p.status <> 'deleted'
-			where p.sector_id = uh.unit_id or p.branch_id = uh.unit_id or p.unit_id = uh.unit_id or p.department_id = uh.unit_id
-			order by p.first_name, p.last_name`)
+			where (p.sector_id = uh.unit_id or p.branch_id = uh.unit_id or p.unit_id = uh.unit_id or p.department_id = uh.unit_id)
+			  and hub.chosen_head(uh.unit_id) is null
+			order by 3`)
 		if err != nil {
 			return err
 		}
@@ -164,6 +169,15 @@ func (s *Service) SaveUnit(ctx context.Context, p *tenant.Principal, id *uuid.UU
 			}
 			if err := s.A.Sign.Seal(ctx, tx, "org_units", "id=$1", out.ID); err != nil {
 				return err
+			}
+			// a new place is headed by its level's head role, when the level has one
+			if l, ok := lv.get(in.Kind); ok && l.HeadRole != "" {
+				if _, err := tx.Exec(ctx, `insert into hub.unit_heads (org_id, unit_id, role_id) select $1, $2, id from hub.roles where key=$3`, p.Org, out.ID, l.HeadRole); err != nil {
+					return err
+				}
+				if err := s.A.Sign.Seal(ctx, tx, "unit_heads", "unit_id=$1", out.ID); err != nil {
+					return err
+				}
 			}
 			return s.A.Audit(ctx, tx, p.Org, &p.Person, p.Name, "Added "+in.Kind+" "+in.Name, "Settings", p.IP, out)
 		}

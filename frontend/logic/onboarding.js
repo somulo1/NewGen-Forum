@@ -13,7 +13,7 @@ export const MANDATORY = [
 const STRUCTURE = [
   { key: 'sector', label: 'Sector', level: 'sectors', csv: 'sector' },
   { key: 'branch', label: 'Branch', level: 'branches', csv: 'branch' },
-  { key: 'unit', label: 'Unit', level: 'units', csv: 'unit', optional: true },
+  { key: 'unit', label: 'Unit', level: 'units', csv: 'unit' },
   { key: 'department', label: 'Department', level: 'departments', csv: 'department' }
 ];
 const ALIASES = {

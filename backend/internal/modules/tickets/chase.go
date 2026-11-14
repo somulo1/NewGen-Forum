@@ -56,7 +56,7 @@ func (s *Service) mayChase(ctx context.Context, tx pgx.Tx, person uuid.UUID, t *
 const placeHeads = `select distinct pe.id from hub.org_units u join hub.people pe on pe.status = 'active'
 		and u.id = case u.kind when 'sector' then pe.sector_id when 'branch' then pe.branch_id when 'unit' then pe.unit_id else pe.department_id end
 	join hub.person_roles pr on pr.person_id = pe.id join hub.roles r on r.id = pr.role_id
-	where u.id = $1 and (lower(r.scope) like 'each ' || u.kind || '%' or exists (select 1 from hub.unit_heads uh where uh.unit_id = u.id and uh.role_id = r.id))`
+	where u.id = $1 and coalesce(hub.chosen_head(u.id) = pe.id, lower(r.scope) like 'each ' || u.kind || '%' or exists (select 1 from hub.unit_heads uh where uh.unit_id = u.id and uh.role_id = r.id))`
 
 func headsOf(ctx context.Context, tx pgx.Tx, unit uuid.UUID) ([]uuid.UUID, error) {
 	rs, err := tx.Query(ctx, placeHeads+` limit 50`, unit)

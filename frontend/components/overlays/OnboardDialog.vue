@@ -1,10 +1,10 @@
 <!-- Onboard people: one at a time, or many from a CSV. Structure fields follow the organization. -->
-<template><template v-if="onb.open">
-<div class="hub-overlay" style="position: fixed; inset: 0; z-index: 70; background: rgba(5,10,8,0.6); display: flex; align-items: center; justify-content: center; padding: 16px">
-<div role="dialog" aria-modal="true" aria-label="Onboard people" style="width: 720px; max-width: 100%; max-height: 100%; display: flex; flex-direction: column; border-radius: 20px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-2A3832,#2A3832); overflow: hidden">
+<template><template v-if="onb.open && (page ? onb.isEdit : !onb.isEdit)">
+<div :class="page ? '' : 'hub-overlay'" :style="page ? 'width: 100%' : 'position: fixed; inset: 0; z-index: 70; background: rgba(5,10,8,0.6); display: flex; align-items: center; justify-content: center; padding: 16px'">
+<div :role="page ? 'region' : 'dialog'" :aria-modal="page ? undefined : 'true'" :aria-label="onb.heading" :style="page ? 'width: 100%; display: flex; flex-direction: column; border-radius: 20px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-2A3832,#2A3832)' : 'width: 720px; max-width: 100%; max-height: 100%; display: flex; flex-direction: column; border-radius: 20px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-2A3832,#2A3832); overflow: hidden'">
 <div style="flex: none; display: flex; align-items: center; gap: 12px; padding: 18px 22px 0">
 <h2 style="flex: 1; margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 22px">{{ onb.heading }}</h2>
-<button type="button" aria-label="Close" @click="onb.close" style="width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer">✕</button>
+<button v-if="page" type="button" @click="onb.close" style="order: -1; height: 36px; padding: 0 14px; border-radius: 18px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer">‹ People</button><button v-else type="button" aria-label="Close" @click="onb.close" style="width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer">✕</button>
 </div>
 <div v-if="onb.showTabs" role="tablist" style="flex: none; display: flex; gap: 4px; padding: 10px 22px 0; border-bottom: 1px solid var(--k-24322C,#24322C)">
 <button role="tab" :aria-selected="onb.isOne" @click="onb.goOne" :style="`min-height: 42px; padding: 0 16px; border: 0; background: transparent; cursor: pointer; font-size: 14px; border-bottom: 2px solid ${onb.isOne ? 'var(--k-B8F36B,#B8F36B)' : 'transparent'}; color: ${onb.isOne ? 'var(--k-E8EFEA,#E8EFEA)' : 'var(--k-9DB0A6,#9DB0A6)'}; font-weight: ${onb.isOne ? 600 : 500}`">One person</button>
@@ -115,6 +115,8 @@ import { hubBindings } from '~/composables/useHub';
 
 export default {
   name: 'OnboardDialog',
+  // page: editing a person shows as a page inside People (the dialog is only for onboarding)
+  props: { page: { type: Boolean, default: false } },
   ...hubBindings(["onb"])
 };
 </script>

@@ -135,6 +135,28 @@ func (s *Service) Private(r chi.Router) {
 		w.WriteHeader(204)
 		return nil
 	}))
+	// the person who leads a place (null: the head role decides)
+	r.Put("/org/units/{id}/head-person", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
+		p, err := tenant.MustOrg(r.Context())
+		if err != nil {
+			return err
+		}
+		id, err := uuid.Parse(chi.URLParam(r, "id"))
+		if err != nil {
+			return httpx.ErrNotFound
+		}
+		var in struct {
+			Person *uuid.UUID `json:"person"`
+		}
+		if err := httpx.Decode(r, &in, 1<<10); err != nil {
+			return err
+		}
+		if err := s.SetHeadPerson(r.Context(), p, id, in.Person); err != nil {
+			return err
+		}
+		w.WriteHeader(204)
+		return nil
+	}))
 	r.Post("/org/units/{id}/move", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
 		p, err := tenant.MustOrg(r.Context())
 		if err != nil {

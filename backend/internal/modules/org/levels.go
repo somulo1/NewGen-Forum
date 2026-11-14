@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	"hub/internal/authz"
@@ -25,6 +26,9 @@ type Level struct {
 	Label   string `json:"label"`
 	Plural  string `json:"plural"`
 	Parent  string `json:"parent"` // the kind it sits under, or "" for the organization itself
+	// HeadRole: the role (its key) that heads every place of this level. Whoever holds it and is placed in a place heads that
+	// place. Decided here for the whole level, and given to places added later too.
+	HeadRole string `json:"head_role,omitempty"`
 }
 
 type Levels struct {
@@ -172,6 +176,20 @@ func (s *Service) SetLevels(ctx context.Context, p *tenant.Principal, in Levels)
 				}
 			}
 		}
+		prev, _ := s.levels(ctx, tx, p)
+		for i, l := range in.Levels {
+			if !l.Enabled {
+				in.Levels[i].HeadRole = ""
+				continue
+			}
+			old, _ := prev.get(l.Kind)
+			if l.HeadRole == "" && old.HeadRole == "" {
+				continue // never decided at the level: places keep what they had
+			}
+			if err := applyLevelHead(ctx, tx, s, p, l.Kind, l.HeadRole); err != nil {
+				return err
+			}
+		}
 		if err := orgsettings.Set(ctx, s.A, tx, p.Org, "structure", in); err != nil {
 			return err
 		}
@@ -209,4 +227,25 @@ func itoa(n int) string {
 		n /= 10
 	}
 	return s
+}
+
+// applyLevelHead gives every place of a level the level's head role (or takes it away when roleKey is empty).
+func applyLevelHead(ctx context.Context, tx pgx.Tx, s *Service, p *tenant.Principal, kind, roleKey string) error {
+	if roleKey == "" {
+		if _, err := tx.Exec(ctx, `delete from hub.unit_heads where unit_id in (select id from hub.org_units where kind=$1)`, kind); err != nil {
+			return err
+		}
+		return nil
+	}
+	var role uuid.UUID
+	if err := tx.QueryRow(ctx, `select id from hub.roles where key=$1`, roleKey).Scan(&role); err != nil {
+		return httpx.Bad("Choose a head role from the list.")
+	}
+	if _, err := tx.Exec(ctx, `delete from hub.unit_heads where unit_id in (select id from hub.org_units where kind=$1)`, kind); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `insert into hub.unit_heads (org_id, unit_id, role_id) select $1, id, $2 from hub.org_units where kind=$3`, p.Org, role, kind); err != nil {
+		return err
+	}
+	return s.A.Sign.Seal(ctx, tx, "unit_heads", "unit_id in (select id from hub.org_units where kind=$1)", kind)
 }

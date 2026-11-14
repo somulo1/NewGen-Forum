@@ -1,9 +1,16 @@
 <!-- People directory -->
 <template><template v-if="show.people">
-<div style="width: 100%; display: flex; flex-direction: column; gap: 16px">
+<OnboardDialog v-if="onb.open && onb.isEdit" page />
+<div v-else style="width: 100%; display: flex; flex-direction: column; gap: 16px">
 <div style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px">
 <div style="flex: 1 1 300px"><h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; letter-spacing: -0.02em">People</h1><p style="margin: 4px 0 0; color: var(--k-9DB0A6,#9DB0A6)">{{ peopleSummary }}</p></div>
 <template v-if="onb.canOnboard || structureEd.canEdit"><div style="display: flex; flex-wrap: wrap; gap: 8px"><template v-if="structureEd.canEdit"><button @click="structureEd.openIt" style="height: 40px; padding: 0 18px; border-radius: 20px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); font-weight: 600; cursor: pointer">Organization structure</button></template><template v-if="onb.canOnboard"><button @click="onb.openBulk" style="height: 40px; padding: 0 18px; border-radius: 20px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); font-weight: 600; cursor: pointer">Bulk onboarding</button><button @click="onb.openOne" style="height: 40px; padding: 0 18px; border-radius: 20px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">Onboard person</button></template></div></template>
+</div>
+<div v-if="peoplePlace.show" role="region" aria-label="Place the people you picked" style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 14px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-B8F36B,#B8F36B)">
+<strong style="font-size: 14px">{{ peoplePlace.count }} picked</strong><span style="font-size: 13px; color: var(--k-9DB0A6,#9DB0A6)">Place them in</span>
+<select :value="peoplePlace.target" @change="peoplePlace.onTarget" aria-label="Place them in" style="height: 36px; min-width: 220px; max-width: 100%; padding: 0 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font: inherit; font-size: 13px"><option value="">Choose a place…</option><option v-for="o in peoplePlace.options" :key="o.value" :value="o.value">{{ o.label }}</option></select>
+<button type="button" :disabled="peoplePlace.busy" @click="peoplePlace.place" style="height: 36px; padding: 0 16px; border-radius: 18px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">{{ peoplePlace.busy ? 'Placing…' : 'Place' }}</button>
+<button type="button" @click="peoplePlace.clear" style="height: 36px; padding: 0 14px; border-radius: 18px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer">Clear</button>
 </div>
 <DataTable :t="peopleTable" />
 <div v-if="userActions.open" role="presentation" @click.self="userActions.close" style="position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(4,8,6,0.72)">
@@ -33,7 +40,7 @@ import { hubBindings } from '~/composables/useHub';
 
 export default {
   name: 'PeopleSection',
-  ...hubBindings(["onb","structureEd","peopleSummary","peopleTable","show","userActions"]),
+  ...hubBindings(["peoplePlace","onb","structureEd","peopleSummary","peopleTable","show","userActions"]),
   methods: {
     async confirmUserDelete() {
       if (await askConfirm({ title: 'Delete this person?', body: this.userActions.name + ' is deleted from the people directory.' })) this.userActions.remove();
