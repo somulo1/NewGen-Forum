@@ -7,7 +7,7 @@ const plainText = (h) => String(h || '').replace(/<br\s*\/?>/gi, '\n').replace(/
 
 // Values and handlers the templates read through hubBindings: tickets.
 export function valsTickets(ctx) {
-  const { catalog, cur_t, dayH, esc, notifyRules, ntCats, ntCatSel, ntPrios, ntTargets, pauseRules, ticketDeskOk, s, set, setTs, sid, sw, tagNames, tagPeople, tatText, ticketStats, tickets, tk, ts, tsetCats } = ctx;
+  const { catalog, cur_t, dayH, esc, notifyRules, ntCats, ntCatSel, ntPrios, ntTargets, pauseRules, ticketDeskOk, s, set, setTs, sid, sw, tagNames, canTag, tagPeople, tatText, ticketStats, tickets, tk, ts, tsetCats } = ctx;
   return {
     sw, settingsOpen: !!(sid && catalog[sid]),
     closeSettings: set({ settingsFor: null }),
@@ -22,7 +22,7 @@ export function valsTickets(ctx) {
     setEnd: (e) => setTs({ end: e.target.value }),
     setNearPct: (e) => setTs({ nearPct: Number(e.target.value) }),
     setEscalate: (e) => setTs({ escalate: e.target.value }),
-    tickets, ticketStats, tk, tagPeople,
+    tickets, ticketStats, tk, tagPeople, canTag,
     // ratings on closed tickets: for the people who worked on them and the heads of the place each was with (the server decides)
     tkFeedback: (() => {
       if (!this.srv || !((s.section === 'tickets' || s.section === 'ticketdesk') && !cur_t)) return null;

@@ -1068,5 +1068,17 @@
    "role": "string. Role key, or empty to clear"
   },
   "response": "204 No Content"
+ },
+ "PUT /v1/org/units/{id}/head-person": {
+  "summary": "Choose who leads a place",
+  "description": "Each level has a head role (PUT /v1/org/levels, head_role). For one place, this chooses the person who leads it: someone holding that role, or one of the place's members. They alone then head it, and they are placed in it and in every place above it. null clears the choice: whoever is placed there and holds the head role heads it again. GET /v1/org/structure shows it as head_person.",
+  "access": "Settings: Edit organization profile",
+  "body": {
+   "person": "uuid, or null"
+  },
+  "status": 204,
+  "errors": {
+   "400": "that person neither holds the head role nor is a member of the place"
+  }
  }
 }

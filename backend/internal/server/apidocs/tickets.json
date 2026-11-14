@@ -1,7 +1,7 @@
 {
  "POST /v1/tickets": {
   "summary": "Raise a ticket",
-  "description": "Two steps: the device first creates a conversation of kind `ticket` (POST /v1/conversations) with keys for the requester and the people who may handle it, then calls this with that conversation's id. The ticket's text lives in the sealed conversation. The server picks a handler, starts the TAT clock and notifies them.",
+  "description": "Two steps: the device first creates a conversation of kind `ticket` (POST /v1/conversations, no keys: tickets are not end-to-end encrypted) listing the requester and the people who may handle it, then calls this with that conversation's id. The subject (250 words at most) and description are kept by the server, encrypted at rest. A place that only takes escalations (GET /v1/tickets/intake) cannot be sent to directly. The server picks a handler, starts the TAT clock and notifies them.",
   "access": "a role with Tickets: Raise",
   "status": 201,
   "request": {
@@ -48,7 +48,8 @@
    "participant": "boolean. In lists: whether I am in the ticket's conversation and can read its sealed thread"
   },
   "errors": {
-   "400": "Unknown priority or recipient, the category does not exist for that recipient, or the conversation was not created first"
+   "400": "Unknown priority or recipient, the category does not exist for that recipient, or the conversation was not created first",
+   "403": "intake_closed: that place only takes tickets escalated from places it chose"
   }
  },
  "GET /v1/tickets": {
@@ -397,5 +398,67 @@
   "errors": {
    "409": "ticket_closed: the ticket is closed"
   }
+ },
+ "PUT /v1/tickets/{id}/files": {
+  "summary": "Attach a file to a ticket",
+  "description": "The raw bytes of the file are the body (Content-Type application/octet-stream, Content-Length required). Attachments are plain files kept by the server for the people on the ticket; they are not end-to-end encrypted. Listed in GET /v1/tickets/{id} as `files`.",
+  "access": "Tickets: View, and on the ticket",
+  "query": {
+   "name": "the file name, required, up to 255 characters",
+   "type": "its media type; types that could run script are stored as application/octet-stream"
+  },
+  "status": 201,
+  "response": {
+   "id": "uuid",
+   "name": "text",
+   "type": "text",
+   "size": "bytes",
+   "by": "who attached it",
+   "created_at": "time"
+  },
+  "errors": {
+   "409": "ticket_closed: the ticket is closed",
+   "413": "too_large: over the upload limit"
+  }
+ },
+ "GET /v1/tickets/{id}/files/{file}": {
+  "summary": "Download a ticket's attachment",
+  "description": "Streams the file as a download, with its safe type and nosniff.",
+  "access": "Tickets: View, and on the ticket",
+  "status": 200,
+  "response": "the file's bytes"
+ },
+ "POST /v1/tickets/{id}/chase": {
+  "summary": "Escalate an overdue ticket to the head",
+  "description": "Not the usual escalation: the ticket stays where it is, with the same handler. The note goes to the head of the place it was sent to (the chosen head, else whoever holds that place's head role), who is put on the ticket. The event and the note (as a comment) are recorded. GET /v1/tickets/{id} says can_chase.",
+  "access": "while overdue: the person who raised it, or the head of the place it came from (origin_ref: the dashboard it was sent from, else the raiser's own place)",
+  "body": {
+   "note": "required, what the head should know"
+  },
+  "status": 200,
+  "response": "the ticket",
+  "errors": {
+   "403": "not_allowed: not the raiser or a head of where it came from, or not overdue",
+   "409": "no_head: the place it was sent to has no head yet"
+  }
+ },
+ "GET /v1/tickets/intake": {
+  "summary": "Places that only take escalations",
+  "description": "A place listed here is not offered for new tickets or business requests; only members of the places it chose may escalate to it. One row per chosen place.",
+  "access": "signed in to the organization",
+  "status": 200,
+  "response": {
+   "intake": "[{unit: uuid, only_from: uuid}]"
+  }
+ },
+ "PUT /v1/tickets/intake": {
+  "summary": "Choose who can send to a place",
+  "description": "Replaces the list of places a place takes escalations from. An empty list opens it to anyone again.",
+  "access": "the head of the place, or Tickets: Set up ticket categories",
+  "body": {
+   "unit": "uuid, the receiving place",
+   "only_from": "[uuid], the places it takes escalations from"
+  },
+  "status": 204
  }
 }
