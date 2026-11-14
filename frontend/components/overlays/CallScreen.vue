@@ -90,7 +90,7 @@
 </template>
 </div>
 
-<div :style="`flex: none; display: flex; flex-wrap: wrap; justify-content: center; gap: ${compact ? 6 : 10}px; padding: ${compact ? '8px 10px 12px' : '12px 18px 18px'}`">
+<div class="cs-bar" :style="`flex: none; display: flex; flex-wrap: wrap; justify-content: center; gap: ${compact ? 6 : 10}px; padding: ${compact ? '8px 10px 12px' : '12px 18px 18px'}`">
 <button :aria-label="call.micLabel" @click="toggleMic" class="cs-ctl" :style="call.micStyle"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0M12 18v3"></path></svg><span style="font-size: 11px">{{ call.micLabel }}</span></button>
 <template v-if="call.isVideo"><button :aria-label="call.camLabel" @click="toggleCam" class="cs-ctl" :style="call.camStyle"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><rect x="3" y="6" width="13" height="12" rx="2"></rect><path d="M16 10l5-3v10l-5-3z"></path></svg><span style="font-size: 11px">{{ call.camLabel }}</span></button></template>
 <button class="cs-ctl" aria-label="Share screen" @click="toggleShare" :style="call.shareStyle"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"></rect><path d="M8 20h8M12 16v4"></path></svg><span style="font-size: 11px">Share</span></button>
@@ -169,5 +169,15 @@ export default {
 .cs-panel .cs-ctl { width: 44px !important; height: 44px !important; border-radius: 14px !important; }
 .cs-panel .cs-ctl span { display: none; }
 .cs-panel .cs-leave { height: 44px !important; padding: 0 16px !important; border-radius: 22px !important; font-size: 13px !important; }
-@media (max-width: 900px) { .cs-main { inset: 0 0 64px 0 !important; border-radius: 0 !important; border: 0 !important; } }
+@media (max-width: 900px) { .cs-main { inset: 0 0 var(--hub-tab, 64px) 0 !important; border-radius: 0 !important; border: 0 !important; } }
+/* phones: the call scrolls, so every control can be reached, and the controls (with End call) stay pinned at the bottom */
+@media (max-width: 900px) {
+  .cs-root { overflow-y: auto !important; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+  .cs-root .cs-tile { min-height: 160px; }
+  .cs-spot-main { min-height: 180px; }
+  .cs-bar { position: sticky; bottom: 0; z-index: 20; background: var(--k-0A100D,#0A100D); padding-bottom: calc(12px + env(safe-area-inset-bottom)) !important; box-shadow: 0 -8px 20px rgba(0,0,0,0.35); }
+  .cs-ctl { width: 46px !important; height: 46px !important; }
+  .cs-ctl span { display: none; }
+  .cs-leave { height: 48px !important; }
+}
 </style>

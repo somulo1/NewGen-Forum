@@ -704,7 +704,7 @@ export default {
   .pbx-presence { height: 34px; }
   .pbx-tabs button { padding: 0 10px; font-size: 13px; }
   .pbx-card { padding: 12px; }
-  .pbx-callpanel.side { left: 0; right: 0; bottom: 64px; border-radius: 18px 18px 0 0; height: 75vh; }
+  .pbx-callpanel.side { left: 0; right: 0; bottom: var(--hub-tab, 64px); border-radius: 18px 18px 0 0; height: 75vh; }
 }
 .pbx-colav { position: relative; flex: none; display: inline-flex; }
 .pbx-colav .pbx-dot { position: absolute; right: -2px; bottom: -2px; width: 9px; height: 9px; border: 2px solid var(--k-16201C,#16201C); }

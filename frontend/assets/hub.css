@@ -84,27 +84,30 @@ label:not([style*="height"]):not(:has(> svg)) > select,label:not([style*="height
 /* Right-hand panels start level with the page's first card (main has 24px top padding). */
 @media (min-width: 901px){.hub-rightcol{padding-top:12px;box-sizing:border-box}}
 @media (max-width: 900px){
+/* the bottom tab bar: 64px plus the phone's home-bar area; everything fixed above it keeps clear of all of it */
+:root{--hub-tab:calc(64px + env(safe-area-inset-bottom, 0px))}
+.hub-main{scroll-padding-bottom:var(--hub-tab)}
 .hub-navfoot{padding-bottom:16px !important}
 .hub-m{display:flex !important}
 .hub-d{display:none !important}
 .hub-header{padding:10px 12px !important;gap:8px !important;flex-wrap:nowrap !important}
 .hub-search{flex:1 1 auto !important;min-width:0 !important;height:40px !important}
-.hub-nav{position:fixed !important;top:64px;left:0;bottom:64px;z-index:62;width:min(300px,86vw) !important;flex:none !important;transform:translateX(-102%);transition:transform .25s ease;box-shadow:0 0 40px rgba(0,0,0,.5);padding-bottom:0 !important}
+.hub-nav{position:fixed !important;top:64px;left:0;bottom:var(--hub-tab);z-index:62;width:min(300px,86vw) !important;flex:none !important;transform:translateX(-102%);transition:transform .25s ease;box-shadow:0 0 40px rgba(0,0,0,.5);padding-bottom:0 !important}
 .hub-nav.open{transform:none}
-.hub-navback{position:fixed;inset:64px 0 64px 0;z-index:61;background:rgba(5,10,8,.6);border:0;padding:0}
+.hub-navback{position:fixed;inset:64px 0 var(--hub-tab) 0;z-index:61;background:rgba(5,10,8,.6);border:0;padding:0}
 .hub-main{padding:16px 14px 150px !important}
-.hub-dock{position:fixed !important;inset:64px 0 64px 0 !important;width:auto !important;max-width:none !important;margin:0 !important;border-radius:0 !important;border:0 !important;z-index:58;flex:none !important}
+.hub-dock{position:fixed !important;inset:64px 0 var(--hub-tab) 0 !important;width:auto !important;max-width:none !important;margin:0 !important;border-radius:0 !important;border:0 !important;z-index:58;flex:none !important}
 .hub-right-drawer{top:64px !important}
 .hub-grip{display:none !important}
-.hub-overlay{inset:64px 0 64px 0 !important}
-.hub-screen{inset:64px 0 64px 0 !important;border-radius:0 !important;border:0 !important}
+.hub-overlay{inset:64px 0 var(--hub-tab) 0 !important}
+.hub-screen{inset:64px 0 var(--hub-tab) 0 !important;border-radius:0 !important;border:0 !important}
 .hub-notif{position:fixed !important;left:12px !important;right:12px !important;top:68px !important;width:auto !important;max-width:none !important;max-height:calc(100vh - 160px) !important}
 .hub-searchwrap{position:static !important}
 .hub-searchres{position:fixed !important;left:12px !important;right:12px !important;top:68px !important;max-height:calc(100vh - 160px) !important}
-.hub-minicall{bottom:76px !important;right:12px !important}
-.hub-fitpage{inset:0 0 64px 0 !important;border-radius:0 !important;border:0 !important}
-.hub-tabbar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:57;height:64px;padding-bottom:env(safe-area-inset-bottom);background:var(--k-121B17,#121B17);border-top:1px solid var(--k-24322C,#24322C)}
-.hub-bubble{bottom:84px !important;right:14px !important}
+.hub-minicall{bottom:calc(var(--hub-tab) + 12px) !important;right:12px !important}
+.hub-fitpage{inset:0 0 var(--hub-tab) 0 !important;border-radius:0 !important;border:0 !important}
+.hub-tabbar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:57;height:64px;box-sizing:content-box;padding-bottom:env(safe-area-inset-bottom);background:var(--k-121B17,#121B17);border-top:1px solid var(--k-24322C,#24322C)}
+.hub-bubble{bottom:calc(var(--hub-tab) + 20px) !important;right:14px !important}
 .hub-toast{top:72px !important;left:12px !important;right:12px !important;transform:none !important;width:auto !important;max-width:none !important}
 .hub-static{position:static !important;max-height:none !important;overflow:visible !important}
 @media print{html{zoom:1 !important}}
