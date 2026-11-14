@@ -44,11 +44,15 @@ export function buildCatMgr(ctx) {
   // business requests, and only that place's members see it (and these categories) when they escalate. Saved at once.
   const LV = { departments: 'Department', units: 'Unit', branches: 'Branch', sectors: 'Sector' };
   const ownRec = target.type !== 'desk' ? recOf(target.type, (s.ou || '').split(':')[1]) : null;
-  const onlyFrom = ownRec ? ((s.ticketIntake || {})[ownRec.id] || '') : '';
-  const intake = { show: !!ownRec && !!this.srv, value: onlyFrom, canEdit: target.canManage,
-    options: [{ value: '', label: 'Anyone: tickets, business requests and escalations' }].concat(Object.keys(LV).flatMap((t) => (O[t] || []).filter((r) => r.id && r.id !== (ownRec && ownRec.id)).map((r) => ({ value: r.id, label: 'Only escalations from ' + r.name + ' (' + LV[t].toLowerCase() + ')' })))),
-    note: onlyFrom ? target.name + ' is hidden when people send tickets or business requests. Only members of the chosen place see it, and these categories, when they escalate.' : 'Anyone can send tickets and business requests here, or escalate to it.',
-    onChange: (e) => { const v = e.target.value || null; ticketsW.setIntake(this, this.srv, ownRec.id, v).then(() => this.notify(v ? target.name + ' now only takes escalations from the chosen place.' : target.name + ' takes tickets from anyone again.', '#B8F36B')).catch((err) => this.notify(err.message || 'Could not save.', '#FF9B8A')); } };
+  const chosen = ownRec ? ((s.ticketIntake || {})[ownRec.id] || []) : [];
+  const allPlaces = Object.keys(LV).flatMap((t) => (O[t] || []).filter((r) => r.id && r.id !== (ownRec && ownRec.id)).map((r) => ({ id: r.id, name: r.name, level: LV[t] })));
+  const saveIntake = (list, msg) => ticketsW.setIntake(this, this.srv, ownRec.id, list).then(() => this.notify(msg, '#B8F36B')).catch((err) => this.notify(err.message || 'Could not save.', '#FF9B8A'));
+  const intake = { show: !!ownRec && !!this.srv, canEdit: target.canManage, anyone: !chosen.length,
+    chosen: chosen.map((id) => { const p = allPlaces.find((x) => x.id === id) || { id, name: 'A removed place', level: '' }; return { ...p, remove: () => saveIntake(chosen.filter((x) => x !== id), chosen.length > 1 ? p.name + ' removed.' : target.name + ' takes tickets from anyone again.') }; }),
+    addOptions: allPlaces.filter((p) => chosen.indexOf(p.id) === -1).map((p) => ({ value: p.id, label: p.name + ' (' + p.level.toLowerCase() + ')' })),
+    onAdd: (e) => { const v = e.target.value; e.target.value = ''; if (v) { const p = allPlaces.find((x) => x.id === v); saveIntake(chosen.concat([v]), target.name + ' now takes escalations from ' + (p ? p.name : 'that place') + (chosen.length ? ' too.' : ' only.')); } },
+    clear: () => saveIntake([], target.name + ' takes tickets from anyone again.'),
+    note: chosen.length ? target.name + ' is hidden when people send tickets or business requests. Only members of the places below see it, and these categories, when they escalate.' : 'Anyone can send tickets and business requests here, or escalate to it. Add places to take escalations only from them.' };
   return { catMgr: { active: true, intake, threshold, editor, dirty, save: () => this.saveWork(), discard: () => this.discardWork(), noAccessNote: target.canManage ? '' : 'You can view these categories. Ask an admin to give your role the "Set up ticket categories" right to change them.', key, canManage: target.canManage, title: target.type === 'desk' ? 'Ticket desk categories' : 'Ticket categories for ' + target.name,
     usingDefaults: !own.length && !working, startOwn: () => this.startOwnCats(key, defaultCats),
     note: own.length ? 'Tickets sent here can only use these categories. Each has its own TAT and priority, and its members take new tickets automatically until you delink them.' : 'No categories of its own yet, so the organization defaults apply. Create your own to set TATs, priorities and who always takes them.',

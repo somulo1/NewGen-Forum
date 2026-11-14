@@ -328,10 +328,10 @@ func (s *Service) Create(ctx context.Context, p *tenant.Principal, in CreateIn) 
 		}
 		// a place that only takes escalations from one chosen place cannot be sent tickets or business requests directly
 		if in.ToRef != nil {
-			if from, fromName, err := intakeOf(ctx, tx, *in.ToRef); err != nil {
+			if closed, err := intakeClosed(ctx, tx, *in.ToRef); err != nil {
 				return err
-			} else if from != nil {
-				return httpx.Err(403, "intake_closed", "That place only takes tickets escalated from "+fromName+". Send it somewhere else.")
+			} else if closed {
+				return httpx.Err(403, "intake_closed", "That place only takes tickets escalated from places it chose. Send it somewhere else.")
 			}
 		}
 		if in.FromRef != nil {

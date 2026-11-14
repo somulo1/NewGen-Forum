@@ -37,7 +37,7 @@ export function buildOrg(ctx) {
   const inPlace = (id) => Object.keys(myOf).some((t) => { const rec = (O[t] || []).find((x) => x.id === id); return !!rec && myOf[t] === rec.name; });
   const escRecs = (type) => type === 'desk' ? [{ id: 'desk', name: 'Ticket team' }] : (O[type] || []).filter((r) => {
     const only = (s.ticketIntake || {})[r.id];
-    if (only && !inPlace(only)) return false;
+    if (only && only.length && !only.some(inPlace)) return false;
     if (!cur_t) return true;
     if (cur_t.to && cur_t.to.type === type && cur_t.to.name === r.name) return false;
     if (cur_t.to && cur_t.to.type === type && myOf[type] === r.name) return false;

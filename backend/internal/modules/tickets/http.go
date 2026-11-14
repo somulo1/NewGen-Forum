@@ -96,8 +96,8 @@ func (s *Service) Private(r chi.Router) {
 	}))
 	r.Put("/tickets/intake", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
 		var in struct {
-			Unit     uuid.UUID  `json:"unit"`
-			OnlyFrom *uuid.UUID `json:"only_from"`
+			Unit     uuid.UUID   `json:"unit"`
+			OnlyFrom []uuid.UUID `json:"only_from"`
 		}
 		if err := httpx.Decode(r, &in, 4<<10); err != nil {
 			return err

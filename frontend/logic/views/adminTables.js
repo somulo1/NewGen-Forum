@@ -242,7 +242,7 @@ export function buildAdminTables(ctx) {
   const ntKind = s.nt.kind === 'request' && canRequest ? 'request' : 'ticket';
   const ntType = ntKind === 'request' ? 'departments' : tLevels.indexOf(s.nt.toType) !== -1 ? s.nt.toType : (tLevels[0] || 'desk');
   // a place that only takes escalations from one chosen place is never somewhere to send a ticket or business request
-  const ntRecs = ntType === 'desk' ? [] : (O[ntType] || []).filter((r) => !(s.ticketIntake || {})[r.id]);
+  const ntRecs = ntType === 'desk' ? [] : (O[ntType] || []).filter((r) => !((s.ticketIntake || {})[r.id] || []).length);
   const ntName = ntRecs.some((r) => r.name === s.nt.toName) ? s.nt.toName : (ntRecs[0] ? ntRecs[0].name : '');
   const ntRecip = ntType === 'desk' ? { type: 'desk', name: 'Ticket desk' } : { type: ntType, name: ntName };
   const ntCatList = catsFor(s.unitCats, ntRecip, defaultCats);

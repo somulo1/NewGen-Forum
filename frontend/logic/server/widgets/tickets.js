@@ -86,9 +86,9 @@ async function loadSettings(logic, srv) {
     (unitCats[key] = unitCats[key] || []).push({ id: c.id, name: c.name, tat: c.tat_hours, prio: c.priority, members: (c.members || []).map((id) => srv.nameOf.get(id)).filter(Boolean) });
   });
   srv.ticketCats = categories;
-  // places that take tickets only by escalation from one chosen place: { [unit id]: chosen place id }
+  // places that take tickets only by escalation from places they chose: { [unit id]: [chosen place ids] }
   let intake = {};
-  try { (await srv.request('GET', '/tickets/intake')).intake.forEach((x) => { intake[x.unit] = x.only_from; }); } catch (e) { intake = {}; }
+  try { (await srv.request('GET', '/tickets/intake')).intake.forEach((x) => { (intake[x.unit] = intake[x.unit] || []).push(x.only_from); }); } catch (e) { intake = {}; }
   logic.setState((st) => ({ ticketIntake: intake, tset: { ...st.tset, cats, start: cfg.start, end: cfg.end, pause: cfg.pause, notify: cfg.notify, nearPct: cfg.nearPct, escalate: cfg.escalate }, unitCats, requestTat, commTat }));
 }
 const hm = (v) => { const p = String(v || '0:0').split(':'); return (Number(p[0]) || 0) * 60 + (Number(p[1]) || 0); };
@@ -249,10 +249,11 @@ export async function raise(logic, srv, nt, cat, target) {
   return reload(logic, srv, conv.id);
 }
 
-// A place chooses to take tickets only by escalation from one other place (onlyFrom = that place's id), or anyone (null).
+// A place chooses to take tickets only by escalation from the places listed (their ids), or from anyone (an empty list).
 export async function setIntake(logic, srv, unitId, onlyFrom) {
-  await srv.request('PUT', '/tickets/intake', { unit: unitId, only_from: onlyFrom || null });
-  logic.setState((st) => { const m = { ...(st.ticketIntake || {}) }; if (onlyFrom) m[unitId] = onlyFrom; else delete m[unitId]; return { ticketIntake: m }; });
+  const list = [...new Set(onlyFrom || [])];
+  await srv.request('PUT', '/tickets/intake', { unit: unitId, only_from: list });
+  logic.setState((st) => { const m = { ...(st.ticketIntake || {}) }; if (list.length) m[unitId] = list; else delete m[unitId]; return { ticketIntake: m }; });
 }
 
 // ---- settings: a unit's own categories (the "Ticket categories" table) ----

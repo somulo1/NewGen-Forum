@@ -2,7 +2,6 @@ package tickets
 
 import (
 	"context"
-	"errors"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -38,8 +37,12 @@ func (s *Service) Intakes(ctx context.Context, p *tenant.Principal) ([]Intake, e
 	return out, err
 }
 
-// SetIntake: the head of the receiving place (or someone who sets up ticket categories) chooses; onlyFrom nil opens it again.
-func (s *Service) SetIntake(ctx context.Context, p *tenant.Principal, unit uuid.UUID, onlyFrom *uuid.UUID) error {
+// SetIntake: the head of the receiving place (or someone who sets up ticket categories) chooses the places it takes escalations
+// from; an empty list opens it to everyone again.
+func (s *Service) SetIntake(ctx context.Context, p *tenant.Principal, unit uuid.UUID, onlyFrom []uuid.UUID) error {
+	if len(onlyFrom) > 200 {
+		return httpx.Bad("Choose fewer places.")
+	}
 	return s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
 		var kind string
 		if err := tx.QueryRow(ctx, `select kind from hub.org_units where id=$1`, unit).Scan(&kind); err != nil {
@@ -54,49 +57,54 @@ func (s *Service) SetIntake(ctx context.Context, p *tenant.Principal, unit uuid.
 				return err
 			}
 		}
-		if onlyFrom == nil {
-			_, err := tx.Exec(ctx, `delete from hub.ticket_intake where unit_id=$1`, unit)
+		for _, f := range onlyFrom {
+			if f == unit {
+				return httpx.Bad("A place cannot escalate to itself.")
+			}
+		}
+		var n int
+		if err := tx.QueryRow(ctx, `select count(*) from hub.org_units where id = any($1)`, onlyFrom).Scan(&n); err != nil {
 			return err
 		}
-		if *onlyFrom == unit {
-			return httpx.Bad("Choose another place: a place cannot escalate to itself.")
+		if n != len(dedupe(onlyFrom)) {
+			return httpx.Bad("One of those places does not exist.")
 		}
-		var ok bool
-		if err := tx.QueryRow(ctx, `select exists (select 1 from hub.org_units where id=$1)`, *onlyFrom).Scan(&ok); err != nil || !ok {
-			return httpx.Bad("That place does not exist.")
+		if _, err := tx.Exec(ctx, `delete from hub.ticket_intake where unit_id=$1`, unit); err != nil {
+			return err
 		}
-		_, err = tx.Exec(ctx, `insert into hub.ticket_intake (org_id, unit_id, only_from) values ($1,$2,$3)
-			on conflict (org_id, unit_id) do update set only_from=excluded.only_from, updated_at=now()`, p.Org, unit, *onlyFrom)
+		_, err = tx.Exec(ctx, `insert into hub.ticket_intake (org_id, unit_id, only_from) select $1, $2, x from unnest($3::uuid[]) x on conflict do nothing`, p.Org, unit, onlyFrom)
 		return err
 	})
 }
 
-// intakeOf returns the only place a unit takes escalations from, or nil when anyone may send to it.
-func intakeOf(ctx context.Context, tx pgx.Tx, unit uuid.UUID) (*uuid.UUID, string, error) {
-	var from uuid.UUID
-	var name string
-	err := tx.QueryRow(ctx, `select i.only_from, u.name from hub.ticket_intake i join hub.org_units u on u.id = i.only_from where i.unit_id=$1`, unit).Scan(&from, &name)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, "", nil
+func dedupe(in []uuid.UUID) []uuid.UUID {
+	seen := map[uuid.UUID]bool{}
+	var out []uuid.UUID
+	for _, x := range in {
+		if !seen[x] {
+			seen[x] = true
+			out = append(out, x)
+		}
 	}
-	if err != nil {
-		return nil, "", err
-	}
-	return &from, name, nil
+	return out
 }
 
-// checkIntakeEscalation: only a member of the chosen place may escalate into a place that is closed to everyone else.
+// checkIntakeEscalation: a place closed to everyone else takes escalations only from members of the places it chose.
 func checkIntakeEscalation(ctx context.Context, tx pgx.Tx, person, to uuid.UUID, toName string) error {
-	from, fromName, err := intakeOf(ctx, tx, to)
-	if err != nil || from == nil {
+	var closed, member bool
+	if err := tx.QueryRow(ctx, `select exists (select 1 from hub.ticket_intake where unit_id=$2),
+			exists (select 1 from hub.ticket_intake i join hub.people pe on pe.id=$1 where i.unit_id=$2 and i.only_from in (pe.sector_id, pe.branch_id, pe.unit_id, pe.department_id))`, person, to).Scan(&closed, &member); err != nil {
 		return err
 	}
-	var member bool
-	if err := tx.QueryRow(ctx, `select coalesce($2 in (sector_id, branch_id, unit_id, department_id), false) from hub.people where id=$1`, person, *from).Scan(&member); err != nil {
-		return err
-	}
-	if !member {
-		return httpx.Err(403, "intake_closed", toName+" only takes tickets escalated from "+fromName+".")
+	if closed && !member {
+		return httpx.Err(403, "intake_closed", toName+" only takes tickets escalated from the places it chose.")
 	}
 	return nil
+}
+
+// intakeClosed: whether a place takes tickets only by escalation (from places it chose).
+func intakeClosed(ctx context.Context, tx pgx.Tx, unit uuid.UUID) (bool, error) {
+	var closed bool
+	err := tx.QueryRow(ctx, `select exists (select 1 from hub.ticket_intake where unit_id=$1)`, unit).Scan(&closed)
+	return closed, err
 }
