@@ -76,7 +76,7 @@
   <!-- customers -->
   <section v-if="tab === 'contacts'" class="pbx-card">
     <div class="pbx-seg" role="radiogroup" aria-label="Show" style="align-self: flex-start"><button v-for="w in ['Customers', 'Colleagues']" :key="w" type="button" role="radio" :aria-checked="who === w" :class="{ on: who === w }" @click="who = w">{{ w }}</button></div>
-    <div v-if="who === 'Colleagues'" class="pbx-colleagues">
+    <div v-if="who === 'Colleagues'" class="pbx-colleagues pbx-scrolllist">
       <div v-for="a in pageOf('col', colleagues, 40)" :key="a.ext" class="pbx-colrow">
         <span class="pbx-colav"><UserAvatar :name="a.name" :initials="initials(a.name)" :color="avatarColor(a.name)" :size="28" :font-size="10"/><span :class="['pbx-dot', agentTone(a.status) === 'busy' ? 'mid' : agentTone(a.status)]" :title="a.status" aria-hidden="true"></span></span>
         <span class="grow"><strong>{{ a.name }}</strong> <span class="pbx-sub">· {{ a.ext }} · {{ a.status }}</span></span>
@@ -87,7 +87,7 @@
     <PbxPager v-if="who === 'Colleagues'" :total="colleagues.length" :size="40" :page="pg.col || 1" @update:page="setPage('col', $event)" />
     <template v-else>
     <input v-model="cq" type="search" placeholder="Search customers by name, account or number" aria-label="Search customers" class="pbx-search">
-    <div class="pbx-cards">
+    <div class="pbx-cards pbx-scrolllist">
       <article v-for="c in customerRows" :key="c.id" class="pbx-cust">
         <div class="pbx-row"><UserAvatar :name="c.name" :initials="initials(c.name)" color="#C9B6FF" :size="36" :font-size="12"/><span class="grow"><strong>{{ c.name }}</strong><span class="pbx-sub block">{{ c.account }} · {{ c.product }}</span></span></div>
         <span class="pbx-sub">{{ showNumber(c.phone, revealed[c.phone]) }} <button v-if="pbx.settings.maskNumbers && !revealed[c.phone]" type="button" class="pbx-link" @click="reveal(c.phone)">Show</button></span>
@@ -708,4 +708,11 @@ export default {
 }
 .pbx-colav { position: relative; flex: none; display: inline-flex; }
 .pbx-colav .pbx-dot { position: absolute; right: -2px; bottom: -2px; width: 9px; height: 9px; border: 2px solid var(--k-16201C,#16201C); }
+/* Contacts: the switch and search stay put; only the list scrolls, inside the card, never under the page's top bar */
+.pbx-scrolllist { max-height: calc(100vh - 380px); min-height: 220px; overflow-y: auto; overscroll-behavior: contain; padding-right: 4px; scrollbar-width: thin; align-content: start; }
+@media (max-width: 1100px) { .pbx-scrolllist { max-height: calc(100vh - 300px); } }
+/* Tables: the card's search and filters stay put; rows scroll inside the card under the sticky column headings */
+.pbx-table-wrap { max-height: max(220px, calc(100vh - 380px)); overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.pbx-table thead th { position: sticky; top: 0; z-index: 2; box-shadow: 0 1px 0 var(--k-2A3832,#2A3832); }
+@media (max-width: 1100px) { .pbx-table-wrap { max-height: calc(100vh - 300px); } }
 </style>
