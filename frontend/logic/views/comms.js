@@ -210,10 +210,11 @@ export function buildComms(ctx) {
     // the measures that answer "did our communication reach people?": what WhatsApp can never show
     kpis: (() => {
       const R = E.rows.filter((r) => r.m), avg = (f) => (R.length ? Math.round(R.reduce((n, r) => n + f(r), 0) / R.length) : 0);
-      const meds = R.map((r) => r.m.medianMins).filter((x) => x != null).sort((a, b) => a - b);
-      return [{ label: 'Published', n: R.length }, { label: 'Average read rate', n: avg((r) => r.m.readPct) + '%' }, { label: 'Read within 48 hours', n: avg((r) => r.m.read48Pct) + '%' },
-        { label: 'Acknowledged', n: avg((r) => r.m.ackPct) + '%' }, { label: 'Reached the 80% target', n: R.filter((r) => r.m.landed).length + ' of ' + R.length },
-        { label: 'Median time to read', n: fmtMins(meds.length ? meds[Math.floor(meds.length / 2)] : null) }, { label: 'People still to read', n: E.people ? E.people.behind + ' of ' + E.people.reached : '–' }];   // distinct people: each person once, however many they received
+      // exact counts from the server: every person-and-communication pair once, people counted once by user id
+      const P = E.people || null, rate = (k) => (P && P.deliveries ? pctOf(P[k], P.deliveries) + '%' : '–'), of = (k) => (P ? P[k] + ' of ' + P.deliveries : '');
+      return [{ label: 'Published', n: R.length }, { label: 'Read rate', n: rate('read'), sub: of('read') + ' deliveries read' }, { label: 'Read within 48 hours', n: rate('read_in_48h'), sub: of('read_in_48h') },
+        { label: 'Acknowledged', n: rate('acknowledged'), sub: of('acknowledged') }, { label: 'Reached the 80% target', n: R.filter((r) => r.m.landed).length + ' of ' + R.length },
+        { label: 'Median time to read', n: fmtMins(P ? P.median_read_mins : null) }, { label: 'People still to read', n: P ? P.behind + ' of ' + P.reached : '–', sub: 'each person once' }];   // distinct people: each person once, however many they received
     })(),
     avgRead: null,
     // week by week: of everyone reached by what was published that week, how many read it (the day-14 / day-90 proof)

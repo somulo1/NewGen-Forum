@@ -1283,6 +1283,13 @@ const engCTE = `with cc as (
 type People struct {
 	Reached int `json:"reached"`
 	Behind  int `json:"behind"` // people with at least one communication still unread
+	// every person-and-communication pair measured (a person who got 3 communications is 3 deliveries), so the rates below are
+	// exact counts, not averages of percentages
+	Deliveries int  `json:"deliveries"`
+	Read       int  `json:"read"`
+	ReadIn48h  int  `json:"read_in_48h"`
+	Acked      int  `json:"acknowledged"`
+	MedianMins *int `json:"median_read_mins"` // over every first read, not a median of medians
 }
 
 // Engagement measures the latest published communications (up to 300) of the types the person may see insights for,
@@ -1330,7 +1337,10 @@ func (s *Service) Engagement(ctx context.Context, p *tenant.Principal) ([]EngRow
 			return err
 		}
 		return tx.QueryRow(ctx, engCTE+`
-			select count(distinct aud.pid), count(distinct aud.pid) filter (where not exists (select 1 from fr where fr.k = aud.k and fr.pid = aud.pid)) from aud`, types).Scan(&ppl.Reached, &ppl.Behind)
+			select count(distinct aud.pid), count(distinct aud.pid) filter (where not exists (select 1 from fr where fr.k = aud.k and fr.pid = aud.pid)),
+				(select count(*) from aud), (select count(*) from fr), (select count(*) from fr join heads h on h.k = fr.k where fr.at <= h.t0 + interval '48 hours'),
+				(select count(*) from fa), (select round(percentile_cont(0.5) within group (order by extract(epoch from (fr.at - h.t0)) / 60))::int from fr join heads h on h.k = fr.k)
+			from aud`, types).Scan(&ppl.Reached, &ppl.Behind, &ppl.Deliveries, &ppl.Read, &ppl.ReadIn48h, &ppl.Acked, &ppl.MedianMins)
 	})
 	return out, ppl, err
 }
