@@ -55,6 +55,7 @@
 
 <IncomingCall />
 <PbxIncoming />
+<NotifyPrompt />
 
 <CallMini />
 

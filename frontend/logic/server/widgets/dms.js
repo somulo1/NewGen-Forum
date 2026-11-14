@@ -2,6 +2,7 @@
 // (text, replies, files), deletes your own messages, marks chats read, and receives new messages live over the realtime
 // socket. A message for the chat you are looking at plays a soft pop; one for a closed chat plays the brighter alert.
 import { newConversationKey, wrap, b64, unb64 } from '../e2ee.js';
+import * as notifyW from '~/logic/browserNotify.js';
 import { connectRealtime } from '../realtime.js';
 import { changedSince, markOf, pause } from '../catchup.js';
 import * as files from '../files.js';
@@ -118,6 +119,7 @@ function live(logic, srv) {
       rt.sub(conv.id);
       loadFiles(logic, srv, conv.id, msgs);
       alertTone();   // someone started a chat with me
+      { const row = logic.state.dms.find((d) => d.id === conv.id); if (row) notifyW.show({ title: row.with, body: notifyW.preview(row.msgs[row.msgs.length - 1]) || 'Started a chat with you', tag: 'dm:' + row.id, onClick: () => logic.openDm(row.with) }); }
     } catch (e) { load(logic, srv).catch(() => {}); }
   });
   rt.on('message.new', async (ev) => {
@@ -135,6 +137,7 @@ function live(logic, srv) {
     loadFiles(logic, srv, dm.id, [msg]);
     if (!mine) {
       if (open) { messageTone(); markRead(logic, srv, dm.id); } else alertTone();
+      notifyW.show({ title: dm.with, body: notifyW.preview(msg), tag: 'dm:' + dm.id, onClick: () => logic.openDm(dm.with) });
     }
   });
   // after a reconnect, catch up on what was missed: a few chats at a time

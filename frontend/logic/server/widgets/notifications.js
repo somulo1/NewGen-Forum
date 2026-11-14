@@ -2,6 +2,7 @@
 // sends each person's notifications to their own account channel) and play the notification chime. Opening the list marks
 // everything read on the server.
 import { when } from './tickets.js';
+import * as notifyW from '~/logic/browserNotify.js';
 import { connectRealtime } from '../realtime.js';
 import { chime, loadTones } from '../../tones.js';
 import { rings, kindOfNote } from '../../notifTones.js';
@@ -24,6 +25,7 @@ export async function load(logic, srv) {
     if (logic.state.notifs.some((x) => x.id && x.id === n.id)) return;
     logic.setState((st) => ({ notifs: [toItem(n)].concat(st.notifs), notifSeen: false, notifUnread: (st.notifUnread || 0) + 1 }));
     if (rings(logic.state.notifTones, kindOfNote(n.kind))) chime();
+    notifyW.show({ title: 'Hub', body: n.text || 'New notification', tag: 'note:' + (n.id || Date.now()), onClick: () => logic.setState({ notifOpen: true }) });
     // a notification about something on screen: refresh it
     if (n.kind === 'ticket' && srv.reload.tickets) srv.reload.tickets();
     if ((n.kind === 'comm' || n.kind === 'award' || n.kind === 'approval') && srv.reload.approvals) srv.reload.approvals();

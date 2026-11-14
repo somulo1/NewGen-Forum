@@ -5,6 +5,7 @@
 //   start/join   -> POST /calls or /calls/{id}/join -> { call, token, url }
 //   room socket  -> welcome { you, peers } | peer-joined | peer-left | offer/answer/ice (relayed) | state | chat | mod | ended
 import { connectRealtime } from './realtime.js';
+import * as notifyW from '~/logic/browserNotify.js';
 import * as dmsW from './widgets/dms.js';
 import { connectSfu, leaveSfu, applySfu, sendChatSfu, sfuActive, control, sfuStats, setSfuUpload, sfuVideoPaused } from './sfuCall.js';
 import { startQualityWatch, stopQualityWatch, noteReconnect, noteJoined, newLadder, stepLadder, resetLadder, upBad, downBad } from './callQuality.js';
@@ -572,6 +573,7 @@ export function listen(logic, srv) {
     // a private call and a forum call ring until answered (every member of the forum gets it); a meeting shows the banner and a notice
     if (d.context === 'dm' || d.context === 'forum') startRing();
     else logic.notify((d.from_name || 'A colleague') + ' started a ' + (d.context === 'standup' ? 'standup' : 'meeting') + '. Join from the banner.', '#7CC4FF');
+    notifyW.show({ title: (d.kind === 'video' ? 'Video call' : 'Call') + ' from ' + (d.from_name || 'a colleague'), body: d.context === 'dm' || d.context === 'forum' ? 'Click to answer in Hub' : 'A meeting started. Click to join.', tag: 'call:' + d.call, urgent: true });
     clearTimeout(srv.ringT);
     srv.ringT = setTimeout(() => { if (logic.state.incoming && logic.state.incoming.callId === d.call) { stopRing(); logic.setState({ incoming: null }); logic.notify('Missed ' + (d.kind === 'video' ? 'video call' : 'call') + ' from ' + d.from_name + '.', '#FFB86B'); loadHistory(logic, srv); } }, 45000);
   };

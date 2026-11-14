@@ -3,6 +3,7 @@
 // sealed for its members. This reads them, sends (text, replies, files, shared posts), votes in polls, changes the posting
 // rules, creates forums and invites people. New messages arrive over the realtime socket, so an open forum updates by itself.
 import { newConversationKey, wrap, newId, b64, unb64 } from '../e2ee.js';
+import * as notifyW from '~/logic/browserNotify.js';
 import * as files from '../files.js';
 import { connectRealtime } from '../realtime.js';
 import { changedSince, markOf, pause } from '../catchup.js';
@@ -429,6 +430,13 @@ async function reloadOnce(logic, srv, local, { meta, incoming = [], gone = new S
   applyOnline(logic, srv);
   loadFiles(logic, srv, todo);
   if (open && forum.newest) ask(srv, 'POST', `/conversations/${sid}/read`, { message: forum.newest }).catch(() => {});
+  // a message from someone else: pop up from the system when Hub is not in front (or this forum is not open)
+  if (others) {
+    const ids = new Set((fresh || []).filter((m) => m.sender_account !== srv.me.account).map((m) => m.id));
+    const last = (forum.updates || []).filter((u) => ids.has(u.id)).pop() || (forum.updates || [])[0];
+    notifyW.show({ title: forum.name, body: (others > 1 ? others + ' new messages · ' : '') + (last ? last.who + ': ' + notifyW.preview(last) : 'New message'), tag: 'forum:' + local,
+      onClick: () => logic.setState({ forum: local, panelKind: 'forum', mode: logic.isMobileViewport() ? 'page' : (['page'].includes(logic.state.mode) ? 'page' : 'docked'), tab: 'discussions' }) });
+  }
 }
 
 // You opened a forum: its unread count goes to zero here and on the server.
