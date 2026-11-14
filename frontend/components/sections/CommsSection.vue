@@ -87,7 +87,8 @@
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px">
 <template v-for="k in engagement.kpis" :key="k.label"><div style="padding: 16px; border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); text-align: center"><strong style="font-size: 26px; font-family: 'Space Grotesk', sans-serif">{{ k.n }}</strong><div style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">{{ k.label }}</div></div></template>
 </div>
-<div v-if="engagement.trend.length" style="padding: 16px 18px; border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 10px">
+<div v-if="engagement.trend.length === 1" style="font-size: 13px; color: var(--k-9DB0A6,#9DB0A6)">Week of {{ engagement.trend[0].label }}: <strong :style="`color: ${engagement.trend[0].color}`">{{ engagement.trend[0].pct }}% read</strong> (target 80%). The week-by-week chart appears once there are two weeks to compare.</div>
+<div v-if="engagement.trend.length > 1" style="padding: 16px 18px; border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 10px">
 <div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px"><strong style="font-size: 15px">Read rate, week by week</strong><span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Of everyone reached by what was published that week, how many read it. Dashed line: the 80% target.</span></div>
 <div style="position: relative; display: flex; align-items: flex-end; gap: 8px; height: 120px; padding-top: 6px">
 <div aria-hidden="true" style="position: absolute; left: 0; right: 0; bottom: calc(18px + 80% * 0.82); border-top: 1px dashed #B8F36B; opacity: .7"></div>
