@@ -30,7 +30,9 @@ export function buildForums(ctx) {
       chipStyle: 'flex:none;width:36px;height:36px;border-radius:10px;cursor:pointer;font-family:Space Grotesk,sans-serif;font-weight:700;font-size:12px;color:#0F1714;background:' + f.color + ';border:2px solid ' + (f.id === cur.id ? '#E8EFEA' : 'transparent') + ';opacity:' + (f.id === cur.id ? '1' : '0.65'),
       unreadStyle: 'position:absolute;top:-5px;right:-6px;min-width:17px;height:17px;padding:0 4px;box-sizing:border-box;border-radius:9px;background:#B8F36B;color:#0F1714;font:700 10px sans-serif;display:flex;align-items:center;justify-content:center;pointer-events:none'
     };
-  });
+  // newest activity first: the forum that just received a message moves to the top of every list (rail, panel icons)
+  }).map((f) => ({ ...f, lastAt: Math.max(0, ...(f.updates || []).map((u) => Date.parse(u.at) || 0), Date.parse(f.created) || 0) }))
+    .sort((a, b) => b.lastAt - a.lastAt);
   const snip = (m) => { const x = m.text || (m.file ? [].concat(m.file)[0].name : ''); return x.length > 90 ? x.slice(0, 90) + '…' : x; };
   const dmNow = s.panelKind === 'dm' ? s.dms.find((d) => d.id === s.dmId) : null;
   const replyKey = dmNow ? dmNow.id : cur.id;

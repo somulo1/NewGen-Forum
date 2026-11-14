@@ -5,6 +5,9 @@ import * as presenceW from '~/logic/server/presence.js';
 // Values and handlers the templates read through hubBindings: panels.
 export function valsPanels(ctx) {
   const { chatCtl, chatGate, dmPerson, dmPriv, dmStatusCol, forums, incomingView, isDM, panelStyle, pollView, s, set } = ctx;
+  // private chats with the newest message first (a chat that just got a message jumps to the top)
+  const lastOf = (d) => { const m = d.msgs && d.msgs[d.msgs.length - 1]; return m ? (Date.parse(m.at) || (m.pending ? Date.now() : 0)) : 0; };
+  const dmsByActivity = s.dms.slice().sort((a, b) => lastOf(b) - lastOf(a));
   return {
     panelStyle,
     chatCtl, chatGate, composerOff: !chatGate.allowed, composerNote: chatGate.reason, dmPriv, incomingView, pollView,
@@ -22,7 +25,7 @@ export function valsPanels(ctx) {
         sub: fmtWhen(e.at) + (e.dur ? ' · ' + fmtDur(e.dur) : ''), isVideo: e.kind === 'video',
         remove: () => (this.srv ? callsW.deleteFromLog(this, this.srv, [e.id]) : Promise.resolve(this.setState((x) => ({ callLog: x.callLog.filter((y) => y.id !== e.id) })))) }));
       const clearAll = () => (this.srv ? callsW.deleteFromLog(this, this.srv, rows.map((r) => r.id)) : Promise.resolve(this.setState((x) => ({ callLog: x.callLog.filter((y) => !mine(y)) }))));
-      return { rows, empty: rows.length === 0, clearAll, who: isDM ? (curDm ? curDm.with : '') : (cur ? cur.name : ''),
+  return { rows, empty: rows.length === 0, clearAll, who: isDM ? (curDm ? curDm.with : '') : (cur ? cur.name : ''),
         callVoice: isDM && curDm ? () => this.startDmCall('voice', curDm.with, dmView.initials, dmView.color) : () => this.startCall('voice', cur.name, cur.initials, cur.color, [], 'forum', cur.id),
         callVideo: isDM && curDm ? () => this.startDmCall('video', curDm.with, dmView.initials, dmView.color) : () => this.startCall('video', cur.name, cur.initials, cur.color, [], 'forum', cur.id) };
     })(),
@@ -39,7 +42,7 @@ export function valsPanels(ctx) {
     // The strip shows this kind of conversation (forums, or chats) and, after a divider, anything of the other kind with unread
     // messages, so you can see and open what is waiting from either screen.
     panelChips: (() => {
-      const mine = (isDM ? s.dms.map((d) => { const pr = dmPerson(d.with); const on = d.id === s.dmId; return { name: d.with, initials: pr.initials, unread: d.unread, hasUnread: d.unread > 0, open: () => this.openDm(d.with),
+      const mine = (isDM ? dmsByActivity.map((d) => { const pr = dmPerson(d.with); const on = d.id === s.dmId; return { name: d.with, initials: pr.initials, unread: d.unread, hasUnread: d.unread > 0, open: () => this.openDm(d.with),
       chipStyle: 'flex:none;width:36px;height:36px;border-radius:50%;cursor:pointer;font-weight:700;font-size:12px;color:#0F1714;font-family:inherit;background:' + pr.color + ';border:2px solid ' + (on ? '#E8EFEA' : 'transparent') + ';opacity:' + (on ? '1' : '0.65'),
       unreadStyle: 'position:absolute;top:-5px;right:-6px;min-width:17px;height:17px;padding:0 4px;box-sizing:border-box;border-radius:9px;background:#C9B6FF;color:#0F1714;font:700 10px sans-serif;display:flex;align-items:center;justify-content:center;pointer-events:none' }; }) : forums).map((c) => ({ ...c, avatar: isDM, sep: false }));
       const dmChip = (d) => { const pr = dmPerson(d.with); return { name: d.with, initials: pr.initials, unread: d.unread, hasUnread: true, avatar: true, color: pr.color, open: () => this.openDm(d.with),
@@ -49,7 +52,7 @@ export function valsPanels(ctx) {
       if (other.length) other[0] = { ...other[0], sep: true };
       return mine.concat(other);
     })(),
-    dmList: s.dms.map((d) => { const pr = dmPerson(d.with); const last = d.msgs[d.msgs.length - 1]; const on = isDM && d.id === s.dmId && s.mode !== 'closed';
+    dmList: dmsByActivity.map((d) => { const pr = dmPerson(d.with); const last = d.msgs[d.msgs.length - 1]; const on = isDM && d.id === s.dmId && s.mode !== 'closed';
       return { key: d.id, name: d.with, kindLabel: 'private chat', remove: () => (this.srv ? dmsW.clear(this, this.srv, d.id) : Promise.resolve(this.setState((x) => ({ dms: x.dms.filter((y) => y.id !== d.id) })))), initials: pr.initials, color: pr.color, dot: this.srv && !presenceW.isOnline(this.srv, d.person) ? '#6B7A72' : (dmStatusCol[pr.status] || '#B8F36B'), online: !this.srv || presenceW.isOnline(this.srv, d.person), unread: d.unread, hasUnread: d.unread > 0,
         typing: !!(s.typing && s.typing[d.id] && s.typing[d.id].length), last: (s.typing && s.typing[d.id] && s.typing[d.id].length) ? 'typing…' : last ? (last.from === 'me' ? 'You: ' : '') + (last.text || (last.file ? 'Sent a file' : '')) : 'Say hello', open: () => this.openDm(d.with),
         style: 'display:flex;align-items:center;gap:10px;width:100%;min-height:50px;padding:4px 10px;border:0;border-radius:10px;cursor:pointer;text-align:left;font-family:inherit;color:var(--k-E8EFEA,#E8EFEA);background:' + (on ? 'var(--k-22302A,#22302A)' : 'transparent') }; }),
