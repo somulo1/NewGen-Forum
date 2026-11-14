@@ -127,7 +127,23 @@ export function buildComms(ctx) {
   };
   // The page for reading one communication, with (for people allowed) a second page measuring how it was received.
   const oc = s.commOpen ? s.comms.find((c) => c.uid === s.commOpen) : null;
-  const sum = (k) => ((s.commIns && s.commIns.places) || []).reduce((n, x) => n + x[k], 0);
+  const sum = (k) => ((s.commIns && s.commIns.places) || []).reduce((n, x) => n + (x[k] || 0), 0);
+  // ---- measurability: did the communication reach its people, how fast, and who is still missing ----
+  const TARGET = 80;   // a communication counts as having landed when 80% of its audience has read it
+  const pctOf = (a, b) => (b ? Math.min(100, Math.round((a / b) * 100)) : 0);
+  const fmtMins = (m) => (m == null ? '—' : m < 60 ? m + ' min' : m < 1440 ? Math.floor(m / 60) + ' h ' + (m % 60 ? (m % 60) + ' min' : '') : Math.round(m / 1440) + ' d');
+  const measureOf = (places) => {
+    const t = (k) => places.reduce((n, x) => n + (x[k] || 0), 0);
+    const audience = t('audience'), read = t('read'), read48 = t('read_in_48h'), acked = t('acknowledged');
+    const meds = places.map((x) => x.median_read_mins).filter((m) => m != null).sort((a, b) => a - b);
+    const unread = [], seenP = new Set();
+    places.forEach((x) => (x.unread || []).forEach((u) => { if (!seenP.has(u.person)) { seenP.add(u.person); unread.push(u); } }));
+    const dept = {};
+    places.forEach((x) => (x.by_department || []).forEach((d) => { const r = dept[d.department] || (dept[d.department] = { department: d.department, audience: 0, read: 0, acked: 0 }); r.audience += d.audience; r.read += d.read; r.acked += d.acknowledged; }));
+    const byDept = Object.values(dept).map((d) => ({ ...d, readPct: pctOf(d.read, d.audience), ackPct: pctOf(d.acked, d.audience) })).sort((a, b) => a.readPct - b.readPct);
+    return { audience, read, read48, acked, readPct: pctOf(read, audience), read48Pct: pctOf(read48, audience), ackPct: pctOf(acked, audience),
+      medianMins: meds.length ? meds[Math.floor(meds.length / 2)] : null, median: fmtMins(meds.length ? meds[Math.floor(meds.length / 2)] : null), unread, byDept, landed: pctOf(read, audience) >= TARGET };
+  };
   const commView = oc ? {
     open: true, ref: oc.id, status: oc.status, statusColor: oc.status === 'Published' ? '#B8F36B' : '#FFB86B', close: () => this.setState({ commOpen: null, commIns: null }), type: oc.type, typeColor: commColor[oc.type], title: oc.title, summary: oc.summary, hasSummary: !!oc.summary, body: oc.body,
     meta: (oc.by === 'Samwel Okoth Omulo' ? 'You' : oc.by) + (oc.byDept ? ' · ' + oc.byDept : '') + ' · ' + fmtDay(oc.date) + ' · ' + oc.status,
@@ -141,6 +157,17 @@ export function buildComms(ctx) {
     ins: s.commIns || { loading: false, places: [], err: '' }, hasPlaces: !!(s.commIns && s.commIns.places.length),
     places: ((s.commIns && s.commIns.places) || []).map((x) => ({ ...x, place: x.place || ((forums.find((f) => this.srv && this.srv.forumConv && this.srv.forumConv[f.id] === x.conversation) || {}).name ? (forums.find((f) => this.srv.forumConv[f.id] === x.conversation).name + ' forum') : 'Forum'), kindLabel: x.kind === 'wall' ? 'Community wall' : 'Forum', readPct: x.audience ? Math.round((x.read / x.audience) * 100) + '%' : '0%' })),
     totals: { audience: sum('audience'), read: sum('read'), likes: sum('likes'), replies: sum('replies'), acked: sum('acknowledged') },
+    measure: (() => {
+      const m = measureOf((s.commIns && s.commIns.places) || []);
+      const remindState = (s.commRemind && s.commRemind.uid === oc.uid) ? s.commRemind : {};
+      return { ...m, target: TARGET, unreadShown: m.unread.slice(0, 40), moreUnread: Math.max(0, m.unread.length - 40), reminding: !!remindState.busy, remindNote: remindState.note || '',
+        remind: () => {
+          if (!m.unread.length || remindState.busy) return;
+          this.setState({ commRemind: { uid: oc.uid, busy: true, note: '' } });
+          commsW.remind(this.srv, oc).then((n) => { this.setState({ commRemind: { uid: oc.uid, busy: false, note: 'Reminder sent to ' + n + (n === 1 ? ' person' : ' people') + ' who had not read it.' } }); this.notify('Reminder sent to ' + n + ' people.', '#B8F36B'); })
+            .catch((e) => this.setState({ commRemind: { uid: oc.uid, busy: false, note: (e && e.message) || 'Could not send the reminder.' } }));
+        } };
+    })(),
     // who acknowledged it, across every place it went to
     ackedBy: [...new Set(((s.commIns && s.commIns.places) || []).flatMap((x) => x.acknowledged_by || []))],
     canAck: !!this.srv && oc.status === 'Published' && !oc.mine && !oc.iAcked, acked: !!oc.iAcked,
@@ -166,7 +193,8 @@ export function buildComms(ctx) {
           if (places.some((x) => covered.has(x.comm))) continue;
           places.forEach((x) => covered.add(x.comm)); covered.add(c.uid);
           const t = (k) => places.reduce((n, x) => n + x[k], 0);
-          rows.push({ c, places: places.length, audience: t('audience'), read: t('read'), likes: t('likes'), replies: t('replies'), acked: t('acknowledged'), ackedBy: [...new Set(places.flatMap((x) => x.acknowledged_by || []))] });
+          const m = measureOf(places);
+          rows.push({ c, places: places.length, audience: t('audience'), read: t('read'), likes: t('likes'), replies: t('replies'), acked: t('acknowledged'), ackedBy: [...new Set(places.flatMap((x) => x.acknowledged_by || []))], m });
         }
       };
       await Promise.all([worker(), worker(), worker()]);
@@ -176,14 +204,24 @@ export function buildComms(ctx) {
   };
   const pct = (r) => (r.audience ? Math.min(100, Math.round((r.read / r.audience) * 100)) : 0);
   const engSum = (k) => E.rows.reduce((n, r) => n + r[k], 0);
-  const engagementTable = { id: 'engagement', pageSize: 10, minWidth: '960px', emptyText: E.loading ? 'Measuring…' : 'Nothing published yet.',
-    cols: [{ label: 'Type', filter: 'select' }, { label: 'Title', filter: 'text' }, { label: 'Date', filter: 'date' }, { label: 'People reached' }, { label: 'Read' }, { label: 'Acknowledged' }, { label: 'Likes' }, { label: 'Replies' }, { label: 'Action', align: 'right' }],
-    rows: E.rows.map((r) => ({ cells: [C.b(r.c.type, commColor[r.c.type]), C.t(r.c.title, { strong: true, sub: r.places + (r.places === 1 ? ' place' : ' places') }), C.t(fmtDay(r.c.date), { fv: r.c.date, nowrap: true }),
-      C.t(String(r.audience), { fv: String(r.audience) }), C.bar(pct(r), pct(r) >= 80 ? '#B8F36B' : pct(r) >= 40 ? '#FFB86B' : '#9DB0A6', r.read + ' (' + pct(r) + '%)'), C.t(String(r.acked || 0), { sub: (r.ackedBy || []).slice(0, 3).join(', ') + ((r.ackedBy || []).length > 3 ? ' +' + (r.ackedBy.length - 3) + ' more' : ''), fv: String(r.acked || 0) }), C.t(String(r.likes)), C.t(String(r.replies)),
-      C.a([{ label: 'View', kind: 'primary', run: () => { this.setState({ commPage: '' }); openComm(r.c); } }])] })) };
+  const engagementTable = { id: 'engagement', pageSize: 25, minWidth: '1040px', emptyText: E.loading ? 'Measuring…' : 'Nothing published yet.',
+    cols: [{ label: 'Type', filter: 'select' }, { label: 'Title', filter: 'text' }, { label: 'Date', filter: 'date' }, { label: 'Reached' }, { label: 'Read' }, { label: 'Within 48 h' }, { label: 'Acknowledged' }, { label: 'Time to read' }, { label: 'Still to read' }, { label: 'Action', align: 'right' }],
+    rows: E.rows.filter((r) => r.m).map((r) => ({ cells: [C.b(r.c.type, commColor[r.c.type]), C.t(r.c.title, { strong: true, sub: r.places + (r.places === 1 ? ' place' : ' places') }), C.t(fmtDay(r.c.date), { fv: r.c.date, nowrap: true }),
+      C.t(String(r.m.audience), { fv: r.m.audience }),
+      C.bar(r.m.readPct, r.m.readPct >= 80 ? '#B8F36B' : r.m.readPct >= 40 ? '#FFB86B' : '#FF9B8A', r.m.read + ' (' + r.m.readPct + '%)'),
+      C.t(r.m.read48Pct + '%', { fv: r.m.read48Pct }), C.t(r.m.ackPct + '%', { sub: r.m.acked + ' people', fv: r.m.ackPct }), C.t(r.m.median, { fv: r.m.medianMins == null ? 1e9 : r.m.medianMins }),
+      C.t(String(r.m.unread.length), { sub: r.m.landed ? 'target met' : 'below 80% target', fv: r.m.unread.length }),
+      C.a([{ label: 'View', kind: 'primary', run: () => { this.setState({ commPage: '' }); openComm(r.c); this.setState({ commView: 'insights' }); } }])] })) };
   const engagement = { open: s.commPage === 'engagement' && engTypes.length > 0, canOpen: engTypes.length > 0, loading: E.loading, err: E.err, hasErr: !!E.err,
     openIt: () => { this.setState({ commPage: 'engagement', commOpen: null }); loadEngagement(); }, close: () => this.setState({ commPage: '' }), refresh: loadEngagement,
-    kpis: [{ label: 'Published', n: E.rows.length }, { label: 'People reached', n: engSum('audience') }, { label: 'Read', n: engSum('read') }, { label: 'Acknowledged', n: engSum('acked') }, { label: 'Likes', n: engSum('likes') }, { label: 'Replies', n: engSum('replies') }],
-    avgRead: E.rows.length ? Math.round(E.rows.reduce((n, r) => n + pct(r), 0) / E.rows.length) : 0 };
+    // the measures that answer "did our communication reach people?": what WhatsApp can never show
+    kpis: (() => {
+      const R = E.rows.filter((r) => r.m), aud = R.reduce((n, r) => n + r.m.audience, 0), avg = (f) => (R.length ? Math.round(R.reduce((n, r) => n + f(r), 0) / R.length) : 0);
+      const meds = R.map((r) => r.m.medianMins).filter((x) => x != null).sort((a, b) => a - b);
+      return [{ label: 'Published', n: R.length }, { label: 'Average read rate', n: avg((r) => r.m.readPct) + '%' }, { label: 'Read within 48 hours', n: avg((r) => r.m.read48Pct) + '%' },
+        { label: 'Acknowledged', n: avg((r) => r.m.ackPct) + '%' }, { label: 'Reached the 80% target', n: R.filter((r) => r.m.landed).length + ' of ' + R.length },
+        { label: 'Median time to read', n: fmtMins(meds.length ? meds[Math.floor(meds.length / 2)] : null) }, { label: 'People still to read', n: R.reduce((n, r) => n + r.m.unread.length, 0) + ' of ' + aud }];
+    })(),
+    avgRead: null };
   return { cm, commNew, commsTable, commsTabs, commView, engagement, engagementTable, openCm };
 }

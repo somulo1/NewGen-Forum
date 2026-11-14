@@ -279,3 +279,50 @@ func TestCommunicationsAreAcknowledged(t *testing.T) {
 		t.Fatalf("insights: %v", pl)
 	}
 }
+
+// Insights show who a communication has not reached yet, how fast it was read and how it landed per department, and a reminder
+// goes only to the people who have not read it (once every 6 hours at most).
+func TestInsightsMeasureReachAndRemindOnlyTheUnread(t *testing.T) {
+	e := testkit.New(t)
+	ownerU, slug := e.NewOrg("Olivia Owner")
+	org := e.OrgID(slug)
+	o := e.Owner(ownerU)
+	staff := e.Join(ownerU, slug, "Sam", "staff")
+	for _, m := range []*testkit.Member{o, staff} {
+		m.Register(e)
+	}
+	e.MustDo(204, "PUT", "/approvals/flows/f1", map[string]any{"levels": 0}, ownerU.Access)
+	key, _ := e2ee.NewConversationKey()
+	wall := e.MustDo(201, "POST", "/conversations", map[string]any{"kind": "wall", "name": "Everyone", "audience": "org", "keys": o.WrapFor(e, key, 1, o.Person, staff.Person)}, ownerU.Access)["id"].(string)
+	id := uuid.Must(uuid.NewV7()).String()
+	comm := e.MustDo(201, "POST", "/comms", map[string]any{"type": "Announcement", "conversation": wall, "message": id, "epoch": 1, "device": o.DevID, "envelope": o.Seal(org, wall, id, 1, key, "Lockers")}, ownerU.Access)["comm"].(map[string]any)
+	cid := comm["id"].(string)
+	if comm["status"] != "Published" {
+		t.Skipf("announcements need approval here: %v", comm["status"])
+	}
+	spot := func() map[string]any {
+		return e.MustDo(200, "GET", "/comms/"+cid+"/insights", nil, ownerU.Access)["places"].([]any)[0].(map[string]any)
+	}
+	pl := spot()
+	un := pl["unread"].([]any)
+	if len(un) != 1 || un[0].(map[string]any)["name"] == "" || pl["read_in_48h"].(float64) != 0 {
+		t.Fatalf("Sam has not read it yet and the sender is not counted: %v", pl)
+	}
+	if d := pl["by_department"].([]any); len(d) != 1 || d[0].(map[string]any)["audience"].(float64) != 1 {
+		t.Fatalf("by department: %v", pl["by_department"])
+	}
+	// staff cannot send reminders; the owner reminds only Sam, and not again right away
+	e.MustDo(403, "POST", "/comms/"+cid+"/remind", nil, staff.Access)
+	if n := e.MustDo(200, "POST", "/comms/"+cid+"/remind", nil, ownerU.Access)["reminded"].(float64); n != 1 {
+		t.Fatalf("reminded %v people, want 1", n)
+	}
+	if c, _ := e.Do("POST", "/comms/"+cid+"/remind", nil, ownerU.Access); c != 429 {
+		t.Fatalf("second reminder within 6 hours: %d", c)
+	}
+	// once Sam has it, nobody is left to remind and the speed is measured
+	e.MustDo(204, "POST", "/comms/"+cid+"/acknowledge", nil, staff.Access)
+	pl = spot()
+	if len(pl["unread"].([]any)) != 0 || pl["read_in_48h"].(float64) != 1 || pl["median_read_mins"] == nil {
+		t.Fatalf("after reading: %v", pl)
+	}
+}

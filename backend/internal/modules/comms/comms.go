@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -806,6 +807,18 @@ func (s *Service) Private(r chi.Router) {
 		httpx.JSON(w, 200, map[string]any{"places": l})
 		return nil
 	}))
+	r.Post("/comms/{id}/remind", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
+		id, err := uuid.Parse(chi.URLParam(r, "id"))
+		if err != nil {
+			return httpx.ErrNotFound
+		}
+		n, err := s.Remind(r.Context(), p, id)
+		if err != nil {
+			return err
+		}
+		httpx.JSON(w, 200, map[string]any{"reminded": n})
+		return nil
+	}))
 	r.Get("/comms/rules", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
 		m, err := s.Rules(r.Context(), p)
 		if err != nil {
@@ -930,6 +943,26 @@ type Spot struct {
 	Replies  int       `json:"replies"`
 	Acked    int       `json:"acknowledged"`
 	AckedBy  []string  `json:"acknowledged_by"` // who acknowledged it there, earliest first
+	// how fast and how fully it landed: the measures WhatsApp can never give
+	ReadIn48h  int       `json:"read_in_48h"`      // read within 48 hours of going out
+	MedianMins *int      `json:"median_read_mins"` // half of the readers had read it by this many minutes
+	Unread     []Pending `json:"unread"`           // who has not read it yet, for a targeted reminder (sender excluded)
+	ByDept     []DeptRow `json:"by_department"`    // reach, reads and acknowledgements per department
+}
+
+// Pending is one person a communication has not reached yet.
+type Pending struct {
+	Person     uuid.UUID `json:"person"`
+	Name       string    `json:"name"`
+	Department string    `json:"department"`
+}
+
+// DeptRow is how a communication landed in one department.
+type DeptRow struct {
+	Department string `json:"department"`
+	Audience   int    `json:"audience"`
+	Read       int    `json:"read"`
+	Acked      int    `json:"acknowledged"`
 }
 
 var insightRight = map[string][2]string{"Memo": {"memos", "View insights"}, "Announcement": {"announcements", "View insights"}, "Newsletter": {"newsletter", "View insights"}, "Job post": {"jobposts", "View insights"}}
@@ -989,8 +1022,116 @@ func (s *Service) Insights(ctx context.Context, p *tenant.Principal, id uuid.UUI
 			}
 			as.Close()
 			out[i].Acked = len(out[i].AckedBy)
+			if err := landing(ctx, tx, &out[i]); err != nil {
+				return err
+			}
 		}
 		return nil
 	})
 	return out, err
+}
+
+// landing fills in the speed of reading, who has not read it yet, and the per-department picture for one place.
+func landing(ctx context.Context, tx pgx.Tx, x *Spot) error {
+	var med *float64
+	if err := tx.QueryRow(ctx, `select count(*) filter (where r.at <= coalesce(c.published_at, c.created_at) + interval '48 hours'),
+			percentile_cont(0.5) within group (order by extract(epoch from (r.at - coalesce(c.published_at, c.created_at))) / 60)
+		from hub.comms c left join hub.comm_reads r on r.comm_id = c.id where c.id = $1`, x.Comm).Scan(&x.ReadIn48h, &med); err != nil {
+		return err
+	}
+	if med != nil {
+		m := int(*med + 0.5)
+		if m < 0 {
+			m = 0
+		}
+		x.MedianMins = &m
+	}
+	rs, err := tx.Query(ctx, `select p.id, p.first_name || ' ' || p.last_name, coalesce(u.name, 'No department'),
+			exists (select 1 from hub.comm_reads r where r.comm_id = $2 and r.person_id = p.id),
+			exists (select 1 from hub.comm_acks a where a.comm_id = $2 and a.person_id = p.id),
+			p.id = (select by_person from hub.comms where id = $2)
+		from hub.conversation_members m
+		join hub.people p on p.account_id = m.account_id and p.org_id = m.org_id
+		left join hub.org_units u on u.id = p.department_id
+		where m.conversation_id = $1 and m.left_at is null
+		order by 3, 2 limit 5000`, x.Conv, x.Comm)
+	if err != nil {
+		return err
+	}
+	defer rs.Close()
+	x.Unread, x.ByDept = []Pending{}, []DeptRow{}
+	at := map[string]int{}
+	for rs.Next() {
+		var pid uuid.UUID
+		var name, dept string
+		var read, acked, sender bool
+		if err := rs.Scan(&pid, &name, &dept, &read, &acked, &sender); err != nil {
+			return err
+		}
+		if sender {
+			continue
+		}
+		i, ok := at[dept]
+		if !ok {
+			i = len(x.ByDept)
+			at[dept] = i
+			x.ByDept = append(x.ByDept, DeptRow{Department: dept})
+		}
+		d := &x.ByDept[i]
+		d.Audience++
+		if read {
+			d.Read++
+		} else if len(x.Unread) < 300 {
+			x.Unread = append(x.Unread, Pending{Person: pid, Name: name, Department: dept})
+		}
+		if acked {
+			d.Acked++
+		}
+	}
+	return rs.Err()
+}
+
+// Remind sends a reminder only to the people a communication has not reached yet (in every place it went), instead of
+// re-posting it to everyone. At most once every 6 hours per communication, so nobody is nagged.
+func (s *Service) Remind(ctx context.Context, p *tenant.Principal, id uuid.UUID) (int, error) {
+	spots, err := s.Insights(ctx, p, id) // also checks the right to see insights, before anything is recorded
+	if err != nil {
+		return 0, err
+	}
+	if s.A.Rdb != nil {
+		ok, err := s.A.Rdb.SetNX(ctx, "comm:remind:"+p.Org.String()+":"+id.String(), "1", 6*time.Hour).Result()
+		if err == nil && !ok {
+			return 0, httpx.Err(429, "reminded_recently", "A reminder for this was sent in the last 6 hours. Try again later.")
+		}
+	}
+	var typ, ref string
+	var nb notify.Batch
+	n := 0
+	seen := map[uuid.UUID]bool{}
+	err = s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
+		if err := tx.QueryRow(ctx, `select type, ref from hub.comms where id=$1`, id).Scan(&typ, &ref); err != nil {
+			return httpx.ErrNotFound
+		}
+		for _, sp := range spots {
+			if sp.Status != "Published" {
+				continue
+			}
+			for _, u := range sp.Unread {
+				if seen[u.Person] {
+					continue
+				}
+				seen[u.Person] = true
+				if err := nb.Add(ctx, tx, p.Org, u.Person, "comm", "Reminder: please read "+strings.ToLower(typ)+" "+ref+".", "#FFB86B", ref); err != nil {
+					return err
+				}
+				n++
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	nb.Send(ctx, s.A)
+	return n, nil
 }

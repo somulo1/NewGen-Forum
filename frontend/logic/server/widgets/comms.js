@@ -85,6 +85,11 @@ export async function acknowledge(logic, srv, c) {
   logic.setState((st) => ({ comms: st.comms.map((x) => (x.uid === c.uid ? { ...x, iAcked: true, iRead: true } : x)) }));
 }
 
+// Reminds only the people a communication has not reached yet (at most once every 6 hours).
+export async function remind(srv, c) {
+  return (await srv.request('POST', `/comms/${c.uid}/remind`)).reminded;
+}
+
 export async function insights(srv, c) {
   return (await srv.request('GET', `/comms/${c.uid}/insights`)).places;
 }

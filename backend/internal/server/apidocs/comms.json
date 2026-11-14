@@ -126,7 +126,24 @@
      "audience": "integer",
      "read": "integer",
      "likes": "integer",
-     "replies": "integer"
+     "replies": "integer",
+     "read_in_48h": "integer. Read within 48 hours of going out",
+     "median_read_mins": "integer. Half of the readers had read it by this many minutes (absent until someone reads it)",
+     "unread": [
+      {
+       "person": "uuid",
+       "name": "string",
+       "department": "string"
+      }
+     ],
+     "by_department": [
+      {
+       "department": "string",
+       "audience": "integer",
+       "read": "integer",
+       "acknowledged": "integer"
+      }
+     ]
     }
    ]
   }
@@ -265,6 +282,14 @@
   "status": 200,
   "response": {
    "places": []
+  }
+ },
+ "POST /v1/comms/{id}/remind": {
+  "summary": "Remind only the people who have not read it",
+  "description": "Sends a notification to everyone the communication reached who has not read it yet, in every place it went. At most once every 6 hours per communication (429 otherwise).",
+  "access": "a role with View insights on that type's page",
+  "response": {
+   "reminded": "integer. People reminded"
   }
  }
 }
