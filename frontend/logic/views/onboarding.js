@@ -138,17 +138,17 @@ function buildStructureEd(s, can) {
       return {
         // the head role is decided for the whole level in "Levels your organization uses"
         headRole: u.head_role || '', headRoles: roleChoices, headRoleName: ((roleChoices.find((r) => r.key === (cfgOf(u.kind).head_role || u.head_role)) || {}).name) || '', heads: (u.heads || []).map((h) => h.name),
-        // who leads it: people holding the level's head role, or the place's own members; choosing one also makes them a member
+        // who leads it: only the place's own members who hold the level's head role (so no other role is mixed in)
         ...(() => {
           const rk = cfgOf(u.kind).head_role || u.head_role || '';
           const rn = ((roleChoices.find((r) => r.key === rk) || {}).name) || '';
           const fieldOf = { sector: 'sector', branch: 'loc', unit: 'unit', department: 'dept' }[u.kind];
-          const cands = (this.dir || []).filter((p) => p.uid && (p.accStatus || 'active') === 'active' && ((rk && (p.role === rk || p.role === rn)) || p[fieldOf] === u.name));
+          const cands = (this.dir || []).filter((p) => p.uid && (p.accStatus || 'active') === 'active' && rk && (p.role === rk || p.role === rn) && p[fieldOf] === u.name);
           const me = this.srv && this.srv.me;
           const mine = me ? [{ uid: me.person, name: me.name }] : [];
           const all = cands.map((p) => ({ uid: p.uid, name: p.name })).concat(mine.filter((m) => !cands.some((c) => c.uid === m.uid) && u.head_person === m.uid));
           return { headPerson: u.head_person || '', headOpts: all.sort((a, b) => a.name.localeCompare(b.name)).slice(0, 200),
-            onHeadPerson: (e) => { const v = e.target.value || null; const who = (all.find((x) => x.uid === v) || {}).name; run(() => orgW.setHeadPerson(this, this.srv, u.id, v), null, v ? who + ' now leads ' + u.name + ' and is a member of it.' : 'Whoever holds the head role leads ' + u.name + ' again.'); } };
+            onHeadPerson: (e) => { const v = e.target.value || null; const who = (all.find((x) => x.uid === v) || {}).name; run(() => orgW.setHeadPerson(this, this.srv, u.id, v), null, v ? who + ' now leads ' + u.name + '.' : 'Whoever holds the head role leads ' + u.name + ' again.'); } };
         })(),
         onHead: (e) => { const role = e.target.value; run(() => orgW.setHead(this, this.srv, u.id, role), null, role ? 'The ' + ((roleChoices.find((r) => r.key === role) || {}).name || role) + ' role now heads ' + u.name + '.' : u.name + ' no longer has a head role.'); },
         id: u.id, name: u.name, under: par ? kindLabel(par.kind) + ' ' + par.name : 'Top level', people: n + (n === 1 ? ' person' : ' people'), editing, editName: editing ? se.edit.name : u.name,

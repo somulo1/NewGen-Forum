@@ -12,7 +12,7 @@ import (
 	"hub/internal/tenant"
 )
 
-// SetHeadPerson chooses who leads a place: someone who holds the place's head role, or one of its members. They are placed in it
+// SetHeadPerson chooses who leads a place: a member of it (placed there on the People page) who holds the place's head role. They are placed in it
 // (and in every place above it) so the head is always a member. nil clears the choice: the head role decides again.
 func (s *Service) SetHeadPerson(ctx context.Context, p *tenant.Principal, unit uuid.UUID, person *uuid.UUID) error {
 	return s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
@@ -33,12 +33,12 @@ func (s *Service) SetHeadPerson(ctx context.Context, p *tenant.Principal, unit u
 		var who string
 		if err := tx.QueryRow(ctx, `select first_name || ' ' || last_name,
 				$2 in (sector_id, branch_id, unit_id, department_id)
-				or exists (select 1 from hub.person_roles pr join hub.unit_heads uh on uh.role_id = pr.role_id where pr.person_id = pe.id and uh.unit_id = $2)
+				and exists (select 1 from hub.person_roles pr join hub.unit_heads uh on uh.role_id = pr.role_id where pr.person_id = pe.id and uh.unit_id = $2)
 			from hub.people pe where id=$1 and status = 'active'`, *person, unit).Scan(&who, &ok); err != nil {
 			return httpx.Bad("Choose an active person.")
 		}
 		if !ok {
-			return httpx.Bad(who + " neither holds the role that heads " + name + " nor is a member of it.")
+			return httpx.Bad(who + " must both hold the role that heads " + name + " and be a member of it (placed there on the People page).")
 		}
 		// the head is a member: placed here and in every place above it
 		if _, err := tx.Exec(ctx, `with recursive up(id, kind, parent_id) as (select id, kind, parent_id from hub.org_units where id=$2
