@@ -66,7 +66,7 @@
 <PageSkeleton v-if="chatLoading" kind="chat" bare />
 <template v-if="olderCount > 0 || moreOlder"><button type="button" @click="showOlder" style="align-self: center; height: 32px; padding: 0 14px; border-radius: 16px; border: 1px solid var(--k-6B7A72,#6B7A72); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; font-size: 12px">{{ olderCount > 0 ? 'Show ' + olderCount + ' earlier ' + (olderCount === 1 ? 'message' : 'messages') : 'Load earlier messages' }}</button></template>
 <template v-for="(u, u__i) in cur.chat" :key="u__i">
-<div :style="u.rowStyle + ';touch-action:pan-y'" @pointerdown="u.startHold" @pointermove="u.moveHold" @pointerup="u.stopHold" @pointerleave="u.stopHold" @pointercancel="u.stopHold" @contextmenu="u.openActions">
+<div :data-seen-conv="u.seenConv || null" :data-seen-msg="u.seenMsg || null" :style="u.rowStyle + ';touch-action:pan-y'" @pointerdown="u.startHold" @pointermove="u.moveHold" @pointerup="u.stopHold" @pointerleave="u.stopHold" @pointercancel="u.stopHold" @contextmenu="u.openActions">
 <UserAvatar :name="u.who" :initials="u.initials" :color="u.color" :size="32"/>
 <div :style="u.bubbleStyle">
 <div style="display: flex; gap: 8px; align-items: baseline"><strong style="font-size: 13px">{{ u.who }}</strong><span style="font-size: 11px; color: var(--k-9DB0A6,#9DB0A6)">{{ u.time }}</span><button type="button" @click.stop="u.openActions($event)" aria-label="Message options" style="margin-left: auto; width: 26px; height: 24px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--k-9DB0A6,#9DB0A6); cursor: pointer">⋯</button></div>

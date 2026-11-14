@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -54,6 +55,7 @@ type Comm struct {
 	CreatedAt    time.Time  `json:"created_at"`
 	PublishedAt  *time.Time `json:"published_at,omitempty"`
 	Read         int        `json:"read"`
+	Audience     int        `json:"audience"` // distinct people it reached across every place it went to, except the author (read/acknowledged likewise)
 	IRead        bool       `json:"i_read"`
 	IAcked       bool       `json:"i_acked"`
 	Acked        int        `json:"acknowledged"`
@@ -210,14 +212,18 @@ func (s *Service) applyPublish(ctx context.Context, tx pgx.Tx, a approvals.Appli
 	return nil
 }
 
-const sel = `select c.id, c.ref, c.type, c.status, c.by_person, p.first_name || ' ' || p.last_name, c.conversation_id, c.message_id, c.created_at, c.published_at, c.batch,
-	(select count(*) from hub.comm_reads r where r.comm_id = c.id), exists (select 1 from hub.comm_reads r where r.comm_id = c.id and r.person_id = $1),
-	exists (select 1 from hub.comm_acks a where a.comm_id = c.id and a.person_id = $1), (select count(*) from hub.comm_acks a where a.comm_id = c.id)
+// the read and acknowledged counts follow the same audience rule as the insights (see inAudience), so every screen agrees
+var sel = `select c.id, c.ref, c.type, c.status, c.by_person, p.first_name || ' ' || p.last_name, c.conversation_id, c.message_id, c.created_at, c.published_at, c.batch,
+	(select count(distinct r.person_id) from hub.comm_reads r where r.comm_id in (` + grpComms + `) and r.person_id in (` + grpAudience + `)),
+	exists (select 1 from hub.comm_reads r where r.comm_id = c.id and r.person_id = $1),
+	exists (select 1 from hub.comm_acks a where a.comm_id = c.id and a.person_id = $1),
+	(select count(distinct a.person_id) from hub.comm_acks a where a.comm_id in (` + grpComms + `) and a.person_id in (` + grpAudience + `)),
+	(select count(*) from (` + grpAudience + `) ga)
 	from hub.comms c join hub.people p on p.id = c.by_person`
 
 func scan(r pgx.Row) (*Comm, error) {
 	x := &Comm{}
-	err := r.Scan(&x.ID, &x.Ref, &x.Type, &x.Status, &x.By, &x.ByName, &x.Conversation, &x.Message, &x.CreatedAt, &x.PublishedAt, &x.Batch, &x.Read, &x.IRead, &x.IAcked, &x.Acked)
+	err := r.Scan(&x.ID, &x.Ref, &x.Type, &x.Status, &x.By, &x.ByName, &x.Conversation, &x.Message, &x.CreatedAt, &x.PublishedAt, &x.Batch, &x.Read, &x.IRead, &x.IAcked, &x.Acked, &x.Audience)
 	return x, err
 }
 
@@ -320,6 +326,29 @@ func (s *Service) Contents(ctx context.Context, p *tenant.Principal, ids []uuid.
 		return rs.Err()
 	})
 	return out, err
+}
+
+// MarkSeen records communications the person really saw on screen in a wall or forum (the browser reports a post once it
+// was at least 60% visible for 2 seconds). Only published communications in that conversation, that the person is a
+// current member of and did not write themselves, are counted.
+func (s *Service) MarkSeen(ctx context.Context, p *tenant.Principal, conv uuid.UUID, msgs []uuid.UUID) (int, error) {
+	if len(msgs) == 0 {
+		return 0, nil
+	}
+	if len(msgs) > 200 {
+		msgs = msgs[:200]
+	}
+	n := 0
+	err := s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
+		tag, err := tx.Exec(ctx, `insert into hub.comm_reads (org_id, comm_id, person_id)
+			select c.org_id, c.id, $3 from hub.comms c
+			join hub.conversation_members m on m.conversation_id = c.conversation_id and m.account_id = $4 and m.left_at is null
+			where c.conversation_id = $1 and c.message_id = any($2) and c.status = 'Published' and c.by_person <> $3
+			on conflict do nothing`, conv, msgs, p.Person, p.Account)
+		n = int(tag.RowsAffected())
+		return err
+	})
+	return n, err
 }
 
 // MarkRead records that the person read a communication (once).
@@ -800,11 +829,38 @@ func (s *Service) Private(r chi.Router) {
 		if err != nil {
 			return httpx.ErrNotFound
 		}
-		l, err := s.Insights(r.Context(), p, id)
+		l, err := s.Insights(r.Context(), p, id) // checks the right to see insights
 		if err != nil {
 			return err
 		}
-		httpx.JSON(w, 200, map[string]any{"places": l})
+		t, err := s.GroupTotals(r.Context(), p, id)
+		if err != nil {
+			return err
+		}
+		httpx.JSON(w, 200, map[string]any{"places": l, "totals": t})
+		return nil
+	}))
+	r.Post("/comms/seen", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
+		var in struct {
+			Conversation uuid.UUID   `json:"conversation"`
+			Messages     []uuid.UUID `json:"messages"`
+		}
+		if err := httpx.Decode(r, &in, 16<<10); err != nil {
+			return err
+		}
+		n, err := s.MarkSeen(r.Context(), p, in.Conversation, in.Messages)
+		if err != nil {
+			return err
+		}
+		httpx.JSON(w, 200, map[string]any{"recorded": n})
+		return nil
+	}))
+	r.Get("/comms/engagement", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
+		l, err := s.Engagement(r.Context(), p)
+		if err != nil {
+			return err
+		}
+		httpx.JSON(w, 200, map[string]any{"comms": l})
 		return nil
 	}))
 	r.Post("/comms/{id}/remind", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
@@ -983,8 +1039,9 @@ func (s *Service) Insights(ctx context.Context, p *tenant.Principal, id uuid.UUI
 			return err
 		}
 		rs, err := tx.Query(ctx, `select c.id, case when cv.kind = 'wall' and cv.audience = 'org' then 'Community wall' when cv.kind = 'wall' then initcap(coalesce(cv.audience, '')) || ' wall' else '' end, c.conversation_id, cv.kind, c.status,
-				(select count(*) from hub.conversation_members m where m.conversation_id = c.conversation_id and m.left_at is null),
-				(select count(*) from hub.comm_reads x where x.comm_id = c.id),
+				(select count(*) from hub.conversation_members m join hub.people pe on pe.account_id = m.account_id and pe.org_id = m.org_id
+					where m.conversation_id = c.conversation_id and m.left_at is null and pe.id <> c.by_person),
+				(select count(*) from hub.comm_reads x where x.comm_id = c.id and `+inAudience("x.person_id")+`),
 				(select count(*) from hub.messages m where m.org_id = c.org_id and m.conversation_id = c.conversation_id and m.reply_to = c.message_id and m.deleted_at is null and m.content_type = 'reaction'),
 				(select count(*) from hub.messages m where m.org_id = c.org_id and m.conversation_id = c.conversation_id and m.reply_to = c.message_id and m.deleted_at is null and m.content_type not in ('reaction','vote','poll_lock'))
 			from hub.comms c join hub.conversations cv on cv.id = c.conversation_id
@@ -1008,7 +1065,8 @@ func (s *Service) Insights(ctx context.Context, p *tenant.Principal, id uuid.UUI
 		rs.Close()
 		for i := range out {
 			as, err := tx.Query(ctx, `select pe.first_name || ' ' || pe.last_name from hub.comm_acks a join hub.people pe on pe.id = a.person_id
-				where a.comm_id = $1 order by a.at`, out[i].Comm)
+				join hub.comms c on c.id = a.comm_id
+				where a.comm_id = $1 and `+inAudience("a.person_id")+` order by a.at`, out[i].Comm)
 			if err != nil {
 				return err
 			}
@@ -1031,12 +1089,113 @@ func (s *Service) Insights(ctx context.Context, p *tenant.Principal, id uuid.UUI
 	return out, err
 }
 
+// A communication sent to several places at once is one group (same batch). Every count below is per PERSON across the
+// group: someone who is in two of the places, or who met it on the wall and again in a forum, is reached once, has read it
+// once (their first read is what counts for speed) and has acknowledged it once. Seeing it again elsewhere is fine and is
+// not counted again. Expects the communication as alias c.
+const grpComms = `select c2.id from hub.comms c2 where c2.id = c.id or (c.batch is not null and c2.batch = c.batch and c2.status = 'Published')`
+const grpAudience = `select distinct ap.id from hub.comms c2
+	join hub.conversation_members am on am.conversation_id = c2.conversation_id and am.left_at is null
+	join hub.people ap on ap.account_id = am.account_id and ap.org_id = am.org_id
+	where (c2.id = c.id or (c.batch is not null and c2.batch = c.batch and c2.status = 'Published')) and ap.id <> c2.by_person`
+
+// inAudience limits a count to the communication's real audience: people who are members of the conversation it was posted
+// in now, and not its author. So "read" can never exceed "reached", and someone who left is not counted on either side.
+// It expects the communication as alias c.
+func inAudience(col string) string {
+	return col + ` <> c.by_person and exists (select 1 from hub.conversation_members am join hub.people ap on ap.account_id = am.account_id and ap.org_id = am.org_id
+		where am.conversation_id = c.conversation_id and am.left_at is null and ap.id = ` + col + `)`
+}
+
+// Totals is how a communication landed for its whole group, one person counted once, whatever places they met it in.
+type Totals struct {
+	Audience   int       `json:"audience"`
+	Read       int       `json:"read"`
+	ReadIn48h  int       `json:"read_in_48h"`
+	Acked      int       `json:"acknowledged"`
+	AckedBy    []string  `json:"acknowledged_by"`
+	MedianMins *int      `json:"median_read_mins"`
+	Unread     []Pending `json:"unread"`
+	ByDept     []DeptRow `json:"by_department"`
+}
+
+// GroupTotals measures a communication across all the places it went to, per person (see grpAudience).
+func (s *Service) GroupTotals(ctx context.Context, p *tenant.Principal, id uuid.UUID) (*Totals, error) {
+	t := &Totals{AckedBy: []string{}, Unread: []Pending{}, ByDept: []DeptRow{}}
+	err := s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
+		cte := `with c as (select * from hub.comms where id = $1),
+			aud as (` + strings.Replace(grpAudience, "from hub.comms c2", "from c, hub.comms c2", 1) + `),
+			t0 as (select min(coalesce(c2.published_at, c2.created_at)) at from hub.comms c2, c where c2.id in (` + grpComms + `)),
+			fr as (select r.person_id pid, min(r.at) at from hub.comm_reads r, c where r.comm_id in (` + grpComms + `) and r.person_id in (select * from aud) group by r.person_id),
+			fa as (select a.person_id pid, min(a.at) at from hub.comm_acks a, c where a.comm_id in (` + grpComms + `) and a.person_id in (select * from aud) group by a.person_id)`
+		var med *float64
+		if err := tx.QueryRow(ctx, cte+` select (select count(*) from aud), (select count(*) from fr),
+				(select count(*) from fr, t0 where fr.at <= t0.at + interval '48 hours'), (select count(*) from fa),
+				(select percentile_cont(0.5) within group (order by extract(epoch from (fr.at - t0.at)) / 60) from fr, t0)`, id).Scan(&t.Audience, &t.Read, &t.ReadIn48h, &t.Acked, &med); err != nil {
+			return err
+		}
+		if med != nil {
+			m := int(*med + 0.5)
+			if m < 0 {
+				m = 0
+			}
+			t.MedianMins = &m
+		}
+		rs, err := tx.Query(ctx, cte+` select pe.id, pe.first_name || ' ' || pe.last_name, coalesce(u.name, 'No department'),
+				exists (select 1 from fr where fr.pid = pe.id), (select at from fa where fa.pid = pe.id)
+			from hub.people pe left join hub.org_units u on u.id = pe.department_id
+			where pe.id in (select * from aud) order by 3, 2 limit 5000`, id)
+		if err != nil {
+			return err
+		}
+		defer rs.Close()
+		at := map[string]int{}
+		type ack struct {
+			name string
+			at   time.Time
+		}
+		acks := []ack{}
+		for rs.Next() {
+			var pid uuid.UUID
+			var name, dept string
+			var read bool
+			var ackAt *time.Time
+			if err := rs.Scan(&pid, &name, &dept, &read, &ackAt); err != nil {
+				return err
+			}
+			i, ok := at[dept]
+			if !ok {
+				i = len(t.ByDept)
+				at[dept] = i
+				t.ByDept = append(t.ByDept, DeptRow{Department: dept})
+			}
+			d := &t.ByDept[i]
+			d.Audience++
+			if read {
+				d.Read++
+			} else if len(t.Unread) < 300 {
+				t.Unread = append(t.Unread, Pending{Person: pid, Name: name, Department: dept})
+			}
+			if ackAt != nil {
+				d.Acked++
+				acks = append(acks, ack{name, *ackAt})
+			}
+		}
+		sort.Slice(acks, func(i, j int) bool { return acks[i].at.Before(acks[j].at) })
+		for _, a := range acks {
+			t.AckedBy = append(t.AckedBy, a.name)
+		}
+		return rs.Err()
+	})
+	return t, err
+}
+
 // landing fills in the speed of reading, who has not read it yet, and the per-department picture for one place.
 func landing(ctx context.Context, tx pgx.Tx, x *Spot) error {
 	var med *float64
-	if err := tx.QueryRow(ctx, `select count(*) filter (where r.at <= coalesce(c.published_at, c.created_at) + interval '48 hours'),
+	if err := tx.QueryRow(ctx, `select count(r.person_id) filter (where r.at <= coalesce(c.published_at, c.created_at) + interval '48 hours'),
 			percentile_cont(0.5) within group (order by extract(epoch from (r.at - coalesce(c.published_at, c.created_at))) / 60)
-		from hub.comms c left join hub.comm_reads r on r.comm_id = c.id where c.id = $1`, x.Comm).Scan(&x.ReadIn48h, &med); err != nil {
+		from hub.comms c left join hub.comm_reads r on r.comm_id = c.id and `+inAudience("r.person_id")+` where c.id = $1`, x.Comm).Scan(&x.ReadIn48h, &med); err != nil {
 		return err
 	}
 	if med != nil {
@@ -1091,10 +1250,82 @@ func landing(ctx context.Context, tx pgx.Tx, x *Spot) error {
 	return rs.Err()
 }
 
+// EngRow is how one published communication (one place) landed, for the engagement overview.
+type EngRow struct {
+	Comm       uuid.UUID  `json:"comm"`
+	Batch      *uuid.UUID `json:"batch,omitempty"` // the group: one row per communication, however many places it went to
+	Type       string     `json:"type"`
+	Ref        string     `json:"ref"`
+	At         time.Time  `json:"at"`
+	Audience   int        `json:"audience"`
+	Read       int        `json:"read"`
+	ReadIn48h  int        `json:"read_in_48h"`
+	Acked      int        `json:"acknowledged"`
+	MedianMins *int       `json:"median_read_mins"`
+}
+
+// Engagement measures the latest published communications (up to 300) of the types the person may see insights for,
+// in one query, so the overview does not ask the server once per communication.
+func (s *Service) Engagement(ctx context.Context, p *tenant.Principal) ([]EngRow, error) {
+	out := []EngRow{}
+	err := s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
+		types := []string{}
+		for t, r := range insightRight {
+			if ok, err := authz.Can(ctx, tx, p.Person, r[0], r[1]); err == nil && ok {
+				types = append(types, t)
+			}
+		}
+		if len(types) == 0 {
+			return httpx.ErrForbidden
+		}
+		rs, err := tx.Query(ctx, `with cc as (
+				select id, coalesce(batch, id) k, conversation_id, by_person, coalesce(published_at, created_at) t0, type, ref
+				from hub.comms where status = 'Published' and type = any($1)),
+			heads as (select k, min(t0) t0, (array_agg(id order by t0, id))[1] comm, (array_agg(type order by t0, id))[1] type, (array_agg(ref order by t0, id))[1] ref
+				from cc group by k order by min(t0) desc limit 300),
+			aud as (select distinct cc.k, pe.id pid from cc join heads h on h.k = cc.k
+				join hub.conversation_members m on m.conversation_id = cc.conversation_id and m.left_at is null
+				join hub.people pe on pe.account_id = m.account_id and pe.org_id = m.org_id where pe.id <> cc.by_person),
+			fr as (select cc.k, r.person_id pid, min(r.at) at from cc join heads h on h.k = cc.k join hub.comm_reads r on r.comm_id = cc.id
+				join aud on aud.k = cc.k and aud.pid = r.person_id group by cc.k, r.person_id),
+			fa as (select distinct cc.k, a.person_id pid from cc join heads h on h.k = cc.k join hub.comm_acks a on a.comm_id = cc.id
+				join aud on aud.k = cc.k and aud.pid = a.person_id)
+			select h.comm, h.k, h.type, h.ref, h.t0,
+				(select count(*) from aud where aud.k = h.k), (select count(*) from fr where fr.k = h.k),
+				(select count(*) from fr where fr.k = h.k and fr.at <= h.t0 + interval '48 hours'), (select count(*) from fa where fa.k = h.k),
+				(select percentile_cont(0.5) within group (order by extract(epoch from (fr.at - h.t0)) / 60) from fr where fr.k = h.k)
+			from heads h order by h.t0 desc`, types)
+		if err != nil {
+			return err
+		}
+		defer rs.Close()
+		for rs.Next() {
+			var e EngRow
+			var med *float64
+			if err := rs.Scan(&e.Comm, &e.Batch, &e.Type, &e.Ref, &e.At, &e.Audience, &e.Read, &e.ReadIn48h, &e.Acked, &med); err != nil {
+				return err
+			}
+			if med != nil {
+				m := int(*med + 0.5)
+				if m < 0 {
+					m = 0
+				}
+				e.MedianMins = &m
+			}
+			out = append(out, e)
+		}
+		return rs.Err()
+	})
+	return out, err
+}
+
 // Remind sends a reminder only to the people a communication has not reached yet (in every place it went), instead of
 // re-posting it to everyone. At most once every 6 hours per communication, so nobody is nagged.
 func (s *Service) Remind(ctx context.Context, p *tenant.Principal, id uuid.UUID) (int, error) {
-	spots, err := s.Insights(ctx, p, id) // also checks the right to see insights, before anything is recorded
+	if _, err := s.Insights(ctx, p, id); err != nil { // the right to see insights, before anything is recorded
+		return 0, err
+	}
+	t, err := s.GroupTotals(ctx, p, id)
 	if err != nil {
 		return 0, err
 	}
@@ -1106,25 +1337,13 @@ func (s *Service) Remind(ctx context.Context, p *tenant.Principal, id uuid.UUID)
 	}
 	var typ, ref string
 	var nb notify.Batch
-	n := 0
-	seen := map[uuid.UUID]bool{}
 	err = s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
 		if err := tx.QueryRow(ctx, `select type, ref from hub.comms where id=$1`, id).Scan(&typ, &ref); err != nil {
 			return httpx.ErrNotFound
 		}
-		for _, sp := range spots {
-			if sp.Status != "Published" {
-				continue
-			}
-			for _, u := range sp.Unread {
-				if seen[u.Person] {
-					continue
-				}
-				seen[u.Person] = true
-				if err := nb.Add(ctx, tx, p.Org, u.Person, "comm", "Reminder: please read "+strings.ToLower(typ)+" "+ref+".", "#FFB86B", ref); err != nil {
-					return err
-				}
-				n++
+		for _, u := range t.Unread { // one reminder per person, only to those who have read it in no place at all
+			if err := nb.Add(ctx, tx, p.Org, u.Person, "comm", "Reminder: please read "+strings.ToLower(typ)+" "+ref+".", "#FFB86B", ref); err != nil {
+				return err
 			}
 		}
 		return nil
@@ -1133,5 +1352,5 @@ func (s *Service) Remind(ctx context.Context, p *tenant.Principal, id uuid.UUID)
 		return 0, err
 	}
 	nb.Send(ctx, s.A)
-	return n, nil
+	return len(t.Unread), nil
 }

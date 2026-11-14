@@ -9,7 +9,7 @@ import { rings, kindOfNote } from '../../notifTones.js';
 
 export const name = 'notifications';
 
-const toItem = (n) => ({ id: n.id, text: n.text, color: n.color || '#7CC4FF', time: when(n.created_at || new Date().toISOString()), ticket: n.kind === 'ticket' ? n.ref || null : null, kind: n.kind, read: !!n.read_at });
+const toItem = (n) => ({ id: n.id, text: n.text, color: n.color || '#7CC4FF', time: when(n.created_at || new Date().toISOString()), ticket: n.kind === 'ticket' ? n.ref || null : null, kind: n.kind, ref: n.ref || '', read: !!n.read_at });
 
 export async function load(logic, srv) {
   // the app's sounds come from the server, so they can be tuned without a release

@@ -163,7 +163,7 @@ func TestJobPostInsightsCountReadsLikesAndRepliesForAllowedPeopleOnly(t *testing
 	e.MustDo(403, "GET", "/comms/"+cid+"/insights", nil, staff.Access)
 	places := e.MustDo(200, "GET", "/comms/"+cid+"/insights", nil, ownerU.Access)["places"].([]any)
 	p := places[0].(map[string]any)
-	if len(places) != 1 || int(p["read"].(float64)) != 1 || int(p["likes"].(float64)) != 1 || int(p["replies"].(float64)) != 2 || int(p["audience"].(float64)) != 3 {
+	if len(places) != 1 || int(p["read"].(float64)) != 1 || int(p["likes"].(float64)) != 1 || int(p["replies"].(float64)) != 2 || int(p["audience"].(float64)) != 2 { // reached: Olivia and Sam, not Ada who wrote it
 		t.Fatalf("insights: %v", places)
 	}
 }
@@ -324,5 +324,121 @@ func TestInsightsMeasureReachAndRemindOnlyTheUnread(t *testing.T) {
 	pl = spot()
 	if len(pl["unread"].([]any)) != 0 || pl["read_in_48h"].(float64) != 1 || pl["median_read_mins"] == nil {
 		t.Fatalf("after reading: %v", pl)
+	}
+}
+
+// A communication seen on the wall counts as read only through the visibility report, the author never counts as a reader,
+// "read" never exceeds "reached", and the engagement overview agrees with the insights.
+func TestReadCountsAreHonest(t *testing.T) {
+	e := testkit.New(t)
+	ownerU, slug := e.NewOrg("Olivia Owner")
+	org := e.OrgID(slug)
+	o := e.Owner(ownerU)
+	staff := e.Join(ownerU, slug, "Sam", "staff")
+	outsider := e.Join(ownerU, slug, "Ola", "staff")
+	for _, m := range []*testkit.Member{o, staff, outsider} {
+		m.Register(e)
+	}
+	e.MustDo(204, "PUT", "/approvals/flows/f10", map[string]any{"levels": 0}, ownerU.Access)
+	key, _ := e2ee.NewConversationKey()
+	wall := e.MustDo(201, "POST", "/conversations", map[string]any{"kind": "forum", "name": "Kubwa", "members": []string{staff.Person}, "keys": o.WrapFor(e, key, 1, o.Person, staff.Person)}, ownerU.Access)["id"].(string) // a forum Ola is not in
+	id := uuid.Must(uuid.NewV7()).String()
+	comm := e.MustDo(201, "POST", "/comms", map[string]any{"type": "Announcement", "conversation": wall, "message": id, "epoch": 1, "device": o.DevID, "envelope": o.Seal(org, wall, id, 1, key, `{"title":"Lockers"}`)}, ownerU.Access)["comm"].(map[string]any)
+	cid := comm["id"].(string)
+	if comm["status"] != "Published" {
+		t.Skipf("announcements need approval here: %v", comm["status"])
+	}
+	// the author's own view, and someone outside the wall, are never counted
+	e.MustDo(200, "POST", "/comms/seen", map[string]any{"conversation": wall, "messages": []string{id}}, ownerU.Access)
+	if n := e.MustDo(200, "POST", "/comms/seen", map[string]any{"conversation": wall, "messages": []string{id}}, outsider.Access)["recorded"].(float64); n != 0 {
+		t.Fatalf("a non-member's view was recorded: %v", n)
+	}
+	pl := e.MustDo(200, "GET", "/comms/"+cid+"/insights", nil, ownerU.Access)["places"].([]any)[0].(map[string]any)
+	if pl["audience"].(float64) != 1 || pl["read"].(float64) != 0 {
+		t.Fatalf("reached must be 1 (Sam) and read 0: %v", pl)
+	}
+	// Sam really sees it on the wall: one read, counted once
+	if n := e.MustDo(200, "POST", "/comms/seen", map[string]any{"conversation": wall, "messages": []string{id}}, staff.Access)["recorded"].(float64); n != 1 {
+		t.Fatalf("Sam's view: %v", n)
+	}
+	e.MustDo(200, "POST", "/comms/seen", map[string]any{"conversation": wall, "messages": []string{id}}, staff.Access)
+	pl = e.MustDo(200, "GET", "/comms/"+cid+"/insights", nil, ownerU.Access)["places"].([]any)[0].(map[string]any)
+	if pl["read"].(float64) != 1 || pl["read_in_48h"].(float64) != 1 || len(pl["unread"].([]any)) != 0 {
+		t.Fatalf("after Sam saw it: %v", pl)
+	}
+	// the overview says the same, and staff without the insights right cannot see it
+	var row map[string]any
+	for _, x := range e.MustDo(200, "GET", "/comms/engagement", nil, ownerU.Access)["comms"].([]any) {
+		if x.(map[string]any)["comm"] == cid {
+			row = x.(map[string]any)
+		}
+	}
+	if row == nil || row["audience"].(float64) != 1 || row["read"].(float64) != 1 {
+		t.Fatalf("engagement row: %v", row)
+	}
+	e.MustDo(403, "GET", "/comms/engagement", nil, staff.Access)
+	// the list shows the same audience and readers
+	for _, x := range e.MustDo(200, "GET", "/comms", nil, ownerU.Access)["comms"].([]any) {
+		if m := x.(map[string]any); m["id"] == cid && (m["audience"].(float64) != 1 || m["read"].(float64) != 1) {
+			t.Fatalf("list counts: %v", m)
+		}
+	}
+}
+
+// One communication sent to the wall and a forum at once: Sam is in both and meets it in both. He is reached once, has
+// read it once and is never reminded twice; each place still records that he saw it there.
+func TestOnePersonIsCountedOnceAcrossPlaces(t *testing.T) {
+	e := testkit.New(t)
+	ownerU, slug := e.NewOrg("Olivia Owner")
+	org := e.OrgID(slug)
+	o := e.Owner(ownerU)
+	staff := e.Join(ownerU, slug, "Sam", "staff")
+	for _, m := range []*testkit.Member{o, staff} {
+		m.Register(e)
+	}
+	e.MustDo(204, "PUT", "/approvals/flows/f1", map[string]any{"levels": 0}, ownerU.Access)
+	e.MustDo(204, "PUT", "/approvals/flows/f10", map[string]any{"levels": 0}, ownerU.Access)
+	key, _ := e2ee.NewConversationKey()
+	wall := e.MustDo(201, "POST", "/conversations", map[string]any{"kind": "wall", "name": "Everyone", "audience": "org", "keys": o.WrapFor(e, key, 1, o.Person, staff.Person)}, ownerU.Access)["id"].(string)
+	key2, _ := e2ee.NewConversationKey()
+	forum := e.MustDo(201, "POST", "/conversations", map[string]any{"kind": "forum", "name": "Kubwa", "members": []string{staff.Person}, "keys": o.WrapFor(e, key2, 1, o.Person, staff.Person)}, ownerU.Access)["id"].(string)
+	batch := uuid.Must(uuid.NewV7()).String()
+	post := func(conv string, k []byte) (string, string) {
+		id := uuid.Must(uuid.NewV7()).String()
+		c := e.MustDo(201, "POST", "/comms", map[string]any{"type": "Announcement", "batch": batch, "conversation": conv, "message": id, "epoch": 1, "device": o.DevID, "envelope": o.Seal(org, conv, id, 1, k, `{"title":"Lockers"}`)}, ownerU.Access)["comm"].(map[string]any)
+		if c["status"] != "Published" {
+			t.Skipf("needs approval here: %v", c["status"])
+		}
+		return c["id"].(string), id
+	}
+	c1, m1 := post(wall, key)
+	_, m2 := post(forum, key2)
+	e.MustDo(200, "POST", "/comms/seen", map[string]any{"conversation": wall, "messages": []string{m1}}, staff.Access)
+	e.MustDo(200, "POST", "/comms/seen", map[string]any{"conversation": forum, "messages": []string{m2}}, staff.Access)
+	e.MustDo(204, "POST", "/comms/"+c1+"/acknowledge", nil, staff.Access)
+	res := e.MustDo(200, "GET", "/comms/"+c1+"/insights", nil, ownerU.Access)
+	tot := res["totals"].(map[string]any)
+	if tot["audience"].(float64) != 1 || tot["read"].(float64) != 1 || tot["acknowledged"].(float64) != 1 || len(tot["unread"].([]any)) != 0 {
+		t.Fatalf("Sam must count once: %v", tot)
+	}
+	if len(res["places"].([]any)) != 2 {
+		t.Fatalf("both places are still listed: %v", res["places"])
+	}
+	rows := 0
+	for _, x := range e.MustDo(200, "GET", "/comms/engagement", nil, ownerU.Access)["comms"].([]any) {
+		if m := x.(map[string]any); m["ref"] != nil && m["batch"] == batch {
+			rows++
+			if m["audience"].(float64) != 1 || m["read"].(float64) != 1 {
+				t.Fatalf("engagement counts Sam once: %v", m)
+			}
+		}
+	}
+	if rows != 1 {
+		t.Fatalf("one row per communication, got %d", rows)
+	}
+	for _, x := range e.MustDo(200, "GET", "/comms", nil, ownerU.Access)["comms"].([]any) {
+		if m := x.(map[string]any); m["batch"] == batch && (m["audience"].(float64) != 1 || m["read"].(float64) != 1) {
+			t.Fatalf("list counts Sam once: %v", m)
+		}
 	}
 }

@@ -123,7 +123,7 @@ export function buildComms(ctx) {
       C.a([{ label: 'View', kind: 'primary', run: () => openComm(c) }].concat(canRepost(c) ? [{ label: 'Repost', run: () => repostNow(c) }] : []).concat(canInsights(c.type) && c.status === 'Published' ? [{ label: 'Insights', run: () => openComm(c) }] : []).concat(c.status === 'Published' ? [] : [{ label: 'See approval', run: () => this.setState({ section: 'approvals' }) }]))] })) };
   const loadInsights = (c) => {
     this.setState({ commIns: { loading: true, places: [], err: '' } });
-    commsW.insights(this.srv, c).then((places) => this.setState({ commIns: { loading: false, places, err: '' } })).catch((e) => this.setState({ commIns: { loading: false, places: [], err: e.message || 'Could not load.' } }));
+    commsW.insights(this.srv, c).then(({ places, totals }) => this.setState({ commIns: { loading: false, places, totals, err: '' } })).catch((e) => this.setState({ commIns: { loading: false, places: [], err: e.message || 'Could not load.' } }));
   };
   // The page for reading one communication, with (for people allowed) a second page measuring how it was received.
   const oc = s.commOpen ? s.comms.find((c) => c.uid === s.commOpen) : null;
@@ -132,17 +132,13 @@ export function buildComms(ctx) {
   const TARGET = 80;   // a communication counts as having landed when 80% of its audience has read it
   const pctOf = (a, b) => (b ? Math.min(100, Math.round((a / b) * 100)) : 0);
   const fmtMins = (m) => (m == null ? '—' : m < 60 ? m + ' min' : m < 1440 ? Math.floor(m / 60) + ' h ' + (m % 60 ? (m % 60) + ' min' : '') : Math.round(m / 1440) + ' d');
-  const measureOf = (places) => {
-    const t = (k) => places.reduce((n, x) => n + (x[k] || 0), 0);
-    const audience = t('audience'), read = t('read'), read48 = t('read_in_48h'), acked = t('acknowledged');
-    const meds = places.map((x) => x.median_read_mins).filter((m) => m != null).sort((a, b) => a - b);
-    const unread = [], seenP = new Set();
-    places.forEach((x) => (x.unread || []).forEach((u) => { if (!seenP.has(u.person)) { seenP.add(u.person); unread.push(u); } }));
-    const dept = {};
-    places.forEach((x) => (x.by_department || []).forEach((d) => { const r = dept[d.department] || (dept[d.department] = { department: d.department, audience: 0, read: 0, acked: 0 }); r.audience += d.audience; r.read += d.read; r.acked += d.acknowledged; }));
-    const byDept = Object.values(dept).map((d) => ({ ...d, readPct: pctOf(d.read, d.audience), ackPct: pctOf(d.acked, d.audience) })).sort((a, b) => a.readPct - b.readPct);
+  // the whole communication, each person counted once across every place (from the server's totals; never by adding places up)
+  const measureOf = (tot) => {
+    const T0 = tot || { audience: 0, read: 0, read_in_48h: 0, acknowledged: 0, median_read_mins: null, unread: [], by_department: [] };
+    const audience = T0.audience, read = T0.read, read48 = T0.read_in_48h, acked = T0.acknowledged, unread = T0.unread || [];
+    const byDept = (T0.by_department || []).map((d) => ({ department: d.department, audience: d.audience, read: d.read, acked: d.acknowledged, readPct: pctOf(d.read, d.audience), ackPct: pctOf(d.acknowledged, d.audience) })).sort((x, y) => x.readPct - y.readPct);
     return { audience, read, read48, acked, readPct: pctOf(read, audience), read48Pct: pctOf(read48, audience), ackPct: pctOf(acked, audience),
-      medianMins: meds.length ? meds[Math.floor(meds.length / 2)] : null, median: fmtMins(meds.length ? meds[Math.floor(meds.length / 2)] : null), unread, byDept, landed: pctOf(read, audience) >= TARGET };
+      medianMins: T0.median_read_mins == null ? null : T0.median_read_mins, median: fmtMins(T0.median_read_mins == null ? null : T0.median_read_mins), unread, unreadN: unread.length, byDept, landed: pctOf(read, audience) >= TARGET };
   };
   const commView = oc ? {
     open: true, ref: oc.id, status: oc.status, statusColor: oc.status === 'Published' ? '#B8F36B' : '#FFB86B', close: () => this.setState({ commOpen: null, commIns: null }), type: oc.type, typeColor: commColor[oc.type], title: oc.title, summary: oc.summary, hasSummary: !!oc.summary, body: oc.body,
@@ -156,9 +152,10 @@ export function buildComms(ctx) {
     from: oc.by === 'Samwel Okoth Omulo' ? 'You' : oc.by, byDept: oc.byDept, hasDept: !!oc.byDept, dateLabel: fmtDay(oc.date), readPct: oc.read + '%',
     ins: s.commIns || { loading: false, places: [], err: '' }, hasPlaces: !!(s.commIns && s.commIns.places.length),
     places: ((s.commIns && s.commIns.places) || []).map((x) => ({ ...x, place: x.place || ((forums.find((f) => this.srv && this.srv.forumConv && this.srv.forumConv[f.id] === x.conversation) || {}).name ? (forums.find((f) => this.srv.forumConv[f.id] === x.conversation).name + ' forum') : 'Forum'), kindLabel: x.kind === 'wall' ? 'Community wall' : 'Forum', readPct: x.audience ? Math.round((x.read / x.audience) * 100) + '%' : '0%' })),
-    totals: { audience: sum('audience'), read: sum('read'), likes: sum('likes'), replies: sum('replies'), acked: sum('acknowledged') },
+    // people counts come from the per-person totals; reactions and replies are message counts, so they add up per place
+    totals: { audience: (s.commIns && s.commIns.totals) ? s.commIns.totals.audience : 0, read: (s.commIns && s.commIns.totals) ? s.commIns.totals.read : 0, likes: sum('likes'), replies: sum('replies'), acked: (s.commIns && s.commIns.totals) ? s.commIns.totals.acknowledged : 0 },
     measure: (() => {
-      const m = measureOf((s.commIns && s.commIns.places) || []);
+      const m = measureOf(s.commIns && s.commIns.totals);
       const remindState = (s.commRemind && s.commRemind.uid === oc.uid) ? s.commRemind : {};
       return { ...m, target: TARGET, unreadShown: m.unread.slice(0, 40), moreUnread: Math.max(0, m.unread.length - 40), reminding: !!remindState.busy, remindNote: remindState.note || '',
         remind: () => {
@@ -169,7 +166,7 @@ export function buildComms(ctx) {
         } };
     })(),
     // who acknowledged it, across every place it went to
-    ackedBy: [...new Set(((s.commIns && s.commIns.places) || []).flatMap((x) => x.acknowledged_by || []))],
+    ackedBy: (s.commIns && s.commIns.totals && s.commIns.totals.acknowledged_by) || [],
     canAck: !!this.srv && oc.status === 'Published' && !oc.mine && !oc.iAcked, acked: !!oc.iAcked,
     acknowledge: () => commsW.acknowledge(this, this.srv, oc).then(() => this.notify('Acknowledged.', '#B8F36B')).catch((e) => this.notify(e.message || 'Could not acknowledge it.', '#FF9B8A')),
   } : { open: false };
@@ -180,25 +177,18 @@ export function buildComms(ctx) {
     if (!this.srv || this.state.commEng.loading) return;
     this.setState({ commEng: { loading: true, err: '', rows: this.state.commEng.rows || [], at: 0 } });
     try {
-      const eligible = this.state.comms.filter((c) => c.status === 'Published' && engTypes.includes(c.type)).slice(0, 80);
-      const covered = new Set(), rows = [];
-      let next = 0;
-      // each answer covers every place the same communication went to, so a send to many places is one row
-      const worker = async () => {
-        while (next < eligible.length) {
-          const c = eligible[next++];
-          if (covered.has(c.uid)) continue;
-          let places;
-          try { places = await commsW.insights(this.srv, c); } catch (e) { continue; }
-          if (places.some((x) => covered.has(x.comm))) continue;
-          places.forEach((x) => covered.add(x.comm)); covered.add(c.uid);
-          const t = (k) => places.reduce((n, x) => n + x[k], 0);
-          const m = measureOf(places);
-          rows.push({ c, places: places.length, audience: t('audience'), read: t('read'), likes: t('likes'), replies: t('replies'), acked: t('acknowledged'), ackedBy: [...new Set(places.flatMap((x) => x.acknowledged_by || []))], m });
-        }
-      };
-      await Promise.all([worker(), worker(), worker()]);
-      rows.sort((a, b) => (a.c.at < b.c.at ? 1 : -1));
+      // one request measures everything; copies sent together (same batch) are one row
+      const list = await commsW.engagement(this.srv);
+      const groups = new Map();
+      list.forEach((x) => groups.set(x.comm, [x]));   // the server returns one row per communication, people counted once
+      const rows = [];
+      groups.forEach((g) => {
+        const c = this.state.comms.find((y) => y.uid === g[0].comm || (g[0].batch && y.batch === g[0].batch)) || { uid: g[0].comm, id: g[0].ref, type: g[0].type, title: g[0].ref, date: g[0].at, at: g[0].at };
+        const x0 = g[0], audience = x0.audience, read = x0.read, read48 = x0.read_in_48h, acked = x0.acknowledged, medianMins = x0.median_read_mins == null ? null : x0.median_read_mins;
+        rows.push({ c, at: g[0].at, places: g.length, audience, read, acked, likes: 0, replies: 0, ackedBy: [],
+          m: { audience, read, read48, acked, readPct: pctOf(read, audience), read48Pct: pctOf(read48, audience), ackPct: pctOf(acked, audience), medianMins, median: fmtMins(medianMins), unreadN: Math.max(0, audience - read), landed: pctOf(read, audience) >= TARGET } });
+      });
+      rows.sort((a, b) => (a.at < b.at ? 1 : -1));
       this.setState({ commEng: { loading: false, err: '', rows, at: Date.now() } });
     } catch (e) { this.setState({ commEng: { loading: false, err: (e && e.message) || 'Could not load engagement.', rows: [], at: 0 } }); }
   };
@@ -210,7 +200,7 @@ export function buildComms(ctx) {
       C.t(String(r.m.audience), { fv: r.m.audience }),
       C.bar(r.m.readPct, r.m.readPct >= 80 ? '#B8F36B' : r.m.readPct >= 40 ? '#FFB86B' : '#FF9B8A', r.m.read + ' (' + r.m.readPct + '%)'),
       C.t(r.m.read48Pct + '%', { fv: r.m.read48Pct }), C.t(r.m.ackPct + '%', { sub: r.m.acked + ' people', fv: r.m.ackPct }), C.t(r.m.median, { fv: r.m.medianMins == null ? 1e9 : r.m.medianMins }),
-      C.t(String(r.m.unread.length), { sub: r.m.landed ? 'target met' : 'below 80% target', fv: r.m.unread.length }),
+      C.t(String(r.m.unreadN), { sub: r.m.landed ? 'target met' : 'below 80% target', fv: r.m.unreadN }),
       C.a([{ label: 'View', kind: 'primary', run: () => { this.setState({ commPage: '' }); openComm(r.c); this.setState({ commView: 'insights' }); } }])] })) };
   const engagement = { open: s.commPage === 'engagement' && engTypes.length > 0, canOpen: engTypes.length > 0, loading: E.loading, err: E.err, hasErr: !!E.err,
     openIt: () => { this.setState({ commPage: 'engagement', commOpen: null }); loadEngagement(); }, close: () => this.setState({ commPage: '' }), refresh: loadEngagement,
@@ -220,8 +210,16 @@ export function buildComms(ctx) {
       const meds = R.map((r) => r.m.medianMins).filter((x) => x != null).sort((a, b) => a - b);
       return [{ label: 'Published', n: R.length }, { label: 'Average read rate', n: avg((r) => r.m.readPct) + '%' }, { label: 'Read within 48 hours', n: avg((r) => r.m.read48Pct) + '%' },
         { label: 'Acknowledged', n: avg((r) => r.m.ackPct) + '%' }, { label: 'Reached the 80% target', n: R.filter((r) => r.m.landed).length + ' of ' + R.length },
-        { label: 'Median time to read', n: fmtMins(meds.length ? meds[Math.floor(meds.length / 2)] : null) }, { label: 'People still to read', n: R.reduce((n, r) => n + r.m.unread.length, 0) + ' of ' + aud }];
+        { label: 'Median time to read', n: fmtMins(meds.length ? meds[Math.floor(meds.length / 2)] : null) }, { label: 'People still to read', n: R.reduce((n, r) => n + r.m.unreadN, 0) + ' of ' + aud }];
     })(),
-    avgRead: null };
+    avgRead: null,
+    // week by week: of everyone reached by what was published that week, how many read it (the day-14 / day-90 proof)
+    trend: (() => {
+      const wk = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x.getTime(); };
+      const by = new Map();
+      E.rows.filter((r) => r.m).forEach((r) => { const k = wk(r.at); const v = by.get(k) || { aud: 0, read: 0, n: 0 }; v.aud += r.m.audience; v.read += r.m.read; v.n++; by.set(k, v); });
+      return [...by.entries()].sort((a, b) => a[0] - b[0]).slice(-12).map(([k, v]) => { const p = pctOf(v.read, v.aud); const d = new Date(k);
+        return { label: d.getDate() + '/' + (d.getMonth() + 1), pct: p, n: v.n, color: p >= TARGET ? '#B8F36B' : p >= 40 ? '#FFB86B' : '#FF9B8A', title: 'Week of ' + d.toDateString() + ': ' + v.read + ' of ' + v.aud + ' read (' + p + '%), ' + v.n + ' published' }; });
+    })() };
   return { cm, commNew, commsTable, commsTabs, commView, engagement, engagementTable, openCm };
 }

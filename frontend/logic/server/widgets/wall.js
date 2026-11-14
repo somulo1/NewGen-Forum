@@ -150,6 +150,8 @@ function build(logic, srv, items) {
     const commLabel = pl.type || (m.type === 'memo' ? 'Memo' : 'Announcement');
     return {
       id: m.id, author: who(m), ...look(m), mine: m.sender_account === me,
+      // a communication on the wall: its read is counted only when it was really on screen (logic/seen.js)
+      seenConv: isComm && m.sender_account !== me ? srv.wallId : '', seenMsg: isComm ? m.id : '',
       headline: m.sender_account === me ? ((logic.state.profile || {}).headline || '') : (p ? (p.headline || '') : ''),   // what they wrote about themselves, shown under their name
       meta: (isComm ? commLabel : (pl.department || (p ? p.dept : '') || 'Everyone')) + ' · ' + ago(m.created_at),
       text: isComm ? (pl.title || '') + (pl.summary ? '\n' + pl.summary : '') + (pl.body ? '\n' + pl.body : '') : (pl.text || ''), postBg: pl.postBg || undefined,

@@ -1,6 +1,7 @@
 // Connects the Hub logic to the backend after sign-in: sets up this device's keys, then loads each widget's data from the
 // API into the logic state. Each widget has its own file in widgets/ exporting load(logic, srv) and, where it writes, actions.
 import { loadDevice, saveDevice } from './deviceStore.js';
+import { startSeenTracking } from '~/logic/seen.js';
 import { Device, unb64, b64 } from './e2ee.js';
 import { Vault } from './vault.js';
 import { connectRealtime } from './realtime.js';
@@ -68,6 +69,8 @@ export async function startServerSync(logic, request, session, bytes) {
   logic.srv = srv;
   logic.loaded = new Set();
   callsW.listen(logic, srv);
+  // a memo or announcement on the wall or in a forum counts as read only once it was really on screen
+  startSeenTracking((conversation, messages) => request('POST', '/comms/seen', { conversation, messages }));
   callsW.loadLive(logic, srv, earlyLive).catch(() => {});
   vault.onNewDevice = (acct, n) => {
     const who = (logic.dir.find((p) => p.uid === vault.personOfAcct.get(acct)) || {}).name || 'A colleague';

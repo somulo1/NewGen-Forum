@@ -154,7 +154,7 @@ function toItems(srv, opened) {
     const file = (pl.file || []).map((f) => { const it = { name: f.name, meta: f.meta || '', isImg: !!f.isImg, isVideo: !!f.isVideo, url: '', fileId: f.fileId, ref: f }; todo.push(f); return it; });
     if (pl.note) file.push({ name: (pl.note.title || 'Untitled') + '.note', meta: 'Note · ' + (pl.note.perm === 'edit' ? 'Can edit' : 'Read only'), noteId: pl.note.conv, shareId: pl.note.id, url: '' });
     return {
-      id: m.id, mid: m.id, noteShare: pl.note || null, who: nameOf(m), ...(mine ? { initials: ME.initials, color: ME.color } : lookOf(srv, m.sender_person, m.sender_name)),
+      id: m.id, mid: m.id, seenConv: COMM[m.type] && !mine ? (m.conversation || '') : '', seenMsg: COMM[m.type] ? m.id : '', noteShare: pl.note || null, who: nameOf(m), ...(mine ? { initials: ME.initials, color: ME.color } : lookOf(srv, m.sender_person, m.sender_name)),
       time: ago(m.created_at), at: m.created_at, text: pl.text || '', file: file.length ? file : undefined, shared: sharedOf(pl.shared, todo),
       replyTo: parent && (parent.m.type === 'text' || COMM[parent.m.type]) ? { who: parent.m.sender_account === srv.me.account ? 'You' : parent.m.sender_name, snippet: snippet(parent.pl) } : null, replies: children.get(m.id) || 0
     };

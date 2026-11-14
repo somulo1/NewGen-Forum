@@ -195,7 +195,12 @@ export function buildTickets(ctx) {
     if (t._c.sla === 'Overdue' && ts.notify.overdue) autoNotifs.push({ text: t.id + ' is overdue by ' + fmtH(-t._c.rem) + '. Escalated to ' + ts.escalate + '.', color: '#FF9B8A', time: 'Now', ticket: t.id });
     if (t._c.sla === 'Due soon' && ts.notify.nearing) autoNotifs.push({ text: t.id + ' is due soon: ' + fmtH(t._c.rem) + ' left on its TAT.', color: '#FFB86B', time: 'Now', ticket: t.id });
   });
-  const notifList = autoNotifs.concat(s.notifs).map((n) => ({ ...n, open: n.url ? () => { if (typeof window !== 'undefined') { const w = window.open(n.url, '_blank'); if (w) w.opener = null; } this.setState({ notifOpen: false }); } : () => this.setState({ ticketFrom: null, notifOpen: false, section: n.ticket ? 'tickets' : this.state.section, ticketOpen: n.ticket || this.state.ticketOpen }) }));
+  const notifList = autoNotifs.concat(s.notifs).map((n) => ({ ...n, open: n.url ? () => { if (typeof window !== 'undefined') { const w = window.open(n.url, '_blank'); if (w) w.opener = null; } this.setState({ notifOpen: false }); } : n.kind === 'comm' && n.ref && (this.state.comms || []).some((c) => c.id === n.ref) ? () => {
+    // a reminder or notice about a memo or announcement opens it (and opening it counts as reading it)
+    const c = this.state.comms.find((x) => x.id === n.ref);
+    this.setState({ notifOpen: false, section: 'comms', commPage: '', commOpen: c.uid, commView: 'read' });
+    if (this.srv && c.status === 'Published' && !c.iRead) this.srv.request('POST', '/comms/' + c.uid + '/read').then(() => this.setState((st) => ({ comms: st.comms.map((x) => (x.uid === c.uid ? { ...x, iRead: true } : x)) }))).catch(() => {});
+  } : () => this.setState({ ticketFrom: null, notifOpen: false, section: n.ticket ? 'tickets' : this.state.section, ticketOpen: n.ticket || this.state.ticketOpen }) }));
   const chip = (on) => 'height:36px;padding:0 14px;border-radius:18px;cursor:pointer;font-size:13px;' + (on ? 'border:1px solid var(--k-B8F36B,#B8F36B);background:var(--k-2C3D34,#2C3D34);color:var(--k-E8EFEA,#E8EFEA);font-weight:600' : 'border:1px solid var(--k-2A3832,#2A3832);background:var(--k-121B17,#121B17);color:var(--k-C9D6CF,#C9D6CF)');
   const ntCats = ts.cats.map((c) => ({ label: c.name + ' · ' + tatText(c.name), pick: () => this.setState((st) => ({ nt: { ...st.nt, cat: c.name } })), style: chip(s.nt.cat === c.name) }));
   const ntPrios = ['High', 'Medium', 'Low'].map((p) => ({ label: p, pick: () => this.setState((st) => ({ nt: { ...st.nt, prio: p } })), style: chip(s.nt.prio === p) }));

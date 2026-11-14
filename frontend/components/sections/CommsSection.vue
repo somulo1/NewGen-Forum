@@ -56,7 +56,7 @@
 <div v-if="commView.canInsights && commView.hasPlaces" style="padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); border-radius: 16px">
 <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px"><strong style="font-size: 15px; flex: 1 1 200px">Not read yet <span style="font-weight: 400; color: var(--k-9DB0A6,#9DB0A6)">· {{ commView.measure.unread.length }} people</span></strong>
 <button v-if="commView.measure.unread.length" type="button" :disabled="commView.measure.reminding" @click="commView.measure.remind" style="height: 36px; padding: 0 16px; border-radius: 18px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">{{ commView.measure.reminding ? 'Sending…' : 'Remind only these ' + commView.measure.unread.length }}</button></div>
-<span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">The reminder goes to their Hub notifications, not to everyone and not to WhatsApp. At most once every 6 hours.</span>
+<span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Read means: opened it in Communications, acknowledged it, or had it on screen for at least 2 seconds on the wall or in a forum. The reminder goes to their Hub notifications, not to everyone and not to WhatsApp. At most once every 6 hours.</span>
 <span v-if="commView.measure.remindNote" role="status" style="font-size: 13px; color: var(--k-B8F36B,#B8F36B)">{{ commView.measure.remindNote }}</span>
 <span v-if="!commView.measure.unread.length" style="font-size: 13px; color: var(--k-B8F36B,#B8F36B)">Everyone it reached has read it.</span>
 <div v-else style="display: flex; flex-wrap: wrap; gap: 6px"><span v-for="u in commView.measure.unreadShown" :key="u.person" :title="u.department" style="padding: 4px 10px; border-radius: 12px; font-size: 12px; background: var(--k-22302A,#22302A); color: var(--k-C9D6CF,#C9D6CF)">{{ u.name }} <span style="color: var(--k-9DB0A6,#9DB0A6)">· {{ u.department }}</span></span><span v-if="commView.measure.moreUnread" style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6); align-self: center">and {{ commView.measure.moreUnread }} more</span></div>
@@ -87,6 +87,15 @@
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px">
 <template v-for="k in engagement.kpis" :key="k.label"><div style="padding: 16px; border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); text-align: center"><strong style="font-size: 26px; font-family: 'Space Grotesk', sans-serif">{{ k.n }}</strong><div style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">{{ k.label }}</div></div></template>
 </div>
+<div v-if="engagement.trend.length" style="padding: 16px 18px; border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px"><strong style="font-size: 15px">Read rate, week by week</strong><span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Of everyone reached by what was published that week, how many read it. Dashed line: the 80% target.</span></div>
+<div style="position: relative; display: flex; align-items: flex-end; gap: 8px; height: 120px; padding-top: 6px">
+<div aria-hidden="true" style="position: absolute; left: 0; right: 0; bottom: calc(18px + 80% * 0.82); border-top: 1px dashed #B8F36B; opacity: .7"></div>
+<div v-for="w in engagement.trend" :key="w.label" :title="w.title" style="flex: 1; min-width: 0; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 4px">
+<span style="font-size: 11px; font-weight: 600">{{ w.pct }}%</span><div :style="`width: 100%; max-width: 46px; height: ${Math.max(2, w.pct * 0.82)}%; border-radius: 6px 6px 0 0; background: ${w.color}`"></div><span style="font-size: 10px; color: var(--k-9DB0A6,#9DB0A6)">{{ w.label }}</span></div>
+</div>
+</div>
+<p style="margin: 0; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">How it is counted: <strong>reached</strong> = people in the place it was posted to (the author is not counted). <strong>Read</strong> = opened it in Communications, acknowledged it, or had it on screen for at least 2 seconds on the wall or in a forum. Scrolling past it does not count.</p>
 <DataTable :t="engagementTable" />
 </div>
 </template>

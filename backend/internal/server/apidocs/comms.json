@@ -113,7 +113,7 @@
  },
  "GET /v1/comms/{id}/insights": {
   "summary": "How a communication was received",
-  "description": "For every place it was posted: audience size, how many read it, and how many reacted or replied (contents stay sealed).",
+  "description": "For every place it was posted: audience, reads, reactions and replies (contents stay sealed). `totals` measures the whole communication across all its places, one person counted once: someone in two places, or who met it on the wall and again in a forum, is reached, read and acknowledged once; their first read counts for speed.",
   "access": "a role with View insights on that type's page",
   "response": {
    "places": [
@@ -145,7 +145,32 @@
       }
      ]
     }
-   ]
+   ],
+   "totals": {
+    "audience": "integer",
+    "read": "integer",
+    "read_in_48h": "integer",
+    "acknowledged": "integer",
+    "acknowledged_by": [
+     "string"
+    ],
+    "median_read_mins": "integer",
+    "unread": [
+     {
+      "person": "uuid",
+      "name": "string",
+      "department": "string"
+     }
+    ],
+    "by_department": [
+     {
+      "department": "string",
+      "audience": "integer",
+      "read": "integer",
+      "acknowledged": "integer"
+     }
+    ]
+   }
   }
  },
  "GET /v1/comms/rules": {
@@ -290,6 +315,41 @@
   "access": "a role with View insights on that type's page",
   "response": {
    "reminded": "integer. People reminded"
+  }
+ },
+ "POST /v1/comms/seen": {
+  "summary": "Record communications really seen on screen",
+  "description": "The browser reports memos, announcements, newsletters and job posts on the wall or in a forum that were at least 60% visible for 2 seconds. Each counts as read once; the author and people outside that place are never counted.",
+  "access": "any signed-in member of the organization (token issued with `org`)",
+  "body": {
+   "conversation": "uuid",
+   "messages": [
+    "uuid. At most 200"
+   ]
+  },
+  "response": {
+   "recorded": "integer. New reads recorded"
+  }
+ },
+ "GET /v1/comms/engagement": {
+  "summary": "How the latest communications landed, in one request",
+  "description": "Up to 300 published communications of the types the caller may see insights for, newest first. Reached = current members of the place it went to, except the author; reads, acknowledgements and timing count only that audience.",
+  "access": "a role with View insights on that type's page (403 when the caller has it for no type)",
+  "response": {
+   "comms": [
+    {
+     "comm": "uuid",
+     "batch": "uuid. Copies sent together share it",
+     "type": "string",
+     "ref": "string",
+     "at": "timestamp",
+     "audience": "integer",
+     "read": "integer",
+     "read_in_48h": "integer",
+     "acknowledged": "integer",
+     "median_read_mins": "integer"
+    }
+   ]
   }
  }
 }

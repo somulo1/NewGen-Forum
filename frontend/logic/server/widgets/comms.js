@@ -9,7 +9,6 @@ const dayOf = (iso) => (iso || '').slice(0, 10);
 
 export async function load(logic, srv) {
   const { comms } = await srv.request('GET', '/comms');
-  const { total } = await srv.request('GET', '/people?limit=1');
   // all the sealed contents in one request (it was one request per communication)
   const sealedBy = new Map();
   for (let i = 0; i < comms.length; i += 200) {
@@ -26,7 +25,8 @@ export async function load(logic, srv) {
       id: c.ref, uid: c.id, type: c.type, title: pl ? pl.title : '(sealed)', summary: pl ? pl.summary || '' : '', body: pl ? pl.body || '' : '', fields: pl && pl.fields ? pl.fields : {}, files: pl && pl.files ? pl.files : [], by: c.by_name, byDept: dept,
       date: dayOf(c.published_at || c.created_at), at: c.published_at || c.created_at, to: pl && pl.to ? pl.to : [],
       batch: c.batch || c.id, sealed: !pl,
-      status: c.status === 'Pending approval' ? 'Awaiting approval' : c.status, read: Math.min(100, Math.round((c.read / Math.max(1, total)) * 100)), iRead: !!c.i_read, iAcked: !!c.i_acked, mine: !!(srv.me && c.by === srv.me.person)
+      status: c.status === 'Pending approval' ? 'Awaiting approval' : c.status, // read % of the people it actually went to (members of that place, author excluded), never of the whole company
+      readers: c.read || 0, audience: c.audience || 0, read: c.audience ? Math.min(100, Math.round(((c.read || 0) / c.audience) * 100)) : 0, iRead: !!c.i_read, iAcked: !!c.i_acked, mine: !!(srv.me && c.by === srv.me.person)
     };
   }));
   // one communication sent to several places is stored once per place (same batch): it is listed once
@@ -37,7 +37,9 @@ export async function load(logic, srv) {
     const statuses = new Set(copies.map((x) => x.status));
     return { ...main, copies: copies.length,
       status: statuses.size === 1 ? main.status : statuses.has('Awaiting approval') ? 'Awaiting approval' : main.status,
-      read: Math.max(...copies.map((x) => x.read)), iRead: copies.some((x) => x.iRead), iAcked: copies.some((x) => x.iAcked),
+      // copies sent to several places together: everyone reached across them, and everyone who read
+      // each copy already carries the whole group's numbers, each person counted once: take them, never add copies up
+      readers: Math.max(...copies.map((x) => x.readers)), audience: Math.max(...copies.map((x) => x.audience)), read: Math.max(...copies.map((x) => x.read)), iRead: copies.some((x) => x.iRead), iAcked: copies.some((x) => x.iAcked),
       at: copies.map((x) => x.at).sort().reverse()[0], date: dayOf(copies.map((x) => x.at).sort().reverse()[0]) };
   });
   list.sort((a, b) => (a.at < b.at ? 1 : -1));
@@ -85,13 +87,20 @@ export async function acknowledge(logic, srv, c) {
   logic.setState((st) => ({ comms: st.comms.map((x) => (x.uid === c.uid ? { ...x, iAcked: true, iRead: true } : x)) }));
 }
 
+// Everything the engagement overview needs, in one request.
+export async function engagement(srv) {
+  return (await srv.request('GET', '/comms/engagement')).comms;
+}
+
 // Reminds only the people a communication has not reached yet (at most once every 6 hours).
 export async function remind(srv, c) {
   return (await srv.request('POST', `/comms/${c.uid}/remind`)).reminded;
 }
 
+// per place, plus `totals`: the whole communication with each person counted once, whatever places they met it in
 export async function insights(srv, c) {
-  return (await srv.request('GET', `/comms/${c.uid}/insights`)).places;
+  const r = await srv.request('GET', `/comms/${c.uid}/insights`);
+  return { places: r.places || [], totals: r.totals || null };
 }
 
 // Opens an attached file in a new tab.
