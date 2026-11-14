@@ -240,7 +240,8 @@ export function buildOrg(ctx) {
   let ou = {}, ouTable = { id: 'none', cols: [], rows: [] };
   const ouTab = ((s.ouTab === 'tks' || s.ouTab === 'cats') && !has.tickets) || (s.ouTab === 'projects' && !has.projects) ? 'comms' : s.ouTab === 'people' ? 'members' : s.ouTab;
   const ouParts = s.ou ? s.ou.split(':') : null;
-  const ouRec = ouParts && has[ouParts[0]] && can(ouParts[0], 'View dashboard') ? recOf(ouParts[0], ouParts[1]) : null;
+  // the place's own viewers, or whoever manages the organization structure (they open it from there, to view)
+  const ouRec = ouParts && has[ouParts[0]] && (can(ouParts[0], 'View dashboard') || can('settings', 'Edit organization profile')) ? recOf(ouParts[0], ouParts[1]) : null;
   if (ouRec) {
     const t = ouParts[0], key = s.ou, D = unitPerf[key] || unitData(t, ouRec), tg = targetOf(key);
     if (this.srv) orgW.ensure(this, this.srv, key);

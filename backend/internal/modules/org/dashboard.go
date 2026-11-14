@@ -255,8 +255,12 @@ func (s *Service) Dashboard(ctx context.Context, p *tenant.Principal, id uuid.UU
 		}
 		col := memberCol[d.Unit.Kind]
 		if ctx.Value(selfView{}) == nil {
+			// whoever manages the organization structure may open any place's dashboard from there to view it; what they may
+			// change on it still follows their own rights
 			if err := authz.Require(ctx, tx, p.Person, rightsMod[d.Unit.Kind], "View dashboard"); err != nil {
-				return err
+				if ok, e2 := authz.Can(ctx, tx, p.Person, "settings", "Edit organization profile"); e2 != nil || !ok {
+					return err
+				}
 			}
 		}
 		d.Target = DefaultTarget

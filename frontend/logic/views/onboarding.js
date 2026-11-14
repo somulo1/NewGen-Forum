@@ -6,6 +6,12 @@ import { GENDERS, MANDATORY, csvColumns, structureFields, structureOptions } fro
 export function buildOnboarding(ctx) {
   const { can, modEnabled, modInfo, reportRoleName, ridOf, rightOf, rightsDef, roleHolders, s, targetRoleOf, visibleRoles } = ctx;
   const has = hasLevelsFor(s, this.srv ? this.org : null);
+  // the levels this organization switched on (Organization structure > levels) always show on the person form, under the
+  // organization's own names, even before any place of that level exists
+  const lvCfg = (this.srv && this.srv.levels && this.srv.levels.levels) || [];
+  const LVK = { sector: 'sectors', branch: 'branches', unit: 'units', department: 'departments' };
+  lvCfg.forEach((l) => { if (l.enabled && LVK[l.kind]) has[LVK[l.kind]] = true; });
+  const lvLabel = (key) => { const l = lvCfg.find((x) => x.kind === key); return l && l.label ? l.label : null; };
   const ob = s.onboard;
   const canOnboard = can('people', 'Onboard people');
   const base = { canOnboard, open: false, openOne: () => this.openOnboard('one'), openBulk: () => this.openOnboard('bulk') };
@@ -35,7 +41,17 @@ export function buildOnboarding(ctx) {
       open: !!ob.rightsOpen, toggleOpen: () => this.setState((st) => ({ onboard: { ...st.onboard, rightsOpen: !st.onboard.rightsOpen } })) };
   }
   const opts = structureOptions(this.org, has, f);
-  const structure = structureFields(has);
+  // with the server's places (and their parents): each list only has the places under what is chosen above it, in whatever
+  // order this organization nests its levels
+  if (this.srv && (this.srv.unitList || []).length) {
+    const U = this.srv.unitList, byId = new Map(U.map((u) => [u.id, u]));
+    const ancestors = (u) => { const out = []; let p = u && byId.get(u.parent_id); while (p && out.length < 10) { out.push(p); p = byId.get(p.parent_id); } return out; };
+    ['sector', 'branch', 'unit', 'department'].forEach((k) => {
+      opts[k] = U.filter((u) => u.kind === k && ['sector', 'branch', 'unit', 'department'].every((j) => { if (j === k || !f[j]) return true; const a = ancestors(u).find((x) => x.kind === j); return !a || a.name === f[j]; }))
+        .map((u) => u.name).sort((a, b) => a.localeCompare(b));
+    });
+  }
+  const structure = structureFields(has).map((x) => ({ ...x, label: lvLabel(x.key) || x.label, required: x.required && (opts[x.key] || []).length > 0 }));
   const rowsAll = ob.bulk ? ob.bulk.rows : [];
   const good = rowsAll.filter((r) => r.ok).length;
   const bad = rowsAll.length - good;
@@ -131,6 +147,8 @@ function buildStructureEd(s, can) {
         // moving: only to a level this kind may sit under
         canMove: !!parentKind(K.kind), moveOpts, moveTo, moved,
         // adding people: tick them from the directory; they are placed here and in every part above it
+        // its own dashboard, to view it: what can be changed there still follows this person's rights at that dashboard
+        openDash: () => this.setState({ section: 'orgunit', ou: ({ sector: 'sectors', branch: 'branches', unit: 'units', department: 'departments' })[u.kind] + ':' + u.id, ouTab: 'comms', ouItem: null, ticketOpen: null, projectOpen: null }),
         adding: se.addTo === u.id, openAdd: () => set({ addTo: u.id, addSel: {}, addQ: '', err: '', ok: '' }), closeAdd: () => set({ addTo: null }),
         addQ: se.addTo === u.id ? se.addQ || '' : '', onAddQ: (e) => { const v = e.target.value; set({ addQ: v }); },
         addList: se.addTo === u.id ? this.peopleDir().filter((p) => p.uid && p[K.field] !== u.name && (!(se.addQ || '').trim() || p.name.toLowerCase().includes(se.addQ.trim().toLowerCase()))).slice(0, 60)
