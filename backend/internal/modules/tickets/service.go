@@ -94,6 +94,10 @@ type Ticket struct {
 	CanEscalate bool `json:"can_escalate"`
 	// CanWork: the caller may resolve it and move it along (the person on it, the head of the place it is with, or the Solve right)
 	CanWork bool `json:"can_work"`
+	// CanChase: it is overdue and the caller raised it or heads the place it came from, so may send it to the receiving head
+	CanChase bool `json:"can_chase"`
+	// OriginRef: the dashboard it came from (see originOf), so heads on both sides can be shown
+	OriginRef *uuid.UUID `json:"origin_ref,omitempty"`
 	// Acks: who at the receiving place acknowledged a business request or communication, and when; CanAck: the caller may
 	Acks   []Ack `json:"acknowledgements,omitempty"`
 	CanAck bool  `json:"can_acknowledge,omitempty"`
@@ -709,6 +713,12 @@ func (s *Service) Get(ctx context.Context, p *tenant.Principal, id uuid.UUID) (*
 		}
 		t.CanWork = head || (t.RaisedBy != p.Person && (solve || (t.Handler != nil && *t.Handler == p.Person)))
 		if t.CanAck, err = mayAcknowledge(ctx, tx, p.Person, t); err != nil {
+			return err
+		}
+		if t.OriginRef, err = originOf(ctx, tx, id); err != nil {
+			return err
+		}
+		if t.CanChase, err = s.mayChase(ctx, tx, p.Person, t); err != nil {
 			return err
 		}
 		in, err := s.participant(ctx, tx, p, id)

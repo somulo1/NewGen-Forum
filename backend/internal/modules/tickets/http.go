@@ -172,6 +172,25 @@ func (s *Service) Private(r chi.Router) {
 		httpx.JSON(w, 200, t)
 		return nil
 	}))
+	// an overdue ticket, with a note, to the heads of the place it was sent to (it stays where it is)
+	r.Post("/tickets/{id}/chase", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
+		tid, err := id(r)
+		if err != nil {
+			return err
+		}
+		var in struct {
+			Note string `json:"note"`
+		}
+		if err := httpx.Decode(r, &in, 32<<10); err != nil {
+			return err
+		}
+		t, err := s.Chase(r.Context(), p, tid, in.Note)
+		if err != nil {
+			return err
+		}
+		httpx.JSON(w, 200, t)
+		return nil
+	}))
 	r.Post("/tickets/{id}/acknowledge", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
 		id, err := uuid.Parse(chi.URLParam(r, "id"))
 		if err != nil {

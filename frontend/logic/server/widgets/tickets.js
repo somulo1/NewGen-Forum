@@ -57,14 +57,15 @@ async function mapTicket(srv, t, preloaded) {
   const toName = t.to_ref ? srv.unitName.get(t.to_ref) || '' : '';
   const raiser = srv.dirByUid && srv.dirByUid.get(t.raised_by);
   const names = (t.assignees || []).map((id) => srv.nameOf.get(id)).filter(Boolean);
-  // the heads of the dashboard it went to and of the one it came from (its sending place, else the raiser's department)
+  // the heads of the dashboard it went to and of the one it came from: the dashboard it was sent from, else the raiser's own place
+  // (the deepest of their sector, branch, unit, department), at any level
   const headsOf = (ref) => (ref ? (((srv.unitList || []).find((u) => u.id === ref) || {}).heads || []).map((h) => me(srv, srv.nameOf.get(h.id) || h.name || '')).filter(Boolean) : []);
-  const fromRef = t.from_ref || (raiser && raiser.dept && srv.structure && srv.structure.departments ? srv.structure.departments.get(raiser.dept) : null);
+  const fromRef = detail.origin_ref || t.from_ref || null;   // the server works out the sending dashboard (sector, branch, unit or department)
   const toHeads = headsOf(t.to_ref), fromHeads = headsOf(fromRef);
   return {
     id: t.ref, uid: t.id, title: first ? first.title : t.category + ' ticket', desc: first ? first.desc || '' : '(hidden: you are not a participant)', cat: t.category, prio: t.priority,
     step: t.step, hold: !!t.hold, late: !!t.late, raisedBy: me(srv, t.raised_by_name), assignees: names, handler: t.handler_name || '', handlerSince: t.handler_since ? when(t.handler_since) : '',
-    rating: t.rating || 0, autoClosed: !!t.auto_closed, closedAt: t.closed_at ? when(t.closed_at) : '', canAssign: !!detail.can_assign, canEscalate: !!detail.can_escalate, canWork: !!detail.can_work, kind: t.kind || 'ticket', toHeads, fromHeads, canAck: !!detail.can_acknowledge, acks: (detail.acknowledgements || t.acknowledgements || []).map((a) => ({ name: a.name, at: when(a.at) })), created: when(t.created_at), elapsed: detail.elapsed_hours || 0, tatH: t.tat_hours, sync: t.sync || 'Not synced', activity, dept: toType === 'departments' ? toName : (raiser ? raiser.dept : ''), fromDept: raiser ? raiser.dept : '',
+    rating: t.rating || 0, autoClosed: !!t.auto_closed, closedAt: t.closed_at ? when(t.closed_at) : '', canAssign: !!detail.can_assign, canEscalate: !!detail.can_escalate, canWork: !!detail.can_work, kind: t.kind || 'ticket', toHeads, fromHeads, canAck: !!detail.can_acknowledge, canChase: !!detail.can_chase, acks: (detail.acknowledgements || t.acknowledgements || []).map((a) => ({ name: a.name, at: when(a.at) })), created: when(t.created_at), elapsed: detail.elapsed_hours || 0, tatH: t.tat_hours, sync: t.sync || 'Not synced', activity, dept: toType === 'departments' ? toName : (raiser ? raiser.dept : ''), fromDept: raiser ? raiser.dept : '',
     createdAt: t.created_at.slice(0, 10), escalated: !!t.escalated, to: toType === 'desk' ? { type: 'desk', name: 'Ticket desk' } : { type: toType, name: toName }, dueAt: t.due_at || '', unsealed: !first
   };
 }
@@ -196,6 +197,12 @@ export async function assign(logic, srv, t, personName) {
 // someone at the receiving place says they received a business request or communication
 export async function acknowledge(logic, srv, t) {
   await srv.request('POST', `/tickets/${t.uid}/acknowledge`);
+  return reload(logic, srv, t.uid);
+}
+
+// An overdue ticket goes, with a note, to the heads of the place it was sent to. It stays where it is.
+export async function chase(logic, srv, t, note) {
+  await srv.request('POST', `/tickets/${t.uid}/chase`, { note });
   return reload(logic, srv, t.uid);
 }
 

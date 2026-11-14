@@ -166,6 +166,18 @@ export function buildTickets(ctx) {
       acks: cur_t.acks || [], hasAcks: (cur_t.acks || []).length > 0,
       canAck: !!cur_t.canAck && !(cur_t.acks || []).some((a) => this.srv && a.name === this.srv.me.name),
       acknowledge: () => ticketsW.acknowledge(this, this.srv, cur_t).then(() => this.notify('Acknowledged.', '#B8F36B')).catch((e) => this.notify(e.message || 'Could not acknowledge it.', '#FF9B8A')),
+      // overdue: the raiser, or a head of the place it came from, sends it with a note to the heads of the place it went to
+      // (not the usual escalation: it stays where it is)
+      canChase: !!cur_t.canChase && cur_t.step < 3, chaseOpen: !!s.chaseOpen, chaseNote: s.chaseNote || '', chasing: !!s.chasing, chaseTo: cur_t.to && cur_t.to.name ? cur_t.to.name : 'the place it was sent to',
+      openChase: () => this.setState({ chaseOpen: true, chaseNote: '' }), closeChase: () => this.setState({ chaseOpen: false, chaseNote: '' }),
+      setChaseNote: (e) => this.setState({ chaseNote: e && e.target ? e.target.value : String(e || '') }),
+      sendChase: () => {
+        const note = (this.state.chaseNote || '').trim();
+        if (!note) { this.notify('Write what the head should know.', '#FF9B8A'); return; }
+        this.setState({ chasing: true });
+        ticketsW.chase(this, this.srv, cur_t, note).then(() => { this.setState({ chasing: false, chaseOpen: false, chaseNote: '' }); this.notify('Sent to the head of ' + (cur_t.to && cur_t.to.name || 'that place') + '.', '#B8F36B'); })
+          .catch((e) => { this.setState({ chasing: false }); this.notify(e.message || 'Could not send it.', '#FF9B8A'); });
+      },
       wasEscalated: !!cur_t.escalatedTo, escalatedToLabel: cur_t.escalatedTo || '',
       assignees: cur_t.assignees.map((n) => ({ name: n, initials: ini(n), color: pColor[n] || '#9DB0A6' })),
       finish, actions: finish ? [] : actions,
