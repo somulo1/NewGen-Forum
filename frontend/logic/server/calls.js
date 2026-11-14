@@ -137,10 +137,15 @@ function setCall(logic, patch) {
   logic.setState((st) => (st.call ? { call: { ...st.call, ...patch } } : {}));
 }
 
+// Noise cancellation is on for every call, meeting and standup: the browser removes background noise (keyboards, traffic, fans),
+// cancels the echo of the other side coming back through the speakers, and levels the voice. Where the browser offers it
+// (recent Chrome/Edge, Safari) voice isolation goes further and keeps only the speaker's voice. Unknown options are ignored.
+export const VOICE = { echoCancellation: true, noiseSuppression: true, autoGainControl: true, voiceIsolation: true, channelCount: 1 };
+
 async function getMedia(kind) {
   const md = navigator.mediaDevices;
   if (!md || !md.getUserMedia) return null;
-  const tries = kind === 'video' ? [{ audio: true, video: MESH_VIDEO }, { audio: true }, { video: MESH_VIDEO }] : [{ audio: true }];
+  const tries = kind === 'video' ? [{ audio: VOICE, video: MESH_VIDEO }, { audio: VOICE }, { video: MESH_VIDEO }] : [{ audio: VOICE }, { audio: true }];
   for (const c of tries) {
     try { return await md.getUserMedia(c); } catch (e) { /* busy, missing or refused: try the next */ }
   }
@@ -423,7 +428,7 @@ async function ensureTrack(kind) {
   const md = navigator.mediaDevices;
   if (!md || !md.getUserMedia || !room) return false;
   let got;
-  try { got = await md.getUserMedia(kind === 'audio' ? { audio: true } : { video: MESH_VIDEO }); } catch (e) { return false; }
+  try { got = await md.getUserMedia(kind === 'audio' ? { audio: VOICE } : { video: MESH_VIDEO }); } catch (e) { return false; }
   const track = got.getTracks()[0];
   if (!track) return false;
   if (!media.local) media.local = new MediaStream();

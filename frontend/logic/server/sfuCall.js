@@ -132,7 +132,8 @@ export async function connectSfu(ctx, entry, opts = {}) {
     publishDefaults: { simulcast: true, dtx: true, red: true, videoCodec: 'vp8' },
     // a computer offers up to 720p for someone drawn large; dynacast stops that layer when no tile is big enough to need it
     videoCaptureDefaults: { resolution: (isPhone() ? lk.VideoPresets.h540 : lk.VideoPresets.h720).resolution },
-    audioCaptureDefaults: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+    // noise cancellation on by default (see VOICE in calls.js): background noise and echo removed, voice levelled, voice isolation where supported
+    audioCaptureDefaults: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, voiceIsolation: true, channelCount: 1 }
   };
   if (S.key) {
     const keyProvider = new lk.ExternalE2EEKeyProvider();
