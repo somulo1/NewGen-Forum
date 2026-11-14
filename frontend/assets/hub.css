@@ -147,3 +147,14 @@ main h1{font-size:22px !important}
 .ou-kpi-parts{gap:6px 12px !important}
 .ou-kpi-n{font-size:20px !important;line-height:1.15}
 }
+
+/* The app shell never moves: the header and the phone tab bar stay put and only the page area inside scrolls.
+   Phones: 100vh is taller than the visible screen (the address bar), which let the whole page slide; pinning the shell to the
+   visible viewport stops that. The page body itself never scrolls, and pulling past the end does not drag the app. */
+.hub-shell{overscroll-behavior:none}
+.hub-main{overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+@media (max-width:900px){
+  html:has(.hub-shell),body:has(.hub-shell){height:100%;overflow:hidden;overscroll-behavior:none}
+  .hub-shell{position:fixed;inset:0;height:auto !important;height:100dvh !important}
+  .hub-header{position:relative;z-index:58;flex:none}
+}
