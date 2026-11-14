@@ -105,7 +105,7 @@ label:not([style*="height"]):not(:has(> svg)) > select,label:not([style*="height
 .hub-searchwrap{position:static !important}
 .hub-searchres{position:fixed !important;left:12px !important;right:12px !important;top:68px !important;max-height:calc(100vh - 160px) !important}
 .hub-minicall{bottom:calc(var(--hub-tab) + 12px) !important;right:12px !important}
-.hub-fitpage{inset:0 0 var(--hub-tab) 0 !important;border-radius:0 !important;border:0 !important}
+.hub-fitpage{position:fixed !important;inset:64px 0 var(--hub-tab) 0 !important;z-index:40 !important;border-radius:0 !important;border:0 !important}
 .hub-tabbar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:57;height:64px;box-sizing:content-box;padding-bottom:env(safe-area-inset-bottom);background:var(--k-121B17,#121B17);border-top:1px solid var(--k-24322C,#24322C)}
 .hub-bubble{bottom:calc(var(--hub-tab) + 20px) !important;right:14px !important}
 .hub-toast{top:72px !important;left:12px !important;right:12px !important;transform:none !important;width:auto !important;max-width:none !important}
