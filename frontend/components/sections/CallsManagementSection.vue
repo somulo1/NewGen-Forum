@@ -529,8 +529,8 @@ export default {
 .pbx-thread .grow { display: flex; flex-direction: column; }
 .pbx-convo { min-height: 360px; }
 .pbx-bubbles { flex: 1; display: flex; flex-direction: column; gap: 3px; max-height: 420px; overflow-y: auto; }
-.pbx-bubble { max-width: 80%; width: fit-content; padding: 6px 8px 7px 9px; border-radius: 10px; display: flex; flex-direction: column; gap: 2px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-size: 14.2px; line-height: 19px; color: #DDE3DF; box-shadow: 0 1px 1px rgba(0,0,0,.22); }
-.pbx-bubble small { align-self: flex-end; font-size: 11px; line-height: 1; color: #8D9A93; }
+.pbx-bubble { max-width: 80%; width: fit-content; padding: 6px 8px 7px 9px; border-radius: 10px; display: flex; flex-direction: column; gap: 2px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-size: 14.2px; line-height: 19px; color: var(--k-DCE5DF,#DCE5DF); box-shadow: 0 1px 1px rgba(0,0,0,.22); }
+.pbx-bubble small { align-self: flex-end; font-size: 11px; line-height: 1; color: var(--k-8A988F,#8A988F); }
 .pbx-bubble.me { margin-left: auto; background: var(--k-2C3D34,#2C3D34); border-radius: 10px 3px 10px 10px; }
 .pbx-bubble.them { background: var(--k-1A2520,#1A2520); border-radius: 3px 10px 10px 10px; }
 .pbx-transcript { margin: 4px 0; font-size: 14px; color: var(--k-C9D6CF,#C9D6CF); }
