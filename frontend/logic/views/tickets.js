@@ -47,7 +47,7 @@ export function buildTickets(ctx) {
     // plain status for tables: Raised, Assigned, Resolved or Closed, and "Escalated: Assigned" when it was escalated
     const baseSt = t.step >= 4 ? 'Closed' : t.step === 3 ? 'Resolved' : t.step >= 1 ? 'Assigned' : 'Raised';
     return { ...t, to, toLabel: recipientLabel(to), toName: to && to.name ? to.name : 'Ticket desk', simpleStatus: t.escalated ? 'Escalated: ' + baseSt : baseSt,
-      hasEvidence: (t.activity || []).some((a) => a.kind === 'file'), descShort: (t.unsealed ? '' : String(t.desc || '')).replace(/\s+/g, ' ').trim(), isMine: t.raisedBy === 'Sam', prioStyle: prio(t.prio), statusLabel: t.step === 2 && t.hold ? 'On hold' : stepNames[t.step], slaLabel: c.sla, slaBadgeStyle: badge(c.color), remainingLabel: c.remainingLabel, handlerLabel: t.handler || 'Unassigned',
+      hasEvidence: (t.fileCount || 0) > 0 || (t.activity || []).some((a) => a.kind === 'file'), descShort: (t.unsealed ? '' : String(t.desc || '')).replace(/\s+/g, ' ').trim(), isMine: t.raisedBy === 'Sam', prioStyle: prio(t.prio), statusLabel: t.step === 2 && t.hold ? 'On hold' : stepNames[t.step], slaLabel: c.sla, slaBadgeStyle: badge(c.color), remainingLabel: c.remainingLabel, handlerLabel: t.handler || 'Unassigned',
       open: () => this.setState({ ticketOpen: t.id, ticketFrom: null, tagOpen: false, tcomment: '' }), _c: c };
   });
   const nOpen = tickets.filter((t) => t.step < 3).length;
@@ -66,6 +66,11 @@ export function buildTickets(ctx) {
   const deskTickets = tickets.filter((t) => t.to.type === 'desk');
   const deskStats = statsOf(deskTickets);
   const cur_t = s.tickets.find((t) => t.id === s.ticketOpen);
+  // the list holds only what tables need; an opened ticket loads its full detail (once per opening)
+  if (cur_t && this.srv && !cur_t.detailed) {
+    this.srv.ticketDetailAsked = this.srv.ticketDetailAsked || new Set();
+    if (!this.srv.ticketDetailAsked.has(cur_t.uid)) { this.srv.ticketDetailAsked.add(cur_t.uid); ticketsW.reload(this, this.srv, cur_t.uid).catch(() => this.srv.ticketDetailAsked.delete(cur_t.uid)); }
+  }
   let tk = {};
   if (cur_t) {
     const c = calc(cur_t);

@@ -2,6 +2,7 @@ package runapi
 
 import (
 	"context"
+	"hub/internal/notify"
 	"log/slog"
 	"os"
 	"time"
@@ -11,8 +12,8 @@ import (
 	"hub/internal/modules/calls"
 	"hub/internal/modules/chat"
 	"hub/internal/modules/files"
-	"hub/internal/modules/security"
 	"hub/internal/modules/projects"
+	"hub/internal/modules/security"
 	"hub/internal/modules/settings"
 	"hub/internal/modules/tickets"
 )
@@ -61,6 +62,23 @@ func RunWorker(ctx context.Context, a *app.App) {
 				return
 			case <-it.C:
 				scan()
+			}
+		}
+	}()
+	// audience emails: the outbox is sent in small batches every few seconds
+	go func() {
+		ot := time.NewTicker(5 * time.Second)
+		defer ot.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ot.C:
+				for notify.DrainOutbox(ctx, a, 300) > 0 {
+					if ctx.Err() != nil {
+						return
+					}
+				}
 			}
 		}
 	}()

@@ -86,6 +86,46 @@ func sendMails(a *app.App, list []queuedMail) {
 		return
 	}
 	ctx := context.Background()
+	// look everyone up in a few queries (500 people per query, per organization), not one database round trip per email
+	type who struct {
+		first, orgName string
+		acct           uuid.UUID
+		enc            []byte
+	}
+	found := map[[2]uuid.UUID]who{}
+	byOrg := map[uuid.UUID][]uuid.UUID{}
+	for _, m := range list {
+		byOrg[m.org] = append(byOrg[m.org], m.person)
+	}
+	for org, ids := range byOrg {
+		for start := 0; start < len(ids); start += 500 {
+			end := start + 500
+			if end > len(ids) {
+				end = len(ids)
+			}
+			chunk := ids[start:end]
+			err := a.DB.WithOrg(ctx, org, func(tx pgx.Tx) error {
+				rs, err := tx.Query(ctx, `select p.id, p.first_name, o.name, ac.id, ac.email_enc from hub.people p join hub.orgs o on o.id = p.org_id
+					join hub.accounts ac on ac.id = p.account_id where p.id = any($1) and p.status='active'`, chunk)
+				if err != nil {
+					return err
+				}
+				defer rs.Close()
+				for rs.Next() {
+					var pid uuid.UUID
+					var w who
+					if err := rs.Scan(&pid, &w.first, &w.orgName, &w.acct, &w.enc); err != nil {
+						return err
+					}
+					found[[2]uuid.UUID{org, pid}] = w
+				}
+				return rs.Err()
+			})
+			if err != nil {
+				slog.Warn("email recipients not looked up", "err", err)
+			}
+		}
+	}
 	work := make(chan queuedMail)
 	var wg sync.WaitGroup
 	for i := 0; i < 6; i++ {
@@ -93,7 +133,11 @@ func sendMails(a *app.App, list []queuedMail) {
 		go func() {
 			defer wg.Done()
 			for m := range work {
-				if err := deliver(ctx, a, m); err != nil {
+				w, ok := found[[2]uuid.UUID{m.org, m.person}]
+				if !ok {
+					continue
+				}
+				if err := deliver(ctx, a, m, w.first, w.orgName, w.acct, w.enc); err != nil {
 					slog.Warn("email not sent", "subject", m.subject, "err", err)
 				}
 			}
@@ -106,17 +150,8 @@ func sendMails(a *app.App, list []queuedMail) {
 	wg.Wait()
 }
 
-// deliver looks the person up (name, address, organization) and sends the card.
-func deliver(ctx context.Context, a *app.App, m queuedMail) error {
-	var first, orgName string
-	var acct uuid.UUID
-	var enc []byte
-	err := a.DB.WithOrg(ctx, m.org, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, `select p.first_name, o.name, ac.id, ac.email_enc from hub.people p join hub.orgs o on o.id = p.org_id join hub.accounts ac on ac.id = p.account_id where p.id=$1 and p.status='active'`, m.person).Scan(&first, &orgName, &acct, &enc)
-	})
-	if err != nil {
-		return err
-	}
+// deliver opens the person's address and sends the card.
+func deliver(ctx context.Context, a *app.App, m queuedMail, first, orgName string, acct uuid.UUID, enc []byte) error {
 	addr, err := crypto.FieldOpen(a.PlatformKey(), crypto.Context{Org: "platform", Table: "accounts", Column: "email_enc", RowID: acct.String()}, enc)
 	if err != nil {
 		return err

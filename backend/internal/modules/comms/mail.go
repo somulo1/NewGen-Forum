@@ -2,6 +2,7 @@ package comms
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 
 	"github.com/google/uuid"
@@ -76,17 +77,10 @@ func mailAudience(ctx context.Context, a *app.App, tx pgx.Tx, nb *notify.Batch, 
 		subject = typ + ": " + d.Title
 		card.Action[0] = "Read it in Hub"
 	}
-	rs, err := tx.Query(ctx, `select p.id from hub.conversation_members m join hub.people p on p.account_id = m.account_id
-		where m.conversation_id=$1 and m.left_at is null and p.status='active' and p.id <> $2 limit 5000`, conv, sender)
-	if err != nil {
-		return
-	}
-	defer rs.Close()
-	for rs.Next() {
-		var id uuid.UUID
-		if rs.Scan(&id) == nil {
-			nb.Mail(org, id, subject, card)
-		}
+	// everyone in the audience, through the outbox: no cap, nothing held in memory, retried if sending fails
+	if err := notify.QueueAudience(ctx, tx, org, subject, card, `select p.id from hub.conversation_members m join hub.people p on p.account_id = m.account_id
+		where m.conversation_id=$3 and m.left_at is null and p.status='active' and p.id <> $4`, conv, sender); err != nil {
+		slog.Warn("queue audience emails", "err", err)
 	}
 }
 

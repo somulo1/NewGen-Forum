@@ -39,7 +39,7 @@ export default {
         .sort((a, b) => (a.name.toLowerCase().startsWith(t) ? 0 : 1) - (b.name.toLowerCase().startsWith(t) ? 0 : 1) || a.name.localeCompare(b.name)).slice(0, 8);
     }
   },
-  watch: { q() { this.active = 0; } },
+  watch: { q(v) { this.active = 0; if (globalThis.__hubFindPeople) globalThis.__hubFindPeople(v); } },   // people not loaded yet are found on the server
   mounted() { this._off = (e) => { if (this.$refs.box && !this.$refs.box.contains(e.target)) this.open = false; }; document.addEventListener('pointerdown', this._off, true); },
   beforeUnmount() { document.removeEventListener('pointerdown', this._off, true); },
   methods: {

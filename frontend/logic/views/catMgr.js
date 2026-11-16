@@ -1,3 +1,4 @@
+import * as peopleW from '~/logic/server/widgets/people.js';
 import * as orgW from '~/logic/server/widgets/org.js';
 import * as ticketsW from '~/logic/server/widgets/tickets.js';
 import { catsFor } from '~/logic/ticketRouting.js';
@@ -26,6 +27,7 @@ export function buildCatMgr(ctx) {
   const edCat = ed ? list.find((c) => c.id === ed.id) : null;
   const q = ed ? ed.q.trim().toLowerCase() : '';
   const same = ed && ed.members.length === ed.orig.length && ed.members.every((n) => ed.orig.indexOf(n) !== -1);
+  if (q && this.srv) peopleW.searchPeople(this, this.srv, q);   // find people not loaded yet
   const editor = edCat ? { open: true, name: edCat.name, q: ed.q, onQ: (e) => this.setCatEditQ(e.target.value),
     selected: ed.members.map((n) => ({ ...person(n), remove: () => this.toggleCatEdit(n) })), count: ed.members.length,
     // the place's own people first; typing searches everyone in the organization (there can be thousands), showing the best 40

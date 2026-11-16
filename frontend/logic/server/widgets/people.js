@@ -3,14 +3,71 @@ export const name = 'people';
 
 const STATUS = { Available: 'Available', Away: 'Away', 'In a meeting': 'In a meeting', Focusing: 'Focusing' };
 
+// At sign-in only the first part of the directory is loaded (a few large pages), never the whole organization: with a million
+// people that would be thousands of requests. Smaller organizations still get everyone, a little later, in the background.
+// Anyone not loaded is found by searching (searchPeople), which asks the server and adds who it finds.
+const FIRST = 1000;       // loaded before Hub opens
+const BACKGROUND = 20000; // organizations up to this size are completed quietly afterwards
 export async function load(logic, srv) {
   const all = [];
   let next = '';
+  let total = 0;
   do {
-    const r = await srv.request('GET', '/people?limit=100' + (next ? '&cursor=' + encodeURIComponent(next) : ''));
+    const r = await srv.request('GET', '/people?limit=200' + (next ? '&cursor=' + encodeURIComponent(next) : ''));
+    if (r.total >= 0 && !next) total = r.total;
     all.push(...r.people);
     next = r.next || '';
-  } while (next);
+  } while (next && all.length < FIRST);
+  srv.dirTotal = total;
+  srv.dirPartial = !!next;
+  // every people picker (assign, mention, invite, message) can ask the server for someone not loaded yet
+  if (typeof globalThis !== 'undefined') globalThis.__hubFindPeople = (q) => searchPeople(logic, srv, q);
+  build(logic, srv, all);
+  await loadStructure(logic, srv);
+  if (next && total <= BACKGROUND) fillRest(logic, srv, next).catch(() => {});
+}
+
+async function fillRest(logic, srv, next) {
+  while (next) {
+    await new Promise((r) => setTimeout(r, 250));   // a little at a time, so Hub stays responsive
+    const r = await srv.request('GET', '/people?limit=200&cursor=' + encodeURIComponent(next));
+    merge(logic, srv, r.people);
+    next = r.next || '';
+  }
+  srv.dirPartial = false;
+  logic.forceUpdate();
+}
+
+// Finds people on the server (by name or title) and adds them to what this browser knows.
+let searching = null;
+export function searchPeople(logic, srv, q) {
+  const t = String(q || '').trim();
+  if (!srv || !srv.dirPartial || t.length < 2 || (searching && searching.q === t)) return;
+  clearTimeout(searching && searching.timer);
+  searching = { q: t, timer: setTimeout(() => {
+    srv.request('GET', '/people?limit=50&q=' + encodeURIComponent(t)).then((r) => merge(logic, srv, r.people)).catch(() => {});
+  }, 300) };
+}
+
+function merge(logic, srv, people) {
+  const fresh = (people || []).filter((p) => !srv.dirByUid.has(p.id) && p.id !== srv.me.person);
+  if (!fresh.length) return;
+  const dir = logic.dir.slice();
+  fresh.forEach((p) => { const x = rowOf(p, dir.length); srv.nameOf.set(p.id, p.name); srv.personOf.set(p.name, p.id); srv.dirByUid.set(p.id, x); dir.push(x); });
+  if (logic.dirSelf) logic.dirSelf.id = dir.length;
+  logic.dir = dir;
+  logic.forceUpdate();
+}
+
+function rowOf(p, id) {
+  return {
+      id, uid: p.id, hasAccount: !!p.has_account, accStatus: p.status || 'active', name: p.name, email: p.email || '', initials: p.initials, dept: p.department ? p.department.name : '',
+      title: p.title || '', headline: p.headline || '', hasPhoto: !!p.has_photo, photoVer: p.photo_ver || 0, loc: p.branch ? p.branch.name : '', sector: p.sector ? p.sector.name : '', unit: p.unit ? p.unit.name : '',
+      color: p.color || '#7CC4FF', joined: p.joined_on || '', dob: p.date_of_birth || '', phone: p.phone || '', gender: p.gender || '', status: STATUS[p.availability] || 'Available', role: p.role || ''
+  };
+}
+
+function build(logic, srv, all) {
   const me = srv.me;
   const dir = [];
   let selfRow = null;
@@ -31,7 +88,6 @@ export async function load(logic, srv) {
   logic.dirSelf = selfRow;
   srv.dirByUid = new Map(dir.map((d) => [d.uid, d]));
   logic.dir = dir;
-  await loadStructure(logic, srv);
 }
 
 // Organization structure: the frontend names levels by their own words (sectors, branches, units, departments).

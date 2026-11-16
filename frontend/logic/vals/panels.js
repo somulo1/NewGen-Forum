@@ -1,3 +1,4 @@
+import * as peopleW from '~/logic/server/widgets/people.js';
 import * as forumsW from '~/logic/server/widgets/forums.js';
 import * as dmsW from '~/logic/server/widgets/dms.js';
 import * as callsW from '~/logic/server/calls.js';
@@ -72,7 +73,7 @@ export function valsPanels(ctx) {
     dmUnreadLabel: (() => { const n = s.dms.reduce((a, d) => a + d.unread, 0); return n ? n + ' new' : String(s.dms.length); })(),
     newDmOpen: s.newDmOpen, toggleNewDm: () => this.setState((x) => ({ newDmOpen: !x.newDmOpen, dmsOpen: true, dmq: '' })),
     dmq: s.dmq, onDmq: (e) => this.setState({ dmq: e.target.value }),
-    dmMatches: (s.dmq.trim() ? this.dir.filter((d) => d.name.toLowerCase().indexOf(s.dmq.trim().toLowerCase()) !== -1) : this.dir.slice(-9)).slice(0, 6).map((d) => ({ name: d.name, initials: d.initials, color: d.color, title: d.title, open: () => this.openDm(d.name) })),
+    dmMatches: (s.dmq.trim() && this.srv && peopleW.searchPeople(this, this.srv, s.dmq), s.dmq.trim() ? this.dir.filter((d) => d.name.toLowerCase().indexOf(s.dmq.trim().toLowerCase()) !== -1) : this.dir.slice(-9)).slice(0, 6).map((d) => ({ name: d.name, initials: d.initials, color: d.color, title: d.title, open: () => this.openDm(d.name) })),
     isMin: s.mode === 'min',
     menuOpen: s.menu,
     inviteOpen: s.invite,

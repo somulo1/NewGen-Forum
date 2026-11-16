@@ -983,50 +983,88 @@ func (s *Service) DeleteProject(ctx context.Context, p *tenant.Principal, projec
 
 // fillViewers marks which projects the person is on, and gives those they are not on what their conversation would have told them.
 func (s *Service) fillViewers(ctx context.Context, tx pgx.Tx, p *tenant.Principal, list []*Project) error {
+	if len(list) == 0 {
+		return nil
+	}
 	dek, _, err := s.A.OrgDEK(ctx, tx, p.Org)
 	if err != nil {
 		return err
 	}
-	for _, x := range list {
-		if err := tx.QueryRow(ctx, `select exists (select 1 from hub.conversation_members where conversation_id=$1 and account_id=$2 and left_at is null)`, x.ID, p.Account).Scan(&x.Member); err != nil {
+	// three queries for the whole page, whatever its size (not three per project)
+	ids := make([]uuid.UUID, len(list))
+	by := make(map[uuid.UUID]*Project, len(list))
+	for i, x := range list {
+		ids[i] = x.ID
+		by[x.ID] = x
+		x.Member = false
+	}
+	rs, err := tx.Query(ctx, `select conversation_id from hub.conversation_members where conversation_id = any($1) and account_id=$2 and left_at is null`, ids, p.Account)
+	if err != nil {
+		return err
+	}
+	for rs.Next() {
+		var id uuid.UUID
+		if err := rs.Scan(&id); err != nil {
+			rs.Close()
 			return err
 		}
-		if x.Member {
-			continue
+		by[id].Member = true
+	}
+	rs.Close()
+	if err := rs.Err(); err != nil {
+		return err
+	}
+	var look []uuid.UUID
+	for _, x := range list {
+		if !x.Member {
+			look = append(look, x.ID)
 		}
+	}
+	if len(look) == 0 {
+		return nil
+	}
+	rs, err = tx.Query(ctx, `select id, name_enc, about_enc from hub.conversations where id = any($1)`, look)
+	if err != nil {
+		return err
+	}
+	for rs.Next() {
+		var id uuid.UUID
 		var name, about []byte
-		if err := tx.QueryRow(ctx, `select name_enc, about_enc from hub.conversations where id=$1`, x.ID).Scan(&name, &about); err != nil {
+		if err := rs.Scan(&id, &name, &about); err != nil {
+			rs.Close()
 			return err
 		}
 		open := func(col string, ct []byte) string {
 			if len(ct) == 0 {
 				return ""
 			}
-			b, err := crypto.FieldOpen(dek, crypto.Context{Org: p.Org.String(), Table: "conversations", Column: col, RowID: x.ID.String()}, ct)
+			b, err := crypto.FieldOpen(dek, crypto.Context{Org: p.Org.String(), Table: "conversations", Column: col, RowID: id.String()}, ct)
 			if err != nil {
 				return ""
 			}
 			return string(b)
 		}
-		x.Name, x.About = open("name_enc", name), open("about_enc", about)
-		rs, err := tx.Query(ctx, `select pe.first_name || ' ' || pe.last_name from hub.conversation_members m join hub.people pe on pe.account_id = m.account_id where m.conversation_id=$1 and m.left_at is null order by 1`, x.ID)
-		if err != nil {
-			return err
-		}
-		for rs.Next() {
-			var n string
-			if err := rs.Scan(&n); err != nil {
-				rs.Close()
-				return err
-			}
-			x.TeamNames = append(x.TeamNames, n)
-		}
-		rs.Close()
-		if err := rs.Err(); err != nil {
-			return err
-		}
+		by[id].Name, by[id].About = open("name_enc", name), open("about_enc", about)
 	}
-	return nil
+	rs.Close()
+	if err := rs.Err(); err != nil {
+		return err
+	}
+	rs, err = tx.Query(ctx, `select m.conversation_id, pe.first_name || ' ' || pe.last_name from hub.conversation_members m join hub.people pe on pe.account_id = m.account_id
+		where m.conversation_id = any($1) and m.left_at is null order by 1, 2`, look)
+	if err != nil {
+		return err
+	}
+	defer rs.Close()
+	for rs.Next() {
+		var id uuid.UUID
+		var n string
+		if err := rs.Scan(&id, &n); err != nil {
+			return err
+		}
+		by[id].TeamNames = append(by[id].TeamNames, n)
+	}
+	return rs.Err()
 }
 
 // eligibleSQL: people who can be on a project: their role, or a right given to them personally, lets them view projects.

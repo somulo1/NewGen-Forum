@@ -100,7 +100,7 @@ export default {
       const upto = this.local.slice(0, el.selectionStart);
       const m = this.mentions ? /(^|\s)@([^\s@]{0,30})$/.exec(upto) : null;
       const h = !m && this.hashtags ? /(^|\s)#([\p{L}\p{N}_]{0,40})$/u.exec(upto) : null;
-      if (m) { this.mq = { kind: '@', start: upto.length - m[2].length - 1, query: m[2] }; this.mActive = 0; }
+      if (m) { this.mq = { kind: '@', start: upto.length - m[2].length - 1, query: m[2] }; this.mActive = 0; if (globalThis.__hubFindPeople) globalThis.__hubFindPeople(m[2]); }
       else if (h) { this.mq = { kind: '#', start: upto.length - h[2].length - 1, query: h[2] }; this.mActive = 0; }
       else this.mq = null;
     },

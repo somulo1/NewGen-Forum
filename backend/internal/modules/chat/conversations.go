@@ -455,7 +455,7 @@ func (s *Service) members(ctx context.Context, tx pgx.Tx, id uuid.UUID) ([]Membe
 const convSelect = `
 	select c.id, c.kind, c.name_enc, c.about_enc, coalesce(c.color,''), coalesce(c.initials,''), c.privacy, c.epoch, c.created_at,
 	       coalesce(c.audience,''), c.audience_ref, coalesce(me.role,''), coalesce(me.first_epoch,0), st.last_message, st.last_at, st.changed_at,
-	       (select count(*) from hub.conversation_members x where x.conversation_id = c.id and x.left_at is null),
+	       coalesce((select cnt.members from hub.conversation_counts cnt where cnt.conversation_id = c.id), 0), -- kept count, not recounted
 	       case when me.account_id is null then 0 else (select count(*) from (select 1 from hub.messages mm where mm.org_id = c.org_id and mm.conversation_id = c.id and mm.sender_account <> $1
 	            and mm.deleted_at is null and mm.created_at > greatest(coalesce(cl.cleared_at, '-infinity'::timestamptz), case when c.kind='forum' then me.joined_at else '-infinity'::timestamptz end) and mm.id > coalesce(rc.last_read, '00000000-0000-0000-0000-000000000000'::uuid) limit 100) z) end
 	from hub.conversations c
@@ -565,14 +565,36 @@ func (s *Service) List(ctx context.Context, p *tenant.Principal, kind string, op
 		if err != nil {
 			return err
 		}
+		// the members of every private chat on the page in one query (not one per chat)
+		var dms []uuid.UUID
+		byID := map[uuid.UUID]*Conversation{}
 		for _, c := range out {
 			if c.Kind == "dm" {
-				if c.Members, err = s.members(ctx, tx, c.ID); err != nil {
-					return err
-				}
+				dms = append(dms, c.ID)
+				byID[c.ID] = c
+				c.Members = []Member{}
 			}
 		}
-		return nil
+		if len(dms) == 0 {
+			return nil
+		}
+		ms, err := tx.Query(ctx, `select m.conversation_id, p.id, p.account_id, p.first_name || ' ' || p.last_name, p.color, m.role
+			from hub.conversation_members m join hub.people p on p.account_id = m.account_id and p.org_id = m.org_id
+			where m.conversation_id = any($1) and m.left_at is null order by m.conversation_id, m.joined_at, p.id`, dms)
+		if err != nil {
+			return err
+		}
+		defer ms.Close()
+		for ms.Next() {
+			var cid uuid.UUID
+			var m Member
+			if err := ms.Scan(&cid, &m.Person, &m.Account, &m.Name, &m.Color, &m.Role); err != nil {
+				return err
+			}
+			m.Initials = initialsOf(m.Name)
+			byID[cid].Members = append(byID[cid].Members, m)
+		}
+		return ms.Err()
 	})
 	return out, err
 }

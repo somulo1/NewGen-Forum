@@ -1,3 +1,4 @@
+import * as peopleW from '~/logic/server/widgets/people.js';
 import * as callsW from '~/logic/server/calls.js';
 import * as notificationsW from '~/logic/server/widgets/notifications.js';
 // Values and handlers the templates read through hubBindings: shell.
@@ -13,6 +14,8 @@ export function valsShell(ctx) {
     const clear = () => this.setState({ [key]: '', navOpen: false });
     const results = [];
     if (nq) {
+      // a large organization's directory is only partly in this browser: ask the server too (results join the list as they come)
+      if (this.srv && this.srv.dirPartial) peopleW.searchPeople(this, this.srv, nq);
       this.dir.filter((d) => hit(d.name) || hit(d.title)).slice(0, limit).forEach((d) => results.push({ group: 'People', label: d.name, sub: d.title, initials: d.initials, color: d.color, run: () => { clear(); this.setState({ personOpen: d.id }); } }));
       pages.filter((p) => p[2] && hit(p[0])).forEach((p) => results.push({ group: 'Pages', label: p[0], sub: '', initials: p[0][0], color: '#E8EFEA', run: () => { go[p[1]](); clear(); } }));
       forums.filter((f) => hit(f.name)).forEach((f) => results.push({ group: 'Forums', label: f.name, sub: f.members + ' members', initials: f.initials, color: f.color, run: () => { f.open(); clear(); } }));

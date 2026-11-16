@@ -47,9 +47,20 @@ func (m *Module) checkReachable(ctx context.Context, tx pgx.Tx, p *tenant.Princi
 	if b[p.Person] {
 		return httpx.Err(409, "caller_busy", "You are already in a call or have one ringing. Finish or answer it first.")
 	}
+	// everyone's name in one query, not one per invitee
+	names := map[uuid.UUID]string{}
+	if nr, err := tx.Query(ctx, `select id, first_name || ' ' || last_name from hub.people where id = any($1)`, invited); err == nil {
+		for nr.Next() {
+			var id uuid.UUID
+			var n string
+			if nr.Scan(&id, &n) == nil {
+				names[id] = n
+			}
+		}
+		nr.Close()
+	}
 	for _, id := range invited {
-		var name string
-		_ = tx.QueryRow(ctx, `select first_name || ' ' || last_name from hub.people where id=$1`, id).Scan(&name)
+		name := names[id]
 		name = strings.TrimSpace(name)
 		if name == "" {
 			name = "That person"

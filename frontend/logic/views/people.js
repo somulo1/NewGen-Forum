@@ -1,3 +1,4 @@
+import * as peopleW from '~/logic/server/widgets/people.js';
 // renderVals step: people. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildPeople(ctx) {
   const { has, reportOf, s, set } = ctx;
@@ -5,6 +6,7 @@ export function buildPeople(ctx) {
   const PAGE = 24;
   const q = s.pq.trim().toLowerCase();
   const statusCol = { 'Available': '#B8F36B', 'In a meeting': '#FFB86B', 'Focusing': '#7CC4FF', 'Away': '#9DB0A6' };
+  if (q && this.srv) peopleW.searchPeople(this, this.srv, q);   // find people not loaded yet
   const base = this.peopleDir().filter((p) => (!q || (p.name + ' ' + p.title + ' ' + p.dept).toLowerCase().indexOf(q) !== -1) && (!s.pAvail || p.status === 'Available'));
   const inLoc = base.filter((p) => s.ploc === 'All' || p.loc === s.ploc);
   const results = inLoc.filter((p) => s.pdept === 'All' || p.dept === s.pdept);

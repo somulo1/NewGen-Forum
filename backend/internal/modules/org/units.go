@@ -73,11 +73,15 @@ func (s *Service) Structure(ctx context.Context, p *tenant.Principal) ([]Unit, e
 		// the heads: the person chosen to lead it, else the people who hold the unit's head role and are placed in it
 		hs, err := tx.Query(ctx, `select h.unit_id, p.id, p.first_name || ' ' || p.last_name from hub.unit_head_people h join hub.people p on p.id = h.person_id
 			union all
-			select uh.unit_id, p.id, p.first_name || ' ' || p.last_name
-			from hub.unit_heads uh join hub.person_roles pr on pr.role_id = uh.role_id
-			join hub.people p on p.id = pr.person_id and p.status <> 'deleted'
-			where (p.sector_id = uh.unit_id or p.branch_id = uh.unit_id or p.unit_id = uh.unit_id or p.department_id = uh.unit_id)
-			  and hub.chosen_head(uh.unit_id) is null
+			select x.unit_id, p.id, p.first_name || ' ' || p.last_name from (
+				-- placed in the place, looked up through each placement column's own index (no OR across four columns)
+				select uh.unit_id, uh.role_id, pe.id pid from hub.unit_heads uh join hub.org_units u on u.id = uh.unit_id and u.kind = 'sector' join hub.people pe on pe.sector_id = uh.unit_id
+				union all select uh.unit_id, uh.role_id, pe.id from hub.unit_heads uh join hub.org_units u on u.id = uh.unit_id and u.kind = 'branch' join hub.people pe on pe.branch_id = uh.unit_id
+				union all select uh.unit_id, uh.role_id, pe.id from hub.unit_heads uh join hub.org_units u on u.id = uh.unit_id and u.kind = 'unit' join hub.people pe on pe.unit_id = uh.unit_id
+				union all select uh.unit_id, uh.role_id, pe.id from hub.unit_heads uh join hub.org_units u on u.id = uh.unit_id and u.kind = 'department' join hub.people pe on pe.department_id = uh.unit_id
+			) x join hub.person_roles pr on pr.person_id = x.pid and pr.role_id = x.role_id
+			join hub.people p on p.id = x.pid and p.status <> 'deleted'
+			where hub.chosen_head(x.unit_id) is null
 			order by 3`)
 		if err != nil {
 			return err

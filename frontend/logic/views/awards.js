@@ -1,3 +1,4 @@
+import * as peopleW from '~/logic/server/widgets/people.js';
 import * as awardsW from '~/logic/server/widgets/awards.js';
 import { widgetGate } from '~/logic/widgetAccess.js';
 // renderVals step: awards. Receives the names built by earlier steps and returns the ones later steps need.
@@ -28,6 +29,7 @@ export function buildAwards(ctx) {
   const setAw = (patch) => this.setState((x) => ({ awd: Object.assign({}, x.awd, typeof patch === 'function' ? patch(x.awd) : patch) }));
   const personRole = (n) => s.memberRoles[n] || '';
   const awq = awS.q.trim().toLowerCase();
+  if (awq && this.srv) peopleW.searchPeople(this, this.srv, awq);   // find people not loaded yet
   const awPool = this.dir.filter((d) => (awS.role === 'all' || personRole(d.name) === awS.role) && (!awq || (d.name + ' ' + d.title + ' ' + d.dept).toLowerCase().indexOf(awq) !== -1));
   const awMatches = awPool.slice(0, 40);
   const f7 = flowById('f7');

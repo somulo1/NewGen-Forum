@@ -199,8 +199,13 @@ func (s *Service) List(ctx context.Context, p *tenant.Principal, q ListQuery) (*
 		if t := strings.TrimSpace(q.Q); t != "" {
 			add("(lower(p.first_name || ' ' || p.last_name) like $%d or lower(p.title) like $"+fmt.Sprint(len(args)+1)+")", "%"+strings.ToLower(escapeLike(t))+"%")
 		}
-		if err := tx.QueryRow(ctx, "select count(*) from hub.people p left join hub.org_units dx on dx.id=p.department_id left join hub.org_units bx on bx.id=p.branch_id where "+strings.Join(where, " and "), args...).Scan(&out.Total); err != nil {
-			return err
+		// the total is counted once, on the first page; later pages (cursor) do not recount the whole directory
+		if q.Cursor == "" {
+			if err := tx.QueryRow(ctx, "select count(*) from hub.people p left join hub.org_units dx on dx.id=p.department_id left join hub.org_units bx on bx.id=p.branch_id where "+strings.Join(where, " and "), args...).Scan(&out.Total); err != nil {
+				return err
+			}
+		} else {
+			out.Total = -1
 		}
 		if q.Cursor != "" {
 			f, l, id, ok := decodeCursor(q.Cursor)

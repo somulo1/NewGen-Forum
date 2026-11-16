@@ -220,14 +220,10 @@ func (s *Service) List(ctx context.Context, p *tenant.Principal, folder uuid.UUI
 			ids = append(ids, id)
 		}
 		rs.Close()
-		for _, id := range ids {
-			f, err := s.file(ctx, tx, id)
-			if err != nil {
-				return err
-			}
-			out = append(out, f)
-		}
-		return nil
+		// the whole page in one query (not one per file), in the same order
+		fs, err := s.filesByID(ctx, tx, ids)
+		out = fs
+		return err
 	})
 	return out, err
 }
@@ -471,14 +467,10 @@ func (s *Service) Shares(ctx context.Context, p *tenant.Principal) ([]*Share, er
 			ids = append(ids, id)
 		}
 		rs.Close()
-		for _, id := range ids {
-			x, err := s.share(ctx, tx, id)
-			if err != nil {
-				return err
-			}
-			out = append(out, x)
-		}
-		return nil
+		// the whole page in one query (not one per link), in the same order
+		xs, err := s.sharesByID(ctx, tx, ids)
+		out = xs
+		return err
 	})
 	return out, err
 }
@@ -760,3 +752,72 @@ func (s *Service) Private(r chi.Router) {
 }
 
 var _ = strings.TrimSpace
+
+// filesByID loads many files at once, in the order of ids.
+func (s *Service) filesByID(ctx context.Context, tx pgx.Tx, ids []uuid.UUID) ([]*File, error) {
+	out := []*File{}
+	if len(ids) == 0 {
+		return out, nil
+	}
+	rs, err := tx.Query(ctx, `select f.id, f.folder_id, f.uploader, p.first_name || ' ' || p.last_name, f.author_device, f.epoch, f.envelope, f.size, f.status, f.created_at
+		from hub.files f join hub.people p on p.id = f.uploader where f.id = any($1)`, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rs.Close()
+	by := map[uuid.UUID]*File{}
+	for rs.Next() {
+		f := &File{}
+		var env []byte
+		if err := rs.Scan(&f.ID, &f.Folder, &f.Uploader, &f.Name, &f.Device, &f.Epoch, &env, &f.Size, &f.Status, &f.CreatedAt); err != nil {
+			return nil, err
+		}
+		f.Envelope = base64.StdEncoding.EncodeToString(env)
+		by[f.ID] = f
+	}
+	if err := rs.Err(); err != nil {
+		return nil, err
+	}
+	for _, id := range ids {
+		if f := by[id]; f != nil {
+			out = append(out, f)
+		}
+	}
+	return out, nil
+}
+
+// sharesByID loads many secure links at once, in the order of ids.
+func (s *Service) sharesByID(ctx context.Context, tx pgx.Tx, ids []uuid.UUID) ([]*Share, error) {
+	out := []*Share{}
+	if len(ids) == 0 {
+		return out, nil
+	}
+	rs, err := tx.Query(ctx, `select s.id, s.file_id, s.status, s.expires_at, s.max_downloads, s.downloads, s.pass_hash, p.first_name || ' ' || p.last_name, s.created_at
+		from hub.shares s join hub.people p on p.id = s.created_by where s.id = any($1)`, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rs.Close()
+	by := map[uuid.UUID]*Share{}
+	for rs.Next() {
+		x := &Share{}
+		var pass *string
+		if err := rs.Scan(&x.ID, &x.File, &x.Status, &x.ExpiresAt, &x.MaxDownloads, &x.Downloads, &pass, &x.CreatedBy, &x.CreatedAt); err != nil {
+			return nil, err
+		}
+		x.Protected = pass != nil
+		if x.Status == "Active" && time.Now().After(x.ExpiresAt) {
+			x.Status = "Expired"
+		}
+		by[x.ID] = x
+	}
+	if err := rs.Err(); err != nil {
+		return nil, err
+	}
+	for _, id := range ids {
+		if x := by[id]; x != nil {
+			out = append(out, x)
+		}
+	}
+	return out, nil
+}

@@ -88,6 +88,7 @@ type Ticket struct {
 	Description  string      `json:"description,omitempty"`
 	Comments     []Comment   `json:"comments,omitempty"`
 	Files        []File      `json:"files,omitempty"`
+	FileCount    int         `json:"file_count"` // attachments (lists show whether there is evidence without loading each ticket)
 	// what the person asking may do with it (single-ticket reads): assign or reassign (head of the receiving department), escalate
 	// (that head, or the person working on it)
 	CanAssign   bool `json:"can_assign"`
@@ -643,6 +644,29 @@ func (s *Service) List(ctx context.Context, p *tenant.Principal, q ListQuery) ([
 			return err
 		}
 		ms.Close()
+		// attachment counts for the whole list in one query
+		if len(mine) > 0 {
+			ids := make([]uuid.UUID, len(mine))
+			byID := map[uuid.UUID]*Ticket{}
+			for i, t := range mine {
+				ids[i] = t.ID
+				byID[t.ID] = t
+			}
+			fc, err := tx.Query(ctx, `select ticket_id, count(*) from hub.ticket_files where ticket_id = any($1) group by ticket_id`, ids)
+			if err != nil {
+				return err
+			}
+			for fc.Next() {
+				var id uuid.UUID
+				var n int
+				if err := fc.Scan(&id, &n); err != nil {
+					fc.Close()
+					return err
+				}
+				byID[id].FileCount = n
+			}
+			fc.Close()
+		}
 		return s.fillText(ctx, tx, p.Org, mine, false)
 	})
 	return out, err
@@ -1281,7 +1305,8 @@ func (s *Service) Sweep(ctx context.Context, org uuid.UUID) (late, near int, err
 			return err
 		}
 		rs, err := tx.Query(ctx, `select t.conversation_id, t.ref, t.handler, t.created_at, t.due_at, t.late, t.escalated, t.hold, t.to_type, t.to_ref
-			from hub.tickets t where t.step < 3 and t.due_at is not null and (not t.late and t.due_at < now() or (t.due_at - t.created_at) * ($1::numeric / 100) + t.created_at < now() and t.due_at >= now())`, cfg.NearPct)
+			from hub.tickets t where t.step < 3 and t.due_at is not null and (not t.late and t.due_at < now() or (t.due_at - t.created_at) * ($1::numeric / 100) + t.created_at < now() and t.due_at >= now())
+			order by t.due_at limit 1000`, cfg.NearPct) // a bounded batch per sweep: a backlog is worked through over the next sweeps
 		if err != nil {
 			return err
 		}
@@ -1306,6 +1331,32 @@ func (s *Service) Sweep(ctx context.Context, org uuid.UUID) (late, near int, err
 			rowsSeen = append(rowsSeen, r)
 		}
 		rs.Close()
+		// who was already told a ticket is nearing its deadline: one query for the whole batch, not one per ticket
+		told := map[string]bool{}
+		if refs := func() []string {
+			var out []string
+			for _, r := range rowsSeen {
+				if r.handler != nil && !r.due.Before(time.Now()) {
+					out = append(out, r.ref)
+				}
+			}
+			return out
+		}(); len(refs) > 0 && cfg.Notify.Nearing {
+			nr, err := tx.Query(ctx, `select person_id, ref from hub.notifications where kind='ticket-near' and ref = any($1)`, refs)
+			if err != nil {
+				return err
+			}
+			for nr.Next() {
+				var pid uuid.UUID
+				var ref string
+				if err := nr.Scan(&pid, &ref); err != nil {
+					nr.Close()
+					return err
+				}
+				told[pid.String()+"|"+ref] = true
+			}
+			nr.Close()
+		}
 		now := time.Now()
 		for _, r := range rowsSeen {
 			if r.hold && cfg.Pause.Onhold {
@@ -1342,11 +1393,7 @@ func (s *Service) Sweep(ctx context.Context, org uuid.UUID) (late, near int, err
 				}
 				late++
 			} else if r.handler != nil && cfg.Notify.Nearing {
-				var already bool
-				if err := tx.QueryRow(ctx, `select exists (select 1 from hub.notifications where person_id=$1 and kind='ticket-near' and ref=$2)`, *r.handler, r.ref).Scan(&already); err != nil {
-					return err
-				}
-				if !already {
+				if !told[r.handler.String()+"|"+r.ref] {
 					s.mailTicket(ctx, tx, &nb, org, *r.handler, "near", &Ticket{ID: r.id, Ref: r.ref}, nil, "", "")
 					if err := nb.Add(ctx, tx, org, *r.handler, "ticket-near", r.ref+" is nearing its deadline.", "#FFB86B", r.ref); err != nil {
 						return err

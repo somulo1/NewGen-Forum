@@ -177,6 +177,7 @@ func (s *Service) applyPublish(ctx context.Context, tx pgx.Tx, a approvals.Appli
 	if err := tx.QueryRow(ctx, `select epoch from hub.conversations where id=$1`, conv).Scan(&cur); err != nil {
 		return err
 	}
+	s.bumpCounts(ctx, a.Org)
 	status := "Published"
 	if cur != epoch || acct == nil {
 		status = "Stale" // the audience's key changed while it waited: the sender must send it again
@@ -213,12 +214,23 @@ func (s *Service) applyPublish(ctx context.Context, tx pgx.Tx, a approvals.Appli
 }
 
 // the read and acknowledged counts follow the same audience rule as the insights (see inAudience), so every screen agrees
+// onePlace: the communication went to one place only (no other published copy in its batch). Then its audience is that place's
+// kept member count (minus the author, when a member), and its reads and acknowledgements are counted from the readers, never by
+// listing the whole audience. Several places need the distinct count across them, done exactly as before.
+const onePlace = `(c.batch is null or not exists (select 1 from hub.comms c3 where c3.batch = c.batch and c3.id <> c.id and c3.status = 'Published'))`
+
+const authorMember = `(case when exists (select 1 from hub.conversation_members am join hub.people ap on ap.account_id = am.account_id and ap.org_id = am.org_id
+	where am.conversation_id = c.conversation_id and am.left_at is null and ap.id = c.by_person) then 1 else 0 end)`
+
 var sel = `select c.id, c.ref, c.type, c.status, c.by_person, p.first_name || ' ' || p.last_name, c.conversation_id, c.message_id, c.created_at, c.published_at, c.batch,
-	(select count(distinct r.person_id) from hub.comm_reads r where r.comm_id in (` + grpComms + `) and r.person_id in (` + grpAudience + `)),
+	case when ` + onePlace + ` then (select count(*) from hub.comm_reads r where r.comm_id = c.id and ` + inAudience("r.person_id") + `)
+	else (select count(distinct r.person_id) from hub.comm_reads r where r.comm_id in (` + grpComms + `) and r.person_id in (` + grpAudience + `)) end,
 	exists (select 1 from hub.comm_reads r where r.comm_id = c.id and r.person_id = $1),
 	exists (select 1 from hub.comm_acks a where a.comm_id = c.id and a.person_id = $1),
-	(select count(distinct a.person_id) from hub.comm_acks a where a.comm_id in (` + grpComms + `) and a.person_id in (` + grpAudience + `)),
-	(select count(*) from (` + grpAudience + `) ga)
+	case when ` + onePlace + ` then (select count(*) from hub.comm_acks a where a.comm_id = c.id and ` + inAudience("a.person_id") + `)
+	else (select count(distinct a.person_id) from hub.comm_acks a where a.comm_id in (` + grpComms + `) and a.person_id in (` + grpAudience + `)) end,
+	case when ` + onePlace + ` then greatest(coalesce((select cc.members from hub.conversation_counts cc where cc.conversation_id = c.conversation_id), 0) - ` + authorMember + `, 0)
+	else (select count(*) from (` + grpAudience + `) ga) end
 	from hub.comms c join hub.people p on p.id = c.by_person`
 
 func scan(r pgx.Row) (*Comm, error) {
@@ -340,6 +352,7 @@ func (s *Service) MarkSeen(ctx context.Context, p *tenant.Principal, conv uuid.U
 	}
 	n := 0
 	err := s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
+		s.bumpCounts(ctx, p.Org)
 		tag, err := tx.Exec(ctx, `insert into hub.comm_reads (org_id, comm_id, person_id)
 			select c.org_id, c.id, $3 from hub.comms c
 			join hub.conversation_members m on m.conversation_id = c.conversation_id and m.account_id = $4 and m.left_at is null
@@ -354,6 +367,7 @@ func (s *Service) MarkSeen(ctx context.Context, p *tenant.Principal, conv uuid.U
 // MarkRead records that the person read a communication (once).
 func (s *Service) MarkRead(ctx context.Context, p *tenant.Principal, id uuid.UUID) error {
 	return s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
+		s.bumpCounts(ctx, p.Org)
 		tag, err := tx.Exec(ctx, `insert into hub.comm_reads (org_id, comm_id, person_id) select $1, c.id, $3 from hub.comms c
 			join hub.conversation_members m on m.conversation_id = c.conversation_id and m.account_id = $4 and m.left_at is null
 			where c.id=$2 and c.status='Published' on conflict do nothing`, p.Org, id, p.Person, p.Account)
@@ -369,6 +383,7 @@ func (s *Service) MarkRead(ctx context.Context, p *tenant.Principal, id uuid.UUI
 // read). Once is enough; clicking again changes nothing.
 func (s *Service) Acknowledge(ctx context.Context, p *tenant.Principal, id uuid.UUID) error {
 	return s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
+		s.bumpCounts(ctx, p.Org)
 		tag, err := tx.Exec(ctx, `insert into hub.comm_acks (org_id, comm_id, person_id) select $1, c.id, $3 from hub.comms c
 			join hub.conversation_members m on m.conversation_id = c.conversation_id and m.account_id = $4 and m.left_at is null
 			where c.id=$2 and c.status='Published' and c.by_person <> $3 on conflict do nothing`, p.Org, id, p.Person, p.Account)
@@ -382,6 +397,7 @@ func (s *Service) Acknowledge(ctx context.Context, p *tenant.Principal, id uuid.
 			}
 			return httpx.ErrNotFound
 		}
+		s.bumpCounts(ctx, p.Org)
 		_, err = tx.Exec(ctx, `insert into hub.comm_reads (org_id, comm_id, person_id) values ($1,$2,$3) on conflict do nothing`, p.Org, id, p.Person)
 		return err
 	})
@@ -712,16 +728,62 @@ func (s *Service) awards(ctx context.Context, p *tenant.Principal, cyc *Cycle) (
 			ids = append(ids, id)
 		}
 		rs.Close()
-		for _, id := range ids {
-			a, err := s.award(ctx, tx, p.Org, dek, id)
-			if err != nil {
+		// the whole page in two queries (not two or three per award)
+		if len(ids) == 0 {
+			return nil
+		}
+		ar, err := tx.Query(ctx, `select a.id, a.ref, a.type, a.people, a.citation_enc, a.on_date::text, a.status, n.first_name || ' ' || n.last_name, a.nominated_by,
+			coalesce((select array_agg(p.first_name || ' ' || p.last_name order by p.first_name) from hub.people p where p.id = any(a.people)), '{}'),
+			case when a.status = 'Approved' then coalesce((select approved_at from hub.award_approvals x where x.award_id = a.id), a.created_at) end
+			from hub.awards a join hub.people n on n.id = a.nominated_by where a.id = any($1)`, ids)
+		if err != nil {
+			return err
+		}
+		by := map[uuid.UUID]*Award{}
+		for ar.Next() {
+			a := &Award{}
+			var enc []byte
+			if err := ar.Scan(&a.ID, &a.Ref, &a.Type, &a.People, &enc, &a.Date, &a.Status, &a.By, &a.ByPerson, &a.Names, &a.ApprovedAt); err != nil {
+				ar.Close()
 				return err
 			}
-			a.InCycle = a.Status == "Approved" && a.ApprovedAt != nil && !a.ApprovedAt.Before(cyc.Start)
-			if a.ByPerson == p.Person && a.Status == "Approved" {
-				a.Targets = s.unposted(ctx, tx, id)
+			if b, err := crypto.FieldOpen(dek, awardCtx(p.Org, a.ID), enc); err == nil {
+				a.Citation = string(b)
 			}
-			out = append(out, a)
+			a.InCycle = a.Status == "Approved" && a.ApprovedAt != nil && !a.ApprovedAt.Before(cyc.Start)
+			by[a.ID] = a
+		}
+		ar.Close()
+		if err := ar.Err(); err != nil {
+			return err
+		}
+		tr, err := tx.Query(ctx, `select ap.award_id, ap.target from hub.award_posts ap join hub.awards a on a.id = ap.award_id
+			where ap.award_id = any($1) and not ap.claimed and a.nominated_by = $2 and a.status = 'Approved' order by ap.target`, ids, p.Person)
+		if err != nil {
+			return err
+		}
+		for tr.Next() {
+			var id uuid.UUID
+			var t string
+			if err := tr.Scan(&id, &t); err != nil {
+				tr.Close()
+				return err
+			}
+			if a := by[id]; a != nil {
+				a.Targets = append(a.Targets, t)
+			}
+		}
+		tr.Close()
+		if err := tr.Err(); err != nil {
+			return err
+		}
+		for _, id := range ids {
+			if a := by[id]; a != nil {
+				if a.ByPerson == p.Person && a.Status == "Approved" && a.Targets == nil {
+					a.Targets = []string{}
+				}
+				out = append(out, a)
+			}
 		}
 		return nil
 	})
@@ -1121,6 +1183,19 @@ type Totals struct {
 
 // GroupTotals measures a communication across all the places it went to, per person (see grpAudience).
 func (s *Service) GroupTotals(ctx context.Context, p *tenant.Principal, id uuid.UUID) (*Totals, error) {
+	key := "comm:tot:" + p.Org.String() + ":" + id.String() + ":" + s.countsVer(ctx, p.Org)
+	var hit Totals
+	if s.cacheGet(ctx, key, &hit) {
+		return &hit, nil
+	}
+	t, err := s.groupTotals(ctx, p, id)
+	if err == nil {
+		s.cachePut(ctx, key, t)
+	}
+	return t, err
+}
+
+func (s *Service) groupTotals(ctx context.Context, p *tenant.Principal, id uuid.UUID) (*Totals, error) {
 	t := &Totals{AckedBy: []string{}, Unread: []Pending{}, ByDept: []DeptRow{}}
 	err := s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
 		cte := `with c as (select * from hub.comms where id = $1),
@@ -1297,6 +1372,7 @@ type People struct {
 func (s *Service) Engagement(ctx context.Context, p *tenant.Principal) ([]EngRow, *People, error) {
 	out := []EngRow{}
 	ppl := &People{}
+	engKey := ""
 	err := s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
 		types := []string{}
 		for t, r := range insightRight {
@@ -1307,6 +1383,17 @@ func (s *Service) Engagement(ctx context.Context, p *tenant.Principal) ([]EngRow
 		if len(types) == 0 {
 			return httpx.ErrForbidden
 		}
+		sort.Strings(types)
+		key := "comm:eng:" + p.Org.String() + ":" + strings.Join(types, ",") + ":" + s.countsVer(ctx, p.Org)
+		var hit struct {
+			Rows   []EngRow `json:"rows"`
+			People *People  `json:"people"`
+		}
+		if s.cacheGet(ctx, key, &hit) {
+			out, ppl = hit.Rows, hit.People
+			return errCached
+		}
+		engKey = key
 		rs, err := tx.Query(ctx, engCTE+`
 			select h.comm, h.k, h.type, h.ref, h.t0,
 				(select count(*) from aud where aud.k = h.k), (select count(*) from fr where fr.k = h.k),
@@ -1342,8 +1429,19 @@ func (s *Service) Engagement(ctx context.Context, p *tenant.Principal) ([]EngRow
 				(select count(*) from fa), (select round(percentile_cont(0.5) within group (order by extract(epoch from (fr.at - h.t0)) / 60))::int from fr join heads h on h.k = fr.k)
 			from aud`, types).Scan(&ppl.Reached, &ppl.Behind, &ppl.Deliveries, &ppl.Read, &ppl.ReadIn48h, &ppl.Acked, &ppl.MedianMins)
 	})
+	if errors.Is(err, errCached) {
+		return out, ppl, nil
+	}
+	if err == nil && engKey != "" {
+		s.cachePut(ctx, engKey, struct {
+			Rows   []EngRow `json:"rows"`
+			People *People  `json:"people"`
+		}{out, ppl})
+	}
 	return out, ppl, err
 }
+
+var errCached = errors.New("cached")
 
 // Remind sends a reminder only to the people a communication has not reached yet (in every place it went), instead of
 // re-posting it to everyone. At most once every 6 hours per communication, so nobody is nagged.
@@ -1379,4 +1477,29 @@ func (s *Service) Remind(ctx context.Context, p *tenant.Principal, id uuid.UUID)
 	}
 	nb.Send(ctx, s.A)
 	return len(t.Unread), nil
+}
+
+// Insight caches: the heavy group counts (GroupTotals, Engagement) are kept for a minute, and dropped at once when anyone reads,
+// acknowledges or a communication is published in the organization (the org's counts version moves on).
+func (s *Service) countsVer(ctx context.Context, org uuid.UUID) string {
+	v, err := s.A.Rdb.Get(ctx, "comm:ver:"+org.String()).Result()
+	if err != nil {
+		return "0"
+	}
+	return v
+}
+
+func (s *Service) bumpCounts(ctx context.Context, org uuid.UUID) {
+	_ = s.A.Rdb.Incr(ctx, "comm:ver:"+org.String()).Err()
+}
+
+func (s *Service) cacheGet(ctx context.Context, key string, into any) bool {
+	b, err := s.A.Rdb.Get(ctx, key).Bytes()
+	return err == nil && json.Unmarshal(b, into) == nil
+}
+
+func (s *Service) cachePut(ctx context.Context, key string, v any) {
+	if b, err := json.Marshal(v); err == nil {
+		_ = s.A.Rdb.Set(ctx, key, b, time.Minute).Err()
+	}
 }

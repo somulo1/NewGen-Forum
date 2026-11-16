@@ -29,18 +29,20 @@ const me = (srv, name) => (name === srv.me.name ? 'Sam' : name);
 
 // tickets raised before encryption was dropped: their text and files were sealed in the conversation
 const LEGACY_BEFORE = '2026-11-15';
-async function legacyMessages(srv, t, detail) {
-  if (t.participant === false || (detail.title && t.created_at >= LEGACY_BEFORE)) return [];
+async function legacyMessages(srv, t, detail, light) {
+  if (light || t.participant === false || (detail.title && t.created_at >= LEGACY_BEFORE)) return [];
   try {
     const msgs = (await srv.request('GET', `/conversations/${t.id}/messages?limit=100`)).messages;
     return Promise.all(msgs.map(async (m) => ({ m, pl: await srv.vault.openMessage(m) })));
   } catch (e) { return []; }
 }
 
-async function mapTicket(srv, t, preloaded) {
+// light: built from the list row alone (no request per ticket); the full ticket (events, comments, files, what I may do) is loaded
+// when it is opened
+async function mapTicket(srv, t, preloaded, light) {
   let detail = preloaded || t;
   if (!preloaded) try { detail = await srv.request('GET', `/tickets/${t.id}`); } catch (e) { /* keep the list row */ }
-  const opened = await legacyMessages(srv, t, detail);
+  const opened = await legacyMessages(srv, t, detail, light);
   opened.sort((a, b) => (a.m.id < b.m.id ? -1 : 1));
   const sealedHead = opened.find(({ pl }) => pl && pl.title !== undefined);
   const first = detail.title ? { title: detail.title, desc: detail.description || '' } : sealedHead ? sealedHead.pl : null;
@@ -66,7 +68,7 @@ async function mapTicket(srv, t, preloaded) {
   return {
     id: t.ref, uid: t.id, title: first ? first.title : t.category + ' ticket', desc: first ? first.desc || '' : '(hidden: you are not a participant)', cat: t.category, prio: t.priority,
     step: t.step, hold: !!t.hold, late: !!t.late, raisedBy: me(srv, t.raised_by_name), assignees: names, handler: t.handler_name || '', handlerSince: t.handler_since ? when(t.handler_since) : '',
-    rating: t.rating || 0, autoClosed: !!t.auto_closed, closedAt: t.closed_at ? when(t.closed_at) : '', canAssign: !!detail.can_assign, canEscalate: !!detail.can_escalate, canWork: !!detail.can_work, kind: t.kind || 'ticket', toHeads, fromHeads, canAck: !!detail.can_acknowledge, canChase: !!detail.can_chase, acks: (detail.acknowledgements || t.acknowledgements || []).map((a) => ({ name: a.name, at: when(a.at) })), created: when(t.created_at), elapsed: detail.elapsed_hours || 0, tatH: t.tat_hours, sync: t.sync || 'Not synced', activity, dept: toType === 'departments' ? toName : (raiser ? raiser.dept : ''), fromDept: raiser ? raiser.dept : '',
+    rating: t.rating || 0, autoClosed: !!t.auto_closed, closedAt: t.closed_at ? when(t.closed_at) : '', canAssign: !!detail.can_assign, canEscalate: !!detail.can_escalate, canWork: !!detail.can_work, kind: t.kind || 'ticket', toHeads, fromHeads, detailed: !light, fileCount: (detail.files || []).length || t.file_count || 0, canAck: !!detail.can_acknowledge, canChase: !!detail.can_chase, acks: (detail.acknowledgements || t.acknowledgements || []).map((a) => ({ name: a.name, at: when(a.at) })), created: when(t.created_at), elapsed: detail.elapsed_hours || 0, tatH: t.tat_hours, sync: t.sync || 'Not synced', activity, dept: toType === 'departments' ? toName : (raiser ? raiser.dept : ''), fromDept: raiser ? raiser.dept : '',
     createdAt: t.created_at.slice(0, 10), escalated: !!t.escalated, to: toType === 'desk' ? { type: 'desk', name: 'Ticket desk' } : { type: toType, name: toName }, dueAt: t.due_at || '', unsealed: !first
   };
 }
@@ -119,7 +121,8 @@ export async function load(logic, srv) {
   await loadSettings(logic, srv);
   const { tickets } = await srv.request('GET', '/tickets?limit=100');
   const rows = [];
-  for (let i = 0; i < tickets.length; i += 10) rows.push(...await Promise.all(tickets.slice(i, i + 10).map((t) => mapTicket(srv, t))));
+  // the list alone: one request for all tickets, not one more per ticket
+  for (const t of tickets) rows.push(await mapTicket(srv, t, t, true));
   logic.setState({ tickets: rows });
   routeUnassigned(logic, srv, tickets).catch(() => {});   // quietly, after the list is shown
   await files.settle(showFiles(logic, srv, rows));   // the attachments of the newest tickets are in before tickets count as loaded
