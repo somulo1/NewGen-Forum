@@ -8,7 +8,7 @@
 <label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Milestone name<input type="text" :value="msd.name" @input="msd.onName" placeholder="For example: Beta release" style="height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px"></label>
 <label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Due date<input type="date" :value="msd.date" :min="msd.minDate" :max="msd.maxDate" @input="msd.onDate" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px"><span style="font-size: 12px">{{ msd.rangeNote }}</span></label>
 <label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">What will be true when this is reached? (optional)<textarea rows="3" :value="msd.desc" @input="msd.onDesc" style="padding: 10px 12px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px; line-height: 1.45; resize: vertical"></textarea></label>
-<span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Next, add sprints under this milestone. Tasks in those sprints count toward its progress.</span>
+<span v-if="!msd.isEdit" style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Next, add sprints under this milestone. Tasks in those sprints count toward its progress.</span>
 </template>
 
 <template v-if="msd.isSprint">

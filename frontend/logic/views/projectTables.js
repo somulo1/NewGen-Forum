@@ -10,6 +10,9 @@ export function buildProjectTables(ctx) {
   const msLabel = { done: 'Reached', ready: 'Reached', late: 'Late', next: 'Next up', upcoming: 'Upcoming' };
   const spColor = { closed: '#6F8178', done: '#B8F36B', current: '#7CC4FF', late: '#FF9B8A', upcoming: '#9DB0A6', ended: '#6F8178' };
   const spLabel = { closed: 'Closed', done: 'Done', current: 'Current', late: 'Late', upcoming: 'Upcoming', ended: 'Ended' };
+  // the project manager (or anyone with the right) adjusts names and dates while the work is open
+  const isPM = !cur_p.viewOnly && cur_p.owner === (this.srv ? this.srv.me.name : 'Samwel Okoth Omulo');
+  const mayMs = isPM || can('projects', 'Manage milestones'), maySp = isPM || can('projects', 'Plan sprints');
   const tasksLabel = (done, total) => (total ? done + ' / ' + total + ' tasks' : 'No tasks yet');
 
   pj.msTable = { id: 'ms-' + cur_p.id, pageSize: 6, minWidth: '760px', emptyText: cur_p.method === 'waterfall' ? 'No phases yet. Add one to start planning.' : 'No milestones yet. Add one to start planning.',
@@ -20,6 +23,7 @@ export function buildProjectTables(ctx) {
         : m.ready ? 'Reached automatically: all tasks are done.'
         : m.total ? m.openTasks + (m.openTasks === 1 ? ' task is' : ' tasks are') + ' still open' : 'Add a sprint, then tasks, to track progress';
       const actions = [];
+      if (mayMs && !m.closed) actions.push({ label: 'Edit', run: () => this.setState({ msDialog: { mode: 'editms', pid: cur_p.id, mid: m.id, name: m.name, date: m.iso, desc: m.desc || '', err: '' } }) });
       if (canMs && m.closed) actions.push({ label: 'Reopen', run: () => openMsReopen(m) });
       if (can('projects', 'Plan sprints') && !m.closed && cur_p.method !== 'waterfall') actions.push({ label: 'Add sprint', run: () => openSprint(m.id) });
       if (!m.closed && cur_p.method === 'waterfall') can('projects', 'Request gate sign-off') && actions.push({ label: 'Gate sign-off', run: () => openMsClose(m) });
@@ -36,6 +40,6 @@ export function buildProjectTables(ctx) {
       C.t(sp.name, { strong: true, sub: s.sprintFilter === sp.id ? 'Shown on the task board' : sp.milestoneClosed ? 'Milestone reached' : '' }), C.t(sp.milestoneName),
       C.t(shortDate(sp.start) + ' – ' + shortDate(sp.end), { nowrap: true, fv: sp.start }),
       C.bar(sp.progress, spColor[sp.status], tasksLabel(sp.done, sp.total)), C.b(spLabel[sp.status], spColor[sp.status], { fv: spLabel[sp.status] }),
-      C.a((can('projects', 'Delete sprints') && !sp.closed ? [{ label: 'Delete', run: confirmed({ title: 'Delete this sprint?', body: sp.name + ' is deleted for good. Its tasks go back to the backlog.' }, () => this.setState((st) => ({ sprintFilter: st.sprintFilter === sp.id ? 'all' : st.sprintFilter, projects: st.projects.map((x) => (x.id === cur_p.id ? { ...x, sprints: x.sprints.filter((y) => y.id !== sp.id), tasks: x.tasks.map((t) => (t.sprint === sp.id ? { ...t, sprint: '' } : t)) } : x)) }))) }] : []).concat(can('projects', 'Close sprints') && !sp.closed && this.srv ? [{ label: 'Close sprint', run: () => projectsW.closeSprint(this, this.srv, cur_p.id, sp.id).then(() => this.notify(sp.name + ' closed. Unfinished work moved on.', '#B8F36B')).catch((e) => this.notify(e.message || 'Could not close the sprint.', '#FF9B8A')) }] : []).concat([{ label: s.sprintFilter === sp.id ? 'Show all open work' : 'Show on board', kind: s.sprintFilter === sp.id ? 'primary' : undefined, run: () => this.setState({ sprintFilter: s.sprintFilter === sp.id ? 'all' : sp.id }) }].concat(canEditT && !sp.milestoneClosed && !sp.closed ? [{ label: 'Add task', run: () => openTaskForm(sp.id) }] : [])))] })) };
+      C.a((maySp && !sp.closed && !sp.milestoneClosed ? [{ label: 'Edit', run: () => this.setState({ msDialog: { mode: 'editsp', pid: cur_p.id, sid: sp.id, milestone: sp.milestone, name: sp.name, start: sp.start, end: sp.end, err: '' } }) }] : []).concat(can('projects', 'Delete sprints') && !sp.closed ? [{ label: 'Delete', run: confirmed({ title: 'Delete this sprint?', body: sp.name + ' is deleted for good. Its tasks go back to the backlog.' }, () => this.setState((st) => ({ sprintFilter: st.sprintFilter === sp.id ? 'all' : st.sprintFilter, projects: st.projects.map((x) => (x.id === cur_p.id ? { ...x, sprints: x.sprints.filter((y) => y.id !== sp.id), tasks: x.tasks.map((t) => (t.sprint === sp.id ? { ...t, sprint: '' } : t)) } : x)) }))) }] : []).concat(can('projects', 'Close sprints') && !sp.closed && this.srv ? [{ label: 'Close sprint', run: () => projectsW.closeSprint(this, this.srv, cur_p.id, sp.id).then(() => this.notify(sp.name + ' closed. Unfinished work moved on.', '#B8F36B')).catch((e) => this.notify(e.message || 'Could not close the sprint.', '#FF9B8A')) }] : []).concat([{ label: s.sprintFilter === sp.id ? 'Show all open work' : 'Show on board', kind: s.sprintFilter === sp.id ? 'primary' : undefined, run: () => this.setState({ sprintFilter: s.sprintFilter === sp.id ? 'all' : sp.id }) }].concat(canEditT && !sp.milestoneClosed && !sp.closed ? [{ label: 'Add task', run: () => openTaskForm(sp.id) }] : [])))] })) };
   return {};
 }

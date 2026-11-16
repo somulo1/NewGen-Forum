@@ -286,8 +286,14 @@ func mayChange(ctx context.Context, tx pgx.Tx, p *tenant.Principal, pr *Project,
 		}
 		return authz.Require(ctx, tx, p.Person, "projects", "Move tasks")
 	case "milestone":
+		if pr != nil && pr.Owner == p.Person {
+			return nil // the project manager plans their own project's milestones and dates
+		}
 		return authz.Require(ctx, tx, p.Person, "projects", "Manage milestones")
 	case "sprint":
+		if pr != nil && pr.Owner == p.Person {
+			return nil // and its sprints
+		}
 		return authz.Require(ctx, tx, p.Person, "projects", "Plan sprints")
 	case "risk":
 		return authz.Require(ctx, tx, p.Person, "projects", "Manage team")

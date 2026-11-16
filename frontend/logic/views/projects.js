@@ -243,6 +243,31 @@ export function buildProjects(ctx) {
         this.notify('Milestone "' + name + '" added to ' + mproj.name + '. Add sprints under it, then tasks in those sprints.', '#B8F36B');
         return;
       }
+      // the project manager adjusts a milestone (name, due date, what it means) or a sprint (name, dates, milestone)
+      if (d.mode === 'editms') {
+        const others = { ...mproj, milestones: mproj.milestones.filter((m) => m.id !== d.mid) };
+        let err = validateMilestone(others, { name: d.name || '', date: d.date || '' });
+        const late = mproj.sprints.filter((sp) => sp.milestone === d.mid && !sp.closed && sp.end > d.date);
+        if (!err && late.length) err = late[0].name + ' ends ' + shortDate(late[0].end) + ', after this date. Move that sprint first, or pick a later date.';
+        if (err) { fail(err); return; }
+        const old = mproj.milestones.find((m) => m.id === d.mid) || {};
+        const name = d.name.trim();
+        const what = old.iso !== d.date ? ' (due ' + shortDate(old.iso) + ' → ' + shortDate(d.date) + ')' : '';
+        this.setState((st) => ({ msDialog: null, projects: st.projects.map((p) => (p.id === mproj.id ? logMs({ ...p, milestones: p.milestones.map((m) => (m.id === d.mid ? { ...m, name, iso: d.date, desc: (d.desc || '').trim(), history: (m.history || []).concat([{ when: today, who: this.srv ? this.srv.me.name : 'You', action: 'Edited' + what }]) } : m)) }, 'You edited milestone "' + name + '"' + what) : p)) }));
+        this.notify('Milestone "' + name + '" saved.', '#B8F36B');
+        return;
+      }
+      if (d.mode === 'editsp') {
+        const others = { ...mproj, sprints: mproj.sprints.filter((x) => x.id !== d.sid) };
+        const err = validateSprint(others, { milestone: d.milestone, name: d.name || '', start: d.start || '', end: d.end || '' });
+        if (err) { fail(err); return; }
+        const old = mproj.sprints.find((x) => x.id === d.sid) || {};
+        const name = d.name.trim();
+        const what = old.start !== d.start || old.end !== d.end ? ' (' + shortDate(d.start) + ' – ' + shortDate(d.end) + ')' : '';
+        this.setState((st) => ({ msDialog: null, projects: st.projects.map((p) => (p.id === mproj.id ? logMs({ ...p, sprints: p.sprints.map((x) => (x.id === d.sid ? { ...x, name, start: d.start, end: d.end, milestone: d.milestone } : x)) }, 'You edited ' + name + what) : p)) }));
+        this.notify(name + ' saved.', '#B8F36B');
+        return;
+      }
       if (d.mode === 'sprint') {
         const err = validateSprint(mproj, { milestone: d.milestone, name: d.name || '', start: d.start || '', end: d.end || '' });
         if (err) { fail(err); return; }
@@ -270,9 +295,9 @@ export function buildProjects(ctx) {
       }
     };
     const wfl = mproj && mproj.method === 'waterfall';
-    const titles = { new: wfl ? 'New phase' : 'New milestone', sprint: 'New sprint', close: wfl ? 'Ask for gate sign-off' : 'Mark milestone as reached', reopen: wfl ? 'Reopen phase' : 'Reopen milestone' };
-    const labels = { new: wfl ? 'Create phase' : 'Create milestone', sprint: 'Create sprint', close: wfl ? 'Send for sign-off' : 'Mark as reached', reopen: wfl ? 'Reopen phase' : 'Reopen milestone' };
-    msd = { open: true, mode: md.mode, isNew: md.mode === 'new', isSprint: md.mode === 'sprint', isClose: md.mode === 'close', isReopen: md.mode === 'reopen',
+    const titles = { editms: wfl ? 'Edit phase' : 'Edit milestone', editsp: 'Edit sprint', new: wfl ? 'New phase' : 'New milestone', sprint: 'New sprint', close: wfl ? 'Ask for gate sign-off' : 'Mark milestone as reached', reopen: wfl ? 'Reopen phase' : 'Reopen milestone' };
+    const labels = { editms: 'Save changes', editsp: 'Save changes', new: wfl ? 'Create phase' : 'Create milestone', sprint: 'Create sprint', close: wfl ? 'Send for sign-off' : 'Mark as reached', reopen: wfl ? 'Reopen phase' : 'Reopen milestone' };
+    msd = { open: true, mode: md.mode, isNew: md.mode === 'new' || md.mode === 'editms', isSprint: md.mode === 'sprint' || md.mode === 'editsp', isEdit: md.mode === 'editms' || md.mode === 'editsp', isClose: md.mode === 'close', isReopen: md.mode === 'reopen',
       title: titles[md.mode], submitLabel: labels[md.mode], projectName: mproj ? mproj.name : '',
       name: md.name || '', date: md.date || '', desc: md.desc || '', comment: md.comment || '', err: md.err || '', hasErr: !!md.err,
       milestone: md.milestone || '', milestoneOpts: openMilestones.map((m) => ({ v: m.id, l: m.name + ' · due ' + shortDate(m.iso) })),
@@ -283,7 +308,8 @@ export function buildProjects(ctx) {
       onName: setM('name'), onDate: setM('date'), onDesc: setM('desc'), onComment: setM('comment'), onStart: setM('start'), onEnd: setM('end'),
       onMilestone: (e) => {
         const v = e.target.value; const d = sprintDefaults(mproj, v);
-        this.setState((st) => ({ msDialog: { ...st.msDialog, milestone: v, start: d.start, end: d.end, err: '' } }));
+        // editing keeps the sprint's own dates; a new sprint takes the milestone's next free dates
+        this.setState((st) => ({ msDialog: st.msDialog.mode === 'editsp' ? { ...st.msDialog, milestone: v, err: '' } : { ...st.msDialog, milestone: v, start: d.start, end: d.end, err: '' } }));
       },
       cancel: set({ msDialog: null }), submit };
   }
