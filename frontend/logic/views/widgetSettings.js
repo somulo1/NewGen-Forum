@@ -24,7 +24,8 @@ export function buildWidgetSettings(ctx) {
       }).catch((e) => { this.setState({ rightsSending: false }); this.notify((e && e.message) || 'That did not go through.', '#FF9B8A'); });
     } };
   const sid = s.settingsFor;
-  const special = ['tickets', 'announcements', 'awards', 'secureshare', 'sessions', 'branches', 'sectors'];
+  // widgets with their own settings section; every other one (departments, sectors, branches, units ...) gets the standard ones
+  const special = ['tickets', 'announcements', 'awards', 'secureshare', 'sessions'];
   let sw = { t: {} };
   if (sid && catalog[sid]) {
     const cfg = Object.assign({ title: catalog[sid].title, see: 'Everyone', manage: 'Admins' }, s.wcfg[sid] || {});

@@ -168,7 +168,8 @@ export function buildHomeWidgets(ctx) {
     })
   }));
   // the gallery: what the organization switched on for this person; people who manage widget settings also see the rest, to switch them on
-  const gallery = Object.keys(catalog).filter((id) => (id !== 'performance' || has.structure) && (orgAllows(id) || (gate.manage && !switchedOn(s.wcfg, id)))).map((id) => {
+  // people who manage widget settings see every widget here (switched on or off, whoever it is limited to), so they can set any of them
+  const gallery = Object.keys(catalog).filter((id) => (id !== 'performance' || has.structure) && (orgAllows(id) || gate.manage)).map((id) => {
     const added = ids.indexOf(id) !== -1;
     return { ...catalog[id], added, hidden: added && isHidden(id), hideLabel: isHidden(id) ? 'Show on Home' : 'Hide on Home', toggleHide: toggleHide(id), remove: () => removeWidget(id), btnLabel: added ? 'Added' : (switchedOn(s.wcfg, id) ? 'Add to home' : 'Switch on and add'),
       openSettings: () => this.setState({ settingsFor: id }),

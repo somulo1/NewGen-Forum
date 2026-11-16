@@ -147,22 +147,6 @@
 </div>
 </template>
 
-<template v-if="sw.t.branches">
-<div style="display: flex; flex-direction: column; gap: 10px">
-<span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--k-9DB0A6,#9DB0A6)">Branches</span>
-<div style="display: flex; gap: 8px"><input type="text" aria-label="Branch name" placeholder="Branch name and city" style="flex: 1; min-width: 0; height: 38px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px"><button style="height: 38px; padding: 0 14px; border-radius: 8px; border: 1px dashed var(--k-4A5C54,#4A5C54); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer">Add branch</button></div>
-<label style="display: flex; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 12px; background: var(--k-121B17,#121B17); border: 1px solid var(--k-24322C,#24322C); cursor: pointer"><input type="checkbox" :defaultChecked="true"><span style="font-size: 14px">Show open or closed status</span></label>
-</div>
-</template>
-
-<template v-if="sw.t.sectors">
-<div style="display: flex; flex-direction: column; gap: 10px">
-<span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--k-9DB0A6,#9DB0A6)">Sectors</span>
-<div style="display: flex; gap: 8px"><input type="text" aria-label="Sector name" placeholder="Sector name" style="flex: 1; min-width: 0; height: 38px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px"><button style="height: 38px; padding: 0 14px; border-radius: 8px; border: 1px dashed var(--k-4A5C54,#4A5C54); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer">Add sector</button></div>
-<label style="display: flex; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 12px; background: var(--k-121B17,#121B17); border: 1px solid var(--k-24322C,#24322C); cursor: pointer"><input type="checkbox" :defaultChecked="true"><span style="font-size: 14px">Show staff count per sector</span></label>
-</div>
-</template>
-
 <template v-if="sw.genericOnly">
 <div style="display: flex; flex-direction: column; gap: 10px">
 <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--k-9DB0A6,#9DB0A6)">Display</span>
