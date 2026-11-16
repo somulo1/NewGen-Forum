@@ -310,7 +310,12 @@ export function buildProjects(ctx) {
     const tickets = (ed ? ed.tickets : tt.tickets || []);
     // tickets this person is assigned to (or handles) that are not linked yet
     const myTickets = s.tickets.filter((x) => (x.assignees || []).indexOf(me) !== -1 || x.handler === me).filter((x) => tickets.indexOf(x.id) === -1);
+    // the GitHub branch for this task, like Jira suggests one. It is stored with the task (made by the server from its key and title
+    // when it was created) and kept as it is when the task is renamed; until a new task reaches the server, it is worked out here.
+    const branch = tt.branch || branchName(tt.key, tt.title);
     td = {
+      branch, hasBranch: !!branch, branchDraft: ed ? (ed.branch === undefined ? branch : ed.branch) : branch, setBranch: setE('branch'),
+      copyBranch: () => { try { navigator.clipboard.writeText(branch).then(() => this.notify('Branch name copied: ' + branch, '#B8F36B')); } catch (e) { this.notify(branch, '#B8F36B'); } },
       project: tp.name, pcolor: tp.color, pinitials: initialsOf(tp.name),
       title: ed ? ed.title : tt.title, desc: ed ? ed.desc : tt.desc || 'No description yet.',
       canEditTask: mayEdit, editing: !!ed, hasEditErr: !!(ed && ed.err), editErr: ed ? ed.err : '',
@@ -320,9 +325,11 @@ export function buildProjects(ctx) {
       saveEdit: () => {
         const f = this.state.taskEdit;
         if (!f) return;
-        const err = validateTask(tp, { title: f.title, objective: f.objective, sprint: f.sprint, due: f.due, kind: f.kind, parent: f.parent, points: f.points, milestone: f.milestone });
+        let err = validateTask(tp, { title: f.title, objective: f.objective, sprint: f.sprint, due: f.due, kind: f.kind, parent: f.parent, points: f.points, milestone: f.milestone });
+        const br = f.branch === undefined ? undefined : String(f.branch).trim();
+        if (!err && br !== undefined && br !== '' && (!/^[A-Za-z0-9][A-Za-z0-9._/-]{0,99}$/.test(br) || br.includes('..') || /\/$|\.lock$/.test(br))) err = 'A branch name uses letters, digits and . _ - / (up to 100 characters).';
         if (err) { this.setState({ taskEdit: { ...f, err } }); return; }
-        updT((x) => ({ ...x, kind: f.kind, points: f.points === '' ? null : Number(f.points), parent: f.parent, deps: f.deps, milestone: f.milestone, title: f.title.trim(), desc: f.desc.trim(), objective: f.objective.trim(), sprint: f.sprint, due: f.due, secondary: f.secondary, tickets: f.tickets }));
+        updT((x) => ({ ...x, ...(br ? { branch: br } : {}), kind: f.kind, points: f.points === '' ? null : Number(f.points), parent: f.parent, deps: f.deps, milestone: f.milestone, title: f.title.trim(), desc: f.desc.trim(), objective: f.objective.trim(), sprint: f.sprint, due: f.due, secondary: f.secondary, tickets: f.tickets }));
         this.setState((st) => ({ taskEdit: null, projects: st.projects.map((p) => (p.id === tp.id ? { ...p, activity: [{ text: 'You edited "' + f.title.trim() + '"', time: 'Just now' }].concat(p.activity) } : p)) }));
         this.notify('Task saved.', '#B8F36B');
       },
@@ -401,3 +408,15 @@ export function buildProjects(ctx) {
   if (!has.projects) msd.open = false;
   return { canEditT, canMs, cur_p, msd, nowMs, openProjectForm, projectForm, pj, projStats, projects, projTools: tools, taskNotifs, td, today, tt };
 }
+
+// "HUB-12" + "Fix the login timeout on mobile!" -> "HUB-12_fix_login_timeout_on_mobile": the task key (so GitHub and Hub can link
+// them), then up to six words of the title, lowercase, letters and digits only, joined by underscores, at most 50 characters.
+const STOP = new Set(['a', 'an', 'the', 'and', 'or', 'of', 'to', 'for', 'in', 'on', 'at', 'with', 'is', 'be']);
+export function branchName(key, title) {
+  const words = String(title || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(' ').filter(Boolean);
+  const kept = words.filter((w, i) => i === 0 || !STOP.has(w)).slice(0, 6);
+  let name = [String(key || '').trim().replace(/[^A-Za-z0-9-]+/g, '')].filter(Boolean).concat(kept).join('_');
+  if (name.length > 50) name = name.slice(0, 50).replace(/_[^_]*$/, '');
+  return name.replace(/_+$/, '');
+}
+

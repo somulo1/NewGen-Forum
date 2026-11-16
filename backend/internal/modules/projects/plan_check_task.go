@@ -359,16 +359,28 @@ func (s *Service) Save(ctx context.Context, p *tenant.Principal, project, id uui
 				return httpx.Bad("Write the comment first.")
 			}
 		}
+		var ref *int
+		if coll == "task" {
+			var n int
+			q := `select coalesce(max(ref),0)+1 from hub.project_items where project_id=$1`
+			if !isNew {
+				q = `select coalesce(ref,0) from hub.project_items where id=$2 and project_id=$1`
+			}
+			args := []any{project}
+			if !isNew {
+				args = append(args, id)
+			}
+			if err := tx.QueryRow(ctx, q, args...).Scan(&n); err != nil {
+				return err
+			}
+			ref = &n
+			// its GitHub branch: made once from its key and title, then kept (see branch.go)
+			if err := setBranch(pr.Code, n, data, old); err != nil {
+				return err
+			}
+		}
 		b, _ := json.Marshal(data)
 		if isNew {
-			var ref *int
-			if coll == "task" {
-				var n int
-				if err := tx.QueryRow(ctx, `select coalesce(max(ref),0)+1 from hub.project_items where project_id=$1`, project).Scan(&n); err != nil {
-					return err
-				}
-				ref = &n
-			}
 			if _, err := tx.Exec(ctx, `insert into hub.project_items (org_id, id, project_id, collection, ref, data, created_by) values ($1,$2,$3,$4,$5,$6,$7)`, p.Org, id, project, coll, ref, b, p.Person); err != nil {
 				return err
 			}

@@ -16,6 +16,12 @@
 <template v-if="td.canEditTask && !td.editing"><button type="button" @click="td.startEdit" style="height: 36px; padding: 0 14px; border-radius: 18px; border: 1px solid var(--k-B8F36B,#B8F36B); background: transparent; color: var(--k-B8F36B,#B8F36B); cursor: pointer; font-size: 13px; font-weight: 600; margin-left: auto">Edit task</button></template>
 <template v-if="td.canFwd"><button @click="td.fwd" style="height: 36px; padding: 0 12px; border-radius: 18px; border: 0; background: #B8F36B; color: #0F1714; cursor: pointer; font-size: 13px; font-weight: 600">{{ td.nextCol }} ▸</button></template>
 </div>
+<div v-if="td.hasBranch" style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 10px 12px; border-radius: 12px; background: var(--k-121B17,#121B17); border: 1px solid var(--k-24322C,#24322C)">
+<span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--k-9DB0A6,#9DB0A6)">GitHub branch</span>
+<input v-if="td.editing" type="text" :value="td.branchDraft" @input="td.setBranch" maxlength="100" aria-label="GitHub branch name" spellcheck="false" style="flex: 1 1 200px; min-width: 0; height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-16201C,#16201C); color: var(--k-E8EFEA,#E8EFEA); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px">
+<code v-else style="flex: 1 1 200px; min-width: 0; overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; color: var(--k-E8EFEA,#E8EFEA)">{{ td.branch }}</code>
+<button v-if="!td.editing" type="button" @click="td.copyBranch" :aria-label="`Copy branch name ${td.branch}`" style="height: 30px; padding: 0 12px; border-radius: 15px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; font-size: 12px">Copy</button>
+</div>
 <div v-if="td.editing" style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 12px 14px; border-radius: 14px; background: var(--k-121B17,#121B17); border: 1px solid var(--k-B8F36B,#B8F36B)">
 <span style="flex: 1 1 200px; font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">Editing this task. Nothing changes until you save.</span>
 <button type="button" @click="td.saveEdit" style="height: 36px; padding: 0 18px; border-radius: 18px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">Save changes</button>
