@@ -89,6 +89,7 @@
 <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center"><h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 26px; letter-spacing: -0.02em">{{ pj.name }}</h1><span :style="pj.statusStyle">{{ pj.status }}</span></div>
 <span style="font-size: 13px; color: var(--k-9DB0A6,#9DB0A6)">{{ pj.code }} · Project manager: {{ pj.owner }} · {{ pj.startLabel }} → {{ pj.dueLabel }}</span>
 </div>
+<button v-if="!pj.viewOnly && pj.id" type="button" @click="gitOpen = !gitOpen" :aria-expanded="gitOpen" :title="gitRepo ? 'Linked to GitHub ' + gitRepo : 'Link a GitHub repository'" style="height: 40px; padding: 0 16px; border-radius: 20px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 13px"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.53-1.33-1.28-1.69-1.28-1.69-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.71 1.26 3.37.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.84 1.19 3.1 0 4.42-2.7 5.4-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>{{ gitRepo ? gitRepo : 'Link GitHub' }}</button>
 <template v-if="has.sessions">
 <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center">
 <template v-if="pj.standup.isLive"><span style="font-size: 12px; font-weight: 600; color: var(--k-FF9B8A,#FF9B8A)">● LIVE · {{ pj.standup.label }}</span></template><template v-if="pj.standup.canJoin"><button @click="pj.standup.join" style="height: 40px; padding: 0 18px; border-radius: 20px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">Join standup</button></template>
@@ -97,6 +98,7 @@
 </div>
 </template>
 </div>
+<ProjectGitHub v-if="gitOpen && pj.id" :project="pj.id" :code="pj.code || ''" @changed="gitRepo = $event" />
 
 <template v-if="pj.standup.formOpen">
 <form novalidate @submit.prevent="pj.standup.form.submit" aria-label="Schedule standup" style="padding: 16px; border-radius: 14px; background: var(--k-121B17,#121B17); border: 1px solid var(--k-B8F36B,#B8F36B); display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end">
@@ -208,10 +210,21 @@
 </template>
 
 <script>
-import { hubBindings } from '~/composables/useHub';
+import { hubBindings, useHubStore } from '~/composables/useHub';
 
 export default {
   name: 'ProjectsSection',
-  ...hubBindings(["canCreateProject","closeProject","has","openProjectForm","pj","projectForm","projStats","projects","showProjectList","showProjectView"])
+  ...hubBindings(["canCreateProject","closeProject","has","openProjectForm","pj","projectForm","projStats","projects","showProjectList","showProjectView"]),
+  // the GitHub link can be made (or checked) from the project's own header, any time while it runs
+  data() { return { gitOpen: false, gitRepo: '' }; },
+  watch: { 'pj.id': { immediate: true, handler() { this.gitOpen = false; this.loadGit(); } } },
+  methods: {
+    async loadGit() {
+      const srv = useHubStore().logic.srv;
+      this.gitRepo = '';
+      if (!srv || !this.pj || !this.pj.id || this.pj.viewOnly) return;
+      try { const g = await srv.request('GET', `/projects/${this.pj.id}/github`); this.gitRepo = g.linked ? g.repo : ''; } catch (e) { /* not on the team */ }
+    }
+  }
 };
 </script>

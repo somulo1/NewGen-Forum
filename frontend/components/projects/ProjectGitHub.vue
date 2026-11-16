@@ -21,6 +21,7 @@
 <div v-if="g.linked" class="pg-box">
 <strong style="font-size: 13px">In GitHub: the repository's Settings → Webhooks → Add webhook</strong>
 <div class="pg-row"><span class="pg-k">Payload URL</span><code class="pg-code">{{ payloadURL }}</code><button type="button" class="pg-btn pg-sm" @click="copy(payloadURL)">Copy</button></div>
+<span v-if="localOnly" role="alert" style="font-size: 12px; color: var(--k-FFB86B,#FFB86B)">This address is on this computer, so GitHub cannot reach it. Use the Hub that runs online (its address is set by NUXT_PUBLIC_API_BASE).</span>
 <div class="pg-row"><span class="pg-k">Content type</span><code class="pg-code">application/json</code></div>
 <div class="pg-row"><span class="pg-k">Secret</span><template v-if="secret"><code class="pg-code">{{ secret }}</code><button type="button" class="pg-btn pg-sm" @click="copy(secret)">Copy</button></template><span v-else class="pg-mut">Shown once, when it was made. Lost it? Make a new secret and paste it into GitHub.</span></div>
 <div class="pg-row"><span class="pg-k">SSL verification</span><span>Enable</span></div>
@@ -44,10 +45,12 @@ const LABELS = { branch_created: 'Branch', branch_deleted: 'Branch deleted', pus
 export default {
   name: 'ProjectGitHub',
   props: { project: { type: String, required: true }, code: { type: String, default: '' } },
+  emits: ['changed'],
   data() { return { g: null, repo: '', token: '', auto: false, secret: '', busy: false, err: '' }; },
   computed: {
     srv() { return useHubStore().logic.srv; },
     payloadURL() { const base = ((useRuntimeConfig().public.apiBase || '') + '').replace(/\/$/, '') || (typeof location !== 'undefined' ? location.origin : ''); return this.g ? base + this.g.hook : ''; },
+    localOnly() { return /^https?:\/\/(localhost|127\.|0\.0\.0\.0|\[::1\])/i.test(this.payloadURL); },
     example() { return (this.code || 'CODE') + '-12'; }
   },
   watch: { project: { immediate: true, handler() { this.load(); } } },
@@ -67,6 +70,7 @@ export default {
         const g = await this.srv.request('PUT', `/projects/${this.project}/github`, body);
         if (g.secret) this.secret = g.secret;
         this.g = g; this.token = '';
+        this.$emit('changed', g.linked ? g.repo : '');
       } catch (e) { this.err = (e && e.message) || 'Could not save.'; }
       this.busy = false;
     },
@@ -74,7 +78,7 @@ export default {
     async unlink() {
       if (!window.confirm('Unlink GitHub? Deliveries to its webhook are refused from now on.')) return;
       this.busy = true;
-      try { await this.srv.request('DELETE', `/projects/${this.project}/github`); this.secret = ''; await this.load(); } catch (e) { this.err = (e && e.message) || 'Could not unlink.'; }
+      try { await this.srv.request('DELETE', `/projects/${this.project}/github`); this.secret = ''; await this.load(); this.$emit('changed', ''); } catch (e) { this.err = (e && e.message) || 'Could not unlink.'; }
       this.busy = false;
     },
     copy(v) { try { navigator.clipboard.writeText(v); } catch (e) { /* select it by hand */ } }
