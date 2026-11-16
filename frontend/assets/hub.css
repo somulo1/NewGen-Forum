@@ -197,3 +197,18 @@ main h1{font-size:22px !important}
 .cw-more{display:inline-block;margin:2px 56px 0 0;padding:0;border:0;background:transparent;color:var(--k-7CC4FF,#7CC4FF);font:inherit;font-weight:600;cursor:pointer}
 .cw-more:hover{text-decoration:underline}
 .hub-light .cw-b{box-shadow:0 1px 1px rgba(0,0,0,.12) !important}
+/* GitHub link and activity (projects and tasks) */
+.pg-card { display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: 14px; background: var(--k-121B17,#121B17); border: 1px solid var(--k-24322C,#24322C); }
+.pg-mut { font-size: 12px; color: var(--k-9DB0A6,#9DB0A6); }
+.pg-pill { font-size: 12px; padding: 3px 10px; border-radius: 12px; background: var(--k-2C3D34,#2C3D34); color: var(--k-B8F36B,#B8F36B); }
+.pg-lab { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6); max-width: 520px; }
+.pg-in { height: 38px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-16201C,#16201C); color: var(--k-E8EFEA,#E8EFEA); font: inherit; font-size: 13px; }
+.pg-btn { height: 34px; padding: 0 14px; border-radius: 17px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; font-size: 13px; }
+.pg-pri { border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; }
+.pg-danger { border-color: var(--k-6A3A34,#6A3A34); color: var(--k-FF9B8A,#FF9B8A); }
+.pg-sm { height: 28px; padding: 0 10px; font-size: 12px; }
+.pg-box { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 12px; border: 1px dashed var(--k-3F524A,#3F524A); }
+.pg-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 13px; }
+.pg-k { flex: 0 0 120px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6); }
+.pg-code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; overflow-wrap: anywhere; }
+.pg-ev { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 8px 10px; border-radius: 10px; background: var(--k-16201C,#16201C); font-size: 13px; }

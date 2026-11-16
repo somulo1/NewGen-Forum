@@ -314,7 +314,12 @@ export function buildProjects(ctx) {
     // when it was created) and kept as it is when the task is renamed; until a new task reaches the server, it is worked out here.
     const branch = tt.branch || branchName(tt.key, tt.title);
     td = {
-      branch, hasBranch: !!branch, branchDraft: ed ? (ed.branch === undefined ? branch : ed.branch) : branch, setBranch: setE('branch'),
+      branch, hasBranch: !!branch,
+      // GitHub (when the project is linked): this task's activity, a branch picked from the repository, and accepting a suggested move
+      // through the usual move form, so the move keeps its comment and rules
+      gitProject: this.srv && tp.id && !tp.viewOnly ? tp.id : '', gitTask: tt.id || '', gitVersion: (tt.updatedAt || '') + ':' + (tt.status || ''),
+      acceptGit: (x) => { if (x && x.status) { this.askTaskMove(tp.id, to.ti, x.status, { project: tp.id, event: x.event }); this.setState((st) => (st.taskMove ? { taskMove: { ...st.taskMove, comment: x.note || '' } } : {})); } },
+      useBranch: (name) => { if (!name) return; updT((x) => ({ ...x, branch: name })); this.notify('Branch set to ' + name + '.', '#B8F36B'); }, branchDraft: ed ? (ed.branch === undefined ? branch : ed.branch) : branch, setBranch: setE('branch'),
       copyBranch: () => { try { navigator.clipboard.writeText(branch).then(() => this.notify('Branch name copied: ' + branch, '#B8F36B')); } catch (e) { this.notify(branch, '#B8F36B'); } },
       project: tp.name, pcolor: tp.color, pinitials: initialsOf(tp.name),
       title: ed ? ed.title : tt.title, desc: ed ? ed.desc : tt.desc || 'No description yet.',

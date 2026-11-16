@@ -5,9 +5,10 @@ const targetOf = (p, t, dir) => (typeof dir === 'string' ? wfOf(p).find((w) => w
 export const projectsActions = {
   // Changing a task's status always needs a comment saying why (and, going back, what is still missing). This opens the task
   // with the comment box; confirmTaskMove() moves it once the comment is written.
-  askTaskMove(pid, ti, dir) {
+  // git: a GitHub suggestion being accepted ({ project, event }): it is marked accepted once the move is made
+  askTaskMove(pid, ti, dir, git) {
     if (!this.canMoveTask(pid, ti, dir)) return;
-    this.setState({ taskOpen: { pid, ti }, taskMove: { pid, ti, dir, comment: '', err: '' } });
+    this.setState({ taskOpen: { pid, ti }, taskMove: { pid, ti, dir, comment: '', err: '', git: git || null } });
   },
   // The project manager moves tasks into and out of Done; the people a task is assigned to move it between the other columns.
   canMoveTask(pid, ti, dir) {
@@ -29,6 +30,7 @@ export const projectsActions = {
     if (wait.length) { this.setState({ taskMove: { ...m, err: 'Blocked: "' + wait[0].title + '" has to finish first.' } }); return; }
     this.moveTask(m.pid, m.ti, m.dir, comment);
     this.setState({ taskMove: null });
+    if (m.git && this.srv) this.srv.request('POST', `/projects/${m.git.project}/github/events/${m.git.event}`, { decision: 'accepted' }).catch(() => {});
   },
 
   moveTask(pid, ti, dir, comment) {

@@ -1104,5 +1104,76 @@
   "response": {
    "allowed": "[widget id]"
   }
+ },
+ "POST /v1/hooks/github/{hook}": {
+  "summary": "GitHub webhook delivery",
+  "description": "Paste this address into the repository's Settings > Webhooks, with content type application/json (form-encoded also works) and the secret Hub showed when the project was linked. Choose 'Let me select individual events': Branch or tag creation, Branch or tag deletion, Pushes and Pull requests. Hub checks X-Hub-Signature-256; branches and pull requests are matched to tasks by their stored branch name, or by the task key (CODE-12) in the branch name or pull request title. A branch made or pushed to suggests the first 'in progress' status, a pull request opened the first 'being checked' status, a merge the first 'finished' status; only forward moves. With auto on, an allowed move is made at once (shown as done by GitHub).",
+  "access": "GitHub, signed with the project's secret (no sign-in)",
+  "status": 204,
+  "errors": {
+   "401": "bad_signature",
+   "404": "unknown hook"
+  }
+ },
+ "GET /v1/projects/{id}/github": {
+  "summary": "A project's GitHub link and activity",
+  "access": "the project team",
+  "status": 200,
+  "response": {
+   "linked": "boolean",
+   "repo": "owner/name",
+   "hook": "the webhook path",
+   "auto": "boolean",
+   "has_token": "boolean",
+   "can_edit": "boolean",
+   "events": "[{id, task, kind, branch, title, url, actor, at, suggest, state: none | pending | accepted | dismissed | auto}] the latest 50"
+  },
+  "query": {
+   "task": "optional: only this task's activity"
+  }
+ },
+ "PUT /v1/projects/{id}/github": {
+  "summary": "Link a project to a GitHub repository",
+  "description": "Optional, one repository per project. The webhook secret is returned once: on the first link, or when new_secret is true. An access token (kept encrypted) lets Hub list a private repository's branches.",
+  "access": "the project owner, or Projects: Manage team",
+  "body": {
+   "repo": "owner/name or its github.com address",
+   "token": "optional; \"\" removes it",
+   "auto": "move tasks without asking",
+   "new_secret": "boolean"
+  },
+  "status": 200,
+  "response": "as GET, plus secret"
+ },
+ "DELETE /v1/projects/{id}/github": {
+  "summary": "Unlink GitHub",
+  "description": "Deliveries to the old webhook are refused from then on.",
+  "access": "the project owner, or Projects: Manage team",
+  "status": 204
+ },
+ "GET /v1/projects/{id}/github/branches": {
+  "summary": "The repository's branches",
+  "description": "From GitHub (up to 300), using the project's access token when it has one.",
+  "access": "the project team",
+  "status": 200,
+  "response": {
+   "branches": "[name]"
+  },
+  "errors": {
+   "409": "not_linked, or github_denied (a private repository needs a token)",
+   "502": "GitHub could not be reached"
+  }
+ },
+ "POST /v1/projects/{id}/github/events/{event}": {
+  "summary": "Accept or dismiss a GitHub suggestion",
+  "description": "Accepting records that someone on the team checked it; the task is moved by them through the usual rules.",
+  "access": "the project team",
+  "body": {
+   "decision": "accepted | dismissed"
+  },
+  "status": 204,
+  "errors": {
+   "409": "already_decided"
+  }
  }
 }

@@ -307,7 +307,7 @@ func (s *Service) Update(ctx context.Context, p *tenant.Principal, id uuid.UUID,
 	return out, err
 }
 
-func (s *Service) Public(chi.Router) {}
+func (s *Service) Public(r chi.Router) { s.githubPublic(r) }
 
 func (s *Service) Private(r chi.Router) {
 	org := func(h func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error) http.HandlerFunc {
@@ -320,6 +320,7 @@ func (s *Service) Private(r chi.Router) {
 		})
 	}
 	s.planRoutes(r, org)
+	s.githubRoutes(r, org)
 	r.Post("/projects", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
 		var in CreateIn
 		if err := httpx.Decode(r, &in, 8<<10); err != nil {

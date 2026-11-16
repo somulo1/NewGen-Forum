@@ -22,6 +22,7 @@
 <code v-else style="flex: 1 1 200px; min-width: 0; overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; color: var(--k-E8EFEA,#E8EFEA)">{{ td.branch }}</code>
 <button v-if="!td.editing" type="button" @click="td.copyBranch" :aria-label="`Copy branch name ${td.branch}`" style="height: 30px; padding: 0 12px; border-radius: 15px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; font-size: 12px">Copy</button>
 </div>
+<TaskGitHub v-if="td.gitProject" :project="td.gitProject" :task="td.gitTask" :statuses="td.statusOpts" :can-edit="td.canEditTask" :version="td.gitVersion" @accept="td.acceptGit" @use-branch="td.useBranch" />
 <div v-if="td.editing" style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 12px 14px; border-radius: 14px; background: var(--k-121B17,#121B17); border: 1px solid var(--k-B8F36B,#B8F36B)">
 <span style="flex: 1 1 200px; font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">Editing this task. Nothing changes until you save.</span>
 <button type="button" @click="td.saveEdit" style="height: 36px; padding: 0 18px; border-radius: 18px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer">Save changes</button>

@@ -19,7 +19,10 @@ func TestUserGroupDecidesWhoOpensADashboard(t *testing.T) {
 	for _, m := range []*testkit.Member{amy, cal} {
 		e.MustDo(200, "PATCH", "/people/"+m.Person, map[string]any{"department_id": dept}, ownerU.Access)
 	}
-	open := func(m *testkit.Member) int { c, _ := e.Do("GET", "/org/units/"+dept+"/dashboard", nil, m.Access); return c }
+	open := func(m *testkit.Member) int {
+		c, _ := e.Do("GET", "/org/units/"+dept+"/dashboard", nil, m.Access)
+		return c
+	}
 	// the departments widget is not switched on: nobody but an administrator opens department dashboards
 	if c := open(amy); c != 403 {
 		t.Fatalf("dashboard opened while its widget is off: %d", c)
