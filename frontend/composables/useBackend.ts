@@ -42,7 +42,7 @@ const browserToken = (): string => {
 };
 
 export const useBackend = () => {
-  const base = ((useRuntimeConfig().public.apiBase as string) || '').replace(/\/$/, '');
+  const base = ((useRuntimeConfig().public.apiBase as string) || '').replace(/\s+/g, '').replace(/\/+$/, '');   // a stray space or slash in the setting must not break addresses
 
   const send = async (method: string, path: string, body?: unknown, token?: string): Promise<any> => {
     let res: Response;

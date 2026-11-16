@@ -49,7 +49,7 @@ export default {
   data() { return { g: null, repo: '', token: '', auto: false, secret: '', busy: false, err: '' }; },
   computed: {
     srv() { return useHubStore().logic.srv; },
-    payloadURL() { const base = ((useRuntimeConfig().public.apiBase || '') + '').replace(/\/$/, '') || (typeof location !== 'undefined' ? location.origin : ''); return this.g ? base + this.g.hook : ''; },
+    payloadURL() { const base = ((useRuntimeConfig().public.apiBase || '') + '').replace(/\s+/g, '').replace(/\/+$/, '') || (typeof location !== 'undefined' ? location.origin : ''); return this.g ? base + this.g.hook : ''; },
     localOnly() { return /^https?:\/\/(localhost|127\.|0\.0\.0\.0|\[::1\])/i.test(this.payloadURL); },
     example() { return (this.code || 'CODE') + '-12'; }
   },
