@@ -431,7 +431,10 @@
      "title": "string",
      "last_seen": "timestamp"
     }
-   ]
+   ],
+   "monthly": "[{label, start, users, people, rate}] the last 12 months: different people who used Hub (each once), out of people with an account by the month's end",
+   "quarterly": "the last 8 quarters, the same way",
+   "yearly": "the last 3 years, the same way"
   }
  },
  "GET /v1/security/alerts": {
@@ -1091,6 +1094,15 @@
   "status": 200,
   "response": {
    "photos": "{person id: {type, data (base64)}}"
+  }
+ },
+ "GET /v1/me/widgets": {
+  "summary": "The widgets (and dashboards) I may use",
+  "description": "Switched on by the organization and, when limited to specific groups, I am in one of them: placed in the department, sector, branch or unit; a member of the forum; or my role is in the user group. Department, sector, branch and unit dashboards refuse anyone outside their widget's audience (403 not_your_dashboard), except people who may edit the organization profile.",
+  "access": "signed in to the organization",
+  "status": 200,
+  "response": {
+   "allowed": "[widget id]"
   }
  }
 }

@@ -3,6 +3,7 @@ package org
 import (
 	"context"
 	"errors"
+	"hub/internal/widgetaccess"
 	"strings"
 	"time"
 
@@ -33,9 +34,22 @@ func (s *Service) Dashboard(ctx context.Context, p *tenant.Principal, id uuid.UU
 		if ctx.Value(selfView{}) == nil {
 			// whoever manages the organization structure may open any place's dashboard from there to view it; what they may
 			// change on it still follows their own rights
-			if err := authz.Require(ctx, tx, p.Person, rightsMod[d.Unit.Kind], "View dashboard"); err != nil {
-				if ok, e2 := authz.Can(ctx, tx, p.Person, "settings", "Edit organization profile"); e2 != nil || !ok {
+			admin, err := authz.Can(ctx, tx, p.Person, "settings", "Edit organization profile")
+			if err != nil {
+				return err
+			}
+			if !admin {
+				if err := authz.Require(ctx, tx, p.Person, rightsMod[d.Unit.Kind], "View dashboard"); err != nil {
 					return err
+				}
+				// the dashboard widget's audience (Widget settings, Specific groups: e.g. a user group) decides too, so a typed
+				// address cannot open a dashboard the person's group was not given
+				ok, err := widgetaccess.May(ctx, s.A, tx, p, rightsMod[d.Unit.Kind])
+				if err != nil {
+					return err
+				}
+				if !ok {
+					return httpx.Err(403, "not_your_dashboard", "This dashboard is not open to your group. Ask an administrator.")
 				}
 			}
 		}

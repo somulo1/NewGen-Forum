@@ -49,13 +49,18 @@ export function buildWidgetSettings(ctx) {
     const managers = cfg.managers || [];
     const managerGroups = cfg.managerGroups || [];
     const isGroups = cfg.see === 'Specific groups';
-    const groupSets = ['departments', 'sectors', 'branches', 'units'].filter((t) => has[t]).map((t) => ({ label: typeName[t] + (t === 'branches' ? 'es' : 's'), items: O[t].map((r) => ({ key: t + ':' + r.id, name: r.name })) }))
-      .concat([{ label: 'Forums', items: forums.map((f) => ({ key: 'forum:' + f.id, name: f.name })) }])
+    // The dashboard widgets (departments, sectors, branches, units) are opened only by the user groups chosen here: placing
+    // someone in a place does not give them its dashboard. Every other widget keeps its usual groups (places and forums).
+    const isDash = ['departments', 'sectors', 'branches', 'units'].indexOf(sid) !== -1;
+    const groupSets = (isDash
+      ? [{ label: 'User groups (every role in the group)', items: groupDefs.map((g) => ({ key: 'ugroup:' + g.id, name: g.name })) }]
+      : ['departments', 'sectors', 'branches', 'units'].filter((t) => has[t]).map((t) => ({ label: typeName[t] + (t === 'branches' ? 'es' : 's'), items: O[t].map((r) => ({ key: t + ':' + r.id, name: r.name })) }))
+        .concat([{ label: 'Forums', items: forums.map((f) => ({ key: 'forum:' + f.id, name: f.name })) }]))
       .map((gs) => ({ label: gs.label, items: gs.items.map((it) => { const on = groups.indexOf(it.key) !== -1; return { name: it.name, on: on, style: chipS(on), toggle: () => setW((c) => ({ groups: on ? c.groups.filter((x) => x !== it.key) : c.groups.concat([it.key]) })) }; }) }));
     Object.assign(sw, {
       seeOpts: ['Everyone', 'Specific groups'].map((v) => ({ label: v, on: cfg.see === v, style: chip(cfg.see === v), pick: () => setW({ see: v }) })),
       isGroups: isGroups, groupSets: groupSets,
-      groupsHint: groups.length ? groups.length + (groups.length === 1 ? ' group selected. Only its members see this widget.' : ' groups selected. Only their members see this widget.') : 'Pick at least one group. You can\'t save until you do.',
+      groupsHint: isDash && !groupDefs.length ? 'No user groups yet. Make one on the Roles & rights page (a group of roles), then choose it here.' : groups.length ? groups.length + (groups.length === 1 ? ' group selected. Only its members see this widget.' : ' groups selected. Only their members see this widget.') : 'Pick at least one group. You can\'t save until you do.',
       groupsHintColor: groups.length ? '#C9D6CF' : '#FFB86B', groupsBorder: groups.length ? '#24322C' : '#6A5426',
       managerRoles: visibleRoles.map((r) => {
         // the locked (super admin) role is on unless someone switched it off for this widget; the others are on only when ticked

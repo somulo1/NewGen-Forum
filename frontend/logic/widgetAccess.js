@@ -18,6 +18,8 @@ export function widgetGate(logic, s, can) {
     if (!srv) return true;   // not signed in to an organization: the built-in samples
     if (loading) return false;
     if (!switchedOn(wc, id)) return false;
+    // the server's answer, when it has given one: it knows every group, user groups included (and enforces it on dashboards)
+    if (Array.isArray(s.myWidgets)) return s.myWidgets.indexOf(id) !== -1;
     const c = wc[id];
     if (c.see === 'Specific groups') return (c.groups || []).some(inGroup);
     return true;

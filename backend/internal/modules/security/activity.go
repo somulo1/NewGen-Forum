@@ -27,6 +27,19 @@ type Activity struct {
 	Active   int          `json:"active"`      // active people in the organization
 	Week     []IdlePerson `json:"inactive_1w"` // not seen for 7 to 13 days
 	TwoWeeks []IdlePerson `json:"inactive_2w"` // not seen for 14 days or more, or never
+	// adoption: different people who used Hub in each month, quarter and year (each person once, however often they signed in),
+	// out of the people who had an account by the end of that period
+	Monthly   []PeriodUse `json:"monthly"`
+	Quarterly []PeriodUse `json:"quarterly"`
+	Yearly    []PeriodUse `json:"yearly"`
+}
+
+type PeriodUse struct {
+	Label  string `json:"label"`
+	Start  string `json:"start"`
+	Users  int    `json:"users"`  // different people who used it in the period
+	People int    `json:"people"` // people with an account by the period's end (not removed)
+	Rate   int    `json:"rate"`   // users out of people, in percent
 }
 
 var nairobi = func() *time.Location {
@@ -73,7 +86,55 @@ func (m *Module) Activity(ctx context.Context, p *tenant.Principal) (*Activity, 
 				out.TwoWeeks = append(out.TwoWeeks, x)
 			}
 		}
-		return rs.Err()
+		if err := rs.Err(); err != nil {
+			return err
+		}
+		rs.Close()
+		var err2 error
+		if out.Monthly, err2 = periods(ctx, tx, "month", 12, "Mon 2006"); err2 != nil {
+			return err2
+		}
+		if out.Quarterly, err2 = periods(ctx, tx, "quarter", 8, ""); err2 != nil {
+			return err2
+		}
+		out.Yearly, err2 = periods(ctx, tx, "year", 3, "2006")
+		return err2
 	})
 	return out, err
+}
+
+// periods counts, for the last n months, quarters or years (newest last), the different people who used Hub and the people who
+// could have: one query.
+func periods(ctx context.Context, tx pgx.Tx, unit string, n int, layout string) ([]PeriodUse, error) {
+	step := map[string]string{"month": "1 month", "quarter": "3 months", "year": "1 year"}[unit]
+	rs, err := tx.Query(ctx, `with p as (
+			select generate_series(date_trunc($1, (now() at time zone 'Africa/Nairobi')::date) - ($2 - 1) * $3::interval,
+				date_trunc($1, (now() at time zone 'Africa/Nairobi')::date), $3::interval)::date as s)
+		select p.s, (p.s + $3::interval)::date,
+			(select count(distinct d.person_id) from hub.person_days d where d.day >= p.s and d.day < (p.s + $3::interval)::date),
+			(select count(*) from hub.people pe where pe.account_id is not null and pe.status <> 'deleted' and pe.created_at < p.s + $3::interval)
+		from p order by p.s`, unit, n, step)
+	if err != nil {
+		return nil, err
+	}
+	defer rs.Close()
+	out := []PeriodUse{}
+	for rs.Next() {
+		var s, e time.Time
+		var x PeriodUse
+		if err := rs.Scan(&s, &e, &x.Users, &x.People); err != nil {
+			return nil, err
+		}
+		x.Start = s.Format("2006-01-02")
+		if layout != "" {
+			x.Label = s.Format(layout)
+		} else {
+			x.Label = "Q" + string(rune('0'+(int(s.Month())-1)/3+1)) + " " + s.Format("2006")
+		}
+		if x.People > 0 {
+			x.Rate = (x.Users*100 + x.People/2) / x.People
+		}
+		out = append(out, x)
+	}
+	return out, rs.Err()
 }

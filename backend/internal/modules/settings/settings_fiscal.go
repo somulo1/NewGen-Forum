@@ -3,6 +3,7 @@ package settings
 import (
 	"context"
 	"fmt"
+	"hub/internal/widgetaccess"
 	"math"
 	"net/http"
 	"strconv"
@@ -154,6 +155,24 @@ func (m *Module) Private(r chi.Router) {
 			return err
 		}
 		httpx.JSON(w, 200, out)
+		return nil
+	}))
+	// the widgets (and so the dashboards) this person may use: switched on and, when limited, they are in one of its groups
+	r.Get("/me/widgets", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
+		var out map[string]bool
+		err := m.A.DB.WithOrg(r.Context(), p.Org, func(tx pgx.Tx) error {
+			var e error
+			out, e = widgetaccess.Allowed(r.Context(), m.A, tx, p)
+			return e
+		})
+		if err != nil {
+			return err
+		}
+		ids := []string{}
+		for id := range out {
+			ids = append(ids, id)
+		}
+		httpx.JSON(w, 200, map[string]any{"allowed": ids})
 		return nil
 	}))
 	r.Get("/settings/widgets", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
