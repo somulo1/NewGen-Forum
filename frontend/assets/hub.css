@@ -192,3 +192,7 @@ main h1{font-size:22px !important}
 .cw-bg{container-type:inline-size}
 @container (max-width:560px){.cw-b{max-width:88% !important;min-width:72px !important}.cw-rep{display:none}}
 @container (max-width:380px){.cw-b{max-width:92% !important}}
+/* long messages show their first lines, then "Read more" opens the rest in place */
+.cw-b p.cw-t.cw-clamp{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:12;line-clamp:12;overflow:hidden}
+.cw-more{display:inline-block;margin:2px 56px 0 0;padding:0;border:0;background:transparent;color:#53BDEB;font:inherit;font-weight:600;cursor:pointer}
+.cw-more:hover{text-decoration:underline}
