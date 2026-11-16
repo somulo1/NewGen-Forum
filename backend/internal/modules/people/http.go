@@ -3,6 +3,7 @@ package people
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -50,6 +51,26 @@ func (s *Service) Private(r chi.Router) {
 			return err
 		}
 		httpx.JSON(w, 200, x)
+		return nil
+	}))
+	// many people's pictures in one request: ?ids=a,b,c (up to 40)
+	r.Get("/people/photos", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
+		p, err := tenant.MustOrg(r.Context())
+		if err != nil {
+			return err
+		}
+		var ids []uuid.UUID
+		for _, v := range strings.Split(r.URL.Query().Get("ids"), ",") {
+			if id, err := uuid.Parse(strings.TrimSpace(v)); err == nil {
+				ids = append(ids, id)
+			}
+		}
+		out, err := s.Photos(r.Context(), p, ids)
+		if err != nil {
+			return err
+		}
+		w.Header().Set("Cache-Control", "private, max-age=3600")
+		httpx.JSON(w, 200, map[string]any{"photos": out})
 		return nil
 	}))
 	r.Get("/people/{id}/photo", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {

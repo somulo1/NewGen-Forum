@@ -3,6 +3,7 @@ package chat
 import (
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -362,6 +363,95 @@ func (s *Service) Private(r chi.Router) {
 			return err
 		}
 		return s.clearRoutes(w, r, p, id)
+	}))
+	// the community wall (server-side): like / dislike / love ("" takes it back), a final poll vote, and plain attachments
+	r.Put("/wall/{id}/reaction", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
+		p, err := tenant.MustOrg(r.Context())
+		if err != nil {
+			return err
+		}
+		id, err := cid(r)
+		if err != nil {
+			return err
+		}
+		var in struct {
+			Kind string `json:"kind"`
+		}
+		if err := httpx.Decode(r, &in, 1<<10); err != nil {
+			return err
+		}
+		if err := s.React(r.Context(), p, id, in.Kind); err != nil {
+			return err
+		}
+		w.WriteHeader(204)
+		return nil
+	}))
+	r.Get("/wall/counts", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
+		p, err := tenant.MustOrg(r.Context())
+		if err != nil {
+			return err
+		}
+		var ids []uuid.UUID
+		for _, v := range strings.Split(r.URL.Query().Get("ids"), ",") {
+			if id, err := uuid.Parse(strings.TrimSpace(v)); err == nil {
+				ids = append(ids, id)
+			}
+		}
+		l, err := s.WallCounts(r.Context(), p, ids)
+		if err != nil {
+			return err
+		}
+		httpx.JSON(w, 200, map[string]any{"items": l})
+		return nil
+	}))
+	r.Put("/wall/{id}/vote", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
+		p, err := tenant.MustOrg(r.Context())
+		if err != nil {
+			return err
+		}
+		id, err := cid(r)
+		if err != nil {
+			return err
+		}
+		var in struct {
+			Option string `json:"option"`
+		}
+		if err := httpx.Decode(r, &in, 1<<10); err != nil {
+			return err
+		}
+		if err := s.Vote(r.Context(), p, id, in.Option); err != nil {
+			return err
+		}
+		w.WriteHeader(204)
+		return nil
+	}))
+	r.Put("/conversations/{id}/plain-files", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
+		p, err := tenant.MustOrg(r.Context())
+		if err != nil {
+			return err
+		}
+		id, err := cid(r)
+		if err != nil {
+			return err
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, s.A.Cfg.MaxUpload+1)
+		f, err := s.UploadPlain(r.Context(), p, id, r.URL.Query().Get("name"), r.URL.Query().Get("type"), r.Body, r.ContentLength)
+		if err != nil {
+			return err
+		}
+		httpx.JSON(w, 201, f)
+		return nil
+	}))
+	r.Get("/plain-files/{id}", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
+		p, err := tenant.MustOrg(r.Context())
+		if err != nil {
+			return err
+		}
+		id, err := cid(r)
+		if err != nil {
+			return err
+		}
+		return s.ServePlain(r.Context(), p, id, w, r)
 	}))
 	r.Get("/conversations/{id}/messages", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
 		p, err := tenant.MustOrg(r.Context())

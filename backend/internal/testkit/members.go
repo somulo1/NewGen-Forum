@@ -44,6 +44,11 @@ func (e *Env) Join(owner *User, slug, first, role string) *Member {
 	if role != "" {
 		body["role"] = role
 	}
+	// everyone is placed in every level the organization has places in (onboarding requires it). Tests place people where
+	// they mean to afterwards, so here they go to a separate "Pool" place of each kind, never one a test is measuring.
+	for k, id := range e.pool(owner) {
+		body[k+"_id"] = id
+	}
 	out := e.MustDo(201, "POST", "/people", map[string]any{"people": []any{body}}, owner.Access)
 	pid := out["results"].([]any)[0].(map[string]any)["id"].(string)
 	tok := tokenRe.FindStringSubmatch(e.Dev.To(email)[0].Body)[1]
@@ -219,4 +224,49 @@ func (e *Env) RootExec(q string, args ...any) {
 	if _, err := root.Exec(context.Background(), q, args...); err != nil {
 		e.T.Fatal(err)
 	}
+}
+
+// pool finds (or makes) one "Pool" place per kind the organization has places of, for onboarding people in tests.
+func (e *Env) pool(owner *User) map[string]string {
+	out := map[string]string{}
+	st, _ := e.MustDo(200, "GET", "/org/structure", nil, owner.Access)["units"].([]any)
+	have := map[string]bool{}
+	byKind := map[string]string{}
+	for _, x := range st {
+		u := x.(map[string]any)
+		k := u["kind"].(string)
+		have[k] = true
+		if byKind[k] == "" {
+			byKind[k] = u["id"].(string)
+		}
+		if u["name"] == "Pool "+k {
+			out[k] = u["id"].(string)
+		}
+	}
+	for _, k := range []string{"sector", "branch", "unit", "department"} {
+		if !have[k] || out[k] != "" {
+			continue
+		}
+		body := map[string]any{"kind": k, "name": "Pool " + k}
+		code, res := e.Do("POST", "/org/units", body, owner.Access)
+		if code != 201 {
+			// the level sits under another: put the pool under the first place of a kind that may hold it
+			for _, pk := range []string{"unit", "branch", "sector"} {
+				if pid := out[pk]; pid != "" {
+					body["parent_id"] = pid
+				} else if pid := byKind[pk]; pid != "" {
+					body["parent_id"] = pid
+				} else {
+					continue
+				}
+				if code, res = e.Do("POST", "/org/units", body, owner.Access); code == 201 {
+					break
+				}
+			}
+		}
+		if code == 201 {
+			out[k] = res["id"].(string)
+		}
+	}
+	return out
 }

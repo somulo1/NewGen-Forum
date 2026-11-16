@@ -7,7 +7,7 @@ import { newId } from './e2ee.js';
 const subtle = () => globalThis.crypto.subtle;
 
 const fmtSize = (n) => (n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB');
-const kindOf = (name, type) => {
+export const kindOf = (name, type) => {
   if ((type || '').startsWith('image/')) return 'IMG';
   if ((type || '').startsWith('video/')) return 'VID';
   const ext = (name.split('.').pop() || '').toUpperCase();
@@ -46,6 +46,9 @@ const opening = new Map();
 // what is on its first screen is in, and the rest fills in behind.
 export const settle = (promises, n = 12, ms = 6000) => Promise.race([Promise.all(promises.slice(0, n)), new Promise((r) => setTimeout(r, ms))]);
 
+// a picture or file just uploaded is shown from this browser's own copy
+export const remember = (id, url) => urls.set(id, url);
+
 export async function openUrl(srv, ref) {
   if (urls.has(ref.fileId)) return urls.get(ref.fileId);
   if (!opening.has(ref.fileId)) opening.set(ref.fileId, fetchUrl(srv, ref).catch(async (e) => { await new Promise((r) => setTimeout(r, 1500)); try { return await fetchUrl(srv, ref); } catch (e2) { console.warn('Could not open attachment ' + ref.fileId + ':', e2); throw e2; } }).finally(() => opening.delete(ref.fileId)));
@@ -77,6 +80,15 @@ const slot = () => new Promise((go) => { if (running < 4) { running++; go(); } e
 const free = () => { const n = waiting.shift(); if (n) n(); else running--; };
 
 async function fetchUrl(srv, ref) {
+  // a wall attachment is a plain file (the wall is not end-to-end encrypted): no key, nothing to decrypt
+  if (ref.plain) {
+    await slot();
+    let raw;
+    try { raw = await srv.bytes('GET', `/plain-files/${ref.fileId}`); } finally { free(); }
+    const u = URL.createObjectURL(new Blob([raw], { type: safeType(ref.type) }));
+    urls.set(ref.fileId, u);
+    return u;
+  }
   await slot();
   let data;
   try { data = await cachedBytes(srv, ref.fileId); } finally { free(); }

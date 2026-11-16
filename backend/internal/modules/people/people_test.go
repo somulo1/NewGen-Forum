@@ -197,7 +197,8 @@ func TestDirectoryPagingPrivacyAndEncryption(t *testing.T) {
 			}
 			seen[id] = true
 		}
-		if out["total"].(float64) != 7 {
+		// the total is counted on the first page only (later pages say -1: the directory is not recounted)
+		if want := map[bool]float64{true: 7, false: -1}[cursor == ""]; out["total"].(float64) != want {
 			t.Fatalf("total %v", out["total"])
 		}
 		next, _ := out["next"].(string)

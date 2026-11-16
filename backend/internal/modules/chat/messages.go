@@ -32,10 +32,17 @@ type Message struct {
 	SenderName    string     `json:"sender_name,omitempty"`
 	Epoch         int        `json:"epoch"`
 	Envelope      string     `json:"envelope"` // base64; ciphertext + signature, opened on the device
-	Type          string     `json:"type"`
-	ReplyTo       *uuid.UUID `json:"reply_to,omitempty"`
-	CreatedAt     time.Time  `json:"created_at"`
-	Deleted       bool       `json:"deleted,omitempty"`
+	// Body: a server-readable message (the community wall) carries its content here instead of an envelope
+	Body json.RawMessage `json:"body,omitempty"`
+	// wall posts and comments: counts and my own reaction / vote, kept by the server (see wall.go)
+	Counts     map[string]int      `json:"counts,omitempty"`
+	MyReaction string              `json:"my_reaction,omitempty"`
+	MyVote     string              `json:"my_vote,omitempty"`
+	Names      map[string][]string `json:"names,omitempty"` // the first people per reaction (who liked, who loved)
+	Type       string              `json:"type"`
+	ReplyTo    *uuid.UUID          `json:"reply_to,omitempty"`
+	CreatedAt  time.Time           `json:"created_at"`
+	Deleted    bool                `json:"deleted,omitempty"`
 }
 
 type SendIn struct {
@@ -46,6 +53,8 @@ type SendIn struct {
 	Type     string      `json:"type"`
 	ReplyTo  *uuid.UUID  `json:"reply_to"`
 	Files    []uuid.UUID `json:"files"` // the uploaded files this message carries, so deleting it erases them too
+	// Body: on the community wall, the content itself (JSON), read and kept by the server; no envelope, device or key epoch
+	Body json.RawMessage `json:"body"`
 }
 
 var typeRe = regexp.MustCompile(`^[a-z][a-z_]{1,19}$`)
@@ -53,9 +62,18 @@ var typeRe = regexp.MustCompile(`^[a-z][a-z_]{1,19}$`)
 // Send stores one encrypted message and tells everyone in the conversation. The server checks who may send and that the
 // bytes look like an envelope; it cannot check what is inside.
 func (s *Service) Send(ctx context.Context, p *tenant.Principal, conv uuid.UUID, in SendIn) (*Message, error) {
-	env, err := base64.StdEncoding.DecodeString(in.Envelope)
-	if err != nil || e2ee.ValidateEnvelope(env) != nil {
-		return nil, httpx.Bad("That message is not a valid encrypted message.")
+	plain := len(in.Body) > 0
+	var env []byte
+	var err error
+	if plain {
+		if len(in.Body) > 64<<10 || !json.Valid(in.Body) {
+			return nil, httpx.Bad("That message is too long or not valid.")
+		}
+	} else {
+		env, err = base64.StdEncoding.DecodeString(in.Envelope)
+		if err != nil || e2ee.ValidateEnvelope(env) != nil {
+			return nil, httpx.Bad("That message is not a valid encrypted message.")
+		}
 	}
 	if in.Type == "" {
 		in.Type = "text"
@@ -103,11 +121,24 @@ func (s *Service) Send(ctx context.Context, p *tenant.Principal, conv uuid.UUID,
 				return err
 			}
 		}
-		if err := s.myDevice(ctx, tx, p.Account, in.Device); err != nil {
-			return err
-		}
-		if in.Epoch != epoch {
-			return httpx.Err(409, "epoch_changed", "The conversation's key changed. Fetch the new key and send again.")
+		if plain {
+			// only the community wall is server-readable; its likes and votes go through their own endpoints (counted by the server)
+			if kind != "wall" {
+				return httpx.Bad("This conversation is end-to-end encrypted: send an encrypted message.")
+			}
+			if in.Type == "reaction" || in.Type == "vote" {
+				return httpx.Bad("Like and vote through the wall's own endpoints.")
+			}
+			if env, err = SealPlain(ctx, tx, s.A, p.Org, in.ID, in.Body); err != nil {
+				return httpx.Bad("That message is not valid.")
+			}
+		} else {
+			if err := s.myDevice(ctx, tx, p.Account, in.Device); err != nil {
+				return err
+			}
+			if in.Epoch != epoch {
+				return httpx.Err(409, "epoch_changed", "The conversation's key changed. Fetch the new key and send again.")
+			}
 		}
 		if in.ReplyTo != nil {
 			var ok bool
@@ -121,14 +152,27 @@ func (s *Service) Send(ctx context.Context, p *tenant.Principal, conv uuid.UUID,
 		if err := s.checkEngagement(ctx, tx, p, conv, kind, in.Type, in.ReplyTo); err != nil {
 			return err
 		}
-		if err := PostMessage(ctx, tx, s.A, Posted{Org: p.Org, Conversation: conv, ID: in.ID, Account: p.Account, Person: p.Person, Device: in.Device, Epoch: epoch, Envelope: env, Type: in.Type, ReplyTo: in.ReplyTo}); err != nil {
+		dev := in.Device
+		if plain {
+			dev = uuid.Nil
+		}
+		if err := PostMessage(ctx, tx, s.A, Posted{Org: p.Org, Conversation: conv, ID: in.ID, Account: p.Account, Person: p.Person, Device: dev, Epoch: epoch, Envelope: env, Type: in.Type, ReplyTo: in.ReplyTo}); err != nil {
 			return err
 		}
-		if err := linkFiles(ctx, tx, p.Org, in.ID, p.Person, in.Files); err != nil {
+		link := linkFiles
+		if plain {
+			link = linkPlainFiles
+		}
+		if err := link(ctx, tx, p.Org, in.ID, p.Person, in.Files); err != nil {
 			return err
 		}
 		pid := p.Person
-		out = &Message{ID: in.ID, Conversation: conv, SenderAccount: p.Account, SenderPerson: &pid, SenderDevice: &in.Device, SenderName: p.Name, Epoch: epoch, Envelope: in.Envelope, Type: in.Type, ReplyTo: in.ReplyTo, CreatedAt: time.Now().UTC()}
+		out = &Message{ID: in.ID, Conversation: conv, SenderAccount: p.Account, SenderPerson: &pid, SenderName: p.Name, Epoch: epoch, Type: in.Type, ReplyTo: in.ReplyTo, CreatedAt: time.Now().UTC()}
+		if plain {
+			out.Body = in.Body
+		} else {
+			out.SenderDevice, out.Envelope = &in.Device, in.Envelope
+		}
 		return nil
 	})
 	if err != nil {
@@ -159,6 +203,10 @@ func (s *Service) History(ctx context.Context, p *tenant.Principal, conv uuid.UU
 		kind, _, _, _, err := s.lockConvNoLock(ctx, tx, p, conv)
 		if err != nil {
 			return err
+		}
+		var dek []byte // the organization's key, for server-readable (wall) messages; fetched before reading rows
+		if kind == "wall" {
+			dek, _, _ = s.A.OrgDEK(ctx, tx, p.Org)
 		}
 		// a blocked forum still opens, for its members and calls, but shows no messages
 		if err := s.checkBlocked(ctx, tx, p.Org, kind); err != nil {
@@ -199,12 +247,23 @@ func (s *Service) History(ctx context.Context, p *tenant.Principal, conv uuid.UU
 				tampered = append(tampered, m.ID)
 				continue
 			}
-			if !m.Deleted {
+			if !m.Deleted && IsPlain(ct) {
+				if b, ok := OpenPlain(dek, p.Org, m.ID, ct); ok {
+					m.Body = b
+				}
+			} else if !m.Deleted {
 				m.Envelope = base64.StdEncoding.EncodeToString(ct)
 			}
 			out = append(out, m)
 		}
-		return rs.Err()
+		if err := rs.Err(); err != nil {
+			return err
+		}
+		rs.Close()
+		if kind == "wall" {
+			return s.wallExtras(ctx, tx, p, out)
+		}
+		return nil
 	})
 	return out, err
 }
@@ -239,6 +298,10 @@ func (s *Service) Changes(ctx context.Context, p *tenant.Principal, conv uuid.UU
 		kind, _, _, _, err := s.lockConvNoLock(ctx, tx, p, conv)
 		if err != nil {
 			return err
+		}
+		var dek []byte // the organization's key, for server-readable (wall) messages; fetched before reading rows
+		if kind == "wall" {
+			dek, _, _ = s.A.OrgDEK(ctx, tx, p.Org)
 		}
 		// a blocked forum still opens, for its members and calls, but shows no messages
 		if err := s.checkBlocked(ctx, tx, p.Org, kind); err != nil {
@@ -301,13 +364,23 @@ func (s *Service) Changes(ctx context.Context, p *tenant.Principal, conv uuid.UU
 				tampered = append(tampered, m.ID)
 				continue
 			}
-			if !m.Deleted {
+			if !m.Deleted && IsPlain(ct) {
+				if b, ok := OpenPlain(dek, p.Org, m.ID, ct); ok {
+					m.Body = b
+				}
+			} else if !m.Deleted {
 				m.Envelope = base64.StdEncoding.EncodeToString(ct)
 			}
 			page.Messages = append(page.Messages, m)
 		}
 		if err := rs.Err(); err != nil {
 			return err
+		}
+		rs.Close()
+		if kind == "wall" {
+			if err := s.wallExtras(ctx, tx, p, page.Messages); err != nil {
+				return err
+			}
 		}
 		switch {
 		case page.More:
@@ -479,7 +552,7 @@ type Posted struct {
 // approval, system notices) use it so every message in the database goes in the same way.
 func PostMessage(ctx context.Context, tx pgx.Tx, a *app.App, m Posted) error {
 	if _, err := tx.Exec(ctx, `insert into hub.messages (org_id, id, conversation_id, sender_account, sender_person, sender_device, epoch, ciphertext, content_type, reply_to, created_at)
-		values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,coalesce($11, now()))`, m.Org, m.ID, m.Conversation, m.Account, m.Person, m.Device, m.Epoch, m.Envelope, m.Type, m.ReplyTo, m.CreatedAt); err != nil {
+		values ($1,$2,$3,$4,$5,nullif($6, '00000000-0000-0000-0000-000000000000'::uuid),$7,$8,$9,$10,coalesce($11, now()))`, m.Org, m.ID, m.Conversation, m.Account, m.Person, m.Device, m.Epoch, m.Envelope, m.Type, m.ReplyTo, m.CreatedAt); err != nil {
 		return err
 	}
 	if err := a.Sign.Seal(ctx, tx, "messages", "id=$1 and org_id=$2", m.ID, m.Org); err != nil {

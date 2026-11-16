@@ -11,13 +11,38 @@ const typeOf = (b) => {
   return '';
 };
 
+// Pictures asked for at about the same moment go to the server together (one request for up to 40 people), not one each.
+let queue = new Map();   // uid -> [{ key, resolve }]
+let timer = null;
+function flush(srv) {
+  timer = null;
+  const batch = queue; queue = new Map();
+  const ids = [...batch.keys()];
+  for (let i = 0; i < ids.length; i += 40) {
+    const part = ids.slice(i, i + 40);
+    srv.request('GET', '/people/photos?ids=' + part.join(',')).then(({ photos }) => {
+      part.forEach((uid) => {
+        const p = photos && photos[uid];
+        let url = '';
+        if (p && p.data) {
+          const bin = atob(p.data); const b = new Uint8Array(bin.length);
+          for (let k = 0; k < bin.length; k++) b[k] = bin.charCodeAt(k);
+          url = typeOf(b) ? URL.createObjectURL(new Blob([b], { type: typeOf(b) })) : '';
+        }
+        batch.get(uid).forEach((w) => w.resolve(url));
+      });
+    }).catch(() => part.forEach((uid) => batch.get(uid).forEach((w) => { w.resolve(''); setTimeout(() => urls.delete(w.key), 60000); })));
+  }
+}
+
 export function photoUrl(srv, uid, version) {
   const key = uid + ':' + (version || 0);
   if (!urls.has(key)) {
-    urls.set(key, srv.bytes('GET', '/people/' + uid + '/photo').then((b) => {
-      const type = b ? typeOf(b) : '';
-      return type ? URL.createObjectURL(new Blob([b], { type })) : '';
-    }).catch(() => { setTimeout(() => urls.delete(key), 60000); return ''; }));   // a failed one is tried again in a minute
+    urls.set(key, new Promise((resolve) => {
+      if (!queue.has(uid)) queue.set(uid, []);
+      queue.get(uid).push({ key, resolve });
+      if (!timer) timer = setTimeout(() => flush(srv), 30);
+    }));
   }
   return urls.get(key);
 }

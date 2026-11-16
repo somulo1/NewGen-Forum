@@ -69,8 +69,10 @@ type SendIn struct {
 	Epoch        int       `json:"epoch"`
 	Device       uuid.UUID `json:"device"`
 	Envelope     string    `json:"envelope"`
-	Details      *Details  `json:"details"` // what emails may say about it (written into emails, never stored on its own)
-	Batch        uuid.UUID `json:"batch"`   // optional: the sends made together (one per place) share one
+	// Body: for the community wall (server-readable), the content itself (JSON) instead of an envelope
+	Body    json.RawMessage `json:"body"`
+	Details *Details        `json:"details"` // what emails may say about it (written into emails, never stored on its own)
+	Batch   uuid.UUID       `json:"batch"`   // optional: the sends made together (one per place) share one
 	// RepostOf is the published communication this one posts again to a place it went to before. It needs the page's "Repost"
 	// right instead of the right to send a new one.
 	RepostOf uuid.UUID `json:"repost_of"`
@@ -81,9 +83,18 @@ func (s *Service) Send(ctx context.Context, p *tenant.Principal, in SendIn) (*Co
 	if right[0] == "" {
 		return nil, nil, httpx.Bad("Choose memo, announcement, newsletter or job post.")
 	}
-	env, err := base64.StdEncoding.DecodeString(in.Envelope)
-	if err != nil || e2ee.ValidateEnvelope(env) != nil {
-		return nil, nil, httpx.Bad("That is not a valid encrypted message.")
+	plain := len(in.Body) > 0
+	var env []byte
+	var err error
+	if plain {
+		if len(in.Body) > 256<<10 || !json.Valid(in.Body) {
+			return nil, nil, httpx.Bad("That is too long or not valid.")
+		}
+	} else {
+		env, err = base64.StdEncoding.DecodeString(in.Envelope)
+		if err != nil || e2ee.ValidateEnvelope(env) != nil {
+			return nil, nil, httpx.Bad("That is not a valid encrypted message.")
+		}
 	}
 	if in.Message.Version() != 7 {
 		return nil, nil, httpx.Bad("Messages need a time-ordered id (UUID v7).")
@@ -116,12 +127,23 @@ func (s *Service) Send(ctx context.Context, p *tenant.Principal, in SendIn) (*Co
 		if kind != "wall" && kind != "forum" {
 			return httpx.Bad("Send it to a wall audience or a forum.")
 		}
-		if in.Epoch != epoch {
-			return httpx.Err(409, "epoch_changed", "The key changed. Fetch the new key and send again.")
-		}
-		var ok bool
-		if err := tx.QueryRow(ctx, `select exists (select 1 from hub.devices where id=$1 and account_id=$2 and revoked_at is null)`, in.Device, p.Account).Scan(&ok); err != nil || !ok {
-			return httpx.Bad("That device is not yours or was removed.")
+		if plain {
+			// the community wall is server-readable: its content is kept by the server, no key or device involved
+			if kind != "wall" {
+				return httpx.Bad("Forums are end-to-end encrypted: send an encrypted message.")
+			}
+			if env, err = chat.SealPlain(ctx, tx, s.A, p.Org, in.Message, in.Body); err != nil {
+				return httpx.Bad("That is not valid.")
+			}
+			in.Epoch = epoch
+		} else {
+			if in.Epoch != epoch {
+				return httpx.Err(409, "epoch_changed", "The key changed. Fetch the new key and send again.")
+			}
+			var ok bool
+			if err := tx.QueryRow(ctx, `select exists (select 1 from hub.devices where id=$1 and account_id=$2 and revoked_at is null)`, in.Device, p.Account).Scan(&ok); err != nil || !ok {
+				return httpx.Bad("That device is not yours or was removed.")
+			}
 		}
 		var n int
 		if err := tx.QueryRow(ctx, `insert into hub.counters (org_id, name, value) values ($1,'comm',209) on conflict (org_id, name) do update set value = hub.counters.value + 1 returning value`, p.Org).Scan(&n); err != nil {
@@ -179,7 +201,7 @@ func (s *Service) applyPublish(ctx context.Context, tx pgx.Tx, a approvals.Appli
 	}
 	s.bumpCounts(ctx, a.Org)
 	status := "Published"
-	if cur != epoch || acct == nil {
+	if (cur != epoch && !chat.IsPlain(env)) || acct == nil {
 		status = "Stale" // the audience's key changed while it waited: the sender must send it again
 	} else if err := chat.PostMessage(ctx, tx, s.A, chat.Posted{Org: a.Org, Conversation: conv, ID: msg, Account: *acct, Person: by, Device: device, Epoch: epoch, Envelope: env, Type: map[string]string{"Memo": "memo", "Announcement": "announcement", "Newsletter": "post", "Job post": "post"}[typ]}); err != nil {
 		return err
@@ -316,6 +338,10 @@ func (s *Service) Contents(ctx context.Context, p *tenant.Principal, ids []uuid.
 		if err != nil {
 			return err
 		}
+		dek, _, err := s.A.OrgDEK(ctx, tx, p.Org) // for wall items, kept readable by the server (fetched before reading rows)
+		if err != nil {
+			return err
+		}
 		rs, err := tx.Query(ctx, `select c.id, c.conversation_id, c.message_id, c.device, c.epoch, c.envelope, c.by_person, pe.account_id
 			from hub.comms c join hub.people pe on pe.id = c.by_person
 			where c.id = any($2) and ($3::boolean or c.by_person = $1 or (c.status = 'Published' and exists (select 1 from hub.conversation_members m where m.conversation_id = c.conversation_id and m.account_id = $4 and m.left_at is null)))`,
@@ -332,8 +358,15 @@ func (s *Service) Contents(ctx context.Context, p *tenant.Principal, ids []uuid.
 			if err := rs.Scan(&id, &conv, &msg, &device, &epoch, &env, &by, &acct); err != nil {
 				return err
 			}
-			out = append(out, map[string]any{"id": id, "conversation": conv, "message": msg, "epoch": epoch, "device": device,
-				"envelope": base64.StdEncoding.EncodeToString(env), "sender_person": by, "sender_account": acct})
+			row := map[string]any{"id": id, "conversation": conv, "message": msg, "epoch": epoch, "device": device, "sender_person": by, "sender_account": acct}
+			if chat.IsPlain(env) {
+				if b, ok := chat.OpenPlain(dek, p.Org, msg, env); ok {
+					row["body"] = b
+				}
+			} else {
+				row["envelope"] = base64.StdEncoding.EncodeToString(env)
+			}
+			out = append(out, row)
 		}
 		return rs.Err()
 	})

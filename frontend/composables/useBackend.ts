@@ -126,7 +126,7 @@ export const useBackend = () => {
   };
 
   // Binary transfer (encrypted file contents): PUT bytes up, or GET bytes down.
-  const transfer = async (method: 'GET' | 'PUT', path: string, body?: Uint8Array): Promise<Uint8Array | null> => {
+  const transfer = async (method: 'GET' | 'PUT', path: string, body?: Uint8Array): Promise<any> => {
     let s = read();
     if (s && Date.now() >= s.expiresAt) s = await refresh();
     if (!s) throw new ApiError(401, 'signed_out', 'Sign in to continue.');
@@ -143,7 +143,9 @@ export const useBackend = () => {
       try { msg = (await res.json()).error.message || msg; } catch (e) { /* not JSON */ }
       throw new ApiError(res.status, 'error', msg);
     }
-    return method === 'GET' ? new Uint8Array(await res.arrayBuffer()) : null;
+    if (method === 'GET') return new Uint8Array(await res.arrayBuffer());
+    // an upload may answer with what was stored (a plain wall attachment's id)
+    return (res.headers.get('content-type') || '').includes('json') ? await res.json().catch(() => null) : null;
   };
 
   const bytes = (method: 'GET' | 'PUT', path: string, body?: Uint8Array) => (method === 'PUT' ? trackWrite(transfer(method, path, body)) : transfer(method, path, body));

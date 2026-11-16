@@ -110,7 +110,31 @@ func (s *Service) eraseAround(ctx context.Context, tx pgx.Tx, org uuid.UUID, ids
 			}
 		}
 	}
-	_, err = tx.Exec(ctx, `delete from hub.message_files where org_id=$1 and message_id = any($2)`, org, all)
+	if _, err = tx.Exec(ctx, `delete from hub.message_files where org_id=$1 and message_id = any($2)`, org, all); err != nil {
+		return err
+	}
+	// the wall (server-side): its likes, votes and counts on these items, and its plain attachments, bytes queued for erasure
+	for _, q := range []string{`delete from hub.wall_reactions where org_id=$1 and item_id = any($2)`, `delete from hub.wall_votes where org_id=$1 and post_id = any($2)`, `delete from hub.wall_counts where org_id=$1 and item_id = any($2)`} {
+		if _, err := tx.Exec(ctx, q, org, all); err != nil {
+			return err
+		}
+	}
+	if _, err := tx.Exec(ctx, `insert into hub.blob_purge (org_id, ref) select org_id, blob_key from hub.plain_files where org_id=$1 and message_id = any($2)`, org, all); err != nil {
+		return err
+	}
+	_, err = tx.Exec(ctx, `delete from hub.plain_files where org_id=$1 and message_id = any($2)`, org, all)
+	return err
+}
+
+// linkPlainFiles ties a wall post's plain attachments (uploaded by its author, not yet used) to it.
+func linkPlainFiles(ctx context.Context, tx pgx.Tx, org, msg, person uuid.UUID, files []uuid.UUID) error {
+	if len(files) == 0 {
+		return nil
+	}
+	if len(files) > 20 {
+		return httpx.Bad("A post can carry up to 20 files.")
+	}
+	_, err := tx.Exec(ctx, `update hub.plain_files set message_id=$2 where org_id=$1 and id = any($3) and uploader=$4 and message_id is null`, org, msg, files, person)
 	return err
 }
 

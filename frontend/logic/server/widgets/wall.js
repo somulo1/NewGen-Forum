@@ -1,10 +1,13 @@
-// Community wall: posts, comments (with replies), likes/loves, shares, polls and moments. Everything is a message in the
-// organization's wall conversation, sealed for its audience; reactions, comments and votes point at what they answer
-// (reply_to), so counts come from real people. Photos and videos are encrypted attachments of the wall.
+// Community wall: posts, comments (with replies), likes/loves, shares, polls and moments. The wall is fully server-side: posts,
+// comments and moments are messages the server reads and keeps (not end-to-end encrypted), likes and votes are rows it counts
+// (one per person, running totals), and photos and videos are plain files. A page of posts arrives with its counts, my own
+// reaction and vote, and who liked. Older wall messages that were sealed before this change are still opened on the device,
+// and their likes and votes still count.
 import * as mentions from '../mentions.js';
 import { connectRealtime } from '../realtime.js';
 import * as files from '../files.js';
-import { newConversationKey, wrap, b64, unb64 } from '../e2ee.js';
+import * as plain from '../plain.js';
+import { newId } from '../e2ee.js';
 
 export const name = 'wall';
 
@@ -48,6 +51,18 @@ function watchLive(logic, srv) {
   rt.on('message.new', (ev) => { if (mine(ev) && (ev.data || {}).sender_account !== srv.me.account) refresh(); });
   rt.on('message.deleted', (ev) => { if (mine(ev)) refresh(); });
   rt.on('comm.published', (ev) => { if (mine(ev)) refresh(); });
+  // a like or a vote (kept by the server, not a message): read the newest page again for its counts
+  rt.on('wall.changed', (ev) => {
+    if (!mine(ev)) return;
+    const id = (ev.data || {}).item;
+    const held = srv.wallAll && id && srv.wallAll.get(id);
+    if (!held) { srv.wallCounts = true; refresh(); return; }
+    // just that item's counts (an older post too), then the wall is redrawn from what is held
+    srv.request('GET', '/wall/counts?ids=' + id).then(({ items }) => {
+      (items || []).forEach((x) => { const m = srv.wallAll.get(x.id); if (m) srv.wallAll.set(x.id, { ...m, counts: x.counts, my_reaction: x.my_reaction, my_vote: x.my_vote, names: x.names }); });
+      return render(logic, srv, srv.wallAll);
+    }).catch(() => {});
+  });
   rt.on('open', () => refresh());
 }
 
@@ -85,7 +100,14 @@ export async function load(logic, srv) {
   watchLive(logic, srv);
   const all = srv.wallAll && srv.wallAllId === wall.id ? srv.wallAll : new Map();   // messages held from earlier loads
   srv.wallAll = all; srv.wallAllId = wall.id;
+  const recount = !!srv.wallCounts;
+  srv.wallCounts = false;
   const delta = all.size ? await changes(srv, wall.id).catch(() => null) : null;
+  if (recount && all.size) {
+    // counts moved: the newest page again (posts on it come with their fresh counts)
+    const fresh = await page(srv, wall.id, '').catch(() => []);
+    fresh.forEach((m) => all.set(m.id, m));
+  }
   if (delta) {
     delta.gone.forEach((id) => all.delete(id));
     delta.fresh.forEach((m) => all.set(m.id, m));
@@ -119,7 +141,13 @@ function build(logic, srv, items) {
   const byParent = new Map();
   items.forEach((x) => { if (x.m.reply_to) { const l = byParent.get(x.m.reply_to) || []; l.push(x); byParent.set(x.m.reply_to, l); } });
   const kids = (id, type) => (byParent.get(id) || []).filter((x) => x.m.type === type);
-  srv.wallMine = {};   // my reaction / vote message per target, so they can be undone
+  srv.wallMine = {};   // my reaction / vote message per target (older, sealed ones), so they can be undone
+  srv.wallMy = {};     // my reaction per target, kept by the server
+  const byId = new Map(items.map((x) => [x.m.id, x.m]));
+  const sc = (id, key) => ((byId.get(id) || {}).counts || {})[key] || 0;           // the server's running total
+  const myR = (id) => (byId.get(id) || {}).my_reaction || '';
+  const srvNames = (id, kind) => (((byId.get(id) || {}).names || {})[kind] || []);
+  items.forEach((x) => { if (x.m.my_reaction) srv.wallMy[x.m.id] = x.m.my_reaction; });
   // a comment or reply: who wrote it, its likes and dislikes (one of each per person, counted from signed reactions) and its replies
   const comments = (id) => kids(id, 'comment').map(({ m, pl }) => {
     const likes = reacts(m.id, 'like'), dislikes = reacts(m.id, 'dislike');
@@ -127,7 +155,7 @@ function build(logic, srv, items) {
     if (mineL) srv.wallMine['like:' + m.id] = mineL.m.id;
     if (mineD) srv.wallMine['dislike:' + m.id] = mineD.m.id;
     return { id: m.id, who: who(m), ...look(m), text: pl.text || '', time: ago(m.created_at), replies: comments(m.id), mine: m.sender_account === me,
-      likes: likes.length, dislikes: dislikes.length, iLiked: !!mineL, iDisliked: !!mineD };
+      likes: likes.length + sc(m.id, 'like'), dislikes: dislikes.length + sc(m.id, 'dislike'), iLiked: !!mineL || myR(m.id) === 'like', iDisliked: !!mineD || myR(m.id) === 'dislike' };
   });
   // Counts are never stored: each like or vote is a signed message (ones whose signature fails never get here), and each
   // person counts once, with their latest one, however many the server holds.
@@ -139,9 +167,14 @@ function build(logic, srv, items) {
     const likes = reacts(m.id, 'like');
     const mineLike = likes.find((x) => x.m.sender_account === me);
     if (mineLike) { liked[m.id] = true; srv.wallMine['like:' + m.id] = mineLike.m.id; }
+    const iLike = !!mineLike || m.my_reaction === 'like';
+    if (iLike) liked[m.id] = true;
     const votes = onePer(kids(m.id, 'vote')).filter((v) => (pl.poll || []).some((o) => o.id === v.pl.option));
     const myVote = votes.find((x) => x.m.sender_account === me);
     if (myVote) { pollVotes[m.id] = myVote.pl.option; srv.wallMine['vote:' + m.id] = myVote.m.id; }
+    if (m.my_vote) pollVotes[m.id] = m.my_vote;
+    const likeTotal = likes.length + sc(m.id, 'like');
+    const likerNames = [...new Set(likes.filter((x) => x.m.sender_account !== me).map((x) => who(x.m)).concat(srvNames(m.id, 'like').filter((n) => n !== srv.me.name)))];
     // a newsletter or job post sent from Communications is stored as a "post" message, but carries a title and body, not text
     const fromComms = m.type !== 'post' || (pl.title !== undefined && pl.text === undefined);
     const media = (pl.media || pl.files || []).map((f) => { const it = { id: f.fileId, name: f.name, meta: f.meta || '', isImg: !!f.isImg, isVideo: !!f.isVideo, url: '', ref: f }; mediaToLoad.push(f); return it; });
@@ -155,15 +188,15 @@ function build(logic, srv, items) {
       headline: m.sender_account === me ? ((logic.state.profile || {}).headline || '') : (p ? (p.headline || '') : ''),   // what they wrote about themselves, shown under their name
       meta: (isComm ? commLabel : (pl.department || (p ? p.dept : '') || 'Everyone')) + ' · ' + ago(m.created_at),
       text: isComm ? (pl.title || '') + (pl.summary ? '\n' + pl.summary : '') + (pl.body ? '\n' + pl.body : '') : (pl.text || ''), postBg: pl.postBg || undefined,
-      likes: likes.length - (mineLike ? 1 : 0), likers: likes.filter((x) => x.m.sender_account !== me).map((x) => ({ uid: x.m.sender_person || '', name: who(x.m) })), extra: 0, shares: kids(m.id, 'share').length,
+      likes: likeTotal - (iLike ? 1 : 0), likers: likerNames.map((n) => ({ uid: (srv.personOf && srv.personOf.get(n)) || '', name: n })), extra: Math.max(0, likeTotal - (iLike ? 1 : 0) - likerNames.length), shares: kids(m.id, 'share').length,
       photoLabel: pl.photo ? pl.photo.label : undefined, photoBg: pl.photo ? pl.photo.bg : undefined,
       comments: comments(m.id), media,
-      pollData: pl.poll ? { opts: pl.poll.map((o) => ({ id: o.id, label: o.label, votes: votes.filter((v) => v.pl.option === o.id && v.m.sender_account !== me).length })) } : undefined,
+      pollData: pl.poll ? { opts: pl.poll.map((o) => ({ id: o.id, label: o.label, votes: votes.filter((v) => v.pl.option === o.id && v.m.sender_account !== me).length + sc(m.id, 'vote:' + o.id) - (m.my_vote === o.id ? 1 : 0) })) } : undefined,
       tags: pl.tags || [], poster: pl.poster || undefined
     };
   });
   const moments = items.filter((x) => x.m.type === 'moment' && Date.now() - new Date(x.m.created_at).getTime() < 24 * 3600 * 1000).reverse().map(({ m, pl }) => {
-    const names = (kind) => reacts(m.id, kind).map((x) => { if (x.m.sender_account === me) srv.wallMine[kind + ':' + m.id] = x.m.id; return who(x.m); });
+    const names = (kind) => [...new Set(reacts(m.id, kind).map((x) => { if (x.m.sender_account === me) srv.wallMine[kind + ':' + m.id] = x.m.id; return who(x.m); }).concat(srvNames(m.id, kind)))];
     const media = pl.media ? (pl.media.fileId ? { ...pl.media, url: '' } : pl.media) : undefined;
     if (media && media.fileId) mediaToLoad.push(media);
     return { id: m.id, owner: who(m), ...look(m), bg: pl.bg || '#2B4A63', caption: pl.caption || '', media, likes: names('like'), loves: names('love') };
@@ -191,25 +224,26 @@ export async function ensureWall(srv) {
   let wall = conversations.find((c) => c.audience === 'org') || conversations[0];
   if (!wall) {
     try {
-      const { people } = await srv.request('GET', '/conversations/audience-members?audience=org');
-      const { devices } = await srv.request('POST', '/e2ee/people/devices', { people: [...new Set([srv.me.person, ...people])] });
-      const key = newConversationKey();
-      const keys = await Promise.all(devices.map(async (d) => ({ epoch: 1, device: d.id, wrapped_key: b64(await wrap(key, unb64(d.identity_key))) })));
-      wall = await srv.request('POST', '/conversations', { kind: 'wall', name: 'Community wall', audience: 'org', color: '#F49AC1', keys });
+      // kept by the server: no keys to make for every member's device
+      wall = await srv.request('POST', '/conversations', { kind: 'wall', name: 'Community wall', audience: 'org', color: '#F49AC1' });
     } catch (e) {
       if (e && (e.status === 403 || e.code === 'forbidden')) throw new Error('The community wall has not been set up yet. Ask an administrator to post first.');
       throw e;
     }
   }
   srv.wallId = wall.id;
+  plain.markPlain(wall.id);
   return wall.id;
 }
 
+// posts, comments, moments and shares: the content itself goes to the server (no sealing)
 async function send(srv, type, payload, replyTo, fileIds) {
   await ensureWall(srv);
-  const sealed = await srv.vault.seal(srv.wallId, payload);
-  return srv.request('POST', `/conversations/${srv.wallId}/messages`, { ...sealed, type, ...(replyTo ? { reply_to: replyTo } : {}), ...(fileIds && fileIds.length ? { files: fileIds } : {}) });
+  // the attachments it carries are tied to it, so deleting the post erases them too
+  return srv.request('POST', `/conversations/${srv.wallId}/messages`, { id: newId(), type, body: payload, ...(replyTo ? { reply_to: replyTo } : {}), ...(fileIds && fileIds.length ? { files: fileIds } : {}) });
 }
+// a like, dislike or love ('' takes it back), and a final poll vote: kept and counted by the server
+const react = (srv, target, kind) => srv.request('PUT', `/wall/${target}/reaction`, { kind });
 const del = (srv, id) => srv.request('DELETE', `/conversations/${srv.wallId}/messages/${id}`);
 
 // ---- actions ----
@@ -218,8 +252,8 @@ const del = (srv, id) => srv.request('DELETE', `/conversations/${srv.wallId}/mes
 export async function post(logic, srv, p) {
   await ensureWall(srv);
   const media = [];
-  media.push(...await Promise.all((p.files || []).map((f) => files.upload(srv, srv.wallId, f))));   // all at once
-  await send(srv, 'post', { text: p.text, department: p.audience && p.audience !== 'Everyone' ? p.audience : (logic.state.meInfo || {}).dept || '', postBg: p.postBg || undefined, media: media.map(({ fileId, name, meta, type, isImg, isVideo, key }) => ({ fileId, name, meta, type, isImg, isVideo, key })), poll: p.poll ? p.poll.map((label, i) => ({ id: 'o' + i, label })) : undefined, tags: p.tags || undefined, poster: p.poster || undefined }, undefined, media.map((f) => f.fileId));
+  media.push(...await Promise.all((p.files || []).map((f) => plain.uploadFor(srv, srv.wallId, f))));   // all at once
+  await send(srv, 'post', { text: p.text, department: p.audience && p.audience !== 'Everyone' ? p.audience : (logic.state.meInfo || {}).dept || '', postBg: p.postBg || undefined, media: media.map(({ fileId, name, meta, type, isImg, isVideo, key, plain: pf }) => ({ fileId, name, meta, type, isImg, isVideo, key, plain: pf || undefined })), poll: p.poll ? p.poll.map((label, i) => ({ id: 'o' + i, label })) : undefined, tags: p.tags || undefined, poster: p.poster || undefined }, undefined, media.map((f) => f.fileId));
   if (p.text && p.text.indexOf('@') !== -1) mentions.tell(srv, 'wall', '', mentions.names(srv, p.text).filter((d) => !(p.tags || []).includes(d.name)));
   if ((p.tags || []).length) mentions.tell(srv, 'wall', '', (p.tags || []).map((n) => [...srv.dirByUid.values()].find((d) => d.name === n)).filter(Boolean));
   await load(logic, srv);
@@ -237,21 +271,25 @@ export async function reactToComment(logic, srv, commentId, kind) {
   const old = srv.wallMine[other + ':' + commentId];
   if (old) { await del(srv, old); delete srv.wallMine[other + ':' + commentId]; }
   const mine = srv.wallMine[kind + ':' + commentId];
-  if (mine) { await del(srv, mine); delete srv.wallMine[kind + ':' + commentId]; } else await send(srv, 'reaction', { kind }, commentId);
+  if (mine) { await del(srv, mine); delete srv.wallMine[kind + ':' + commentId]; }
+  else await react(srv, commentId, (srv.wallMy || {})[commentId] === kind ? '' : kind);   // tapping it again takes it back
+  srv.wallCounts = true;
   await load(logic, srv);
 }
 
 export async function toggleReaction(logic, srv, targetId, kind) {
   const k = kind + ':' + targetId;
   if (srv.wallMine[k]) await del(srv, srv.wallMine[k]);
-  else await send(srv, 'reaction', { kind }, targetId);
+  else await react(srv, targetId, (srv.wallMy || {})[targetId] === kind ? '' : kind);
+  srv.wallCounts = true;
   await load(logic, srv);
 }
 
 // A vote is final: the first one counts and cannot be taken back or changed.
 export async function vote(logic, srv, postId, option) {
   if (srv.wallMine['vote:' + postId]) throw new Error('You have already voted on this poll. Your first vote is final.');
-  try { await send(srv, 'vote', { option }, postId); } catch (e) { await load(logic, srv).catch(() => {}); throw e; }
+  try { await srv.request('PUT', `/wall/${postId}/vote`, { option }); } catch (e) { await load(logic, srv).catch(() => {}); throw e; }
+  srv.wallCounts = true;
   await load(logic, srv);
 }
 
@@ -271,7 +309,8 @@ export async function shared(logic, srv, postId, where) {
 // moment = { caption, bg, file }
 export async function addMoment(logic, srv, m) {
   let media;
-  if (m.file) { const f = await files.upload(srv, srv.wallId, m.file); media = { fileId: f.fileId, name: f.name, type: f.type, isImg: f.isImg, isVideo: f.isVideo, key: f.key }; }
+  await ensureWall(srv);
+  if (m.file) { const f = await plain.uploadFor(srv, srv.wallId, m.file); media = { fileId: f.fileId, name: f.name, type: f.type, isImg: f.isImg, isVideo: f.isVideo, key: f.key, plain: f.plain || undefined }; }
   await send(srv, 'moment', { caption: m.caption, bg: m.bg, media }, undefined, media ? [media.fileId] : []);
   await load(logic, srv);
 }

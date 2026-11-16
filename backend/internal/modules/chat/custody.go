@@ -113,8 +113,9 @@ func (s *Service) Todo(ctx context.Context, p *tenant.Principal) ([]Todo, error)
 			  (select count(*) from hub.devices d join hub.conversation_members m2 on m2.account_id = d.account_id and m2.conversation_id = c.id and m2.left_at is null
 			   where d.revoked_at is null and not exists (select 1 from hub.conversation_keys k where k.conversation_id = c.id and k.epoch = c.epoch and k.device_id = d.id))
 			from hub.conversations c join hub.conversation_members me on me.conversation_id = c.id and me.account_id=$1 and me.left_at is null
-			where c.rotate_needed or exists (select 1 from hub.devices d join hub.conversation_members m2 on m2.account_id = d.account_id and m2.conversation_id = c.id and m2.left_at is null
-			   where d.revoked_at is null and not exists (select 1 from hub.conversation_keys k where k.conversation_id = c.id and k.epoch = c.epoch and k.device_id = d.id))
+			where c.kind not in ('wall', 'ticket') -- server-side conversations have no keys: no device work, however many members
+			  and (c.rotate_needed or exists (select 1 from hub.devices d join hub.conversation_members m2 on m2.account_id = d.account_id and m2.conversation_id = c.id and m2.left_at is null
+			   where d.revoked_at is null and not exists (select 1 from hub.conversation_keys k where k.conversation_id = c.id and k.epoch = c.epoch and k.device_id = d.id)))
 			limit 200`, p.Account)
 		if err != nil {
 			return err

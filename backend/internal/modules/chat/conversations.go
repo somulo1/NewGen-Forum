@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hub/internal/blob"
 	"sort"
 	"strings"
 	"time"
@@ -29,6 +30,8 @@ type Service struct {
 	A *app.App
 	// Purge erases queued file contents from storage (set where the file service exists); nil leaves it to the worker.
 	Purge func(context.Context)
+	// Store keeps the community wall's attachments (plain files; set where the file service exists)
+	Store blob.Store
 }
 
 func New(a *app.App) *Service { return &Service{A: a} }
@@ -315,8 +318,8 @@ func (s *Service) Create(ctx context.Context, p *tenant.Principal, in CreateIn) 
 		if err != nil {
 			return err
 		}
-		// a ticket's conversation only lists the people on it: tickets are not end-to-end encrypted, so it needs no keys
-		if in.Kind != "ticket" {
+		// tickets and the community wall are not end-to-end encrypted: their conversation needs no keys
+		if in.Kind != "ticket" && in.Kind != "wall" {
 			if len(devs) == 0 {
 				return httpx.Err(409, "no_devices", "Set up secure messaging on this device first.")
 			}

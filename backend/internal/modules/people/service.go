@@ -1071,3 +1071,47 @@ func (s *Service) Photo(ctx context.Context, p *tenant.Principal, id uuid.UUID) 
 	})
 	return out, typ, err
 }
+
+// Photos returns many people's pictures at once (up to 40), so a page with many authors makes one request, not one per person.
+// Only picture types that cannot run script are returned; people without a picture are left out.
+func (s *Service) Photos(ctx context.Context, p *tenant.Principal, ids []uuid.UUID) (map[string]map[string]string, error) {
+	out := map[string]map[string]string{}
+	if len(ids) == 0 {
+		return out, nil
+	}
+	if len(ids) > 40 {
+		ids = ids[:40]
+	}
+	err := s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
+		dek, _, err := s.A.OrgDEK(ctx, tx, p.Org)
+		if err != nil {
+			return err
+		}
+		rs, err := tx.Query(ctx, `select pp.person_id, pp.photo_enc, pp.photo_type from hub.person_profiles pp join hub.people pe on pe.id = pp.person_id
+			where pp.person_id = any($1) and pe.status <> 'deleted' and pp.photo_enc is not null and pp.photo_type is not null`, ids)
+		if err != nil {
+			return err
+		}
+		defer rs.Close()
+		for rs.Next() {
+			var id uuid.UUID
+			var enc []byte
+			var t string
+			if err := rs.Scan(&id, &enc, &t); err != nil {
+				return err
+			}
+			switch t {
+			case "image/png", "image/jpeg", "image/webp", "image/gif":
+			default:
+				continue
+			}
+			b, err := crypto.FieldOpen(dek, profileCtx(p.Org, id, "photo_enc"), enc)
+			if err != nil || len(b) == 0 {
+				continue
+			}
+			out[id.String()] = map[string]string{"type": t, "data": base64.StdEncoding.EncodeToString(b)}
+		}
+		return rs.Err()
+	})
+	return out, err
+}

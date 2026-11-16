@@ -1,6 +1,7 @@
+import * as plain from '../plain.js';
 // Communications: announcements, memos and newsletters (the Announcements, Memos and Newsletter widgets and the
 // Communications page share these). Content is sealed for the audience; this reads, marks read, and publishes.
-import { newConversationKey, wrap, newId, b64, unb64 } from '../e2ee.js';
+import { newId } from '../e2ee.js';
 import * as files from '../files.js';
 
 export const name = 'comms';
@@ -18,7 +19,8 @@ export async function load(logic, srv) {
     let pl = null;
     try {
       const sealed = sealedBy.get(c.id);
-      if (sealed) pl = await srv.vault.openItem({ conversation: sealed.conversation, id: sealed.message, sender: sealed.sender_account, senderPerson: sealed.sender_person, senderDevice: sealed.device, epoch: sealed.epoch, envelope: sealed.envelope });
+      if (sealed && sealed.body) pl = sealed.body;   // a wall item: kept readable by the server
+      else if (sealed) pl = await srv.vault.openItem({ conversation: sealed.conversation, id: sealed.message, sender: sealed.sender_account, senderPerson: sealed.sender_person, senderDevice: sealed.device, epoch: sealed.epoch, envelope: sealed.envelope });
     } catch (e) { /* not visible to this person */ }
     const dept = srv.dirByUid && srv.dirByUid.get(c.by) ? srv.dirByUid.get(c.by).dept : '';
     return {
@@ -62,12 +64,9 @@ async function audienceWall(srv, audience, ref, label) {
   const walls = (await srv.request('GET', '/conversations?kind=wall&limit=200')).conversations;
   const hit = walls.find((w) => w.audience === audience && (audience === 'org' || w.audience_ref === ref));
   if (hit) return hit.id;
-  const { people } = await srv.request('GET', `/conversations/audience-members?audience=${audience}${ref ? '&ref=' + ref : ''}`);
-  const all = [...new Set([srv.me.person, ...people])];
-  const { devices } = await srv.request('POST', '/e2ee/people/devices', { people: all });
-  const key = newConversationKey();
-  const keys = await Promise.all(devices.map(async (d) => ({ epoch: 1, device: d.id, wrapped_key: b64(await wrap(key, unb64(d.identity_key))) })));
-  const made = await srv.request('POST', '/conversations', { kind: 'wall', name: label, audience, audience_ref: ref || undefined, color: '#F49AC1', keys });
+  // walls are kept by the server (not end-to-end encrypted): no keys to make for every member's device
+  const made = await srv.request('POST', '/conversations', { kind: 'wall', name: label, audience, audience_ref: ref || undefined, color: '#F49AC1' });
+  plain.markPlain(made.id);
   return made.id;
 }
 
@@ -124,10 +123,10 @@ export async function repost(logic, srv, c) {
   for (const p of mine) {
     try {
       const refs = [];
-      for (const f of blobs) { const u = await files.upload(srv, p.conversation, f); refs.push({ fileId: u.fileId, name: u.name, meta: u.meta, type: u.type, isImg: u.isImg, key: u.key }); }
-      const sealed = await srv.vault.seal(p.conversation, { title: c.title, summary: c.summary || '', body: c.body, fields: c.fields || {}, files: refs, to: c.to || [], type: c.type, from: srv.me.name, reposted: true }, newId());
+      for (const f of blobs) { const u = await plain.uploadFor(srv, p.conversation, f); refs.push({ fileId: u.fileId, name: u.name, meta: u.meta, type: u.type, isImg: u.isImg, key: u.key, plain: u.plain || undefined }); }
+      const sealed = await plain.sealFor(srv, p.conversation, { title: c.title, summary: c.summary || '', body: c.body, fields: c.fields || {}, files: refs, to: c.to || [], type: c.type, from: srv.me.name, reposted: true }, newId());
       const details = srv.emailDetails === false ? undefined : { title: c.title, summary: c.summary || '', body: c.body || '', fields: Object.entries(c.fields || {}).map(([k, v]) => [labelOf(c.type, k), String(v)]), files: (c.files || []).map((f) => f.name) };
-      const res = await srv.request('POST', '/comms', { type: c.type, batch, details, conversation: p.conversation, message: sealed.id, epoch: sealed.epoch, device: sealed.device, envelope: sealed.envelope, repost_of: c.uid });
+      const res = await srv.request('POST', '/comms', { type: c.type, batch, details, conversation: p.conversation, message: sealed.id, ...(sealed.plain ? { body: sealed.body, device: srv.vault.deviceId } : { epoch: sealed.epoch, device: sealed.device, envelope: sealed.envelope }), repost_of: c.uid });
       sent++;
       if (res.approval) pending++;
     } catch (e) { failed.push((p.name || (p.kind === 'forum' ? 'a forum' : 'a wall')) + ' (' + ((e && e.message) || 'it did not go through') + ')'); }
@@ -161,10 +160,10 @@ export async function publish(logic, srv, c) {
       const conv = await t.conv();
       // each place holds its own copy of the files, encrypted for that audience
       const refs = [];
-      for (const f of c.files || []) { const u = await files.upload(srv, conv, f); refs.push({ fileId: u.fileId, name: u.name, meta: u.meta, type: u.type, isImg: u.isImg, key: u.key }); }
-      const sealed = await srv.vault.seal(conv, { title: c.title, summary: c.summary || '', body: c.body, fields: c.fields || {}, files: refs, to, type: c.type, from: srv.me.name }, newId());
+      for (const f of c.files || []) { const u = await plain.uploadFor(srv, conv, f); refs.push({ fileId: u.fileId, name: u.name, meta: u.meta, type: u.type, isImg: u.isImg, key: u.key, plain: u.plain || undefined }); }
+      const sealed = await plain.sealFor(srv, conv, { title: c.title, summary: c.summary || '', body: c.body, fields: c.fields || {}, files: refs, to, type: c.type, from: srv.me.name }, newId());
       const details = srv.emailDetails === false ? undefined : { title: c.title, summary: c.summary || '', body: c.body || '', fields: Object.entries(c.fields || {}).map(([k, v]) => [labelOf(c.type, k), String(v)]), files: (c.files || []).map((f) => f.name) };
-      const res = await srv.request('POST', '/comms', { type: c.type, batch, details, conversation: conv, message: sealed.id, epoch: sealed.epoch, device: sealed.device, envelope: sealed.envelope });
+      const res = await srv.request('POST', '/comms', { type: c.type, batch, details, conversation: conv, message: sealed.id, ...(sealed.plain ? { body: sealed.body, device: srv.vault.deviceId } : { epoch: sealed.epoch, device: sealed.device, envelope: sealed.envelope }) });
       sent++;
       if (res.approval) pending++;
     } catch (e) { failed.push({ place: t.name, why: (e && e.message) || 'it did not go through' }); }

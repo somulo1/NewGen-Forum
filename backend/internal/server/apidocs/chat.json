@@ -585,5 +585,61 @@
   "access": "a member of the conversation",
   "status": 204,
   "response": null
+ },
+ "PUT /v1/wall/{id}/reaction": {
+  "summary": "Like, dislike or love a wall item",
+  "description": "The community wall is server-side: reactions are rows the server keeps, one per person per post, comment or moment, with running totals. A new kind replaces the old one; an empty kind takes it back. Wall pages (GET /v1/conversations/{id}/messages and /changes) return counts, my_reaction and names (the latest 20 per reaction).",
+  "access": "a member of the wall (Wall: View)",
+  "body": {
+   "kind": "like | dislike | love | \"\""
+  },
+  "status": 204
+ },
+ "PUT /v1/wall/{id}/vote": {
+  "summary": "Vote on a wall poll",
+  "description": "Final: the first vote counts. The option must be one of the poll's choices. Counts come back as counts[\"vote:<option>\"] and my_vote.",
+  "access": "a member of the wall (Wall: View)",
+  "body": {
+   "option": "the choice's id"
+  },
+  "status": 204,
+  "errors": {
+   "409": "already_voted"
+  }
+ },
+ "PUT /v1/conversations/{id}/plain-files": {
+  "summary": "Attach a file to the community wall",
+  "description": "The raw bytes are the body; the wall is not end-to-end encrypted, so its attachments are plain files kept for the organization. Types that could run script are stored as application/octet-stream.",
+  "access": "a member of the wall with Wall: Post",
+  "query": {
+   "name": "required",
+   "type": "the media type"
+  },
+  "status": 201,
+  "response": {
+   "id": "uuid",
+   "name": "text",
+   "type": "text",
+   "size": "bytes",
+   "created_at": "time"
+  }
+ },
+ "GET /v1/plain-files/{id}": {
+  "summary": "Download a wall attachment",
+  "access": "a member of its wall",
+  "status": 200,
+  "response": "the file's bytes"
+ },
+ "GET /v1/wall/counts": {
+  "summary": "Counts for some wall items",
+  "description": "For updating a post or comment after someone likes or votes (the wall.changed live event names the item). Only items on walls the caller belongs to.",
+  "access": "a member of the wall",
+  "query": {
+   "ids": "comma-separated message ids, up to 100"
+  },
+  "status": 200,
+  "response": {
+   "items": "[{id, counts, my_reaction, my_vote, names}]"
+  }
  }
 }

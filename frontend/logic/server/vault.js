@@ -144,6 +144,8 @@ export class Vault {
     } catch (e) { return null; }
   }
   openMessage(m) {
+    // a server-readable message (the community wall) comes with its body: nothing to open
+    if (m.body && typeof m.body === 'object') return Promise.resolve(m.body);
     return this.openItem({ conversation: m.conversation, id: m.id, sender: m.sender_account, senderPerson: m.sender_person, senderDevice: m.sender_device, epoch: m.epoch, envelope: m.envelope });
   }
   openRecord(r, personOf) {

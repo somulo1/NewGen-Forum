@@ -1080,5 +1080,17 @@
   "errors": {
    "400": "that person is not a member of the place, or does not hold its head role"
   }
+ },
+ "GET /v1/people/photos": {
+  "summary": "Many people's pictures at once",
+  "description": "For pages that show many people (the wall, chats): one request instead of one per person. People without a picture are left out. Only image/png, image/jpeg, image/webp and image/gif are returned.",
+  "access": "signed in to the organization",
+  "query": {
+   "ids": "comma-separated person ids, up to 40"
+  },
+  "status": 200,
+  "response": {
+   "photos": "{person id: {type, data (base64)}}"
+  }
  }
 }
