@@ -77,7 +77,7 @@ function seedHistory() {
 function seedThreads() {
   return [
     { id: 't1', customerId: 'c6', channel: 'SMS', unread: 1, msgs: [{ from: 'me', text: 'Hello Brian, a reminder that KES 4,500 is due on Friday. Reply PAY to get the paybill details.', at: now() - DAY }, { from: 'them', text: 'PAY', at: now() - 20 * HOUR }, { from: 'me', text: 'Paybill 400200, account LN-41200. Thank you.', at: now() - 20 * HOUR + MIN }, { from: 'them', text: 'Will pay on Friday evening', at: now() - 2 * HOUR }] },
-    { id: 't2', customerId: 'c3', channel: 'WhatsApp', unread: 0, msgs: [{ from: 'me', text: 'Hi Mercy, please upload a clear photo of your ID to finish verification.', at: now() - 3 * DAY }, { from: 'them', text: 'Sent it now', at: now() - 2 * DAY }] },
+    { id: 't2', customerId: 'c3', channel: 'SMS', unread: 0, msgs: [{ from: 'me', text: 'Hi Mercy, please upload a clear photo of your ID to finish verification.', at: now() - 3 * DAY }, { from: 'them', text: 'Sent it now', at: now() - 2 * DAY }] },
     { id: 't3', customerId: 'c1', channel: 'SMS', unread: 0, msgs: [{ from: 'me', text: 'Your loan top-up of KES 20,000 has been approved.', at: now() - 2 * DAY }] }
   ];
 }
@@ -107,7 +107,7 @@ export const pbx = reactive({
   queues: QUEUES,
   dispositions: DISPOSITIONS,
   history: saved.history || seedHistory(),
-  threads: saved.threads || seedThreads(),
+  threads: (saved.threads || seedThreads()).map((t) => ({ ...t, channel: 'SMS' })),   // SMS only
   voicemail: saved.voicemail || seedVoicemail(),
   routing: saved.routing || seedRouting(),
   campaigns: saved.campaigns || seedCampaigns(),
@@ -276,12 +276,12 @@ export function finishWrap() {
 export function sendMessage(threadId, text, channel) {
   const t = pbx.threads.find((x) => x.id === threadId); if (!t || !text.trim()) return;
   t.msgs.push({ from: 'me', text: text.trim(), at: now(), status: 'Sent' }); t.unread = 0;
-  if (channel) t.channel = channel;
+  t.channel = 'SMS';   // customers are messaged by SMS only (no WhatsApp)
   persist();
 }
 export function startThread(customerId, channel) {
   let t = pbx.threads.find((x) => x.customerId === customerId);
-  if (!t) { t = { id: 't' + now(), customerId, channel: channel || 'SMS', unread: 0, msgs: [] }; pbx.threads.unshift(t); persist(); }
+  if (!t) { t = { id: 't' + now(), customerId, channel: 'SMS', unread: 0, msgs: [] }; pbx.threads.unshift(t); persist(); }
   return t.id;
 }
 

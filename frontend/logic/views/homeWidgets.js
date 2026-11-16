@@ -27,7 +27,7 @@ export function buildHomeWidgets(ctx) {
     tickets: { title: 'Tickets', sub: 'Turnaround time tracking', tint: '#FF9B8A', desc: 'Open, overdue and due-soon tickets, the most urgent ones to view, and a quick way to raise a new one.' },
     projects: { title: 'Projects', sub: 'Progress and health', tint: '#7CC4FF', desc: 'Every project with its status, progress and due date, plus a View button into each one.' },
     awards: { title: 'Performance awards', sub: 'Recognition', tint: '#FFD66B', desc: 'Spotlight top performers, show award winners and let staff nominate colleagues.' },
-    pbx: { title: 'Calls management', sub: 'Customer phone system', tint: '#7CC4FF', desc: 'Call customers on their own phones, take inbound queue calls, message them by SMS or WhatsApp, and monitor queues and agents. Only the people chosen under Who can see it use it.' },
+    pbx: { title: 'Calls management', sub: 'Customer phone system', tint: '#7CC4FF', desc: 'Call customers on their own phones, take inbound queue calls, message them by SMS, and monitor queues and agents. Only the people chosen under Who can see it use it.' },
     secureshare: { title: 'Secure share', sub: 'One-time links', tint: '#6EE7C8', desc: 'Share a password or credential through a link that self-destructs after one view.' },
     files: { title: 'Recent files', sub: 'Across your forums', tint: '#C9B6FF', desc: 'The latest documents shared with you.' },
     joiners: { title: 'New joiners', sub: 'This week', tint: '#B8F36B', desc: 'Welcome new colleagues and help them settle in.' },

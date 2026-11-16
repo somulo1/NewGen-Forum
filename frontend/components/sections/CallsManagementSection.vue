@@ -104,13 +104,13 @@
     <aside class="pbx-card pbx-threads">
       <button v-for="t in pbx.threads" :key="t.id" type="button" :class="['pbx-thread', { on: thread === t.id }]" @click="openThread(t)">
         <span class="grow"><strong>{{ (customerOf(t.customerId) || {}).name || 'Customer' }}</strong><span class="pbx-sub block clip">{{ t.msgs.length ? t.msgs[t.msgs.length - 1].text : 'No messages yet' }}</span></span>
-        <span class="pbx-tag static">{{ t.channel }}</span><span v-if="t.unread" class="pbx-count">{{ t.unread }}</span>
+        <span class="pbx-tag static">SMS</span><span v-if="t.unread" class="pbx-count">{{ t.unread }}</span>
       </button>
     </aside>
     <div class="pbx-card pbx-convo">
       <template v-if="curThread">
         <div class="pbx-row between"><strong>{{ (customerOf(curThread.customerId) || {}).name }}</strong>
-          <div class="pbx-seg" role="radiogroup" aria-label="Channel"><button v-for="ch in ['SMS', 'WhatsApp']" :key="ch" type="button" role="radio" :aria-checked="curThread.channel === ch" :class="{ on: curThread.channel === ch }" @click="curThread.channel = ch">{{ ch }}</button></div>
+          <span class="pbx-tag static">SMS</span>
         </div>
         <div class="pbx-bubbles">
           <div v-for="(m, i) in curThread.msgs" :key="i" :class="['pbx-bubble', m.from === 'me' ? 'me' : 'them']"><span>{{ m.text }}</span><small>{{ fmtWhen(m.at) }}<template v-if="m.from === 'me'"> · {{ m.status || 'Delivered' }}</template></small></div>
