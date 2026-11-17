@@ -21,7 +21,7 @@ All data comes from the Hub backend through the web interface; the app stores no
 ```sh
 cd mobile
 npm install
-cp .env.example .env    # then set EXPO_PUBLIC_HUB_WEB_URL to your Hub site (https)
+cp .env.example .env    # then set EXPO_PUBLIC_HUB_WEB_URL (the site) and EXPO_PUBLIC_HUB_API_URL (the backend), both https
 ```
 
 The address must be the **https** site people open in a browser. End-to-end encryption needs a secure page, so a plain

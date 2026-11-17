@@ -13,8 +13,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView, type WebViewMessageEvent, type WebViewProps } from 'react-native-webview';
 import type { ShouldStartLoadRequest, WebViewErrorEvent, WebViewHttpErrorEvent, WebViewNavigation } from 'react-native-webview/lib/WebViewTypes';
 
+import { wakeBackend } from './backend';
 import { bridgeScript } from './bridge';
-import { COLORS, WEB_ORIGIN, WEB_URL } from './config';
+import { COLORS, isSecure, WEB_ORIGIN, WEB_URL } from './config';
 import { proof, ready } from './deviceKey';
 import { saveAndShare } from './files';
 import * as notify from './notify';
@@ -67,11 +68,12 @@ export default function HubShell() {
   useEffect(() => {
     let live = true;
     (async () => {
-      if (!WEB_URL || (!/^https:\/\//i.test(WEB_URL) && !__DEV__)) {
+      if (!WEB_URL || (!isSecure(WEB_URL) && !__DEV__)) {
         setProblem({ title: 'Hub is not set up', detail: 'This build has no Hub address. Set EXPO_PUBLIC_HUB_WEB_URL to the https address of your Hub site and build again.', retry: false });
         SplashScreen.hideAsync().catch(() => {});
         return;
       }
+      wakeBackend();
       if (!(await ready())) {
         setProblem({ title: 'This phone cannot keep Hub secure', detail: 'Hub binds your sign-in to this phone with a key kept in its secure storage, and that storage is not available. Set a screen lock on the phone, then open Hub again.', retry: true });
         SplashScreen.hideAsync().catch(() => {});
