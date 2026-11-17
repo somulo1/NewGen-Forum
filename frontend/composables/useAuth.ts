@@ -3,7 +3,7 @@ export const useAuth = () => {
   const be = useBackend();
   return {
     user: () => { const s = be.session(); return s ? { name: s.name, email: s.email } : null; },
-    signIn: (email: string, password: string, totp = '') => be.login(email, password, totp),
+    signIn: (email: string, password: string, totp = '', deviceCode = '') => be.login(email, password, totp, deviceCode),
     // A full reload also clears everything the app holds in memory.
     async signOut() {
       await be.logout();

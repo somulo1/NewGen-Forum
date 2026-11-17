@@ -8,7 +8,12 @@ const REPORT_MS = 10000;
 const MESSAGES = {
   session_replaced: 'You signed in on another browser or device, so you were signed out here.',
   device_unverified: 'This sign-in could not prove it is on this device, so it was ended. Sign in again.',
-  session_expired: 'You were signed out after being inactive. Sign in again to continue.'
+  session_expired: 'You were signed out after being inactive. Sign in again to continue.',
+  phone_replaced: 'Your account is now on another phone, so this phone was signed out. To use Hub here again, sign in and confirm with the code we email you.',
+  session_week: 'For your security the website signs you out once a week. Sign in again to continue.',
+  access_blocked: 'An administrator blocked your access to this organization, so you were signed out.',
+  access_deactivated: 'An administrator turned off your access to this organization, so you were signed out.',
+  access_removed: 'You were removed from this organization, so you were signed out.'
 };
 export const signOutMessage = (code) => MESSAGES[code] || '';
 
@@ -59,6 +64,9 @@ export function startSessionGuard({ logic, be, goLogin }) {
     const rt = logic.srv && logic.srv.rt;
     if (!rt) { const t = setTimeout(watchRealtime, 1000); stops.push(() => clearTimeout(t)); return; }
     rtOff = rt.on('session.replaced', () => { be.request('GET', '/auth/session').catch(() => {}); });
+    // blocked, deactivated or removed by an administrator: the server has already ended the session; asking it signs out here now
+    const offEnded = rt.on('session.ended', () => { be.request('GET', '/auth/session').catch(() => {}); });
+    stops.push(offEnded);
     // back after a dropped connection: a sign-in elsewhere meanwhile is caught here
     const reOff = rt.on('open', (ev) => { if (ev && ev.reconnect) be.request('GET', '/auth/session').catch(() => {}); });
     stops.push(() => { if (rtOff) rtOff(); reOff(); });
@@ -73,7 +81,9 @@ export function startSessionGuard({ logic, be, goLogin }) {
 
   // ---- activity ----
   let lastActive = Date.now(), lastSent = 0, timer = 0, limitMs = 0;
-  const applyLimit = (minutes) => { limitMs = minutes > 0 ? minutes * 60000 : 0; };
+  // the phone app has no inactivity limit: it stays signed in like a chat app (the server agrees, see auth/phone.go)
+  const inApp = typeof window !== 'undefined' && !!(window.HubNative && window.HubNative.app);
+  const applyLimit = (minutes) => { limitMs = minutes > 0 && !inApp ? minutes * 60000 : 0; };
   applyLimit(toMinutes((logic.state.orgSecurity || {}).session));
   const send = () => {
     timer = 0; lastSent = Date.now();

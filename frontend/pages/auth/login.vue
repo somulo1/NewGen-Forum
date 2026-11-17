@@ -8,6 +8,10 @@ const password = ref('');
 const show = ref(false);
 const err = ref('');
 const busy = ref(false);
+// codes the server may ask for: the authenticator code, and (in the phone app) the code emailed to confirm a new phone
+const needMfa = ref(false), needPhone = ref(false);
+const totp = ref(''), phoneCode = ref('');
+const digits = (v) => v.replace(/\s+/g, '');
 // why the last session ended (a sign-in elsewhere, or inactivity), remembered by the app when it signed this browser out
 const why = ref('');
 onMounted(() => {
@@ -16,14 +20,20 @@ onMounted(() => {
 const submit = async () => {
   err.value = '';
   if (!email.value.trim() || !password.value) { err.value = 'Enter your email and password.'; return; }
+  if ((needMfa.value && !/^\d{6}$/.test(digits(totp.value))) || (needPhone.value && !/^\d{6}$/.test(digits(phoneCode.value)))) { err.value = 'Enter the 6-digit code.'; return; }
   busy.value = true;
   try {
-    await useAuth().signIn(email.value, password.value);
+    await useAuth().signIn(email.value, password.value, needMfa.value ? digits(totp.value) : '', needPhone.value ? digits(phoneCode.value) : '');
     const next = typeof route.query.next === 'string' && route.query.next.startsWith('/') ? route.query.next : '/';
     // a full page load, so nothing of whoever used this page before is left in memory
     window.location.assign(next);
     return;
   } catch (e) {
+    const kind = e && e.code;
+    if (kind === 'mfa_required') { needMfa.value = true; totp.value = ''; return; }
+    if (kind === 'device_confirm') { needPhone.value = true; phoneCode.value = ''; totp.value = ''; return; }
+    if (kind === 'device_code_expired') { needPhone.value = false; phoneCode.value = ''; }
+    if (kind === 'invalid_credentials' && needMfa.value) totp.value = '';
     err.value = e instanceof Error ? e.message : 'Could not sign in.';
   } finally {
     busy.value = false;
@@ -39,9 +49,14 @@ const submit = async () => {
     <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--k-55645C,#55645C)">Password
       <span style="position: relative; display: block"><input v-model="password" :type="show ? 'text' : 'password'" autocomplete="current-password" placeholder="Your password" style="width: 100%; box-sizing: border-box; height: 44px; padding: 0 64px 0 14px; border-radius: 12px; border: 1px solid var(--k-C4D0C9,#C4D0C9); background: #FFFFFF; color: var(--k-0F1714,#0F1714); font-size: 15px"><button type="button" :aria-label="show ? 'Hide password' : 'Show password'" @click="show = !show" style="position: absolute; right: 6px; top: 6px; height: 32px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; color: var(--k-55645C,#55645C); cursor: pointer; font-size: 12px">{{ show ? 'Hide' : 'Show' }}</button></span>
     </label>
+    <template v-if="needPhone">
+      <div role="status" style="padding: 10px 12px; border-radius: 10px; background: #EAF6DD; color: #2B5A0B; font-size: 13px">This phone is new to your account. We emailed you a 6-digit code: enter it to make this your phone. Your previous phone will be signed out.</div>
+      <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--k-55645C,#55645C)">Code from your email<input v-model="phoneCode" inputmode="numeric" autocomplete="one-time-code" maxlength="7" placeholder="123456" style="height: 44px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--k-C4D0C9,#C4D0C9); background: #FFFFFF; color: var(--k-0F1714,#0F1714); font-size: 18px; letter-spacing: 0.2em"></label>
+    </template>
+    <label v-if="needMfa" style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--k-55645C,#55645C)">Code from your authenticator app<input v-model="totp" inputmode="numeric" autocomplete="one-time-code" maxlength="7" placeholder="123456" style="height: 44px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--k-C4D0C9,#C4D0C9); background: #FFFFFF; color: var(--k-0F1714,#0F1714); font-size: 18px; letter-spacing: 0.2em"></label>
     <div style="text-align: right"><NuxtLink to="/reset-password" style="color: #2F7A12; font-size: 13px">Forgot password?</NuxtLink></div>
     <span v-if="err" role="alert" style="color: #C0392B; font-size: 13px">{{ err }}</span>
-    <button type="submit" :disabled="busy" style="height: 46px; border-radius: 23px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 700; font-size: 15px; cursor: pointer">{{ busy ? 'Signing in…' : 'Sign in' }}</button>
+    <button type="submit" :disabled="busy" style="height: 46px; border-radius: 23px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 700; font-size: 15px; cursor: pointer">{{ busy ? 'Signing in…' : needPhone || needMfa ? 'Confirm' : 'Sign in' }}</button>
     <span style="text-align: center; color: var(--k-55645C,#55645C)">New here? <NuxtLink to="/signup" style="color: #2F7A12; font-weight: 600">Create an account</NuxtLink></span>
   </form>
 </template>

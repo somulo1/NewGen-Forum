@@ -91,17 +91,17 @@ func WithRefreshProof(ctx context.Context, ts, sig string) context.Context {
 	return context.WithValue(ctx, proofKey{}, refreshProof{TS: n, Sig: strings.TrimSpace(sig)})
 }
 
-// deviceOK reports whether a refresh of session sid (in family) may go ahead: true for a sign-in that is not bound to a phone,
-// or when the signature that came with the request was made by the bound key.
-func deviceOK(ctx context.Context, tx pgx.Tx, family, sid uuid.UUID) (bool, error) {
+// deviceOK reports whether a refresh of session sid (in family) may go ahead, and whether the sign-in is bound to a phone: true
+// for a browser sign-in, or when the signature that came with the request was made by the bound key.
+func deviceOK(ctx context.Context, tx pgx.Tx, family, sid uuid.UUID) (ok, bound bool, err error) {
 	var pub []byte
-	err := tx.QueryRow(ctx, `select public_key from hub.session_devices where family_id=$1`, family).Scan(&pub)
+	err = tx.QueryRow(ctx, `select public_key from hub.session_devices where family_id=$1`, family).Scan(&pub)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return true, nil
+		return true, false, nil
 	}
 	if err != nil {
-		return false, err
+		return false, false, err
 	}
 	p, _ := ctx.Value(proofKey{}).(refreshProof)
-	return verifyProof(pub, refreshProofMessage(sid), p.TS, p.Sig), nil
+	return verifyProof(pub, refreshProofMessage(sid), p.TS, p.Sig), true, nil
 }

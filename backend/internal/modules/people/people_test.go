@@ -135,8 +135,11 @@ func TestBlockSignsOutAndResetForcesChange(t *testing.T) {
 	e.MustDo(200, "GET", "/people", nil, a.Access)
 
 	e.MustDo(204, "POST", "/people/"+aID+"/status", map[string]any{"action": "block"}, owner.Access)
-	if code, _ := e.Do("GET", "/people", nil, a.Access); code != 401 {
-		t.Fatalf("blocked user still has access: %d", code)
+	if code, body := e.Do("GET", "/people", nil, a.Access); code != 401 || body["error"].(map[string]any)["code"] != "access_blocked" {
+		t.Fatalf("blocked user still has access, or is not told why: %d %v", code, body)
+	}
+	if code, body := e.Do("POST", "/auth/refresh", map[string]any{"refresh_token": a.Refresh}, ""); code != 401 || body["error"].(map[string]any)["code"] != "access_blocked" {
+		t.Fatalf("blocked user renewed the sign-in: %d %v", code, body)
 	}
 	if code, body := e.Do("POST", "/auth/login", map[string]any{"email": a.Email, "password": testkit.Password, "org": slug}, ""); code != 403 {
 		t.Fatalf("blocked user signed in: %d %v", code, body)

@@ -24,7 +24,7 @@ let refreshing: Promise<Session | null> | null = null;
 const inFlight = new Map<string, Promise<any>>();
 
 // The server ended this session on purpose: a sign-in somewhere else, or too long without activity. The login page says why.
-const ENDED = ['session_replaced', 'session_expired', 'device_unverified'];
+const ENDED = ['session_replaced', 'session_expired', 'device_unverified', 'phone_replaced', 'session_week', 'access_blocked', 'access_deactivated', 'access_removed'];
 export const SIGNOUT_KEY = 'hub-signout';
 const ended = (code: string) => {
   write(null);
@@ -103,8 +103,9 @@ export const useBackend = () => {
           const t = await raw('POST', '/auth/refresh', { refresh_token: s.refresh, org: s.org?.slug || '' }, undefined, extra);
           const n = toSession(t, s.email); write(n); return n;
         } catch (e) {
-          // the phone app stays signed in without a connection; the token is renewed once the server answers again
-          if (e instanceof ApiError && [0, 502, 503, 504].includes(e.status) && offline.enabled()) return s;
+          // the phone app stays signed in until the server itself ends the sign-in (another phone confirmed, the password changed):
+          // no connection, a server waking up or a busy one only means the token is renewed once it answers again
+          if (e instanceof ApiError && offline.enabled() && e.status !== 401 && e.status !== 403) return s;
           if (e instanceof ApiError && ENDED.includes(e.code)) ended(e.code); else write(null);
           return null;
         }
@@ -182,10 +183,11 @@ export const useBackend = () => {
     rotate: () => refresh(10 * 60 * 1000),   // not on every page change: each rotation kills the access token that requests still in flight are using
     bytes,
     signedIn: () => !!read(),
-    async login(email: string, password: string, totp = ''): Promise<Session> {
+    // deviceCode: the code emailed to confirm a phone the account has not used before (the phone app only)
+    async login(email: string, password: string, totp = '', deviceCode = ''): Promise<Session> {
       const e = email.trim();
       const device = native() ? await deviceProof('login', e.toLowerCase()) : null;
-      const t = await raw('POST', '/auth/login', { email: e, password, browser: browserToken(), ...(totp ? { totp } : {}), ...(device ? { device } : {}) });
+      const t = await raw('POST', '/auth/login', { email: e, password, browser: browserToken(), ...(totp ? { totp } : {}), ...(device ? { device } : {}), ...(device && deviceCode ? { device_code: deviceCode } : {}) });
       const s = toSession(t, e.toLowerCase());
       write(s);
       // The account's device keys come back to this browser (locked with the password, which is only here for this moment), so posts,

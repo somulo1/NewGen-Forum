@@ -369,7 +369,7 @@ func (s *Service) SetStatus(ctx context.Context, p *tenant.Principal, id uuid.UU
 		return err
 	}
 	if account != nil && target != "active" {
-		s.Auth.RevokeAccountInOrg(ctx, *account, p.Org) // they are signed out of this organization right away
+		s.Auth.RevokeAccountInOrg(ctx, *account, p.Org, target) // they are signed out of this organization right away, the phone too
 	}
 	data, _ := json.Marshal(map[string]any{"person": id, "status": target})
 	s.A.Publish(ctx, realtime.Event{Type: "person.status", Channel: realtime.OrgChannel(p.Org), Org: p.Org.String(), Data: data})

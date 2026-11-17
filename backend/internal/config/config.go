@@ -32,9 +32,13 @@ type Config struct {
 	TokenKey  []byte // signs access tokens
 	LedgerKey []byte // signs audit ledger checkpoints
 
-	AccessTTL      time.Duration
-	RefreshTTL     time.Duration
-	AllowedOrigins []string
+	AccessTTL time.Duration
+	// RefreshTTL is how long a browser sign-in lasts, counted from signing in and never extended: the website signs everyone out
+	// once a week (HUB_WEB_SESSION_TTL)
+	RefreshTTL time.Duration
+	// PhoneRefreshTTL is how long the phone app's sign-in lasts without being used; every use renews it (HUB_PHONE_SESSION_TTL)
+	PhoneRefreshTTL time.Duration
+	AllowedOrigins  []string
 
 	CallsURLs   []string // base URLs of the calls microservice instances (a room is pinned to one by hashing its id)
 	CallsSecret []byte   // shared secret used to mint call-room tokens
@@ -80,22 +84,23 @@ type CallLimits struct {
 func Load() (*Config, error) {
 	loadEnvFile()
 	c := &Config{
-		Env:          get("HUB_ENV", "dev"),
-		HTTPAddr:     get("HUB_HTTP_ADDR", ":8080"),
-		DatabaseURL:  get("HUB_DATABASE_URL", "postgres://hub_app:hub_app_dev_pw@127.0.0.1:5433/hub?sslmode=disable"),
-		MigrateURL:   get("HUB_MIGRATE_URL", "postgres://hub_owner:hub_owner_dev_pw@127.0.0.1:5433/hub?sslmode=disable"),
-		RedisAddr:    get("HUB_REDIS_ADDR", "127.0.0.1:6390"),
-		RedisPass:    os.Getenv("HUB_REDIS_PASS"),
-		AccessTTL:    dur("HUB_ACCESS_TTL", 15*time.Minute),
-		RefreshTTL:   dur("HUB_REFRESH_TTL", 30*24*time.Hour),
-		RateRPS:      int(num("HUB_RATE_RPS", 50)),
-		MetricsToken: os.Getenv("HUB_METRICS_TOKEN"),
-		RateIP:       int(num("HUB_RATE_IP", 600)),
-		RateAcctMin:  int(num("HUB_RATE_ACCT_MIN", 1200)),
-		RateAuthIP:   int(num("HUB_RATE_AUTH_IP", 30)),
-		DBGuard:      get("HUB_DB_GUARD", "dev-db-guard-token-change-me"),
-		BlobDir:      get("HUB_BLOB_DIR", "./data/blobs"),
-		MaxUpload:    num("HUB_MAX_UPLOAD", 100<<20),
+		Env:             get("HUB_ENV", "dev"),
+		HTTPAddr:        get("HUB_HTTP_ADDR", ":8080"),
+		DatabaseURL:     get("HUB_DATABASE_URL", "postgres://hub_app:hub_app_dev_pw@127.0.0.1:5433/hub?sslmode=disable"),
+		MigrateURL:      get("HUB_MIGRATE_URL", "postgres://hub_owner:hub_owner_dev_pw@127.0.0.1:5433/hub?sslmode=disable"),
+		RedisAddr:       get("HUB_REDIS_ADDR", "127.0.0.1:6390"),
+		RedisPass:       os.Getenv("HUB_REDIS_PASS"),
+		AccessTTL:       dur("HUB_ACCESS_TTL", 15*time.Minute),
+		RefreshTTL:      dur("HUB_WEB_SESSION_TTL", 7*24*time.Hour),
+		PhoneRefreshTTL: dur("HUB_PHONE_SESSION_TTL", 10*365*24*time.Hour),
+		RateRPS:         int(num("HUB_RATE_RPS", 50)),
+		MetricsToken:    os.Getenv("HUB_METRICS_TOKEN"),
+		RateIP:          int(num("HUB_RATE_IP", 600)),
+		RateAcctMin:     int(num("HUB_RATE_ACCT_MIN", 1200)),
+		RateAuthIP:      int(num("HUB_RATE_AUTH_IP", 30)),
+		DBGuard:         get("HUB_DB_GUARD", "dev-db-guard-token-change-me"),
+		BlobDir:         get("HUB_BLOB_DIR", "./data/blobs"),
+		MaxUpload:       num("HUB_MAX_UPLOAD", 100<<20),
 	}
 	if c.Env == "prod" {
 		// in production nothing falls back to a development default: a missing setting is a clear error, not a silent attempt
