@@ -35,6 +35,7 @@ import (
 	"hub/internal/modules"
 	"hub/internal/modules/auth"
 	"hub/internal/modules/tones"
+	"hub/internal/push"
 	"hub/internal/server"
 	"hub/migrations"
 )
@@ -91,6 +92,7 @@ func Run() {
 	}
 	defer a.Close()
 	go a.Bus.Run(ctx, a.Hub.Deliver)
+	push.Start(ctx, a) // notifications to the phone app while it is closed
 
 	// 2. reference data every deployment needs
 	if err := tones.New(a).Install(ctx); err != nil {

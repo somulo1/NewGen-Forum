@@ -28,6 +28,7 @@ import * as orgW from './widgets/org.js';
 import * as settingsW from './widgets/settings.js';
 import * as typing from './typing.js';
 import { createLazy } from './lazy.js';
+import { startPush } from './push.js';
 
 // chats (forums, dms) come right after the directory they need, so they are not queued behind every other widget
 // loaded when a page first needs them (see lazy.js)
@@ -124,6 +125,7 @@ export async function startServerSync(logic, request, session, bytes) {
   logic._accessPending = false;
   logic.forceUpdate();
   await shell;
+  startPush(logic, srv).catch(() => {});   // the phone app: pushes while Hub is closed (the chats are in, so a tap can open one)
   const lazy = srv.lazy = createLazy(logic, LAZY);
   // the bell shows overdue tickets and shared notes show in chats, so those two arrive quietly a moment after the first screen
   lazy.later(['tickets', 'notes']);

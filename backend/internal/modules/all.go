@@ -22,6 +22,7 @@ import (
 	"hub/internal/modules/tickets"
 	"hub/internal/modules/tones"
 	"hub/internal/notify"
+	"hub/internal/push"
 	"hub/internal/server"
 )
 
@@ -49,6 +50,7 @@ func All(a *app.App, au *auth.Service) []server.Module {
 		security.New(a),
 		settings.New(a),
 		notify.New(a),
+		push.NewModule(a),
 		tones.New(a),
 	}
 }

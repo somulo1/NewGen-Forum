@@ -36,6 +36,8 @@ type App struct {
 	Limit  *realtime.Limiter
 	Mail   mail.Mailer
 	Hooks  []Hook
+	// OnPublish also sees every live event (push notifications to phones that are closed). It must return at once.
+	OnPublish func(context.Context, realtime.Event)
 	// Geo maps an IP address to "City, CC". Nil when no geo-IP database is configured (rules that need it then stay quiet).
 	Geo func(ip string) string
 	// Fast, cheap password hashing in tests; production keeps crypto.DefaultPassword.
@@ -149,7 +151,12 @@ func (a *App) AuditEntry(ctx context.Context, tx pgx.Tx, e *Entry) error {
 }
 
 // Publish sends a realtime event. A failed publish is logged by callers; the database already holds the truth.
-func (a *App) Publish(ctx context.Context, e realtime.Event) { _ = a.Bus.Publish(ctx, e) }
+func (a *App) Publish(ctx context.Context, e realtime.Event) {
+	_ = a.Bus.Publish(ctx, e)
+	if a.OnPublish != nil {
+		a.OnPublish(ctx, e)
+	}
+}
 
 // AuditAccount writes a sign-in style event (failed password, lockout, successful sign-in) into the audit log of every
 // organization the account belongs to, so each organization's security team sees what happens to its people's accounts.

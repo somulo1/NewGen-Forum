@@ -3,7 +3,7 @@
 // the colour of the system bars. Everything comes from the Hub backend through that interface; the app keeps no data of its own.
 import * as Application from 'expo-application';
 import * as Clipboard from 'expo-clipboard';
-import Constants from 'expo-constants';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
@@ -19,6 +19,8 @@ import { COLORS, isSecure, WEB_ORIGIN, WEB_URL } from './config';
 import { proof, ready } from './deviceKey';
 import { saveAndShare } from './files';
 import * as notify from './notify';
+import * as push from './push';
+import { Logo, parseColor } from './ui';
 
 // react-native-webview's class typing does not line up with React 19's ref types; this names the same component with its props
 type WebViewHandle = { goBack: () => void; reload: () => void; injectJavaScript: (js: string) => void };
@@ -31,26 +33,6 @@ type Problem = { title: string; detail: string; retry: boolean } | null;
 
 const here = (u: string) => !!WEB_ORIGIN && (u === WEB_ORIGIN || u.toLowerCase().startsWith(WEB_ORIGIN + '/'));
 const EXTERNAL = /^(https?:|mailto:|tel:|sms:)/i;
-
-// "rgb(15, 23, 20)" -> "#0F1714" and whether it is dark
-function parseColor(c: string): { hex: string; dark: boolean } | null {
-  const m = /rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/i.exec(c || '');
-  if (!m) return null;
-  const [r, g, b] = [m[1], m[2], m[3]].map((x) => Math.max(0, Math.min(255, Number(x))));
-  const hex = '#' + [r, g, b].map((x) => x.toString(16).padStart(2, '0')).join('').toUpperCase();
-  return { hex, dark: 0.2126 * r + 0.7152 * g + 0.0722 * b < 140 };
-}
-
-function Logo() {
-  // the site's favicon: the lime rounded square with the dark H
-  return (
-    <View style={s.logo}>
-      <View style={[s.bar, { left: 17 * 1.1, top: 15 * 1.1, width: 8 * 1.1, height: 34 * 1.1 }]} />
-      <View style={[s.bar, { left: 39 * 1.1, top: 15 * 1.1, width: 8 * 1.1, height: 34 * 1.1 }]} />
-      <View style={[s.bar, { left: 17 * 1.1, top: 28 * 1.1, width: 30 * 1.1, height: 8 * 1.1 }]} />
-    </View>
-  );
-}
 
 export default function HubShell() {
   const web = useRef<WebViewHandle>(null);
@@ -97,6 +79,16 @@ export default function HubShell() {
     return () => sub.remove();
   }, []);
 
+  // pushes: a tap opens what it was about (kept until the page is ready to ask), a new address is registered by the page
+  const pushTap = useRef<push.PushData | null>(null);
+  const pushOn = useRef(false);
+  const giveAddress = useCallback((a: push.PushAddress | null) => { if (a) web.current?.injectJavaScript(`window.__hubPushAddress && window.__hubPushAddress(${JSON.stringify(a)}); true;`); }, []);
+  useEffect(() => {
+    const offTap = push.onTap((d) => { pushTap.current = d; web.current?.injectJavaScript(`window.__hubPushTap && window.__hubPushTap(); true;`); });
+    const offNew = push.onNewAddress(giveAddress);
+    return () => { offTap(); offNew(); };
+  }, [giveAddress]);
+
   useEffect(() => notify.onTap((nid) => {
     web.current?.injectJavaScript(`window.__hubNotifyTap && window.__hubNotifyTap(${JSON.stringify(nid)}); true;`);
   }), []);
@@ -116,12 +108,24 @@ export default function HubShell() {
       case 'proof':
         try { reply(id, true, await proof(String(m.kind), String(m.subject))); } catch (x) { reply(id, false, 'refused'); }
         break;
-      case 'notifyPermission':
-        reply(id, true, await notify.ask());
+      case 'notifyPermission': {
+        const p = await notify.ask();
+        reply(id, true, p);
+        if (p === 'granted') giveAddress(await push.address());
+        break;
+      }
+      case 'pushAddress':
+        reply(id, true, await push.address());
+        break;
+      case 'pushOpened':
+        reply(id, true, pushTap.current); pushTap.current = null;
+        break;
+      case 'pushReady':
+        pushOn.current = !!m.on;   // the backend now pushes to this phone: the page's own alerts would only repeat them
         break;
       case 'notify':
         // the page only announces what arrives while Hub is not in front; inside the app that means the app is in the background
-        if (AppState.currentState !== 'active') notify.show(String(m.nid), String(m.title || 'Hub'), String(m.body || ''), String(m.tag || '')).catch(() => {});
+        if (AppState.currentState !== 'active' && !pushOn.current) notify.show(String(m.nid), String(m.title || 'Hub'), String(m.body || ''), String(m.tag || '')).catch(() => {});
         break;
       case 'notifyClose':
         notify.close(String(m.nid));
@@ -146,10 +150,11 @@ export default function HubShell() {
           asked.current = true;
           const p = await notify.ask();
           web.current?.injectJavaScript(`try { window.Notification.permission = ${JSON.stringify(p)}; } catch (e) {} true;`);
+          if (p === 'granted') giveAddress(await push.address());
         }
         break;
     }
-  }, [reply, boot]);
+  }, [reply, boot, giveAddress]);
 
   const onShouldStart = useCallback((req: ShouldStartLoadRequest) => {
     const u = req.url || '';
@@ -218,6 +223,8 @@ export default function HubShell() {
             mediaCapturePermissionGrantType="grant"
             allowsBackForwardNavigationGestures
             setSupportMultipleWindows={false}
+            // iOS keeps pages offline only on the app's own domains (app.config.ts); Expo Go has none of its own
+            limitsNavigationsToAppBoundDomains={Platform.OS === 'ios' && Constants.executionEnvironment !== ExecutionEnvironment.StoreClient}
             javaScriptCanOpenWindowsAutomatically={false}
             textZoom={100}
             overScrollMode="never"
@@ -236,8 +243,6 @@ export default function HubShell() {
 const s = StyleSheet.create({
   fill: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28, gap: 14 },
-  logo: { width: 64 * 1.1, height: 64 * 1.1, borderRadius: 15 * 1.1, backgroundColor: COLORS.accent, marginBottom: 8 },
-  bar: { position: 'absolute', backgroundColor: COLORS.bg, borderRadius: 2.5 * 1.1 },
   title: { color: COLORS.ink, fontSize: 22, fontWeight: '700', textAlign: 'center' },
   detail: { color: COLORS.muted, fontSize: 15, lineHeight: 22, textAlign: 'center', maxWidth: 420 },
   button: { marginTop: 10, height: 44, paddingHorizontal: 24, borderRadius: 10, backgroundColor: COLORS.accent, alignItems: 'center', justifyContent: 'center' },

@@ -42,3 +42,7 @@ yarn-error.*
 
 # the Hub address for this machine
 .env
+
+# Firebase and Apple push setup for this machine (EAS gets them as file secrets)
+google-services.json
+GoogleService-Info.plist
