@@ -76,15 +76,21 @@ func (s *Service) Refresh(ctx context.Context, refresh, orgSlug, ip, ua string) 
 			return err
 		}
 		// a sign-in bound to a phone renews only with that phone's signature; without it the token was copied, so the sign-in ends
-		if ok, err := deviceOK(ctx, tx, x.Family, x.ID); err != nil {
+		ok, phone, err := deviceOK(ctx, tx, x.Family, x.ID)
+		if err != nil {
 			return err
 		} else if !ok {
 			killed, err = s.revokeFamily(ctx, tx, x.Family)
 			outErr = errDevice
 			return err
 		}
-		// inactive past the organization's limit: the session ends instead of being renewed
-		if x.Org != nil && s.idleExpired(ctx, *x.Org, x.ID) {
+		if phone {
+			ctx = asPhone(ctx) // the phone keeps its long, renewing sign-in
+		} else {
+			ctx = keepEnd(ctx, x.ExpiresAt) // a browser's week counts from signing in, not from the last renewal
+		}
+		// inactive past the organization's limit: a browser session ends instead of being renewed (the phone has no limit)
+		if x.Org != nil && !phone && s.idleExpired(ctx, *x.Org, x.ID) {
 			if err := s.revokeSession(ctx, tx, x); err != nil {
 				return err
 			}
@@ -94,6 +100,9 @@ func (s *Service) Refresh(ctx context.Context, refresh, orgSlug, ip, ua string) 
 		}
 		if x.ExpiresAt.Before(time.Now()) {
 			outErr = httpx.ErrUnauthorized
+			if !phone {
+				outErr = errWeek
+			}
 			return nil
 		}
 		a, err := s.accountByID(ctx, tx, x.Account, false)
@@ -252,34 +261,20 @@ func (s *Service) AccountEmail(ctx context.Context, tx pgx.Tx, id uuid.UUID) (st
 	return s.decEmail(a)
 }
 
-// RevokeAccountInOrg signs the account out of one organization on every device (used when a person is blocked,
-// deactivated or deleted). Their sessions in other organizations are untouched.
-func (s *Service) RevokeAccountInOrg(ctx context.Context, account, org uuid.UUID) {
+// RevokeAccountInOrg signs the account out of one organization on every device, the phone included, at once (used when a person
+// is blocked, deactivated or deleted: status is the new one). Their sessions in other organizations are untouched.
+func (s *Service) RevokeAccountInOrg(ctx context.Context, account, org uuid.UUID, status string) {
 	var killed []uuid.UUID
 	_ = s.A.DB.Tx(ctx, func(tx pgx.Tx) error {
-		rs, err := tx.Query(ctx, `select `+sessionCols+` from hub.sessions where account_id=$1 and org_id=$2 and revoked_at is null for update`, account, org)
-		if err != nil {
-			return err
-		}
-		var live []Session
-		for rs.Next() {
-			x, err := scanSession(rs)
-			if err != nil {
-				rs.Close()
-				return err
-			}
-			live = append(live, x)
-		}
-		rs.Close()
-		for _, x := range live {
-			if err := s.revokeSession(ctx, tx, x); err != nil {
-				return err
-			}
-			killed = append(killed, x.ID)
-		}
-		return nil
+		var err error
+		killed, err = s.revokeWhere(ctx, tx, `s.account_id=$1 and s.org_id=$2`, account, org)
+		return err
 	})
-	s.markRevoked(ctx, killed)
+	why := map[string]string{"blocked": whyBlocked, "inactive": whyDeactivated}[status]
+	if why == "" {
+		why = whyRemoved
+	}
+	s.markEnded(ctx, killed, why)
 }
 
 // AdminSetTemporaryPassword replaces the account's password with a random one that must be changed at next sign-in,

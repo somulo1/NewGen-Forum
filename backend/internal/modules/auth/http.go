@@ -32,8 +32,8 @@ func (s *Service) Middleware(next http.Handler) http.Handler {
 			})(w, r)
 			return
 		}
-		// inactive past the organization's limit: the session ends now (signing out still works)
-		if c.Org != "" && r.URL.Path != "/v1/auth/logout" {
+		// inactive past the organization's limit: a browser session ends now (signing out still works); the phone has no limit
+		if c.Org != "" && !c.Ph && r.URL.Path != "/v1/auth/logout" {
 			org, _ := uuid.Parse(c.Org)
 			sid, _ := uuid.Parse(c.Sid)
 			if s.idleExpired(r.Context(), org, sid) {
@@ -42,7 +42,7 @@ func (s *Service) Middleware(next http.Handler) http.Handler {
 				return
 			}
 		}
-		p := &tenant.Principal{Name: c.Name, IP: httpx.ClientIP(r)}
+		p := &tenant.Principal{Name: c.Name, IP: httpx.ClientIP(r), Phone: c.Ph}
 		p.Account, _ = uuid.Parse(c.Subject)
 		p.Session, _ = uuid.Parse(c.Sid)
 		if c.Org != "" {
@@ -78,11 +78,12 @@ func (s *Service) Public(r chi.Router) {
 			Org      string       `json:"org"`
 			Browser  string       `json:"browser"`
 			Device   *DeviceProof `json:"device"`
+			Code     string       `json:"device_code"`
 		}
 		if err := httpx.Decode(r, &in, 8<<10); err != nil {
 			return err
 		}
-		t, err := s.Login(r.Context(), LoginIn{Email: in.Email, Password: in.Password, TOTP: in.TOTP, Org: in.Org, IP: httpx.ClientIP(r), UserAgent: r.UserAgent(), Browser: in.Browser, Device: in.Device})
+		t, err := s.Login(r.Context(), LoginIn{Email: in.Email, Password: in.Password, TOTP: in.TOTP, Org: in.Org, IP: httpx.ClientIP(r), UserAgent: r.UserAgent(), Browser: in.Browser, Device: in.Device, DeviceCode: in.Code})
 		if err != nil {
 			return err
 		}
@@ -183,10 +184,10 @@ func (s *Service) Private(r chi.Router) {
 		if err != nil {
 			return err
 		}
-		if err := s.Active(r.Context(), p.Session, p.Org, p.Person); err != nil {
+		if err := s.Active(r.Context(), p.Session, p.Org, p.Person, p.Phone); err != nil {
 			return err
 		}
-		httpx.JSON(w, 200, map[string]any{"idle_minutes": int(s.IdleLimit(r.Context(), p.Org) / time.Minute)})
+		httpx.JSON(w, 200, map[string]any{"idle_minutes": int(s.limitFor(r.Context(), p) / time.Minute)})
 		return nil
 	}))
 	// Where the inactivity clock stands, without counting as activity.
@@ -195,7 +196,7 @@ func (s *Service) Private(r chi.Router) {
 		if err != nil {
 			return err
 		}
-		lim := s.IdleLimit(r.Context(), p.Org)
+		lim := s.limitFor(r.Context(), p)
 		left := -1
 		if lim > 0 {
 			left = int((lim - time.Since(s.lastActive(r.Context(), p.Session))).Seconds())

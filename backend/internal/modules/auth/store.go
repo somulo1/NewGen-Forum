@@ -117,9 +117,9 @@ func (s *Service) revokeSession(ctx context.Context, tx pgx.Tx, x Session) error
 	return s.A.Sign.Seal(ctx, tx, "sessions", "id=$1", x.ID)
 }
 
-// revokeFamily revokes every live session in a refresh-token family (reuse of a rotated token means it was stolen).
-func (s *Service) revokeFamily(ctx context.Context, tx pgx.Tx, family uuid.UUID) ([]uuid.UUID, error) {
-	rs, err := tx.Query(ctx, `select `+sessionCols+` from hub.sessions where family_id=$1 and revoked_at is null for update`, family)
+// revokeWhere revokes every live session the condition picks (written against hub.sessions s) and returns their ids.
+func (s *Service) revokeWhere(ctx context.Context, tx pgx.Tx, where string, args ...any) ([]uuid.UUID, error) {
+	rs, err := tx.Query(ctx, `select `+sessionCols+` from hub.sessions s where s.revoked_at is null and `+where+` for update`, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -143,28 +143,18 @@ func (s *Service) revokeFamily(ctx context.Context, tx pgx.Tx, family uuid.UUID)
 	return ids, nil
 }
 
+// revokeFamily revokes every live session in a refresh-token family (reuse of a rotated token means it was stolen).
+func (s *Service) revokeFamily(ctx context.Context, tx pgx.Tx, family uuid.UUID) ([]uuid.UUID, error) {
+	return s.revokeWhere(ctx, tx, `s.family_id=$1`, family)
+}
+
 // revokeAllFor revokes every live session of the account except `keep` (pass uuid.Nil to revoke all).
 func (s *Service) revokeAllFor(ctx context.Context, tx pgx.Tx, account, keep uuid.UUID) ([]uuid.UUID, error) {
-	rs, err := tx.Query(ctx, `select `+sessionCols+` from hub.sessions where account_id=$1 and id<>$2 and revoked_at is null for update`, account, keep)
-	if err != nil {
-		return nil, err
-	}
-	var live []Session
-	for rs.Next() {
-		x, err := scanSession(rs)
-		if err != nil {
-			rs.Close()
-			return nil, err
-		}
-		live = append(live, x)
-	}
-	rs.Close()
-	var ids []uuid.UUID
-	for _, x := range live {
-		if err := s.revokeSession(ctx, tx, x); err != nil {
-			return nil, err
-		}
-		ids = append(ids, x.ID)
-	}
-	return ids, nil
+	return s.revokeWhere(ctx, tx, `s.account_id=$1 and s.id<>$2`, account, keep)
+}
+
+// revokeSlot revokes the account's live sessions of one kind: its phone (a sign-in bound to a phone key) or its browser.
+// A person is signed in on at most one browser and one phone; a new sign-in replaces only the one of its own kind.
+func (s *Service) revokeSlot(ctx context.Context, tx pgx.Tx, account uuid.UUID, phone bool) ([]uuid.UUID, error) {
+	return s.revokeWhere(ctx, tx, `s.account_id=$1 and exists (select 1 from hub.session_devices d where d.family_id = s.family_id) = $2`, account, phone)
 }

@@ -16,6 +16,7 @@ type Principal struct {
 	Session uuid.UUID
 	Name    string
 	IP      string
+	Phone   bool // signed in on the account's phone (the Hub app), not a browser
 }
 
 type key struct{}

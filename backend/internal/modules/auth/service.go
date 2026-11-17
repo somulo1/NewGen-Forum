@@ -54,6 +54,7 @@ type Claims struct {
 	Sid  string `json:"sid"`
 	Name string `json:"name,omitempty"`
 	MC   bool   `json:"mc,omitempty"` // must change password before anything else
+	Ph   bool   `json:"ph,omitempty"` // a sign-in bound to the account's phone: no inactivity limit (see phone.go)
 }
 
 var (
@@ -191,6 +192,7 @@ type LoginIn struct {
 	Email, Password, TOTP, Org, IP, UserAgent string
 	Browser                                   string       // the browser's own random token (empty: a browser that has none yet)
 	Device                                    *DeviceProof // from the phone app: the key this sign-in is bound to (see device.go)
+	DeviceCode                                string       // the emailed code that confirms a phone the account has not used before
 }
 
 var dummyHash = crypto.HashPassword("dummy-password-for-timing", crypto.PasswordParams{Time: 3, MemoryKiB: 64 * 1024, Threads: 2})
@@ -292,6 +294,15 @@ func (s *Service) Login(ctx context.Context, in LoginIn) (*Tokens, error) {
 				return err
 			}
 		}
+		// a phone this account has not used before is confirmed with an emailed code first (see phone.go)
+		if devKey != nil {
+			if loginErr = s.confirmPhone(ctx, tx, a.ID, email, a.DisplayName, devKey, in.DeviceCode); loginErr != nil {
+				if loginErr == errPhoneConfirm {
+					ev.action, ev.rslt = "Sign-in on a new phone: confirmation code emailed", "Pending"
+				}
+				return nil
+			}
+		}
 		// a sign-in from a browser or device this account has never used is reported to its owner. A known browser on another network
 		// or in another place is not: that is the same person moving about, and the email would only be noise.
 		var browser []byte
@@ -313,14 +324,20 @@ func (s *Service) Login(ctx context.Context, in LoginIn) (*Tokens, error) {
 			}
 		}
 		ctx = context.WithValue(ctx, browserKey{}, browser)
-		// one session per account: signing in here signs out every other browser and device
-		if replaced, err = s.revokeAllFor(ctx, tx, a.ID, uuid.Nil); err != nil {
+		// one browser and one phone per account: signing in here signs out the previous one of the same kind
+		if replaced, err = s.revokeSlot(ctx, tx, a.ID, devKey != nil); err != nil {
 			return err
+		}
+		if devKey != nil {
+			ctx = asPhone(ctx)
 		}
 		family := uuid.New()
 		tok, loginErr = s.issue(ctx, tx, a, in.Org, family, in.IP, in.UserAgent)
 		if loginErr == nil && devKey != nil {
 			if err := bindFamily(ctx, tx, family, a.ID, devKey, in.Device.Platform); err != nil {
+				return err
+			}
+			if err := registerPhone(ctx, tx, a.ID, devKey, in.Device.Platform); err != nil {
 				return err
 			}
 		}
@@ -354,7 +371,11 @@ func (s *Service) Login(ctx context.Context, in LoginIn) (*Tokens, error) {
 		return nil, loginErr
 	}
 	if sid, err := uuid.Parse(strings.SplitN(tok.Refresh, ".", 2)[0]); err == nil {
-		s.markEnded(ctx, replaced, whyReplaced)
+		why := whyReplaced
+		if devKey != nil {
+			why = whyPhone
+		}
+		s.markEnded(ctx, replaced, why)
 		s.touch(ctx, sid)
 		if tok.Org != nil {
 			s.SeenToday(ctx, tok.Org.ID, tok.Org.Person)
@@ -423,25 +444,30 @@ func (s *Service) issue(ctx context.Context, tx pgx.Tx, a Account, orgSlug strin
 	}
 	sid := app.NewID()
 	secret := crypto.RandomToken(32)
-	rt := Session{ID: sid, Account: a.ID, Family: family, Org: orgID, RefreshHash: hashSecret(secret), ExpiresAt: app.Now().Add(s.A.Cfg.RefreshTTL)}
+	rt := Session{ID: sid, Account: a.ID, Family: family, Org: orgID, RefreshHash: hashSecret(secret), ExpiresAt: s.signInEnds(ctx).UTC()}
 	rt.Browser, _ = ctx.Value(browserKey{}).([]byte)
 	if err := s.insertSession(ctx, tx, rt, ip, ua); err != nil {
 		return nil, err
 	}
-	access, err := s.sign(a, active, sid)
+	// an access token never outlives its sign-in: a browser is signed out on the second its week is up
+	exp := time.Now().Add(s.A.Cfg.AccessTTL)
+	if rt.ExpiresAt.Before(exp) {
+		exp = rt.ExpiresAt
+	}
+	access, err := s.sign(a, active, sid, isPhone(ctx), exp)
 	if err != nil {
 		return nil, err
 	}
-	return &Tokens{Access: access, Refresh: sid.String() + "." + secret, ExpiresIn: int(s.A.Cfg.AccessTTL.Seconds()), Account: a.ID, Name: a.DisplayName, Org: active, Orgs: orgs, MustChange: a.MustChange}, nil
+	return &Tokens{Access: access, Refresh: sid.String() + "." + secret, ExpiresIn: int(time.Until(exp).Seconds()), Account: a.ID, Name: a.DisplayName, Org: active, Orgs: orgs, MustChange: a.MustChange}, nil
 }
 
 type browserKey struct{}
 
 func hashSecret(secret string) []byte { h := sha256.Sum256([]byte(secret)); return h[:] }
 
-func (s *Service) sign(a Account, org *OrgRef, sid uuid.UUID) (string, error) {
+func (s *Service) sign(a Account, org *OrgRef, sid uuid.UUID, phone bool, exp time.Time) (string, error) {
 	now := time.Now()
-	c := Claims{RegisteredClaims: jwt.RegisteredClaims{Issuer: "hub", Subject: a.ID.String(), IssuedAt: jwt.NewNumericDate(now), ExpiresAt: jwt.NewNumericDate(now.Add(s.A.Cfg.AccessTTL)), ID: uuid.NewString()}, Sid: sid.String(), Name: a.DisplayName, MC: a.MustChange}
+	c := Claims{RegisteredClaims: jwt.RegisteredClaims{Issuer: "hub", Subject: a.ID.String(), IssuedAt: jwt.NewNumericDate(now), ExpiresAt: jwt.NewNumericDate(exp), ID: uuid.NewString()}, Sid: sid.String(), Name: a.DisplayName, MC: a.MustChange, Ph: phone}
 	if org != nil {
 		c.Org, c.Pid = org.ID.String(), org.Person.String()
 	}

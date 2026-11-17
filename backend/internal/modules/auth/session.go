@@ -12,30 +12,41 @@ import (
 	"hub/internal/httpx"
 	"hub/internal/orgsettings"
 	"hub/internal/realtime"
+	"hub/internal/tenant"
 )
 
-// One live session per account, and sign-out after inactivity.
+// One browser and one phone per account, and sign-out after inactivity in the browser.
 //
-// Signing in ends every other session of the account (another browser or device is signed out at once, like WhatsApp
-// Web), and that browser is told over the realtime socket. Inactivity is measured from real use: the app reports the
+// Signing in on a browser ends the account's other browser session, and signing in on a phone ends its other phone session
+// (like WhatsApp and WhatsApp Web); the one replaced is told over the realtime socket. The phone has no inactivity limit
+// (see phone.go). Inactivity is measured from real use: the app reports the
 // person's last click or key press (POST /auth/active); background requests do not count. When the organization's limit
 // passes without activity, the next request is refused and the session ends, to the second.
 
 const (
-	whyReplaced = "replaced"
-	whyIdle     = "idle"
+	whyReplaced    = "replaced"
+	whyPhone       = "phone" // the account was confirmed on another phone
+	whyBlocked     = "blocked"
+	whyDeactivated = "deactivated"
+	whyRemoved     = "removed"
+	whyIdle        = "idle"
 )
 
 var (
 	errReplaced = httpx.Err(401, "session_replaced", "You signed in on another browser or device, so you were signed out here.")
 	errIdle     = httpx.Err(401, "session_expired", "You were signed out after being inactive. Sign in again to continue.")
+	errWeek     = httpx.Err(401, "session_week", "For your security the website signs you out once a week. Sign in again to continue.")
+	errBlocked  = httpx.Err(401, "access_blocked", "An administrator blocked your access to this organization, so you were signed out.")
+	errOff      = httpx.Err(401, "access_deactivated", "An administrator turned off your access to this organization, so you were signed out.")
+	errRemoved  = httpx.Err(401, "access_removed", "You were removed from this organization, so you were signed out.")
+	errPhoneOut = httpx.Err(401, "phone_replaced", "Your account is now on another phone, so this phone was signed out. Signing in here again needs a code from your email.")
 )
 
 // markEnded revokes access tokens now and remembers why each session ended, so the browser can say so.
 func (s *Service) markEnded(ctx context.Context, ids []uuid.UUID, why string) {
 	for _, id := range ids {
 		s.A.Rdb.Set(ctx, "revoked:"+id.String(), why, s.A.Cfg.AccessTTL+time.Minute)
-		s.A.Rdb.Set(ctx, "ended:"+id.String(), why, 7*24*time.Hour)
+		s.A.Rdb.Set(ctx, "ended:"+id.String(), why, 30*24*time.Hour) // a phone that was offline for weeks still learns why
 	}
 }
 
@@ -45,6 +56,14 @@ func endedErr(why string) error {
 		return errReplaced
 	case whyIdle:
 		return errIdle
+	case whyPhone:
+		return errPhoneOut
+	case whyBlocked:
+		return errBlocked
+	case whyDeactivated:
+		return errOff
+	case whyRemoved:
+		return errRemoved
 	}
 	return httpx.ErrUnauthorized
 }
@@ -121,9 +140,17 @@ func (s *Service) endIdle(ctx context.Context, sid uuid.UUID) {
 	s.markEnded(ctx, append(ids, sid), whyIdle)
 }
 
+// limitFor is the inactivity limit of the caller's session: the organization's for a browser, none for the phone.
+func (s *Service) limitFor(ctx context.Context, p *tenant.Principal) time.Duration {
+	if p.Phone {
+		return 0
+	}
+	return s.IdleLimit(ctx, p.Org)
+}
+
 // Active records that the person is using the app (a click or key press) and counts them as active today.
-func (s *Service) Active(ctx context.Context, sid, org, person uuid.UUID) error {
-	if org != uuid.Nil && s.idleExpired(ctx, org, sid) {
+func (s *Service) Active(ctx context.Context, sid, org, person uuid.UUID, phone bool) error {
+	if org != uuid.Nil && !phone && s.idleExpired(ctx, org, sid) {
 		s.endIdle(ctx, sid)
 		return errIdle
 	}

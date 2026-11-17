@@ -62,10 +62,7 @@ func TestPhoneSignInIsBoundToThePhone(t *testing.T) {
 		t.Fatalf("forged phone proof accepted: %d", code)
 	}
 
-	code, tok := e.do("POST", "/auth/login", map[string]any{"email": email, "password": "Passw0rdOK", "device": me.login(email)}, "")
-	if code != 200 {
-		t.Fatalf("phone login %d %v", code, tok)
-	}
+	tok := e.phoneLogin(email, me)
 	r1 := tok["refresh_token"].(string)
 
 	// the phone renews with its own signature
@@ -113,3 +110,90 @@ func TestPhoneSignInIsBoundToThePhone(t *testing.T) {
 }
 
 func jsonText(v any) string { b, _ := json.Marshal(v); return string(b) }
+
+func errCode(out map[string]any) string {
+	if e, ok := out["error"].(map[string]any); ok {
+		c, _ := e["code"].(string)
+		return c
+	}
+	return ""
+}
+
+func (e *env) phoneMails(email string) []string {
+	var out []string
+	for _, m := range e.dev.To(email) {
+		if strings.Contains(m.Subject, "Confirm your phone") {
+			out = append(out, m.Body)
+		}
+	}
+	return out
+}
+
+// phoneLogin signs in from a phone the account has not confirmed: the first try emails a code, the second (with it) works.
+func (e *env) phoneLogin(email string, p phone) map[string]any {
+	e.t.Helper()
+	before := len(e.phoneMails(email))
+	code, out := e.do("POST", "/auth/login", map[string]any{"email": email, "password": "Passw0rdOK", "device": p.login(email)}, "")
+	if code != 401 || errCode(out) != "device_confirm" {
+		e.t.Fatalf("a new phone must be confirmed first: %d %v", code, out)
+	}
+	var mails []string
+	for i := 0; i < 100 && len(mails) <= before; i++ {
+		time.Sleep(20 * time.Millisecond)
+		mails = e.phoneMails(email)
+	}
+	if len(mails) <= before {
+		e.t.Fatal("no confirmation email")
+	}
+	c := codeRe.FindStringSubmatch(mails[len(mails)-1])[1]
+	code, tok := e.do("POST", "/auth/login", map[string]any{"email": email, "password": "Passw0rdOK", "device": p.login(email), "device_code": c}, "")
+	if code != 200 {
+		e.t.Fatalf("confirmed phone login %d %v", code, tok)
+	}
+	return tok
+}
+
+// One browser and one phone: each new sign-in replaces only the previous one of its kind, and a new phone needs the emailed
+// code, after which the old phone is signed out and needs the same confirmation to come back.
+func TestOneBrowserAndOnePhone(t *testing.T) {
+	e := newEnv(t)
+	email := uniq()
+	e.signup(email, "Passw0rdOK")
+	alive := func(access string) bool { c, _ := e.do("GET", "/auth/session", nil, access); return c == 200 }
+
+	_, webA := e.do("POST", "/auth/login", map[string]any{"email": email, "password": "Passw0rdOK"}, "")
+	first, second := newPhone(), newPhone()
+	p1 := e.phoneLogin(email, first)
+	if !alive(webA["access_token"].(string)) {
+		t.Fatal("signing in on the phone signed the browser out")
+	}
+
+	_, webB := e.do("POST", "/auth/login", map[string]any{"email": email, "password": "Passw0rdOK"}, "")
+	if c, out := e.do("GET", "/auth/session", nil, webA["access_token"].(string)); c != 401 || errCode(out) != "session_replaced" {
+		t.Fatalf("the first browser must be signed out by the second: %d %v", c, out)
+	}
+	code, p1b := e.refresh(p1["refresh_token"].(string), &first, time.Now())
+	if code != 200 {
+		t.Fatalf("a browser sign-in signed the phone out: %d", code)
+	}
+
+	// another phone: nothing changes until it is confirmed; a wrong code is refused
+	if code, out := e.do("POST", "/auth/login", map[string]any{"email": email, "password": "Passw0rdOK", "device": second.login(email), "device_code": "000000"}, ""); code != 401 || (errCode(out) != "device_code" && errCode(out) != "device_code_expired") {
+		t.Fatalf("a made-up code: %d %v", code, out)
+	}
+	if !alive(p1b["access_token"].(string)) {
+		t.Fatal("an unconfirmed phone signed the first phone out")
+	}
+	e.phoneLogin(email, second)
+	code, out := e.refresh(p1b["refresh_token"].(string), &first, time.Now())
+	if code != 401 || errCode(out) != "phone_replaced" {
+		t.Fatalf("the old phone must be signed out once the new one is confirmed: %d %v", code, out)
+	}
+	if !alive(webB["access_token"].(string)) {
+		t.Fatal("confirming a new phone signed the browser out")
+	}
+	// the old phone comes back only through the same confirmation
+	if code, out := e.do("POST", "/auth/login", map[string]any{"email": email, "password": "Passw0rdOK", "device": first.login(email)}, ""); code != 401 || errCode(out) != "device_confirm" {
+		t.Fatalf("the replaced phone signed in without confirmation: %d %v", code, out)
+	}
+}
