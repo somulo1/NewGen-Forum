@@ -58,16 +58,17 @@ export function startSessionGuard({ logic, be, goLogin }) {
     const rt = logic.srv && logic.srv.rt;
     if (!rt) { const t = setTimeout(watchRealtime, 1000); stops.push(() => clearTimeout(t)); return; }
     rtOff = rt.on('session.replaced', () => { be.request('GET', '/auth/session').catch(() => {}); });
-    stops.push(() => rtOff && rtOff());
+    // back after a dropped connection: a sign-in elsewhere meanwhile is caught here
+    const reOff = rt.on('open', (ev) => { if (ev && ev.reconnect) be.request('GET', '/auth/session').catch(() => {}); });
+    stops.push(() => { if (rtOff) rtOff(); reOff(); });
   };
   watchRealtime();
-  // Without waiting for the live connection: a sign-in on another browser or phone ends this session, so ask the server now and then
-  // and the moment this tab is looked at again. A 401 for an ended session signs this tab out at once.
+  // A sign-in on another browser or phone ends this session: the live connection says so at once (session.replaced). Without
+  // polling, the server is also asked the moment this tab is looked at again. A 401 for an ended session signs this tab out at once.
   const probe = () => { if (!document.hidden) be.request('GET', '/auth/session').catch(() => {}); };
-  const probeT = setInterval(probe, 15000);
   document.addEventListener('visibilitychange', probe);
   window.addEventListener('focus', probe);
-  stops.push(() => { clearInterval(probeT); document.removeEventListener('visibilitychange', probe); window.removeEventListener('focus', probe); });
+  stops.push(() => { document.removeEventListener('visibilitychange', probe); window.removeEventListener('focus', probe); });
 
   // ---- activity ----
   let lastActive = Date.now(), lastSent = 0, timer = 0, limitMs = 0;

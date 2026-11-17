@@ -92,8 +92,12 @@ export async function startServerSync(logic, request, session, bytes) {
   });
   // ...and keep doing it while this tab is open: a colleague added to the wall or a forum after you signed in gets their key from
   // whoever of its members is online, so this must not wait for the next sign-in
-  clearInterval(srv.custodyT);
-  srv.custodyT = setInterval(() => { if (!document.hidden && logic.srv === srv) vault.custody().catch(() => {}); }, 30000);
+  // (no polling: it runs when the live connection says someone needs a key, when people join a conversation, and when the
+  // connection comes back after a drop)
+  let custodyT = 0;
+  const custodySoon = () => { clearTimeout(custodyT); custodyT = setTimeout(() => { if (logic.srv === srv) vault.custody().catch(() => {}); }, 300 + Math.random() * 700); };
+  ['member.added', 'member.joined'].forEach((t) => rt.on(t, custodySoon));
+  rt.on('open', (ev) => { if (ev && ev.reconnect) custodySoon(); });
   // Signed in: the sample data built into the app must not show while (or if) the real data loads. Every list the server
   // fills starts empty, and whatever was open from the samples is closed.
   logic.setState({

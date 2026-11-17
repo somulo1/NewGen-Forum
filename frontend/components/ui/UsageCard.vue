@@ -32,10 +32,18 @@ export default {
   name: 'UsageCard',
   data() { return { data: null, open: '', err: '', timer: 0, per: 'monthly', tabs: [{ k: 'monthly', l: 'Monthly' }, { k: 'quarterly', l: 'Quarterly' }, { k: 'yearly', l: 'Yearly' }] }; },
   computed: { periodRows() { return (this.data && this.data[this.per]) || []; }, list() { return this.open === 'w' ? this.data.inactive_1w : this.data.inactive_2w; } },
-  mounted() { this.load(); this.timer = setInterval(() => this.load(), 60000); },
-  beforeUnmount() { clearInterval(this.timer); },
+  // live: it reloads when someone uses Hub for the first time today, or when the connection comes back (no polling)
+  mounted() { this.load(); this.listen(); },
+  beforeUnmount() { (this.offs || []).forEach((f) => { try { f(); } catch (e) { /* gone */ } }); },
   methods: {
     day(d) { return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }); },
+    listen() {
+      const srv = useHubStore().logic.srv;
+      if (!srv || !srv.rt) { setTimeout(() => this.listen(), 1000); return; }
+      let t = 0;
+      const again = () => { clearTimeout(t); t = setTimeout(() => this.load(), 500); };
+      this.offs = [srv.rt.on('activity.changed', again), srv.rt.on('open', (ev) => { if (ev && ev.reconnect) again(); })];
+    },
     async load() {
       const srv = useHubStore().logic.srv;
       if (!srv) { setTimeout(() => this.load(), 1000); return; }

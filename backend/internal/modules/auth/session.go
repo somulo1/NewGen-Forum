@@ -140,10 +140,16 @@ func (s *Service) SeenToday(ctx context.Context, org, person uuid.UUID) {
 	if ok, err := s.A.Rdb.SetNX(ctx, "seen:"+org.String()+":"+person.String()+":"+day, 1, 48*time.Hour).Result(); err == nil && !ok {
 		return
 	}
+	added := false
 	_ = s.A.DB.WithOrg(ctx, org, func(tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, `insert into hub.person_days (org_id, person_id, day) values ($1,$2,$3::date) on conflict do nothing`, org, person, day)
+		tag, err := tx.Exec(ctx, `insert into hub.person_days (org_id, person_id, day) values ($1,$2,$3::date) on conflict do nothing`, org, person, day)
+		added = err == nil && tag.RowsAffected() > 0
 		return err
 	})
+	if added {
+		// usage figures (Security & logs) move: told over the live connection, not found by polling
+		s.A.Publish(ctx, realtime.Event{Type: "activity.changed", Channel: realtime.OrgChannel(org), Org: org.String()})
+	}
 }
 
 var nairobi = func() *time.Location {
