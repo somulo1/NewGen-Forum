@@ -36,6 +36,24 @@ npx expo start
 
 Scan the QR code with the camera (iOS) or the Expo Go app (Android). Use the latest Expo Go (SDK 58).
 
+## Push notifications
+
+New messages, incoming calls and notifications reach the phone while Hub is in the background or closed: in the notification
+area and on the lock screen, with the Hub icon, like a chat app. A tap opens the chat or the notifications. They do not work
+in Expo Go on Android; use a build (below). Chat messages are end-to-end encrypted, so a push never shows what was written;
+the organization's "details in emails" setting decides whether it names the sender and the chat.
+
+Android (Firebase Cloud Messaging):
+
+1. In the [Firebase console](https://console.firebase.google.com), create a project and add an Android app with the package
+   `com.newgen.hub`. Download `google-services.json` into `mobile/` (it is not committed). For EAS builds, upload it as a
+   file secret instead: `npx eas-cli@latest env:create --name GOOGLE_SERVICES_JSON --type file --value ./google-services.json`.
+2. In Project settings > Service accounts, generate a private key and set its JSON as `HUB_FCM_CREDENTIALS` on the backend.
+
+iOS (Apple Push Notification service): create an APNs key in the Apple developer account and set `HUB_APNS_KEY`,
+`HUB_APNS_KEY_ID` and `HUB_APNS_TEAM_ID` on the backend (`HUB_APNS_SANDBOX=true` with `HUB_APS_ENV=development` for
+development builds).
+
 ## Build an APK
 
 With EAS (cloud build; needs a free Expo account):

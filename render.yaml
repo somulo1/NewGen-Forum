@@ -51,6 +51,14 @@ services:
         sync: false
       - key: HUB_FILE_SERVERS
         sync: false
+      - key: HUB_FCM_CREDENTIALS
+        sync: false
+      - key: HUB_APNS_KEY
+        sync: false
+      - key: HUB_APNS_KEY_ID
+        sync: false
+      - key: HUB_APNS_TEAM_ID
+        sync: false
       - key: HUB_OWNER_NAME
         sync: false
       - key: HUB_OWNER_EMAIL

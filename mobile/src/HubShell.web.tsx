@@ -6,6 +6,7 @@ import React, { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { COLORS, WEB_URL } from './config';
+import { Logo } from './ui';
 
 const target = WEB_URL ? WEB_URL + '/' : '';
 
@@ -16,11 +17,7 @@ export default function HubShell() {
 
   return (
     <View style={s.fill}>
-      <View style={s.logo}>
-        <View style={[s.bar, { left: 18.7, top: 16.5, width: 8.8, height: 37.4 }]} />
-        <View style={[s.bar, { left: 42.9, top: 16.5, width: 8.8, height: 37.4 }]} />
-        <View style={[s.bar, { left: 18.7, top: 30.8, width: 33, height: 8.8 }]} />
-      </View>
+      <Logo />
       {target ? (
         <>
           <Text style={s.title}>Opening Hub…</Text>
@@ -40,8 +37,6 @@ export default function HubShell() {
 
 const s = StyleSheet.create({
   fill: { flex: 1, minHeight: '100%', alignItems: 'center', justifyContent: 'center', padding: 28, gap: 14, backgroundColor: COLORS.bg },
-  logo: { width: 70.4, height: 70.4, borderRadius: 16.5, backgroundColor: COLORS.accent, marginBottom: 8 },
-  bar: { position: 'absolute', backgroundColor: COLORS.bg, borderRadius: 2.75 },
   title: { color: COLORS.ink, fontSize: 22, fontWeight: '700', textAlign: 'center' },
   detail: { color: COLORS.muted, fontSize: 15, lineHeight: 22, textAlign: 'center', width: '100%', maxWidth: 420 },
   button: { marginTop: 10, height: 44, paddingHorizontal: 24, borderRadius: 10, backgroundColor: COLORS.accent, alignItems: 'center', justifyContent: 'center' },

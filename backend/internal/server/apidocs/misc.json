@@ -1175,5 +1175,29 @@
   "errors": {
    "409": "already_decided"
   }
+ },
+ "POST /v1/push/devices": {
+  "summary": "Turn on push notifications for this phone",
+  "description": "The Hub phone app sends the address its platform gave it (an FCM token on Android, an APNs device token on iOS). Pushes go to it only while this sign-in is alive and in this organization; signing out, or a sign-in elsewhere that replaces this one, stops them. Chat pushes never carry what was written; the organization's email-details setting decides whether they name the sender and the chat.",
+  "access": "a sign-in made from the Hub phone app (bound to the phone's key)",
+  "status": 204,
+  "request": {
+   "token": "string, required. The platform's push address",
+   "platform": "string, required. android | ios"
+  },
+  "errors": {
+   "400": "Not a push address, or a platform other than android or ios",
+   "403": "The sign-in was not made from the Hub phone app"
+  }
+ },
+ "DELETE /v1/push/devices": {
+  "summary": "Turn off push notifications for this phone",
+  "description": "Forgets this push address for the signed-in account (the app calls it when signing out).",
+  "access": "any signed-in person",
+  "status": 204,
+  "request": {
+   "token": "string, required. The platform's push address",
+   "platform": "string, required. android | ios"
+  }
  }
 }
