@@ -68,13 +68,26 @@ func phoneCodeKey(account uuid.UUID, key []byte) string {
 	return "phonecode:" + account.String() + ":" + hex.EncodeToString(hashSecret(string(key)))
 }
 
-// knownPhone reports whether this key is the account's phone. An account confirmed no phone yet keeps the phone it was already
-// bound to before confirmation existed, so nobody signed in on the app has to confirm it again.
-func knownPhone(ctx context.Context, tx pgx.Tx, account uuid.UUID, key []byte) (bool, error) {
-	var current []byte
-	err := tx.QueryRow(ctx, `select public_key from hub.account_phones where account_id=$1`, account).Scan(&current)
+// phoneMark is what the server keeps of the phone's identifier: a keyed hash, useless anywhere else.
+func (s *Service) phoneMark(device string) []byte {
+	if device == "" {
+		return nil
+	}
+	return crypto.MAC(s.A.Cfg.TokenKey, []byte("hub/phone-device/v1"), []byte(device))
+}
+
+// knownPhone reports whether this is the account's phone: the same key, or the same phone with a new key (the app was
+// reinstalled or its data cleared, which erases the key on Android). An account that confirmed no phone yet keeps the phone it
+// was already bound to before confirmation existed, so nobody signed in on the app has to confirm it again.
+func (s *Service) knownPhone(ctx context.Context, tx pgx.Tx, account uuid.UUID, key []byte, device string) (bool, error) {
+	var current, mark []byte
+	err := tx.QueryRow(ctx, `select public_key, device_hash from hub.account_phones where account_id=$1`, account).Scan(&current, &mark)
 	if err == nil {
-		return subtle.ConstantTimeCompare(current, key) == 1, nil
+		if subtle.ConstantTimeCompare(current, key) == 1 {
+			return true, nil
+		}
+		m := s.phoneMark(device)
+		return m != nil && mark != nil && subtle.ConstantTimeCompare(m, mark) == 1, nil
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return false, err
@@ -85,8 +98,8 @@ func knownPhone(ctx context.Context, tx pgx.Tx, account uuid.UUID, key []byte) (
 }
 
 // confirmPhone lets a sign-in from the account's own phone through, and asks any other phone for the emailed code.
-func (s *Service) confirmPhone(ctx context.Context, tx pgx.Tx, account uuid.UUID, email, name string, key []byte, code string) error {
-	known, err := knownPhone(ctx, tx, account, key)
+func (s *Service) confirmPhone(ctx context.Context, tx pgx.Tx, account uuid.UUID, email, name string, key []byte, device, code string) error {
+	known, err := s.knownPhone(ctx, tx, account, key, device)
 	if err != nil || known {
 		return err
 	}
@@ -123,13 +136,16 @@ func (s *Service) confirmPhone(ctx context.Context, tx pgx.Tx, account uuid.UUID
 	return nil
 }
 
-// registerPhone makes this key the account's phone (the previous phone's sign-in is ended by the caller).
-func registerPhone(ctx context.Context, tx pgx.Tx, account uuid.UUID, key []byte, platform string) error {
+// registerPhone makes this key (and this phone) the account's phone; the previous one's sign-in is ended by the caller. The same
+// key signing in from an app too old to name its phone keeps the phone already on record.
+func (s *Service) registerPhone(ctx context.Context, tx pgx.Tx, account uuid.UUID, key []byte, device, platform string) error {
 	if len(platform) > 40 {
 		platform = platform[:40]
 	}
-	_, err := tx.Exec(ctx, `insert into hub.account_phones (account_id, public_key, platform) values ($1,$2,$3)
-		on conflict (account_id) do update set public_key=excluded.public_key, platform=excluded.platform, bound_at=now()`, account, key, platform)
+	_, err := tx.Exec(ctx, `insert into hub.account_phones (account_id, public_key, platform, device_hash) values ($1,$2,$3,$4)
+		on conflict (account_id) do update set public_key=excluded.public_key, platform=excluded.platform, bound_at=now(),
+		device_hash = case when excluded.public_key = hub.account_phones.public_key then coalesce(excluded.device_hash, hub.account_phones.device_hash) else excluded.device_hash end`,
+		account, key, platform, s.phoneMark(device))
 	return err
 }
 

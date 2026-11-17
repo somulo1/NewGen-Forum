@@ -205,7 +205,7 @@ func (s *Service) Login(ctx context.Context, in LoginIn) (*Tokens, error) {
 	if !s.domainAllowed(email) {
 		return nil, errDomain
 	}
-	devKey, err := loginKey(in.Device, email)
+	devKey, phoneID, err := loginKey(in.Device, email)
 	if err != nil {
 		return nil, err
 	}
@@ -296,7 +296,7 @@ func (s *Service) Login(ctx context.Context, in LoginIn) (*Tokens, error) {
 		}
 		// a phone this account has not used before is confirmed with an emailed code first (see phone.go)
 		if devKey != nil {
-			if loginErr = s.confirmPhone(ctx, tx, a.ID, email, a.DisplayName, devKey, in.DeviceCode); loginErr != nil {
+			if loginErr = s.confirmPhone(ctx, tx, a.ID, email, a.DisplayName, devKey, phoneID, in.DeviceCode); loginErr != nil {
 				if loginErr == errPhoneConfirm {
 					ev.action, ev.rslt = "Sign-in on a new phone: confirmation code emailed", "Pending"
 				}
@@ -337,7 +337,7 @@ func (s *Service) Login(ctx context.Context, in LoginIn) (*Tokens, error) {
 			if err := bindFamily(ctx, tx, family, a.ID, devKey, in.Device.Platform); err != nil {
 				return err
 			}
-			if err := registerPhone(ctx, tx, a.ID, devKey, in.Device.Platform); err != nil {
+			if err := s.registerPhone(ctx, tx, a.ID, devKey, phoneID, in.Device.Platform); err != nil {
 				return err
 			}
 		}

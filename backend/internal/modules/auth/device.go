@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	"encoding/base64"
 	"errors"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -28,6 +29,7 @@ type DeviceProof struct {
 	TS       int64  `json:"ts"`
 	Sig      string `json:"sig"`
 	Platform string `json:"platform"`
+	Device   string `json:"device"` // a SHA-256 (hex) of the phone's own identifier for the app; covered by the signature
 }
 
 var (
@@ -56,16 +58,26 @@ func verifyProof(pub []byte, msg string, ts int64, sig64 string) bool {
 	return ed25519.Verify(ed25519.PublicKey(pub), []byte(msg+"|"+strconv.FormatInt(ts, 10)), sig)
 }
 
-// loginKey checks the proof sent with a sign-in and returns the public key to bind (nil: a browser, nothing to bind).
-func loginKey(p *DeviceProof, email string) ([]byte, error) {
+var phoneHashRe = regexp.MustCompile(`^[0-9a-f]{64}$`)
+
+// loginKey checks the proof sent with a sign-in and returns the public key to bind (nil: a browser, nothing to bind) and the
+// phone's identifier hash ("" when the app sent none).
+func loginKey(p *DeviceProof, email string) ([]byte, string, error) {
 	if p == nil || (p.Key == "" && p.Sig == "") {
-		return nil, nil
+		return nil, "", nil
+	}
+	msg := loginProofMessage(email)
+	if p.Device != "" {
+		if !phoneHashRe.MatchString(p.Device) {
+			return nil, "", errDeviceProof
+		}
+		msg += "|" + p.Device
 	}
 	pub, err := base64.StdEncoding.DecodeString(p.Key)
-	if err != nil || !verifyProof(pub, loginProofMessage(email), p.TS, p.Sig) {
-		return nil, errDeviceProof
+	if err != nil || !verifyProof(pub, msg, p.TS, p.Sig) {
+		return nil, "", errDeviceProof
 	}
-	return pub, nil
+	return pub, p.Device, nil
 }
 
 // bindFamily ties a new sign-in (its refresh-token family) to the phone's key.

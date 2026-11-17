@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -13,10 +14,25 @@ import (
 	"time"
 )
 
-// phone stands in for the Hub phone app: it keeps a private key and signs what the server asks for.
-type phone struct{ priv ed25519.PrivateKey }
+// phone stands in for the Hub phone app: it keeps a private key and signs what the server asks for. id is the hash of the
+// phone's own identifier (empty: an app too old to send one).
+type phone struct {
+	priv ed25519.PrivateKey
+	id   string
+}
 
-func newPhone() phone { _, k, _ := ed25519.GenerateKey(rand.Reader); return phone{k} }
+func newPhone() phone { _, k, _ := ed25519.GenerateKey(rand.Reader); return phone{priv: k} }
+
+// reinstalled is the same phone after the app was reinstalled: a new key, the same phone identifier.
+func (p phone) reinstalled() phone { n := newPhone(); n.id = p.id; return n }
+
+func namedPhone() phone {
+	p := newPhone()
+	b := make([]byte, 32)
+	_, _ = rand.Read(b)
+	p.id = hex.EncodeToString(b)
+	return p
+}
 
 func (p phone) sign(msg string, at time.Time) (int64, string) {
 	ts := at.Unix()
@@ -24,8 +40,12 @@ func (p phone) sign(msg string, at time.Time) (int64, string) {
 }
 
 func (p phone) login(email string) map[string]any {
-	ts, sig := p.sign("hub-device-login|"+strings.ToLower(email), time.Now())
-	return map[string]any{"key": base64.StdEncoding.EncodeToString(p.priv.Public().(ed25519.PublicKey)), "ts": ts, "sig": sig, "platform": "android 36"}
+	msg := "hub-device-login|" + strings.ToLower(email)
+	if p.id != "" {
+		msg += "|" + p.id
+	}
+	ts, sig := p.sign(msg, time.Now())
+	return map[string]any{"key": base64.StdEncoding.EncodeToString(p.priv.Public().(ed25519.PublicKey)), "ts": ts, "sig": sig, "platform": "android 36", "device": p.id}
 }
 
 // refresh sends a refresh with (or, with no phone, without) the device signature headers.
@@ -211,5 +231,41 @@ func TestOneBrowserAndOnePhone(t *testing.T) {
 	}
 	if code, out := e.refresh(p2["refresh_token"].(string), &second, time.Now()); code != 200 {
 		t.Fatalf("a password change signed the phone out: %d %v", code, out)
+	}
+}
+
+// Reinstalling or updating the app on the same phone is not a change of phone: no code, and it stays the account's phone.
+// Only another phone needs the emailed code, and confirming it signs the old phone out.
+func TestReinstallOnTheSamePhoneIsNotADeviceChange(t *testing.T) {
+	e := newEnv(t)
+	email := uniq()
+	e.signup(email, "Passw0rdOK")
+	mine := namedPhone()
+	e.phoneLogin(email, mine)
+
+	again := mine.reinstalled()
+	code, tok := e.do("POST", "/auth/login", map[string]any{"email": email, "password": "Passw0rdOK", "device": again.login(email)}, "")
+	if code != 200 {
+		t.Fatalf("the same phone after a reinstall was asked to confirm: %d %v", code, tok)
+	}
+	if code, out := e.refresh(tok["refresh_token"].(string), &again, time.Now()); code != 200 {
+		t.Fatalf("the reinstalled app does not renew: %d %v", code, out)
+	}
+
+	// a phone claiming the identifier without the right signature is refused outright
+	forged := again.login(email)
+	forged["device"] = namedPhone().id
+	if code, _ := e.do("POST", "/auth/login", map[string]any{"email": email, "password": "Passw0rdOK", "device": forged}, ""); code != 400 {
+		t.Fatalf("an identifier the signature does not cover was accepted: %d", code)
+	}
+
+	other := namedPhone()
+	e.phoneLogin(email, other)
+	if code, out := e.refresh(tok["refresh_token"].(string), &again, time.Now()); code != 401 || errCode(out) != "phone_replaced" {
+		t.Fatalf("the old phone must be signed out by the new one: %d %v", code, out)
+	}
+	// and the old phone, even reinstalled, needs the code to come back
+	if code, out := e.do("POST", "/auth/login", map[string]any{"email": email, "password": "Passw0rdOK", "device": mine.reinstalled().login(email)}, ""); code != 401 || errCode(out) != "device_confirm" {
+		t.Fatalf("the replaced phone came back without the code: %d %v", code, out)
 	}
 }
