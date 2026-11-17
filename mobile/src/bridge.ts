@@ -1,11 +1,13 @@
 // The script that runs in the web interface before its own code, inside the app only. It adds `window.HubNative` (the phone's
 // key, notifications, files) and fills in what a page inside an app does not get from a browser: system notifications, file
 // downloads, links that leave Hub, the clipboard, and the colour of the bars around the page. The interface itself is untouched.
-export function bridgeScript(o: { platform: string; version: string; permission: string }): string {
+export function bridgeScript(o: { platform: string; version: string; permission: string; session: string }): string {
   const cfg = JSON.stringify(o);
   return `(function () {
   if (window.HubNative) return;
   var CFG = ${cfg};
+  // the sign-in kept in the phone's secure storage comes back if the web view's storage was erased (a cache cleaner, an update)
+  try { if (CFG.session && !localStorage.getItem('hub-session')) localStorage.setItem('hub-session', CFG.session); } catch (e) {}
   var seq = 0, waits = {};
   function post(m) { try { window.ReactNativeWebView.postMessage(JSON.stringify(m)); } catch (e) {} }
   function call(type, data) {
@@ -25,7 +27,9 @@ export function bridgeScript(o: { platform: string; version: string; permission:
     // push notifications: this phone's address for the backend, the push that opened the app, and "the backend pushes now"
     pushAddress: function () { return call('pushAddress'); },
     pushOpened: function () { return call('pushOpened'); },
-    pushReady: function (on) { post({ type: 'pushReady', on: !!on }); }
+    pushReady: function (on) { post({ type: 'pushReady', on: !!on }); },
+    // the page's sign-in changed (renewed, or signed out): the phone keeps a copy in its secure storage
+    keepSession: function (json) { post({ type: 'session', json: typeof json === 'string' ? json : '' }); }
   });
 
   // ---- system notifications: the browser Notification API, answered by the phone

@@ -25,11 +25,20 @@ self.addEventListener('activate', (event) => {
   })());
 });
 
+// A phone with mobile data on but no bundle (or Wi-Fi without internet) often gets no answer at all instead of an error: after
+// this long the kept copy opens, and a late answer still refreshes the copy for next time.
+const WAIT_MS = 3000;
+const answerWithin = (p, ms) => new Promise((resolve, reject) => {
+  const t = setTimeout(() => reject(new Error('no answer')), ms);
+  p.then((r) => { clearTimeout(t); resolve(r); }, (e) => { clearTimeout(t); reject(e); });
+});
+
 async function networkFirst(request, fallback) {
   const cache = await caches.open(SHELL);
   try {
-    const res = await fetch(request);
-    if (res.ok) cache.put(fallback || request, res.clone()).catch(() => {});
+    const live = fetch(request);
+    live.then((r) => { if (r.ok) cache.put(fallback || request, r.clone()).catch(() => {}); }).catch(() => {});
+    const res = await answerWithin(live, (await cache.match(fallback || request)) ? WAIT_MS : 30000);
     // a server still waking up answers 502/503: the kept copy opens instead, and the page fills in once the server is up
     if (res.status >= 500) return (await cache.match(fallback || request)) || res;
     return res;

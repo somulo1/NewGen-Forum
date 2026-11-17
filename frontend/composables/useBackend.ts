@@ -16,7 +16,11 @@ export class ApiError extends Error {
 }
 
 const read = (): Session | null => { try { const v = localStorage.getItem(KEY); return v ? JSON.parse(v) : null; } catch (e) { return null; } };
-const write = (s: Session | null) => { try { if (s) localStorage.setItem(KEY, JSON.stringify(s)); else localStorage.removeItem(KEY); } catch (e) { /* storage blocked: session lasts until reload */ } };
+const write = (s: Session | null) => {
+  try { if (s) localStorage.setItem(KEY, JSON.stringify(s)); else localStorage.removeItem(KEY); } catch (e) { /* storage blocked: session lasts until reload */ }
+  // the phone app keeps a copy in the phone's secure storage, so clearing the web view's storage never signs anyone out
+  try { const n = typeof window !== 'undefined' ? (window as any).HubNative : null; if (n && n.keepSession) n.keepSession(s ? JSON.stringify(s) : ''); } catch (e) { /* an older app: nothing to keep */ }
+};
 
 let refreshing: Promise<Session | null> | null = null;
 
@@ -26,6 +30,8 @@ const inFlight = new Map<string, Promise<any>>();
 // The server ended this session on purpose: a sign-in somewhere else, or too long without activity. The login page says why.
 // What ends the phone app's sign-in: the server refusing it outright (401), or refusing the person in this organization (403).
 const endsAppSignIn = (e: unknown) => e instanceof ApiError && (e.status === 401 || (e.status === 403 && /^(account_|no_profile)/.test(e.code)));
+const APP_READ_WAIT_MS = 12000;
+const APP_WRITE_WAIT_MS = 30000;
 const ENDED = ['session_replaced', 'session_expired', 'device_unverified', 'phone_replaced', 'session_week', 'access_blocked', 'access_deactivated', 'access_removed'];
 export const SIGNOUT_KEY = 'hub-signout';
 const ended = (code: string) => {
@@ -59,14 +65,21 @@ export const useBackend = () => {
 
   const send = async (method: string, path: string, body?: unknown, token?: string, extra?: Record<string, string>): Promise<any> => {
     let res: Response;
+    // In the phone app a request with no answer counts as no connection (mobile data on but no bundle, Wi-Fi without internet):
+    // reads then show what the phone kept, and changes wait in its outbox, instead of the app waiting on a network that is not there.
+    const ctl = native() ? new AbortController() : null;
+    const t = ctl ? setTimeout(() => ctl.abort(), method === 'GET' ? APP_READ_WAIT_MS : APP_WRITE_WAIT_MS) : 0;
     try {
       res = await fetch(base + '/v1' + path, {
         method,
         headers: { ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}), ...(token ? { Authorization: 'Bearer ' + token } : {}), ...(extra || {}) },
-        body: body !== undefined ? JSON.stringify(body) : undefined
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+        ...(ctl ? { signal: ctl.signal } : {})
       });
     } catch (e) {
       throw new ApiError(0, 'network', 'Cannot reach the server. Check that the backend is running.');
+    } finally {
+      clearTimeout(t);
     }
     if (res.status === 204) return null;
     const text = await res.text();
