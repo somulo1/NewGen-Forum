@@ -16,7 +16,11 @@ export class ApiError extends Error {
 }
 
 const read = (): Session | null => { try { const v = localStorage.getItem(KEY); return v ? JSON.parse(v) : null; } catch (e) { return null; } };
-const write = (s: Session | null) => { try { if (s) localStorage.setItem(KEY, JSON.stringify(s)); else localStorage.removeItem(KEY); } catch (e) { /* storage blocked: session lasts until reload */ } };
+const write = (s: Session | null) => {
+  try { if (s) localStorage.setItem(KEY, JSON.stringify(s)); else localStorage.removeItem(KEY); } catch (e) { /* storage blocked: session lasts until reload */ }
+  // the phone app keeps a copy in the phone's secure storage, so clearing the web view's storage never signs anyone out
+  try { const n = typeof window !== 'undefined' ? (window as any).HubNative : null; if (n && n.keepSession) n.keepSession(s ? JSON.stringify(s) : ''); } catch (e) { /* an older app: nothing to keep */ }
+};
 
 let refreshing: Promise<Session | null> | null = null;
 

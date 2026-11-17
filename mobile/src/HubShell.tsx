@@ -20,6 +20,8 @@ import { proof, ready } from './deviceKey';
 import { saveAndShare } from './files';
 import * as notify from './notify';
 import * as push from './push';
+import * as session from './session';
+import { usePush } from './usePush';
 import { Logo, parseColor } from './ui';
 
 // react-native-webview's class typing does not line up with React 19's ref types; this names the same component with its props
@@ -38,7 +40,7 @@ export default function HubShell() {
   const web = useRef<WebViewHandle>(null);
   const canGoBack = useRef(false);
   const [bg, setBg] = useState({ hex: COLORS.bg, dark: true });
-  const [boot, setBoot] = useState<{ permission: string } | null>(null);
+  const [boot, setBoot] = useState<{ permission: string; session: string } | null>(null);
   const [problem, setProblem] = useState<Problem>(null);
   const [round, setRound] = useState(0);   // bumped by Retry: a fresh page
   const asked = useRef(false);
@@ -61,8 +63,8 @@ export default function HubShell() {
         SplashScreen.hideAsync().catch(() => {});
         return;
       }
-      const permission = await notify.permission();
-      if (live) setBoot({ permission });
+      const [permission, saved] = await Promise.all([notify.permission(), session.load()]);
+      if (live) setBoot({ permission, session: saved });
     })();
     const t = setTimeout(() => SplashScreen.hideAsync().catch(() => {}), 12000);
     return () => { live = false; clearTimeout(t); };
@@ -79,15 +81,7 @@ export default function HubShell() {
     return () => sub.remove();
   }, []);
 
-  // pushes: a tap opens what it was about (kept until the page is ready to ask), a new address is registered by the page
-  const pushTap = useRef<push.PushData | null>(null);
-  const pushOn = useRef(false);
-  const giveAddress = useCallback((a: push.PushAddress | null) => { if (a) web.current?.injectJavaScript(`window.__hubPushAddress && window.__hubPushAddress(${JSON.stringify(a)}); true;`); }, []);
-  useEffect(() => {
-    const offTap = push.onTap((d) => { pushTap.current = d; web.current?.injectJavaScript(`window.__hubPushTap && window.__hubPushTap(); true;`); });
-    const offNew = push.onNewAddress(giveAddress);
-    return () => { offTap(); offNew(); };
-  }, [giveAddress]);
+  const { tap: pushTap, on: pushOn, giveAddress } = usePush(web);
 
   useEffect(() => notify.onTap((nid) => {
     web.current?.injectJavaScript(`window.__hubNotifyTap && window.__hubNotifyTap(${JSON.stringify(nid)}); true;`);
@@ -119,6 +113,9 @@ export default function HubShell() {
         break;
       case 'pushOpened':
         reply(id, true, pushTap.current); pushTap.current = null;
+        break;
+      case 'session':
+        session.keep(typeof m.json === 'string' ? m.json : '');
         break;
       case 'pushReady':
         pushOn.current = !!m.on;   // the backend now pushes to this phone: the page's own alerts would only repeat them
@@ -165,7 +162,7 @@ export default function HubShell() {
     return false;
   }, []);
 
-  const injected = useMemo(() => (boot ? bridgeScript({ platform: Platform.OS, version, permission: boot.permission }) : ''), [boot, version]);
+  const injected = useMemo(() => (boot ? bridgeScript({ platform: Platform.OS, version, permission: boot.permission, session: boot.session }) : ''), [boot, version]);
 
   const retry = () => { setProblem(null); setBoot(null); setRound((r) => r + 1); };
 

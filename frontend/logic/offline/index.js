@@ -138,7 +138,12 @@ export function forget() {
 // The pages (scripts, styles, icons) are kept by a service worker, so the app opens and moves between pages offline.
 // Registered only inside the app; a new deploy installs a new worker that replaces the old copies.
 export function keepShell() {
-  if (!enabled() || import.meta.dev || !('serviceWorker' in navigator)) return;
+  if (!enabled() || import.meta.dev) return;
+  // the phone's offline copies and the saved app are never cleared by the web view to make room; only signing out removes them
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); } catch (e) { /* not offered */ }
+  // a sign-in made before the app kept a copy is copied to the phone's secure storage now, not only at its next renewal
+  try { const s = localStorage.getItem('hub-session'); if (s && window.HubNative.keepSession) window.HubNative.keepSession(s); } catch (e) { /* nothing kept */ }
+  if (!('serviceWorker' in navigator)) return;
   const cfg = (window.__NUXT__ && window.__NUXT__.config && window.__NUXT__.config.app) || {};
   navigator.serviceWorker.register('/hub-sw.js?v=' + encodeURIComponent(cfg.buildId || 'app'), { scope: '/' }).catch(() => {});
 }
