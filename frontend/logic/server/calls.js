@@ -610,9 +610,10 @@ export function listen(logic, srv) {
   };
   rt.on('call.incoming', onCall);
   rt.on('call.started', onCall);
-  // the list of calls in progress follows every call event, and a slow poll catches anything missed while offline
+  // the list of calls in progress follows every call event over the live connection (no polling); after the connection drops and
+  // comes back, it is read once to catch up on anything missed meanwhile
   ['call.incoming', 'call.started', 'call.answered', 'call.ended', 'call.declined', 'call.joined', 'call.left'].forEach((t) => { try { rt.on(t, () => refreshLive(logic, srv)); } catch (e) { /* no live connection */ } });
-  clearInterval(srv.liveI); srv.liveI = setInterval(() => { if (!document.hidden) loadLive(logic, srv); }, 20000);
+  rt.on('open', (ev) => { if (ev && ev.reconnect) refreshLive(logic, srv); });
   // Answered or ended somewhere else (another tab or device of mine, or the caller hung up): stop ringing here.
   rt.on('call.answered', (ev) => {
     const d = ev.data || {};

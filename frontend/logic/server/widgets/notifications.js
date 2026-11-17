@@ -20,6 +20,18 @@ export async function load(logic, srv) {
   const rt = srv.rt || (srv.rt = connectRealtime(srv));
   if (srv.notifLive) return;
   srv.notifLive = true;
+  // notifications arrive only over the live connection (no polling). When it drops and comes back, what arrived meanwhile is
+  // read once so nothing is missed.
+  rt.on('open', async (ev) => {
+    if (!ev || !ev.reconnect) return;
+    try {
+      const r = await srv.request('GET', '/notifications');
+      const have = new Set(logic.state.notifs.map((x) => x.id));
+      const fresh = r.notifications.filter((n) => !have.has(n.id));
+      logic.setState({ notifs: r.notifications.map(toItem), notifUnread: r.unread || 0, notifSeen: !r.unread });
+      if (fresh.some((n) => !n.read_at) && rings(logic.state.notifTones, kindOfNote(fresh[0].kind))) chime();
+    } catch (e) { /* the next live event or reconnect tries again */ }
+  });
   rt.on('notification', (ev) => {
     const n = ev.data || {};
     if (logic.state.notifs.some((x) => x.id && x.id === n.id)) return;
