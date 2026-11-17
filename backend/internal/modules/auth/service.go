@@ -189,7 +189,8 @@ func (s *Service) Signup(ctx context.Context, name, email, password string, quiz
 
 type LoginIn struct {
 	Email, Password, TOTP, Org, IP, UserAgent string
-	Browser                                   string // the browser's own random token (empty: a browser that has none yet)
+	Browser                                   string       // the browser's own random token (empty: a browser that has none yet)
+	Device                                    *DeviceProof // from the phone app: the key this sign-in is bound to (see device.go)
 }
 
 var dummyHash = crypto.HashPassword("dummy-password-for-timing", crypto.PasswordParams{Time: 3, MemoryKiB: 64 * 1024, Threads: 2})
@@ -201,6 +202,10 @@ func (s *Service) Login(ctx context.Context, in LoginIn) (*Tokens, error) {
 	}
 	if !s.domainAllowed(email) {
 		return nil, errDomain
+	}
+	devKey, err := loginKey(in.Device, email)
+	if err != nil {
+		return nil, err
 	}
 	// brute-force guard: five wrong attempts (wrong password, or an email nobody has) from one address block that address for
 	// two minutes; the block is recorded for the Security page. Each attempt is counted before its password is checked, with one
@@ -312,7 +317,13 @@ func (s *Service) Login(ctx context.Context, in LoginIn) (*Tokens, error) {
 		if replaced, err = s.revokeAllFor(ctx, tx, a.ID, uuid.Nil); err != nil {
 			return err
 		}
-		tok, loginErr = s.issue(ctx, tx, a, in.Org, uuid.New(), in.IP, in.UserAgent)
+		family := uuid.New()
+		tok, loginErr = s.issue(ctx, tx, a, in.Org, family, in.IP, in.UserAgent)
+		if loginErr == nil && devKey != nil {
+			if err := bindFamily(ctx, tx, family, a.ID, devKey, in.Device.Platform); err != nil {
+				return err
+			}
+		}
 		if loginErr == nil {
 			ev.action, ev.rslt = "Signed in", "Success"
 		}

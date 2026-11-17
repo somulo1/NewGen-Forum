@@ -57,6 +57,13 @@ type SendIn struct {
 
 var typeRe = regexp.MustCompile(`^[a-z][a-z_]{1,19}$`)
 
+// A phone writes messages while offline and sends them when it reconnects; the id keeps the time it was written, so it
+// shows in its place. Older than this, or ahead of the server clock by more than a little, the id is refused.
+const (
+	offlineGrace = 7 * 24 * time.Hour
+	clockAhead   = 2 * time.Minute
+)
+
 // Send stores one encrypted message and tells everyone in the conversation. The server checks who may send and that the
 // bytes look like an envelope; it cannot check what is inside.
 func (s *Service) Send(ctx context.Context, p *tenant.Principal, conv uuid.UUID, in SendIn) (*Message, error) {
@@ -82,7 +89,7 @@ func (s *Service) Send(ctx context.Context, p *tenant.Principal, conv uuid.UUID,
 	if in.ID == uuid.Nil || in.ID.Version() != 7 {
 		return nil, httpx.Bad("Messages need a time-ordered id (UUID v7) made by the sender.")
 	}
-	if d := time.Since(time.UnixMilli(int64(in.ID[0])<<40 | int64(in.ID[1])<<32 | int64(in.ID[2])<<24 | int64(in.ID[3])<<16 | int64(in.ID[4])<<8 | int64(in.ID[5]))); d > 10*time.Minute || d < -2*time.Minute {
+	if d := time.Since(time.UnixMilli(int64(in.ID[0])<<40 | int64(in.ID[1])<<32 | int64(in.ID[2])<<24 | int64(in.ID[3])<<16 | int64(in.ID[4])<<8 | int64(in.ID[5]))); d > offlineGrace || d < -clockAhead {
 		return nil, httpx.Bad("The message id carries the wrong time. Check the device clock.")
 	}
 	var out *Message

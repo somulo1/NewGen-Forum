@@ -36,6 +36,8 @@ export function buildAccess(ctx) {
   has.structure = has.departments || has.sectors || has.branches || has.units;
   has.comms = has.memos || has.newsletter || has.announcements || has.jobposts;
   ['tickets', 'projects', 'files', 'secureshare', 'sessions', 'awards', 'notes', 'pbx'].forEach((k) => { has[k] = W.indexOf(k) !== -1; });
+  // the phone app leaves out Calls management (the customer phone system); everything else is the same as on the web
+  if (typeof window !== 'undefined' && window.HubNative && window.HubNative.app) has.pbx = false;
   const optionalMods = ['pbx', 'calendar', 'memos', 'newsletter', 'announcements', 'jobposts', 'departments', 'sectors', 'branches', 'units', 'performance', 'tickets', 'projects', 'files', 'secureshare', 'sessions', 'awards', 'chat'];
   // Rights can only be given for what the organization has switched on. A page that is not a widget (wall, forums, people, roles,
   // security, settings, the home page and its widget settings) always has its rights, so the first administrator can start giving

@@ -72,16 +72,17 @@ func (s *Service) Public(r chi.Router) {
 	}))
 	r.Post("/auth/login", httpx.Wrap(func(w http.ResponseWriter, r *http.Request) error {
 		var in struct {
-			Email    string `json:"email"`
-			Password string `json:"password"`
-			TOTP     string `json:"totp"`
-			Org      string `json:"org"`
-			Browser  string `json:"browser"`
+			Email    string       `json:"email"`
+			Password string       `json:"password"`
+			TOTP     string       `json:"totp"`
+			Org      string       `json:"org"`
+			Browser  string       `json:"browser"`
+			Device   *DeviceProof `json:"device"`
 		}
 		if err := httpx.Decode(r, &in, 8<<10); err != nil {
 			return err
 		}
-		t, err := s.Login(r.Context(), LoginIn{Email: in.Email, Password: in.Password, TOTP: in.TOTP, Org: in.Org, IP: httpx.ClientIP(r), UserAgent: r.UserAgent(), Browser: in.Browser})
+		t, err := s.Login(r.Context(), LoginIn{Email: in.Email, Password: in.Password, TOTP: in.TOTP, Org: in.Org, IP: httpx.ClientIP(r), UserAgent: r.UserAgent(), Browser: in.Browser, Device: in.Device})
 		if err != nil {
 			return err
 		}
@@ -96,7 +97,7 @@ func (s *Service) Public(r chi.Router) {
 		if err := httpx.Decode(r, &in, 4<<10); err != nil {
 			return err
 		}
-		t, err := s.Refresh(r.Context(), in.Refresh, in.Org, httpx.ClientIP(r), r.UserAgent())
+		t, err := s.Refresh(WithRefreshProof(r.Context(), r.Header.Get("X-Hub-Device-TS"), r.Header.Get("X-Hub-Device-Sig")), in.Refresh, in.Org, httpx.ClientIP(r), r.UserAgent())
 		if err != nil {
 			return err
 		}

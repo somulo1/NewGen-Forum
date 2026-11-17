@@ -7,6 +7,7 @@
 const REPORT_MS = 10000;
 const MESSAGES = {
   session_replaced: 'You signed in on another browser or device, so you were signed out here.',
+  device_unverified: 'This sign-in could not prove it is on this device, so it was ended. Sign in again.',
   session_expired: 'You were signed out after being inactive. Sign in again to continue.'
 };
 export const signOutMessage = (code) => MESSAGES[code] || '';

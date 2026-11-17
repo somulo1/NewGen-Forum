@@ -75,6 +75,14 @@ func (s *Service) Refresh(ctx context.Context, refresh, orgSlug, ip, ua string) 
 			outErr = httpx.ErrUnauthorized
 			return err
 		}
+		// a sign-in bound to a phone renews only with that phone's signature; without it the token was copied, so the sign-in ends
+		if ok, err := deviceOK(ctx, tx, x.Family, x.ID); err != nil {
+			return err
+		} else if !ok {
+			killed, err = s.revokeFamily(ctx, tx, x.Family)
+			outErr = errDevice
+			return err
+		}
 		// inactive past the organization's limit: the session ends instead of being renewed
 		if x.Org != nil && s.idleExpired(ctx, *x.Org, x.ID) {
 			if err := s.revokeSession(ctx, tx, x); err != nil {
