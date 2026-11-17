@@ -141,6 +141,13 @@ export async function startServerSync(logic, request, session, bytes) {
   // what a live notification may need to refresh
   srv.reload.tickets = () => { srv.lazy.refresh(tickets).catch(() => {}); orgW.loadPerformance(logic, srv).catch(() => {}); };
   srv.reload.approvals = () => Promise.all([approvals, comms, awards].map((w) => srv.lazy.refresh(w))).catch(() => {});   // only what was ever opened
+  // the phone app sent what was done offline: every page already opened reads the server's copy again, others' changes included
+  const everything = [people, forums, dms, notifications, settingsW, roles, orgW, prefs, profile, ...LAZY];
+  let syncT = 0;
+  window.addEventListener('hub:synced', () => {
+    clearTimeout(syncT);
+    syncT = setTimeout(() => everything.filter((w) => logic.loaded.has(w.name)).forEach((w) => w.load(logic, srv).catch(() => {})), 800);
+  });
   srv.bootDone = true;
   logic.forceUpdate();
   return srv;

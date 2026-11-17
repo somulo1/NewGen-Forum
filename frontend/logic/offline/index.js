@@ -31,7 +31,8 @@ function soon(ms) {
   clearTimeout(timer);
   timer = setTimeout(() => {
     if (!post || !scope || offline) return;
-    outbox.flush(scope, post, (msg, e) => flash('A message you wrote offline could not be sent: ' + (e.message || 'the server refused it') + '.')).then(paint);
+    outbox.flush(scope, post, (item, e) => flash((item.method ? 'A change you made offline could not be saved: ' : 'A message you wrote offline could not be sent: ') + (e.message || 'the server refused it') + '.'))
+      .then((sent) => { paint(); if (sent) window.dispatchEvent(new CustomEvent('hub:synced')); });
   }, ms);
 }
 
@@ -49,7 +50,7 @@ function wire() {
 function use(session, call) {
   const s = scopeOf(session);
   if (!s) return '';
-  post = (path, body) => call('POST', path, body);
+  post = (method, path, body, headers) => call(method, path, body, headers);
   if (s !== scope) { scope = s; wire(); offline = typeof navigator !== 'undefined' && navigator.onLine === false; paint(); soon(1500); }
   return s;
 }
@@ -63,13 +64,13 @@ export async function through(method, path, body, session, call) {
       const data = await call(method, path, body);
       reachable(true);
       cache.remember(s, path, data).catch(() => {});
-      return cache.withPending(s, path, data);
+      return cache.withPending(s, path, data, session);
     } catch (e) {
       if (!unreachable(e)) throw e;
       reachable(false);
       const kept = (await cache.offlineChanges(s, path)) ?? (await cache.recall(s, path).catch(() => undefined));
       if (kept === undefined) throw e;
-      return cache.withPending(s, path, kept);
+      return cache.withPending(s, path, kept, session);
     }
   }
   try {
@@ -80,6 +81,11 @@ export async function through(method, path, body, session, call) {
     if (!unreachable(e)) throw e;
     reachable(false);
     if (outbox.queueable(method, path, body)) return outbox.queue(s, session, path, body);
+    if (outbox.editable(method, path, body)) {
+      const kept = await outbox.queueEdit(s, method, path, body);
+      flash('Saved on this phone. It syncs by itself when you are back online.', 4000);
+      return kept;
+    }
     e.message = OFFLINE_WRITE;
     throw e;
   }

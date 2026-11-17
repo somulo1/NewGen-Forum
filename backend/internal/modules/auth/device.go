@@ -32,11 +32,11 @@ type DeviceProof struct {
 
 var (
 	errDeviceProof = httpx.Err(400, "device_proof", "This phone could not prove its key. Close the app, open it again and sign in.")
-	errDevice      = httpx.Err(401, "device_unverified", "This sign-in belongs to another device, so it was ended. Sign in again.")
+	errDeviceRetry = httpx.Err(400, "device_retry", "This phone could not prove its key just now. Hub tries again by itself.")
 )
 
-// a signature older (or further in the future) than this is refused
-const proofWindow = 5 * time.Minute
+// a signature older (or further in the future) than this is refused; a day, so a phone whose clock is wrong still works
+const proofWindow = 24 * time.Hour
 
 func loginProofMessage(email string) string    { return "hub-device-login|" + email }
 func refreshProofMessage(sid uuid.UUID) string { return "hub-device-refresh|" + sid.String() }

@@ -13,6 +13,44 @@ export const onChange = (fn) => { listeners.add(fn); return () => listeners.dele
 
 export const queueable = (method, path, body) => method === 'POST' && SEND.test(path) && !!body && UUID.test(String(body.id || ''));
 
+// Edits that may wait for the connection: changes to one's own work (notes, calendar entries, project plans, tickets, reactions,
+// read marks, the home layout). Anything about security, people, roles, approvals or the organization's settings, and anything
+// that needs the server to give it a number first, needs a connection.
+const ID = '[0-9a-f-]{36}';
+const EDITS = [
+  ['POST', new RegExp(`^/containers/${ID}/records$`), (b) => !!b && UUID.test(String(b.id || ''))],
+  ['PUT', new RegExp(`^/containers/${ID}/records/${ID}$`)], ['DELETE', new RegExp(`^/containers/${ID}/records/${ID}$`)],
+  ['PUT', new RegExp(`^/projects/${ID}/items/${ID}$`)], ['DELETE', new RegExp(`^/projects/${ID}/items/${ID}$`)],
+  ['DELETE', new RegExp(`^/conversations/${ID}/messages/${ID}$`)], ['POST', new RegExp(`^/conversations/${ID}/read$`)],
+  ['POST', new RegExp(`^/tickets/${ID}/(comments|act|acknowledge|chase)$`)],
+  ['PUT', new RegExp(`^/wall/${ID}/(reaction|vote)$`)],
+  ['POST', /^\/comms\/seen$/], ['POST', new RegExp(`^/comms/${ID}/(read|acknowledge)$`)],
+  ['POST', /^\/notifications\/read$/], ['POST', /^\/mentions$/], ['PUT', /^\/me\/prefs$/]
+];
+export const editable = (method, path, body) => EDITS.some(([m, re, ok]) => m === method && re.test(path) && (!ok || ok(body)));
+
+const EDIT = '~edit|';
+
+// Keeps an edit made without a connection. It goes to the server in the order it was made, carrying the time it was made, so
+// the server keeps the latest change when someone else changed the same thing meanwhile.
+export async function queueEdit(scope, method, path, body) {
+  if ((await store.list('outbox', prefix(scope))).length >= MAX_WAITING) throw new Error('Too many changes are waiting to be sent. Connect to the internet to send them.');
+  const at = Date.now();
+  await store.put('outbox', prefix(scope) + EDIT + at + '|' + Math.random().toString(36).slice(2, 10), { method, path, body: body ?? null, at });
+  changed();
+  return { queued: true, ...(body && body.id ? { id: body.id } : {}) };
+}
+
+// the edits still waiting, oldest first, so reads can show them in place
+export async function pendingEdits(scope) {
+  const out = [];
+  for (const [name] of await store.list('outbox', prefix(scope) + EDIT)) {
+    const item = await store.get('outbox', name);
+    if (item) out.push(item);
+  }
+  return out;
+}
+
 const writtenAt = (id) => new Date(parseInt(id.replace(/-/g, '').slice(0, 12), 16)).toISOString();
 
 // what the server would answer for this message, so the page shows it as sent
@@ -52,23 +90,29 @@ const later = (e) => !e || e.status === 0 || e.status === 401 || e.status === 42
 
 let flushing = null;
 
-// Sends what is waiting, oldest first. Stops at the first message the server cannot take yet, so the order is kept.
-// onRefused(message, error): the server will never take it (the chat is gone, posting is closed, ...); it is removed.
-export function flush(scope, post, onRefused) {
+// Sends what is waiting (messages and edits together), oldest first. Stops at the first one the server cannot take yet, so the
+// order is kept. send(method, path, body, headers) is the normal request. onRefused(item, error): the server will never take
+// it (the chat is gone, the right was removed, ...); it is removed. Resolves to how many went out.
+export function flush(scope, send, onRefused) {
   if (flushing) return flushing;
   flushing = (async () => {
+    let sent = 0;
     for (const [name] of await store.list('outbox', prefix(scope))) {
       const item = await store.get('outbox', name);
       if (!item) continue;
       try {
-        await post(item.path, item.body);
+        if (item.method) await send(item.method, item.path, item.body ?? undefined, { 'X-Hub-Written-At': String(item.at) });
+        else await send('POST', item.path, item.body);
+        sent++;
       } catch (e) {
-        if (later(e)) return;
-        if (!(e.status === 409 && e.code === 'duplicate')) onRefused(item.msg, e);
+        if (later(e)) return sent;
+        // already stored, or someone changed it later (the newer change is kept): nothing to tell
+        if (!(e.status === 409 && (e.code === 'duplicate' || e.code === 'stale_edit'))) onRefused(item, e);
       }
       await store.del('outbox', name);
       changed();
     }
-  })().catch(() => {}).finally(() => { flushing = null; });
+    return sent;
+  })().catch(() => 0).finally(() => { flushing = null; });
   return flushing;
 }
