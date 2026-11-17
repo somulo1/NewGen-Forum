@@ -129,6 +129,14 @@ export async function startServerSync(logic, request, session, bytes) {
   const lazy = srv.lazy = createLazy(logic, LAZY);
   // the bell shows overdue tickets and shared notes show in chats, so those two arrive quietly a moment after the first screen
   lazy.later(['tickets', 'notes']);
+  // The phone app keeps every page ready for use offline: while online it reads them all once (the offline layer keeps each
+  // answer), then each ticket's details, so a page never opened before still opens with no connection.
+  if (window.HubNative && window.HubNative.app) {
+    lazy.later(LAZY.map((w) => w.name), 2500);
+    setTimeout(() => {
+      (logic.state.tickets || []).slice(0, 300).reduce((p, t) => p.then(() => (t.uid ? srv.request('GET', `/tickets/${t.uid}`).catch(() => {}) : null)), Promise.resolve());
+    }, 20000);
+  }
   // incoming calls ring live; each chat's Calls tab shows the real history
   // a dashboard shows new tickets, communications and requests as they happen (its tabs then blink): drop the cached dashboards so the
   // open one is fetched again

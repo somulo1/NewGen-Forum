@@ -60,7 +60,7 @@ var typeRe = regexp.MustCompile(`^[a-z][a-z_]{1,19}$`)
 // A phone writes messages while offline and sends them when it reconnects; the id keeps the time it was written, so it
 // shows in its place. Older than this, or ahead of the server clock by more than a little, the id is refused.
 const (
-	offlineGrace = 7 * 24 * time.Hour
+	offlineGrace = 48 * time.Hour // the same limit as every change made offline (see server/lww.go)
 	clockAhead   = 2 * time.Minute
 )
 
@@ -89,7 +89,11 @@ func (s *Service) Send(ctx context.Context, p *tenant.Principal, conv uuid.UUID,
 	if in.ID == uuid.Nil || in.ID.Version() != 7 {
 		return nil, httpx.Bad("Messages need a time-ordered id (UUID v7) made by the sender.")
 	}
-	if d := time.Since(time.UnixMilli(int64(in.ID[0])<<40 | int64(in.ID[1])<<32 | int64(in.ID[2])<<24 | int64(in.ID[3])<<16 | int64(in.ID[4])<<8 | int64(in.ID[5]))); d > offlineGrace || d < -clockAhead {
+	age := time.Since(time.UnixMilli(int64(in.ID[0])<<40 | int64(in.ID[1])<<32 | int64(in.ID[2])<<24 | int64(in.ID[3])<<16 | int64(in.ID[4])<<8 | int64(in.ID[5])))
+	if age > offlineGrace {
+		return nil, httpx.Err(410, "offline_expired", "This message waited more than 48 hours without a connection, so it was not sent.")
+	}
+	if age < -clockAhead {
 		return nil, httpx.Bad("The message id carries the wrong time. Check the device clock.")
 	}
 	var out *Message

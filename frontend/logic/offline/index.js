@@ -16,7 +16,8 @@ const scopeOf = (s) => (s && s.account ? s.account + ':' + ((s.org && s.org.id) 
 const unreachable = (e) => !!e && (e instanceof TypeError || [0, 502, 503, 504].includes(e.status));
 const OFFLINE_WRITE = 'Hub cannot be reached right now. This needs a connection; try again when you are back online.';
 
-let scope = '', post = null, offline = false, wired = false, timer = 0;
+let scope = '', post = null, upload = null, offline = false, wired = false, timer = 0;
+const told = (item, e) => flash((item.method || item.bytes ? 'A change you made offline was not saved: ' : 'A message you wrote offline was not sent: ') + (e.message || 'the server refused it') + '.');
 
 async function paint() { setStatus(offline, await outbox.count(scope).catch(() => 0)); }
 
@@ -30,8 +31,11 @@ function reachable(ok) {
 function soon(ms) {
   clearTimeout(timer);
   timer = setTimeout(() => {
-    if (!post || !scope || offline) return;
-    outbox.flush(scope, post, (item, e) => flash((item.method ? 'A change you made offline could not be saved: ' : 'A message you wrote offline could not be sent: ') + (e.message || 'the server refused it') + '.'))
+    if (!scope) return;
+    // the 48 hours run with or without a connection
+    outbox.expire(scope, (item) => told(item, new Error('it waited more than 48 hours without a connection'))).then(paint).catch(() => {});
+    if (!post || !upload || offline) return;
+    outbox.flush(scope, post, (path, bytes, at) => upload(path, bytes, at), told)
       .then((sent) => { paint(); if (sent) window.dispatchEvent(new CustomEvent('hub:synced')); });
   }, ms);
 }
@@ -44,7 +48,7 @@ function wire() {
   document.addEventListener('visibilitychange', () => { if (!document.hidden) soon(800); });
   window.addEventListener('hub:signed-out', () => { forget(); });
   outbox.onChange(paint);
-  setInterval(() => { if (!offline) soon(0); }, 20000);
+  setInterval(() => soon(0), 20000);
 }
 
 function use(session, call) {
@@ -81,13 +85,31 @@ export async function through(method, path, body, session, call) {
     if (!unreachable(e)) throw e;
     reachable(false);
     if (outbox.queueable(method, path, body)) return outbox.queue(s, session, path, body);
-    if (outbox.editable(method, path, body)) {
+    if (outbox.editable(method, path)) {
       const kept = await outbox.queueEdit(s, method, path, body);
       flash('Saved on this phone. It syncs by itself when you are back online.', 4000);
       return kept;
     }
     e.message = OFFLINE_WRITE;
     throw e;
+  }
+}
+
+// An attachment's encrypted contents: sent now, or kept until the connection is back (its file record waits in the outbox too).
+// send(path, bytes, writtenAt) is the normal upload.
+export const setUploader = (send) => { upload = send; };
+
+export async function sendFile(path, bytes, session, send) {
+  const s = scopeOf(session);
+  try {
+    const out = await send(path, bytes);
+    if (s) reachable(true);
+    return out;
+  } catch (e) {
+    if (!s || !unreachable(e)) throw e;
+    reachable(false);
+    await outbox.queueBytes(s, path, bytes);
+    return null;
   }
 }
 

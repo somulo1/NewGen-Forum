@@ -7,22 +7,29 @@ import (
 	"time"
 )
 
-func TestWrittenAtTrustsOnlyBelievableTimes(t *testing.T) {
-	at := func(v string) time.Time {
+func TestWrittenAtAndTheFortyEightHourLimit(t *testing.T) {
+	at := func(v string) (time.Time, bool) {
 		r := httptest.NewRequest("PUT", "/v1/x", nil)
 		if v != "" {
 			r.Header.Set("X-Hub-Written-At", v)
 		}
 		return writtenAt(r)
 	}
+	ms := func(d time.Duration) string { return strconv.FormatInt(time.Now().Add(d).UnixMilli(), 10) }
 	near := func(a, b time.Time) bool { d := a.Sub(b); return d < time.Second && d > -time.Second }
-	hourAgo := time.Now().Add(-time.Hour)
-	if got := at(strconv.FormatInt(hourAgo.UnixMilli(), 10)); !near(got, hourAgo) {
-		t.Fatalf("an edit made offline an hour ago counts as %v", got)
+
+	if got, old := at(ms(-time.Hour)); !near(got, time.Now().Add(-time.Hour)) || old {
+		t.Fatalf("an edit made offline an hour ago: %v expired=%v", got, old)
 	}
-	for _, v := range []string{"", "nonsense", strconv.FormatInt(time.Now().Add(time.Hour).UnixMilli(), 10), strconv.FormatInt(time.Now().Add(-8*24*time.Hour).UnixMilli(), 10)} {
-		if got := at(v); !near(got, time.Now()) {
-			t.Fatalf("%q should count as now, got %v", v, got)
+	if _, old := at(ms(-47 * time.Hour)); old {
+		t.Fatal("47 hours offline must still be applied")
+	}
+	if _, old := at(ms(-49 * time.Hour)); !old {
+		t.Fatal("49 hours offline must be refused")
+	}
+	for _, v := range []string{"", "nonsense", ms(time.Hour)} {
+		if got, old := at(v); !near(got, time.Now()) || old {
+			t.Fatalf("%q should count as now, got %v expired=%v", v, got, old)
 		}
 	}
 }

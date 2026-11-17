@@ -155,11 +155,12 @@ export const useBackend = () => {
     (offline.enabled() ? offline.through(method, path, body, read(), direct) : direct(method, path, body));
 
   // Binary transfer (encrypted file contents): PUT bytes up, or GET bytes down.
-  const transfer = async (method: 'GET' | 'PUT', path: string, body?: Uint8Array): Promise<any> => {
+  // writtenAt: an upload kept on the phone while offline carries the time it was made (the server refuses it after 48 hours)
+  const transfer = async (method: 'GET' | 'PUT', path: string, body?: Uint8Array, writtenAt?: number): Promise<any> => {
     let s = read();
     if (s && Date.now() >= s.expiresAt) s = await refresh();
     if (!s) throw new ApiError(401, 'signed_out', 'Sign in to continue.');
-    const send = (access: string) => fetch(base + '/v1' + path, { method, headers: { Authorization: 'Bearer ' + access, ...(body ? { 'Content-Type': 'application/octet-stream' } : {}) }, body });
+    const send = (access: string) => fetch(base + '/v1' + path, { method, headers: { Authorization: 'Bearer ' + access, ...(body ? { 'Content-Type': 'application/octet-stream' } : {}), ...(writtenAt ? { 'X-Hub-Written-At': String(writtenAt) } : {}) }, body });
     let res = await send(s.access);
     if (res.status === 401) {
       // the token was rotated while this transfer was in flight: use the newest one (or refresh) and try once more, as request() does
@@ -177,8 +178,10 @@ export const useBackend = () => {
     return (res.headers.get('content-type') || '').includes('json') ? await res.json().catch(() => null) : null;
   };
 
+  const upload = (path: string, body: Uint8Array, writtenAt?: number) => transfer('PUT', path, body, writtenAt);
+  if (offline.enabled()) offline.setUploader(upload);
   const bytes = (method: 'GET' | 'PUT', path: string, body?: Uint8Array) => {
-    if (method === 'PUT') return trackWrite(transfer(method, path, body));
+    if (method === 'PUT') return trackWrite(offline.enabled() ? offline.sendFile(path, body as Uint8Array, read(), upload) : transfer(method, path, body));
     return offline.enabled() ? offline.file(path, read(), () => transfer(method, path, body)) : transfer(method, path, body);
   };
 

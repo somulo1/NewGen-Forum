@@ -69,8 +69,8 @@ func TestMessageWrittenOfflineKeepsItsPlace(t *testing.T) {
 		t.Fatalf("history: %v", hist)
 	}
 
-	if code := o.sendWithID(t, e, org, cid, key, idAt(time.Now().Add(-8*24*time.Hour))); code != 400 {
-		t.Fatalf("a message older than the offline window: want 400, got %d", code)
+	if code := o.sendWithID(t, e, org, cid, key, idAt(time.Now().Add(-49*time.Hour))); code != 410 {
+		t.Fatalf("a message older than 48 hours offline: want 410, got %d", code)
 	}
 	if code := o.sendWithID(t, e, org, cid, key, idAt(time.Now().Add(10*time.Minute))); code != 400 {
 		t.Fatalf("a message dated in the future: want 400, got %d", code)
