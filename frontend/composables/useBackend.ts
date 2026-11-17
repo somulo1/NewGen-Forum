@@ -1,6 +1,7 @@
 // Session and HTTP client for the Hub backend (/v1). Tokens live in localStorage; an expired access token is refreshed once
 // (refresh tokens rotate, so concurrent callers share one refresh) before a request is retried.
 import { trackWrite } from '~/logic/submitGuard.js';
+import * as offline from '~/logic/offline/index.js';
 
 const KEY = 'hub-session';
 
@@ -102,6 +103,8 @@ export const useBackend = () => {
           const t = await raw('POST', '/auth/refresh', { refresh_token: s.refresh, org: s.org?.slug || '' }, undefined, extra);
           const n = toSession(t, s.email); write(n); return n;
         } catch (e) {
+          // the phone app stays signed in without a connection; the token is renewed once the server answers again
+          if (e instanceof ApiError && [0, 502, 503, 504].includes(e.status) && offline.enabled()) return s;
           if (e instanceof ApiError && ENDED.includes(e.code)) ended(e.code); else write(null);
           return null;
         }
@@ -130,7 +133,7 @@ export const useBackend = () => {
     }
   };
 
-  const request = (method: string, path: string, body?: unknown): Promise<any> => {
+  const direct = (method: string, path: string, body?: unknown): Promise<any> => {
     if (method === 'GET') return authorized(method, path, body);
     const key = method + ' ' + path + ' ' + JSON.stringify(body);
     const running = inFlight.get(key);
@@ -139,6 +142,9 @@ export const useBackend = () => {
     inFlight.set(key, call);
     return call;
   };
+  // in the phone app, reads fall back to the copy kept on the phone and messages written offline wait in its outbox
+  const request = (method: string, path: string, body?: unknown): Promise<any> =>
+    (offline.enabled() ? offline.through(method, path, body, read(), direct) : direct(method, path, body));
 
   // Binary transfer (encrypted file contents): PUT bytes up, or GET bytes down.
   const transfer = async (method: 'GET' | 'PUT', path: string, body?: Uint8Array): Promise<any> => {
@@ -163,7 +169,10 @@ export const useBackend = () => {
     return (res.headers.get('content-type') || '').includes('json') ? await res.json().catch(() => null) : null;
   };
 
-  const bytes = (method: 'GET' | 'PUT', path: string, body?: Uint8Array) => (method === 'PUT' ? trackWrite(transfer(method, path, body)) : transfer(method, path, body));
+  const bytes = (method: 'GET' | 'PUT', path: string, body?: Uint8Array) => {
+    if (method === 'PUT') return trackWrite(transfer(method, path, body));
+    return offline.enabled() ? offline.file(path, read(), () => transfer(method, path, body)) : transfer(method, path, body);
+  };
 
   return {
     session: read,
@@ -190,6 +199,7 @@ export const useBackend = () => {
     async logout() {
       const s = read();
       write(null);
+      if (offline.enabled()) await offline.forget();   // the phone's offline copies and unsent messages go with the session
       try { sessionStorage.removeItem('hub-keybackup'); } catch (x) { /* nothing to clear */ }
       if (s) { try { await raw('POST', '/auth/logout', { refresh_token: s.refresh }, s.access); } catch (e) { /* already signed out server-side */ } }
     },

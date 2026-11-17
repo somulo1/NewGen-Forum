@@ -33,6 +33,20 @@ export default defineNuxtConfig({
       include: ['livekit-client', '@noble/curves/ed25519', '@noble/hashes/hkdf', '@noble/hashes/hmac', '@noble/hashes/sha256', 'qrcode']
     },
     plugins: [{
+      // the phone app's service worker (public/hub-sw.js) keeps every script and style of the build, so pages never opened
+      // online still open offline; this lists them next to them as offline-assets.json
+      name: 'hub-offline-assets',
+      apply: 'build',
+      generateBundle(_options: any, bundle: Record<string, any>) {
+        const env = (this as any).environment;
+        if (env && env.name !== 'client') return;
+        const names = Object.keys(bundle).filter((f) => /\.(js|css|woff2?|svg|png)$/.test(f) && !f.endsWith('.map'));
+        const dir = names.find((f) => f.endsWith('.js'))?.replace(/[^/]*$/, '') ?? '';
+        if (!dir) return;
+        const assets = names.filter((f) => f.startsWith(dir)).map((f) => f.slice(dir.length));
+        (this as any).emitFile({ type: 'asset', fileName: dir + 'offline-assets.json', source: JSON.stringify(assets) });
+      }
+    }, {
       name: 'hub-full-reload',
       apply: 'serve',
       handleHotUpdate({ file, server }) {

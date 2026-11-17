@@ -3,7 +3,7 @@
 // the colour of the system bars. Everything comes from the Hub backend through that interface; the app keeps no data of its own.
 import * as Application from 'expo-application';
 import * as Clipboard from 'expo-clipboard';
-import Constants from 'expo-constants';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
@@ -218,6 +218,8 @@ export default function HubShell() {
             mediaCapturePermissionGrantType="grant"
             allowsBackForwardNavigationGestures
             setSupportMultipleWindows={false}
+            // iOS keeps pages offline only on the app's own domains (app.config.ts); Expo Go has none of its own
+            limitsNavigationsToAppBoundDomains={Platform.OS === 'ios' && Constants.executionEnvironment !== ExecutionEnvironment.StoreClient}
             javaScriptCanOpenWindowsAutomatically={false}
             textZoom={100}
             overScrollMode="never"
