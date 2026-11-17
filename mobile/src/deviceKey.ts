@@ -3,6 +3,7 @@
 // backups, not moved to a new phone, and never handed to the web pages. Only signatures leave this file, and only over the two
 // messages the server expects (a sign-in for an email, and a refresh of a session), so a page cannot get anything else signed.
 import { ed25519 } from '@noble/curves/ed25519.js';
+import * as Application from 'expo-application';
 import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
@@ -52,16 +53,33 @@ const enc = (s: string) => new TextEncoder().encode(s);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const EMAIL = /^[^\s@|]{1,200}@[^\s@|]{1,120}$/;
 
-export type Proof = { key: string; ts: number; sig: string; platform: string };
+export type Proof = { key: string; ts: number; sig: string; platform: string; device: string };
 
-// proof signs "hub-device-<kind>|<subject>|<unix seconds>"; kind is "login" (subject: the email) or "refresh" (the session id).
+// The phone itself, as the system names it for this app (Android ID, iOS identifier for vendor). Unlike the key, which Android
+// erases together with the app, it survives reinstalling or updating Hub, so doing that on the same phone is not taken for a new
+// phone. Only a hash of it leaves the phone, and the key's signature covers it.
+let phoneId: Promise<string> | null = null;
+function thisPhone(): Promise<string> {
+  if (!phoneId) {
+    phoneId = (async () => {
+      let raw = '';
+      try { raw = Platform.OS === 'android' ? Application.getAndroidId() : (await Application.getIosIdForVendorAsync()) || ''; } catch (e) { raw = ''; }
+      return raw ? Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, 'hub-phone|' + raw) : '';
+    })();
+  }
+  return phoneId;
+}
+
+// proof signs "hub-device-<kind>|<subject>|<unix seconds>"; kind is "login" (subject: the email, then this phone's hash) or
+// "refresh" (the session id).
 export async function proof(kind: string, subject: string): Promise<Proof> {
   const s = String(subject || '').trim();
   if (kind === 'login' ? !EMAIL.test(s) : kind === 'refresh' ? !UUID.test(s) : true) throw new Error('refused');
   const k = await key();
+  const device = kind === 'login' ? await thisPhone() : '';
   const ts = Math.floor(Date.now() / 1000);
-  const msg = 'hub-device-' + kind + '|' + s.toLowerCase() + '|' + ts;
-  return { key: toB64(ed25519.getPublicKey(k)), ts, sig: toB64(ed25519.sign(enc(msg), k)), platform: Platform.OS + ' ' + String(Platform.Version) };
+  const msg = 'hub-device-' + kind + '|' + s.toLowerCase() + (device ? '|' + device : '') + '|' + ts;
+  return { key: toB64(ed25519.getPublicKey(k)), ts, sig: toB64(ed25519.sign(enc(msg), k)), platform: Platform.OS + ' ' + String(Platform.Version), device };
 }
 
 // readable at start-up so a broken secure store is found before someone tries to sign in

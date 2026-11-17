@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"hub/internal/app"
+	"hub/internal/httpx"
 	"hub/internal/integrity"
 )
 
@@ -148,9 +149,19 @@ func (s *Service) revokeFamily(ctx context.Context, tx pgx.Tx, family uuid.UUID)
 	return s.revokeWhere(ctx, tx, `s.family_id=$1`, family)
 }
 
-// revokeAllFor revokes every live session of the account except `keep` (pass uuid.Nil to revoke all).
-func (s *Service) revokeAllFor(ctx context.Context, tx pgx.Tx, account, keep uuid.UUID) ([]uuid.UUID, error) {
-	return s.revokeWhere(ctx, tx, `s.account_id=$1 and s.id<>$2`, account, keep)
+// revokeBrowsers revokes the account's browser sessions except `keep` (a password change or reset). The phone stays signed in:
+// only confirming another phone, or the person being blocked, deactivated or removed, signs it out.
+func (s *Service) revokeBrowsers(ctx context.Context, tx pgx.Tx, account, keep uuid.UUID) ([]uuid.UUID, error) {
+	return s.revokeWhere(ctx, tx, `s.account_id=$1 and s.id<>$2 and not exists (select 1 from hub.session_devices d where d.family_id = s.family_id)`, account, keep)
+}
+
+// familyEnded says why a sign-in has no live session left (its newest session carries the reason).
+func (s *Service) familyEnded(ctx context.Context, tx pgx.Tx, family uuid.UUID) error {
+	var last uuid.UUID
+	if err := tx.QueryRow(ctx, `select id from hub.sessions where family_id=$1 order by created_at desc limit 1`, family).Scan(&last); err != nil {
+		return httpx.ErrUnauthorized
+	}
+	return s.whyEnded(ctx, last)
 }
 
 // revokeSlot revokes the account's live sessions of one kind: its phone (a sign-in bound to a phone key) or its browser.

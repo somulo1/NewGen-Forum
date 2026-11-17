@@ -33,11 +33,11 @@ function paint() {
   if (text) keep = setInterval(place, 1500);
 }
 
-// offline: no connection; waiting: messages not yet sent
+// offline: no connection; waiting: messages and changes not yet on the server
 export function setStatus(offline, waiting) {
-  const w = waiting ? waiting + (waiting === 1 ? ' message' : ' messages') : '';
-  status = offline ? 'No connection · showing saved data' + (w ? ' · ' + w + ' waiting to send' : '')
-    : w ? 'Sending ' + w + '…' : '';
+  const w = waiting ? waiting + (waiting === 1 ? ' change' : ' changes') : '';
+  status = offline ? 'No connection · showing saved data' + (w ? ' · ' + w + ' waiting to sync' : '')
+    : w ? 'Syncing ' + w + '…' : '';
   paint();
 }
 

@@ -64,25 +64,40 @@ func (s *Service) Refresh(ctx context.Context, refresh, orgSlug, ip, ua string) 
 			outErr = httpx.ErrUnauthorized
 			return nil
 		}
+		// signed out on purpose (another phone confirmed, a sign-in elsewhere, blocked, inactivity): say so
 		if x.RevokedAt != nil {
-			// signed out on purpose (a sign-in elsewhere, or inactivity): say so
 			if e := s.whyEnded(ctx, x.ID); e != httpx.ErrUnauthorized {
 				outErr = e
 				return nil
 			}
-			// A rotated or revoked token came back: assume theft and end the whole family.
-			killed, err = s.revokeFamily(ctx, tx, x.Family)
-			outErr = httpx.ErrUnauthorized
-			return err
 		}
-		// a sign-in bound to a phone renews only with that phone's signature; without it the token was copied, so the sign-in ends
+		// A sign-in bound to a phone renews only with that phone's signature. A missing or late one is refused without ending
+		// anything: a copied token is useless without the phone, and the phone itself simply tries again.
 		ok, phone, err := deviceOK(ctx, tx, x.Family, x.ID)
 		if err != nil {
 			return err
 		} else if !ok {
-			killed, err = s.revokeFamily(ctx, tx, x.Family)
-			outErr = errDevice
-			return err
+			outErr = errDeviceRetry
+			return nil
+		}
+		if x.RevokedAt != nil {
+			if !phone {
+				// a browser's rotated token came back: assume theft and end the whole sign-in
+				killed, err = s.revokeFamily(ctx, tx, x.Family)
+				outErr = httpx.ErrUnauthorized
+				return err
+			}
+			// The phone renewed but never got the answer (the connection dropped on the way back). Its key proves it is the phone,
+			// so the renewal it lost is replaced by a new one, as long as its sign-in is still alive.
+			lost, err := s.revokeFamily(ctx, tx, x.Family)
+			if err != nil {
+				return err
+			}
+			if len(lost) == 0 {
+				outErr = s.familyEnded(ctx, tx, x.Family)
+				return nil
+			}
+			killed = append(killed, lost...)
 		}
 		if phone {
 			ctx = asPhone(ctx) // the phone keeps its long, renewing sign-in
@@ -110,8 +125,10 @@ func (s *Service) Refresh(ctx context.Context, refresh, orgSlug, ip, ua string) 
 			outErr = httpx.ErrUnauthorized
 			return nil
 		}
-		if err := s.revokeSession(ctx, tx, x); err != nil {
-			return err
+		if x.RevokedAt == nil {
+			if err := s.revokeSession(ctx, tx, x); err != nil {
+				return err
+			}
 		}
 		if orgSlug == "" && x.Org != nil {
 			_ = tx.QueryRow(ctx, `select slug from hub.orgs where id=$1`, *x.Org).Scan(&orgSlug)
@@ -185,8 +202,8 @@ func (s *Service) ChangePassword(ctx context.Context, acct, keepSession uuid.UUI
 		if err := s.saveAccount(ctx, tx, a); err != nil {
 			return err
 		}
-		// every other device is signed out; this one stays
-		all, err := s.revokeAllFor(ctx, tx, acct, keepSession)
+		// every other browser is signed out; this one and the account's phone stay
+		all, err := s.revokeBrowsers(ctx, tx, acct, keepSession)
 		if err != nil {
 			return err
 		}
@@ -278,7 +295,7 @@ func (s *Service) RevokeAccountInOrg(ctx context.Context, account, org uuid.UUID
 }
 
 // AdminSetTemporaryPassword replaces the account's password with a random one that must be changed at next sign-in,
-// signs the account out everywhere, and tells the owner by email. The temporary password is returned once.
+// signs the account out in every browser (the phone stays signed in), and tells the owner by email. The temporary password is returned once.
 func (s *Service) AdminSetTemporaryPassword(ctx context.Context, account uuid.UUID) (string, error) {
 	temp := crypto.RandomToken(9) + "aA1"
 	var killed []uuid.UUID
@@ -292,7 +309,7 @@ func (s *Service) AdminSetTemporaryPassword(ctx context.Context, account uuid.UU
 		if err := s.saveAccount(ctx, tx, a); err != nil {
 			return err
 		}
-		if killed, err = s.revokeAllFor(ctx, tx, account, uuid.Nil); err != nil {
+		if killed, err = s.revokeBrowsers(ctx, tx, account, uuid.Nil); err != nil {
 			return err
 		}
 		notify, _ = s.decEmail(a)

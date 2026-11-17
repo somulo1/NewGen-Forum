@@ -304,7 +304,7 @@ func (s *Service) ResetComplete(ctx context.Context, token, code, newPassword st
 		if err := s.saveReset(ctx, tx, x); err != nil {
 			return err
 		}
-		if killed, err = s.revokeAllFor(ctx, tx, a.ID, uuid.Nil); err != nil {
+		if killed, err = s.revokeBrowsers(ctx, tx, a.ID, uuid.Nil); err != nil {
 			return err
 		}
 		notify, _ = s.decEmail(a)
@@ -316,8 +316,8 @@ func (s *Service) ResetComplete(ctx context.Context, token, code, newPassword st
 		return err
 	}
 	if notify != "" {
-		_ = hubmail.SendCard(context.Background(), s.A.Mail, notify, "Your Hub password was changed", hubmail.Card{Accent: hubmail.Red, Title: "Your password was changed", Preheader: "You were signed out everywhere",
-			Lead: "Your password was just changed and you were signed out on every device. If this was you, no action is needed.", Note: "If this was not you, reset your password again now and tell your administrator."})
+		_ = hubmail.SendCard(context.Background(), s.A.Mail, notify, "Your Hub password was changed", hubmail.Card{Accent: hubmail.Red, Title: "Your password was changed", Preheader: "You were signed out on the web",
+			Lead: "Your password was just changed and you were signed out in every browser. The Hub app on your phone stays signed in. If this was you, no action is needed.", Note: "If this was not you, reset your password again now and tell your administrator."})
 	}
 	return outErr
 }

@@ -24,6 +24,8 @@ let refreshing: Promise<Session | null> | null = null;
 const inFlight = new Map<string, Promise<any>>();
 
 // The server ended this session on purpose: a sign-in somewhere else, or too long without activity. The login page says why.
+// What ends the phone app's sign-in: the server refusing it outright (401), or refusing the person in this organization (403).
+const endsAppSignIn = (e: unknown) => e instanceof ApiError && (e.status === 401 || (e.status === 403 && /^(account_|no_profile)/.test(e.code)));
 const ENDED = ['session_replaced', 'session_expired', 'device_unverified', 'phone_replaced', 'session_week', 'access_blocked', 'access_deactivated', 'access_removed'];
 export const SIGNOUT_KEY = 'hub-signout';
 const ended = (code: string) => {
@@ -94,18 +96,22 @@ export const useBackend = () => {
         const s = read();
         if (!s) return null;
         if (maxAge && s.at && Date.now() - s.at < maxAge) return s;
+        const app = !!native();
         try {
           let extra: Record<string, string> | undefined;
-          if (native()) {
+          if (app) {
+            // a sign-in bound to this phone is only renewed with the phone's signature; without one, it is not sent at all
             const p = await deviceProof('refresh', s.refresh.split('.')[0]);
-            if (p) extra = { 'X-Hub-Device-TS': String(p.ts), 'X-Hub-Device-Sig': p.sig };
+            if (!p) return s;
+            extra = { 'X-Hub-Device-TS': String(p.ts), 'X-Hub-Device-Sig': p.sig };
           }
           const t = await raw('POST', '/auth/refresh', { refresh_token: s.refresh, org: s.org?.slug || '' }, undefined, extra);
           const n = toSession(t, s.email); write(n); return n;
         } catch (e) {
-          // the phone app stays signed in until the server itself ends the sign-in (another phone confirmed, the password changed):
-          // no connection, a server waking up or a busy one only means the token is renewed once it answers again
-          if (e instanceof ApiError && offline.enabled() && e.status !== 401 && e.status !== 403) return s;
+          // The phone app stays signed in, online or offline, until the server itself says the sign-in is over: another phone was
+          // confirmed, or the person was blocked, deactivated or removed. Anything else (no connection, a sleeping or busy server,
+          // the phone's key answering late) keeps the sign-in, and it is renewed on the next try.
+          if (app && !endsAppSignIn(e)) return s;
           if (e instanceof ApiError && ENDED.includes(e.code)) ended(e.code); else write(null);
           return null;
         }
@@ -116,30 +122,31 @@ export const useBackend = () => {
     return refreshing;
   };
 
-  const authorized = async (method: string, path: string, body?: unknown): Promise<any> => {
+  const authorized = async (method: string, path: string, body?: unknown, extra?: Record<string, string>): Promise<any> => {
     let s = read();
     if (s && Date.now() >= s.expiresAt) s = await refresh();
     if (!s) throw new ApiError(401, 'signed_out', 'Sign in to continue.');
     try {
-      return await raw(method, path, body, s.access);
+      return await raw(method, path, body, s.access, extra);
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
         if (ENDED.includes(e.code)) { ended(e.code); throw e; }
         // another request or tab may already have rotated the token: use the newest one before refreshing again
         const cur = read();
         const n = cur && cur.access !== s.access ? cur : await refresh();
-        if (n) return raw(method, path, body, n.access);
+        if (n) return raw(method, path, body, n.access, extra);
       }
       throw e;
     }
   };
 
-  const direct = (method: string, path: string, body?: unknown): Promise<any> => {
+  // extra: headers (an edit sent from the phone's outbox carries the time it was made)
+  const direct = (method: string, path: string, body?: unknown, extra?: Record<string, string>): Promise<any> => {
     if (method === 'GET') return authorized(method, path, body);
     const key = method + ' ' + path + ' ' + JSON.stringify(body);
     const running = inFlight.get(key);
     if (running) return running;
-    const call = authorized(method, path, body).finally(() => { inFlight.delete(key); });
+    const call = authorized(method, path, body, extra).finally(() => { inFlight.delete(key); });
     inFlight.set(key, call);
     return call;
   };
@@ -148,11 +155,12 @@ export const useBackend = () => {
     (offline.enabled() ? offline.through(method, path, body, read(), direct) : direct(method, path, body));
 
   // Binary transfer (encrypted file contents): PUT bytes up, or GET bytes down.
-  const transfer = async (method: 'GET' | 'PUT', path: string, body?: Uint8Array): Promise<any> => {
+  // writtenAt: an upload kept on the phone while offline carries the time it was made (the server refuses it after 48 hours)
+  const transfer = async (method: 'GET' | 'PUT', path: string, body?: Uint8Array, writtenAt?: number): Promise<any> => {
     let s = read();
     if (s && Date.now() >= s.expiresAt) s = await refresh();
     if (!s) throw new ApiError(401, 'signed_out', 'Sign in to continue.');
-    const send = (access: string) => fetch(base + '/v1' + path, { method, headers: { Authorization: 'Bearer ' + access, ...(body ? { 'Content-Type': 'application/octet-stream' } : {}) }, body });
+    const send = (access: string) => fetch(base + '/v1' + path, { method, headers: { Authorization: 'Bearer ' + access, ...(body ? { 'Content-Type': 'application/octet-stream' } : {}), ...(writtenAt ? { 'X-Hub-Written-At': String(writtenAt) } : {}) }, body });
     let res = await send(s.access);
     if (res.status === 401) {
       // the token was rotated while this transfer was in flight: use the newest one (or refresh) and try once more, as request() does
@@ -170,8 +178,10 @@ export const useBackend = () => {
     return (res.headers.get('content-type') || '').includes('json') ? await res.json().catch(() => null) : null;
   };
 
+  const upload = (path: string, body: Uint8Array, writtenAt?: number) => transfer('PUT', path, body, writtenAt);
+  if (offline.enabled()) offline.setUploader(upload);
   const bytes = (method: 'GET' | 'PUT', path: string, body?: Uint8Array) => {
-    if (method === 'PUT') return trackWrite(transfer(method, path, body));
+    if (method === 'PUT') return trackWrite(offline.enabled() ? offline.sendFile(path, body as Uint8Array, read(), upload) : transfer(method, path, body));
     return offline.enabled() ? offline.file(path, read(), () => transfer(method, path, body)) : transfer(method, path, body);
   };
 

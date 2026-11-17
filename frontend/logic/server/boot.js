@@ -129,6 +129,14 @@ export async function startServerSync(logic, request, session, bytes) {
   const lazy = srv.lazy = createLazy(logic, LAZY);
   // the bell shows overdue tickets and shared notes show in chats, so those two arrive quietly a moment after the first screen
   lazy.later(['tickets', 'notes']);
+  // The phone app keeps every page ready for use offline: while online it reads them all once (the offline layer keeps each
+  // answer), then each ticket's details, so a page never opened before still opens with no connection.
+  if (window.HubNative && window.HubNative.app) {
+    lazy.later(LAZY.map((w) => w.name), 2500);
+    setTimeout(() => {
+      (logic.state.tickets || []).slice(0, 300).reduce((p, t) => p.then(() => (t.uid ? srv.request('GET', `/tickets/${t.uid}`).catch(() => {}) : null)), Promise.resolve());
+    }, 20000);
+  }
   // incoming calls ring live; each chat's Calls tab shows the real history
   // a dashboard shows new tickets, communications and requests as they happen (its tabs then blink): drop the cached dashboards so the
   // open one is fetched again
@@ -141,6 +149,13 @@ export async function startServerSync(logic, request, session, bytes) {
   // what a live notification may need to refresh
   srv.reload.tickets = () => { srv.lazy.refresh(tickets).catch(() => {}); orgW.loadPerformance(logic, srv).catch(() => {}); };
   srv.reload.approvals = () => Promise.all([approvals, comms, awards].map((w) => srv.lazy.refresh(w))).catch(() => {});   // only what was ever opened
+  // the phone app sent what was done offline: every page already opened reads the server's copy again, others' changes included
+  const everything = [people, forums, dms, notifications, settingsW, roles, orgW, prefs, profile, ...LAZY];
+  let syncT = 0;
+  window.addEventListener('hub:synced', () => {
+    clearTimeout(syncT);
+    syncT = setTimeout(() => everything.filter((w) => logic.loaded.has(w.name)).forEach((w) => w.load(logic, srv).catch(() => {})), 800);
+  });
   srv.bootDone = true;
   logic.forceUpdate();
   return srv;

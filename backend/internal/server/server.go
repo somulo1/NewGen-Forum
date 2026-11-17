@@ -66,7 +66,7 @@ func Router(d Deps) http.Handler {
 			v.Get("/dev/outbox", auth.DevOutbox(d.Dev))
 		}
 		v.Group(func(p chi.Router) {
-			p.Use(d.Auth.Middleware, d.rateLimit)
+			p.Use(d.Auth.Middleware, d.rateLimit, latestWins(d.App))
 			d.Auth.Private(p)
 			for _, m := range d.Modules {
 				m.Private(p)
