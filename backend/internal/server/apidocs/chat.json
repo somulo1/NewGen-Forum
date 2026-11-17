@@ -289,7 +289,7 @@
   "access": "any signed-in member of the organization (token issued with `org`)",
   "status": 201,
   "request": {
-   "id": "uuid, required. Chosen by the sender: a time-ordered UUID v7 made from the device clock",
+   "id": "uuid, required. Chosen by the sender: a time-ordered UUID v7 made from the device clock when the message was written. A message written offline may be sent up to 7 days later; it keeps its place by that time",
    "epoch": "integer, required. The key generation used",
    "device": "uuid, required. The sender's device",
    "envelope": "base64, required. Ciphertext plus signature, up to 512 KB",
@@ -311,7 +311,7 @@
    "deleted": "boolean. true when removed; the envelope is then empty"
   },
   "errors": {
-   "400": "Not a valid envelope, unknown type, or the id is not a UUID v7 with a believable time",
+   "400": "Not a valid envelope, unknown type, or the id is not a UUID v7 with a believable time (written at most 7 days ago, and not ahead of the server clock)",
    "403": "posting_limited: the forum rules do not let you post here",
    "409": "epoch_changed: the key changed, fetch the new key and send again; duplicate: that id was already sent",
    "429": "More than 120 messages a minute"
