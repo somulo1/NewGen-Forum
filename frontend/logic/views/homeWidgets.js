@@ -109,7 +109,9 @@ export function buildHomeWidgets(ctx) {
   const gate = widgetGate(this, s, can);
   const orgAllows = gate.allows;
   const loadingHome = gate.loading;   // signed in, and the organization's widget settings have not arrived yet
-  const ids = [...new Set(s.widgets)].filter((x) => catalog[x] && orgAllows(x) && (LEVELS.indexOf(x) === -1 || has[x] || (s.levelsAdded || {})[x]));
+  // the phone app leaves out Calls management (the customer phone system)
+  const inApp = typeof window !== 'undefined' && !!(window.HubNative && window.HubNative.app);
+  const ids = [...new Set(s.widgets)].filter((x) => catalog[x] && !(inApp && x === 'pbx') && orgAllows(x) && (LEVELS.indexOf(x) === -1 || has[x] || (s.levelsAdded || {})[x]));
   const isHidden = (id) => s.hiddenWidgets.indexOf(id) !== -1;
   const toggleHide = (id) => () => this.setState((st) => ({ hiddenWidgets: st.hiddenWidgets.indexOf(id) !== -1 ? st.hiddenWidgets.filter((x) => x !== id) : st.hiddenWidgets.concat([id]) }));
   const removeWidget = (id) => this.setState((st) => {
@@ -169,7 +171,7 @@ export function buildHomeWidgets(ctx) {
   }));
   // the gallery: what the organization switched on for this person; people who manage widget settings also see the rest, to switch them on
   // people who manage widget settings see every widget here (switched on or off, whoever it is limited to), so they can set any of them
-  const gallery = Object.keys(catalog).filter((id) => (id !== 'performance' || has.structure) && (orgAllows(id) || gate.manage)).map((id) => {
+  const gallery = Object.keys(catalog).filter((id) => !(inApp && id === 'pbx') && (id !== 'performance' || has.structure) && (orgAllows(id) || gate.manage)).map((id) => {
     const added = ids.indexOf(id) !== -1;
     return { ...catalog[id], added, hidden: added && isHidden(id), hideLabel: isHidden(id) ? 'Show on Home' : 'Hide on Home', toggleHide: toggleHide(id), remove: () => removeWidget(id), btnLabel: added ? 'Added' : (switchedOn(s.wcfg, id) ? 'Add to home' : 'Switch on and add'),
       openSettings: () => this.setState({ settingsFor: id }),

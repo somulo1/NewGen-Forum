@@ -23,7 +23,7 @@ let refreshing: Promise<Session | null> | null = null;
 const inFlight = new Map<string, Promise<any>>();
 
 // The server ended this session on purpose: a sign-in somewhere else, or too long without activity. The login page says why.
-const ENDED = ['session_replaced', 'session_expired'];
+const ENDED = ['session_replaced', 'session_expired', 'device_unverified'];
 export const SIGNOUT_KEY = 'hub-signout';
 const ended = (code: string) => {
   write(null);
@@ -41,15 +41,25 @@ const browserToken = (): string => {
   } catch (e) { return ''; }
 };
 
+// Inside the Hub phone app the sign-in is bound to the phone: the app holds a private key the page never sees, and signs the
+// sign-in and every refresh with it (the server refuses a bound refresh token without that signature). In a browser there is
+// no HubNative and nothing changes.
+const native = (): any => (typeof window !== 'undefined' ? (window as any).HubNative : null);
+const deviceProof = async (kind: 'login' | 'refresh', subject: string): Promise<any> => {
+  const n = native();
+  if (!n || !n.deviceProof) return null;
+  return n.deviceProof(kind, subject);
+};
+
 export const useBackend = () => {
   const base = ((useRuntimeConfig().public.apiBase as string) || '').replace(/\s+/g, '').replace(/\/+$/, '');   // a stray space or slash in the setting must not break addresses
 
-  const send = async (method: string, path: string, body?: unknown, token?: string): Promise<any> => {
+  const send = async (method: string, path: string, body?: unknown, token?: string, extra?: Record<string, string>): Promise<any> => {
     let res: Response;
     try {
       res = await fetch(base + '/v1' + path, {
         method,
-        headers: { ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}), ...(token ? { Authorization: 'Bearer ' + token } : {}) },
+        headers: { ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}), ...(token ? { Authorization: 'Bearer ' + token } : {}), ...(extra || {}) },
         body: body !== undefined ? JSON.stringify(body) : undefined
       });
     } catch (e) {
@@ -64,8 +74,8 @@ export const useBackend = () => {
   };
 
   // writes are reported to the button that caused them, which stays locked and shows a spinner until they end
-  const raw = (method: string, path: string, body?: unknown, token?: string): Promise<any> => {
-    const call = send(method, path, body, token);
+  const raw = (method: string, path: string, body?: unknown, token?: string, extra?: Record<string, string>): Promise<any> => {
+    const call = send(method, path, body, token, extra);
     return method === 'GET' || path === '/auth/refresh' ? call : trackWrite(call);
   };
 
@@ -84,7 +94,12 @@ export const useBackend = () => {
         if (!s) return null;
         if (maxAge && s.at && Date.now() - s.at < maxAge) return s;
         try {
-          const t = await raw('POST', '/auth/refresh', { refresh_token: s.refresh, org: s.org?.slug || '' });
+          let extra: Record<string, string> | undefined;
+          if (native()) {
+            const p = await deviceProof('refresh', s.refresh.split('.')[0]);
+            if (p) extra = { 'X-Hub-Device-TS': String(p.ts), 'X-Hub-Device-Sig': p.sig };
+          }
+          const t = await raw('POST', '/auth/refresh', { refresh_token: s.refresh, org: s.org?.slug || '' }, undefined, extra);
           const n = toSession(t, s.email); write(n); return n;
         } catch (e) {
           if (e instanceof ApiError && ENDED.includes(e.code)) ended(e.code); else write(null);
@@ -160,7 +175,8 @@ export const useBackend = () => {
     signedIn: () => !!read(),
     async login(email: string, password: string, totp = ''): Promise<Session> {
       const e = email.trim();
-      const t = await raw('POST', '/auth/login', { email: e, password, browser: browserToken(), ...(totp ? { totp } : {}) });
+      const device = native() ? await deviceProof('login', e.toLowerCase()) : null;
+      const t = await raw('POST', '/auth/login', { email: e, password, browser: browserToken(), ...(totp ? { totp } : {}), ...(device ? { device } : {}) });
       const s = toSession(t, e.toLowerCase());
       write(s);
       // The account's device keys come back to this browser (locked with the password, which is only here for this moment), so posts,

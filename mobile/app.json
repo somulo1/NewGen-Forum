@@ -1,0 +1,50 @@
+{
+  "expo": {
+    "name": "Hub",
+    "slug": "hub",
+    "scheme": "hub",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "backgroundColor": "#0F1714",
+    "primaryColor": "#B8F36B",
+    "ios": {
+      "bundleIdentifier": "com.newgen.hub",
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Hub uses the camera for video calls, meetings and photos you choose to share.",
+        "NSMicrophoneUsageDescription": "Hub uses the microphone for calls, meetings and voice notes.",
+        "NSPhotoLibraryUsageDescription": "Hub opens your photos when you choose one to share or set as your picture.",
+        "UIBackgroundModes": ["audio"]
+      }
+    },
+    "android": {
+      "package": "com.newgen.hub",
+      "allowBackup": false,
+      "adaptiveIcon": {
+        "backgroundColor": "#B8F36B",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.VIBRATE"
+      ],
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      ["expo-secure-store", { "configureAndroidBackup": true, "faceIDPermission": false }],
+      "expo-sharing",
+      ["expo-splash-screen", { "image": "./assets/splash-icon.png", "imageWidth": 120, "resizeMode": "contain", "backgroundColor": "#0F1714" }],
+      ["expo-notifications", { "icon": "./assets/android-icon-monochrome.png", "color": "#B8F36B" }]
+    ]
+  }
+}
