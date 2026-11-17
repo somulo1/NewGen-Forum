@@ -198,6 +198,7 @@ export const useBackend = () => {
     },
     async logout() {
       const s = read();
+      if (s) { const p = await import('~/logic/server/push.js'); await p.stopPush((m: string, path: string, b?: unknown) => raw(m, path, b, s.access)); }
       write(null);
       if (offline.enabled()) await offline.forget();   // the phone's offline copies and unsent messages go with the session
       try { sessionStorage.removeItem('hub-keybackup'); } catch (x) { /* nothing to clear */ }

@@ -21,7 +21,11 @@ export function bridgeScript(o: { platform: string; version: string; permission:
   window.HubNative = Object.freeze({
     app: true, platform: CFG.platform, version: CFG.version,
     deviceProof: function (kind, subject) { return call('proof', { kind: String(kind), subject: String(subject) }); },
-    share: function (name, mime, base64) { post({ type: 'file', name: name, mime: mime, data: base64 }); }
+    share: function (name, mime, base64) { post({ type: 'file', name: name, mime: mime, data: base64 }); },
+    // push notifications: this phone's address for the backend, the push that opened the app, and "the backend pushes now"
+    pushAddress: function () { return call('pushAddress'); },
+    pushOpened: function () { return call('pushOpened'); },
+    pushReady: function (on) { post({ type: 'pushReady', on: !!on }); }
   });
 
   // ---- system notifications: the browser Notification API, answered by the phone
