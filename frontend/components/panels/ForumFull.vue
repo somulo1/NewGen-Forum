@@ -7,7 +7,8 @@
 <template v-if="!showPanelCall">
 <div style="width: 100%; flex: 1; min-height: 0; box-sizing: border-box; display: flex; flex-direction: column">
 <div style="flex: none; position: relative; z-index: 5; background: var(--k-0F1714,#0F1714); border-bottom: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column">
-<div class="ff-bar hub-chat-bar" style="width: 100%; box-sizing: border-box; margin: 0; display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; padding: 8px clamp(16px, 3vw, 32px); padding-right: 58px; border: 0; background: var(--k-0F1714,#0F1714)">
+<div class="ff-bar hub-chat-bar" @pointerdown="swipeStart" @pointerup="swipeEnd" @pointercancel="swipeAt = null" style="touch-action: pan-y; width: 100%; box-sizing: border-box; margin: 0; display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; padding: 8px clamp(16px, 3vw, 32px); padding-right: 58px; border: 0; background: var(--k-0F1714,#0F1714)">
+<button type="button" class="hub-chatlist-btn" @click="railOpen = true" :aria-label="`All forums${chatSwitch.waiting ? ', ' + chatSwitch.waiting + ' new messages' : ''}`" title="All forums (or swipe across this bar)" style="position: relative; align-items: center; justify-content: center; width: 34px; height: 34px; flex: none; padding: 0; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg><span v-if="chatSwitch.waiting" style="position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; padding: 0 5px; box-sizing: border-box; border-radius: 9px; background: #B8F36B; color: #0F1714; font: 700 10px sans-serif; display: flex; align-items: center; justify-content: center">{{ chatSwitch.waiting > 99 ? '99+' : chatSwitch.waiting }}</span></button>
 <span :style="`width: 34px; height: 34px; flex: none; border-radius: 10px; background: ${cur.color}; color: #0F1714; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 14px`">{{ cur.initials }}</span>
 <div style="flex: 1 1 200px; min-width: 0; display: flex; flex-direction: column">
 <h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 17px; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ cur.name }}</h1>
@@ -153,6 +154,7 @@
 import { hubBindings } from '~/composables/useHub';
 import CallScreen from '../overlays/CallScreen.vue';
 import ChatRail from './ChatRail.vue';
+import { chatSwitchMixin } from './chatSwitch.js';
 import ChatSharedFiles from './ChatSharedFiles.vue';
 import SecureInboxCard from './SecureInboxCard.vue';
 
@@ -160,9 +162,10 @@ export default {
   name: 'ForumFull',
   components: { CallScreen, ChatRail, ChatSharedFiles, SecureInboxCard },
   props: { fit: { type: String, default: 'screen' } },
+  mixins: [chatSwitchMixin],
   data() { return { moreOpen: false, railOpen: false }; },
   computed: {
-    ...hubBindings(["canVoiceCall","canVideoCall","chatLoading","olderCount","moreOlder","showOlder","mentionList","onActivityClick","canAddToForum","addErr","addOpen","addBusy","toggleAdd","addPersonToForum","pickerPeople","forumMemberIds","pickEmojiForum","attachForum","chatRef","replyBar","chatCtl","closeChatFolder","composerNote","composerOff","cur","fKey","fdraft","fileFolders","ftab","has","inviteOpen","inviteText","inviteErr","inviteBusy","onInviteText","sendInvites","isFullForum","isPageForum","onFDraftValue","openChatFolder","pollView","selectedChatFolder","sendForum","showPanelCall","tab","tabTo","toClosed","toDocked","toFull","toMin","toPage","toggleInvite","videoCall","voiceCall"]).computed,
+    ...hubBindings(["chatSwitch","canVoiceCall","canVideoCall","chatLoading","olderCount","moreOlder","showOlder","mentionList","onActivityClick","canAddToForum","addErr","addOpen","addBusy","toggleAdd","addPersonToForum","pickerPeople","forumMemberIds","pickEmojiForum","attachForum","chatRef","replyBar","chatCtl","closeChatFolder","composerNote","composerOff","cur","fKey","fdraft","fileFolders","ftab","has","inviteOpen","inviteText","inviteErr","inviteBusy","onInviteText","sendInvites","isFullForum","isPageForum","onFDraftValue","openChatFolder","pollView","selectedChatFolder","sendForum","showPanelCall","tab","tabTo","toClosed","toDocked","toFull","toMin","toPage","toggleInvite","videoCall","voiceCall"]).computed,
     // the forum's views as one switch in the header: Discussions, Polls, Calls, Members, Files, About
     views() {
       const t = this.ftab || {}, go = this.tabTo || {};

@@ -1,6 +1,6 @@
 <!-- The list beside a chat that is fitted to the page or full screen: the other forums, or the other private chats, to switch between -->
 <template>
-<aside data-no-busy :class="['hub-chatrail', { 'is-open': open }]" :aria-label="kind === 'dm' ? 'Private chats' : 'Forums'" style="flex: 0 0 280px; min-width: 0; display: flex; flex-direction: column; border-right: 1px solid var(--k-24322C,#24322C); background: var(--k-121B17,#121B17)">
+<aside data-no-busy :class="['hub-chatrail', { 'is-open': open, 'hub-chatrail--over': over }]" :aria-label="kind === 'dm' ? 'Private chats' : 'Forums'" style="flex: 0 0 280px; min-width: 0; display: flex; flex-direction: column; border-right: 1px solid var(--k-24322C,#24322C); background: var(--k-121B17,#121B17)">
 <div style="flex: none; padding: 14px 14px 10px; display: flex; flex-direction: column; gap: 10px">
 <div style="display: flex; align-items: center; gap: 8px"><button type="button" class="hub-chatrail-back" aria-label="Back to the chat" @click="$emit('close')" style="width: 32px; height: 32px; border-radius: 9px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; align-items: center; justify-content: center"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"></path></svg></button><strong style="flex: 1; font-family: 'Space Grotesk', sans-serif; font-size: 17px; color: var(--k-E8EFEA,#E8EFEA)">{{ kind === 'dm' ? 'Private chats' : 'Forums' }}</strong>
 <button type="button" :aria-label="adding ? 'Cancel' : kind === 'dm' ? 'New private chat' : 'Create a forum'" :title="adding ? 'Cancel' : kind === 'dm' ? 'New private chat' : 'Create a forum'" :aria-expanded="adding" @click="toggleAdding" :style="`width: 32px; height: 32px; border-radius: 9px; border: 1px solid var(--k-2A3832,#2A3832); background: ${adding ? '#B8F36B' : 'transparent'}; color: ${adding ? '#0F1714' : 'var(--k-E8EFEA,#E8EFEA)'}; cursor: pointer; display: flex; align-items: center; justify-content: center`"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path :d="adding ? 'M6 6l12 12M18 6L6 18' : 'M12 5v14M5 12h14'"></path></svg></button></div>
@@ -52,7 +52,8 @@ import { hubBindings } from '~/composables/useHub';
 
 export default {
   name: 'ChatRail',
-  props: { kind: { type: String, default: 'forum' }, open: { type: Boolean, default: false } },
+  // over: the list opens over the chat on every screen size (the side panel, too narrow to keep a list beside the chat)
+  props: { kind: { type: String, default: 'forum' }, open: { type: Boolean, default: false }, over: { type: Boolean, default: false } },
   emits: ['close'],
   data() { return { q: '', adding: false, confirming: null, timer: 0, held: false }; },
   methods: {
@@ -92,6 +93,10 @@ export default {
   .hub-chatrail.is-open { display: flex !important; position: absolute; inset: 0; z-index: 25; flex-basis: auto !important; width: 100%; border-right: 0 !important; }
   .hub-chatrail.is-open .hub-chatrail-back { display: flex; }
 }
+.hub-chatrail--over { display: none !important; }
+.hub-chatrail--over.is-open { display: flex !important; position: absolute; inset: 0; z-index: 45; flex-basis: auto !important; width: 100%; border-right: 0 !important; }
+.hub-chatrail--over.is-open .hub-chatrail-back { display: flex; }
 .hub-chatlist-btn { display: none !important; }
+.hub-chatlist-btn.hub-chatlist-always { display: flex !important; }
 @media (max-width: 900px) { .hub-chatlist-btn { display: flex !important; } }
 </style>

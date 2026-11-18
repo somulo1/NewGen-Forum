@@ -2,9 +2,11 @@
 <template><template v-if="isDocked">
 <aside aria-label="Forum panel" class="hub-dock" :style="panelStyle">
 <CallScreen variant="panel" />
+<ChatRail over :open="railOpen" @close="railOpen = false" :kind="isDM ? 'dm' : 'forum'" />
 <button class="hub-grip" aria-label="Drag to resize panel. Arrow keys also resize." @pointerdown="startDrag" @keydown="resizeKey" style="position: absolute; left: 0; top: 0; bottom: 0; width: 14px; padding: 0; border: 0; background: transparent; cursor: ew-resize; z-index: 40; touch-action: none; display: flex; align-items: center; justify-content: center"><span :style="gripStyle"></span></button>
 <template v-if="!showPanelCall">
-<div class="hub-panel-header" style="position: relative; display: flex; align-items: center; gap: 10px; padding: 14px 58px 12px 20px; border-bottom: 1px solid var(--k-24322C,#24322C)">
+<div class="hub-panel-header" @pointerdown="swipeStart" @pointerup="swipeEnd" @pointercancel="swipeAt = null" style="touch-action: pan-y; position: relative; display: flex; align-items: center; gap: 10px; padding: 14px 58px 12px 20px; border-bottom: 1px solid var(--k-24322C,#24322C)">
+<button type="button" class="hub-chatlist-btn hub-chatlist-always" @click="railOpen = true" :aria-label="`All ${isDM ? 'private chats' : 'forums'}${chatSwitch.waiting ? ', ' + chatSwitch.waiting + ' new messages' : ''}`" :title="`All ${isDM ? 'private chats' : 'forums'} (or swipe across this bar)`" style="position: relative; align-items: center; justify-content: center; width: 32px; height: 32px; flex: none; padding: 0; border-radius: 9px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg><span v-if="chatSwitch.waiting" style="position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; padding: 0 5px; box-sizing: border-box; border-radius: 9px; background: #B8F36B; color: #0F1714; font: 700 10px sans-serif; display: flex; align-items: center; justify-content: center">{{ chatSwitch.waiting > 99 ? '99+' : chatSwitch.waiting }}</span></button>
 <UserAvatar :name="cur.name" :initials="cur.initials" :color="cur.color" :size="34" :font-size="13" radius="10px"/>
 <div class="hub-panel-name" style="flex: 1; min-width: 0; display: flex; flex-direction: column"><strong style="font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ cur.name }}</strong><span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)"><span :style="`color: ${cur.dotColor}`">●</span> {{ cur.subline }}</span></div>
 <div class="hub-panel-actions" style="display: flex; align-items: center; gap: 2px; flex: none">
@@ -106,15 +108,18 @@
 
 <script>
 import { hubBindings } from '~/composables/useHub';
+import ChatRail from './ChatRail.vue';
+import { chatSwitchMixin } from './chatSwitch.js';
 import CallScreen from '../overlays/CallScreen.vue';
 import SecureInboxCard from './SecureInboxCard.vue';
 
 export default {
   name: 'ForumPanel',
-  components: { CallScreen, SecureInboxCard },
-  data() { return { moreOpen: false }; },
+  components: { CallScreen, ChatRail, SecureInboxCard },
+  mixins: [chatSwitchMixin],
+  data() { return { moreOpen: false, railOpen: false }; },
   computed: {
-    ...hubBindings(["liveConv","canVoiceCall","canVideoCall","chatLoading","olderCount","moreOlder","showOlder","mentionList","onActivityClick","isPanelMembers","goPanelMembers","chatCtl","canAddToForum","addOpen","addErr","addBusy","toggleAdd","addPersonToForum","pickerPeople","forumMemberIds","pickEmojiForum","attachForum","chatRef","composerNote","composerOff","cur","dmPriv","fKey","fdraft","goPanelChat","goPanelPolls","gripStyle","isDM","isDocked","isPanelChat","replyBar","isPanelCalls","goPanelCalls","isPanelPolls","menuOpen","onFDraftValue","panelChips","panelStyle","pollView","resizeKey","sendForum","showPanelCall","startDrag","toClosed","toFull","toMin","toPage","toggleMenu","videoCall","voiceCall"]).computed,
+    ...hubBindings(["chatSwitch","liveConv","canVoiceCall","canVideoCall","chatLoading","olderCount","moreOlder","showOlder","mentionList","onActivityClick","isPanelMembers","goPanelMembers","chatCtl","canAddToForum","addOpen","addErr","addBusy","toggleAdd","addPersonToForum","pickerPeople","forumMemberIds","pickEmojiForum","attachForum","chatRef","composerNote","composerOff","cur","dmPriv","fKey","fdraft","goPanelChat","goPanelPolls","gripStyle","isDM","isDocked","isPanelChat","replyBar","isPanelCalls","goPanelCalls","isPanelPolls","menuOpen","onFDraftValue","panelChips","panelStyle","pollView","resizeKey","sendForum","showPanelCall","startDrag","toClosed","toFull","toMin","toPage","toggleMenu","videoCall","voiceCall"]).computed,
     // the chat's views sit behind the ⋯ button so the side panel keeps its height for the conversation
     moreItems() {
       const v = this; const dm = v.isDM;
