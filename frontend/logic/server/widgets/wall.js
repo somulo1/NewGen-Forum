@@ -127,6 +127,25 @@ export async function load(logic, srv) {
   }
   await render(logic, srv, all);
   await pages.first(logic, srv, older(logic, srv));
+  holdWeek(logic, srv);
+}
+
+// Trending hashtags count the last week of posts, so that week is read in the background (not shown: the wall still shows a
+// batch at a time) once the first batch is on screen.
+const TREND_DAYS = 7;
+const WEEK_PAGES = 10;
+async function holdWeek(logic, srv) {
+  if (srv.wallWeekRunning) return;
+  srv.wallWeekRunning = true;
+  try {
+    const more = older(logic, srv);
+    const since = Date.now() - TREND_DAYS * 24 * 3600 * 1000;
+    for (let i = 0; i < WEEK_PAGES; i++) {
+      const held = [...srv.wallAll.values()];
+      const oldest = held.reduce((t, m) => Math.min(t, Date.parse(m.created_at) || t), Date.now());
+      if (oldest < since || !(await more())) break;
+    }
+  } catch (e) { /* trending counts what is held */ } finally { srv.wallWeekRunning = false; }
 }
 
 // reads the next older server page into what is held; false when the wall has nothing older
@@ -193,7 +212,7 @@ function build(logic, srv, items) {
     const isComm = fromComms;
     const commLabel = pl.type || (m.type === 'memo' ? 'Memo' : 'Announcement');
     return {
-      id: m.id, author: who(m), ...look(m), mine: m.sender_account === me,
+      id: m.id, at: m.created_at, author: who(m), ...look(m), mine: m.sender_account === me,
       // a communication on the wall: its read is counted only when it was really on screen (logic/seen.js)
       seenConv: isComm && m.sender_account !== me ? srv.wallId : '', seenMsg: isComm ? m.id : '',
       headline: m.sender_account === me ? ((logic.state.profile || {}).headline || '') : (p ? (p.headline || '') : ''),   // what they wrote about themselves, shown under their name
