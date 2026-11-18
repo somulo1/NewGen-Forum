@@ -87,6 +87,7 @@ export function useHubShell() {
       const now = JSON.stringify([me.role, me.rights]);
       if (now !== logic.srv.meSeen) {
         logic.srv.meSeen = now;
+        logic.srv.me.rights = me.rights; logic.srv.me.role = me.role;   // what this person may do now (the pages read it)
         await Promise.all([import('~/logic/server/widgets/profile.js').then((m) => m.load(logic, logic.srv)), import('~/logic/server/widgets/roles.js').then((m) => m.load(logic, logic.srv))]);
         logic.forceUpdate();
       }

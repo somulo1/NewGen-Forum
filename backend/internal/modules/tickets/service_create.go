@@ -15,6 +15,7 @@ import (
 	"hub/internal/httpx"
 	"hub/internal/notify"
 	"hub/internal/tenant"
+	"hub/internal/widgetaccess"
 )
 
 // Create turns a ticket conversation (made by the requester's device, with a key for the requester and the people who may
@@ -83,7 +84,9 @@ func (s *Service) Create(ctx context.Context, p *tenant.Principal, in CreateIn) 
 		}
 		// business requests are a departmental matter: only people with access to departments send them
 		if in.Kind == "request" {
-			if err := authz.Require(ctx, tx, p.Person, "departments", "View dashboard"); err != nil {
+			if ok, err := widgetaccess.Dashboard(ctx, s.A, tx, p, "departments"); err != nil {
+				return err
+			} else if !ok {
 				return httpx.Err(403, "no_department_access", "Only people with access to departments can send business requests.")
 			}
 		}
@@ -107,8 +110,10 @@ func (s *Service) Create(ctx context.Context, p *tenant.Principal, in CreateIn) 
 				return httpx.Err(403, "not_member", "You can only send on behalf of a place you belong to.")
 			}
 			mod := map[string]string{"department": "departments", "unit": "units", "branch": "branches", "sector": "sectors"}[fromKind]
-			if err := authz.Require(ctx, tx, p.Person, mod, "View dashboard"); err != nil {
+			if ok, err := widgetaccess.Dashboard(ctx, s.A, tx, p, mod); err != nil {
 				return err
+			} else if !ok {
+				return httpx.ErrForbidden
 			}
 			in.FromType = fromKind
 			if in.Kind == "request" && fromKind != "department" {

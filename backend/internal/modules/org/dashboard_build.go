@@ -39,17 +39,14 @@ func (s *Service) Dashboard(ctx context.Context, p *tenant.Principal, id uuid.UU
 				return err
 			}
 			if !admin {
-				if err := authz.Require(ctx, tx, p.Person, rightsMod[d.Unit.Kind], "View dashboard"); err != nil {
-					return err
-				}
-				// the dashboard widget's audience (Widget settings, Specific groups: e.g. a user group) decides too, so a typed
-				// address cannot open a dashboard the person's group was not given
-				ok, err := widgetaccess.May(ctx, s.A, tx, p, rightsMod[d.Unit.Kind])
+				// the one dashboard rule (its Widget settings: by roles, or by user groups only), so a typed address opens only
+				// what the sidebar offers
+				ok, err := widgetaccess.Dashboard(ctx, s.A, tx, p, rightsMod[d.Unit.Kind])
 				if err != nil {
 					return err
 				}
 				if !ok {
-					return httpx.Err(403, "not_your_dashboard", "This dashboard is not open to your group. Ask an administrator.")
+					return httpx.Err(403, "not_your_dashboard", "This dashboard is not open to your role or user group. Ask an administrator.")
 				}
 			}
 		}

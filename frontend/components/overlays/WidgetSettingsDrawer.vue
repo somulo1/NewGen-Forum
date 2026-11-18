@@ -14,6 +14,18 @@
 <template v-if="sw.markBar && sw.markBar.show"><div role="region" aria-label="Marked rights" style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 12px; border: 2px solid #FFB86B; background: var(--k-1B1A12,#1B1A12)"><strong style="flex: 1 1 160px; font-size: 13px">{{ sw.markBar.label }}</strong><button type="button" @click="sw.markBar.clear" style="height: 32px; padding: 0 12px; border-radius: 16px; border: 1px solid var(--k-6B7A72,#6B7A72); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer">Clear</button><button type="button" :disabled="sw.markBar.busy" @click="sw.markBar.send" style="height: 32px; padding: 0 14px; border-radius: 16px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 700; cursor: pointer">{{ sw.markBar.busy ? 'Sending…' : 'Send ' + sw.markBar.count + ' for approval' }}</button></div></template>
 <button type="button" role="switch" :aria-checked="sw.orgOn" @click="sw.toggleOrgOn" :style="`display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 14px; border-radius: 12px; cursor: pointer; text-align: left; font-size: 14px; font-weight: 600; color: var(--k-E8EFEA,#E8EFEA); background: var(--k-121B17,#121B17); border: 2px solid ${sw.orgOn ? '#7BB93A' : 'var(--k-6B7A72,#6B7A72)'}`"><span :style="`flex: none; width: 36px; height: 20px; border-radius: 10px; position: relative; background: ${sw.orgOn ? '#B8F36B' : 'var(--k-3F524A,#3F524A)'}`"><span :style="`position: absolute; top: 2px; ${sw.orgOn ? 'right: 2px' : 'left: 2px'}; width: 16px; height: 16px; border-radius: 50%; background: #0F1714`"></span></span>{{ sw.orgOnLabel }}</button>
 <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">Display name<input type="text" :value="sw.title" @input="sw.setTitle" style="height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px"></label>
+<template v-if="sw.isDash">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<span style="font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">Who opens this dashboard</span>
+<div role="radiogroup" aria-label="Who opens this dashboard" style="display: flex; flex-wrap: wrap; gap: 8px"><template v-for="dm in sw.dash.modes" :key="dm.label"><button role="radio" :aria-checked="dm.on" @click="dm.pick" :style="dm.style">{{ dm.label }}</button></template></div>
+<div style="padding: 12px; border-radius: 12px; background: var(--k-121B17,#121B17); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 10px">
+<span style="font-size: 12px; color: var(--k-C9D6CF,#C9D6CF); line-height: 1.5">{{ sw.dash.hint }}</span>
+<span v-if="sw.dash.empty" style="font-size: 12px; color: var(--k-FFB86B,#FFB86B)">{{ sw.dash.empty }}</span>
+<div style="display: flex; flex-wrap: wrap; gap: 6px"><template v-for="di in sw.dash.items" :key="di.name"><button :aria-pressed="di.on" :title="di.title" @click="di.toggle" :disabled="di.locked" :style="di.style">{{ di.name }}<template v-if="di.pending"> <span style="font-size: 9px; font-weight: 700; color: var(--k-FFB86B,#FFB86B)">PENDING</span></template></button></template></div>
+</div>
+</div>
+</template>
+<template v-else>
 <div style="display: flex; flex-direction: column; gap: 8px">
 <span style="font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">Who can see it</span>
 <div role="radiogroup" aria-label="Who can see it" style="display: flex; flex-wrap: wrap; gap: 8px"><template v-for="(so, so__i) in sw.seeOpts" :key="so__i"><button role="radio" :aria-checked="so.on" @click="so.pick" :style="so.style">{{ so.label }}</button></template></div>
@@ -24,6 +36,7 @@
 </div>
 </template>
 </div>
+</template>
 <div style="display: flex; flex-direction: column; gap: 8px">
 <span style="font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">Who can manage it <span style="color: var(--k-9DB0A6,#9DB0A6)">(roles)</span></span>
 <div style="display: flex; flex-wrap: wrap; gap: 6px"><template v-for="(mr2, mr2__i) in sw.managerRoles" :key="mr2__i"><button :aria-pressed="mr2.on" @click="mr2.toggle" :disabled="mr2.locked" :style="mr2.style">{{ mr2.name }}</button></template></div>
@@ -34,8 +47,8 @@
 </div>
 
 <div style="display: flex; flex-direction: column; gap: 10px">
-<span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--k-9DB0A6,#9DB0A6)">Rights in this widget</span>
-<span style="font-size: 13px; color: var(--k-C9D6CF,#C9D6CF); line-height: 1.5">Tick what each role may do here. People can only act within these rights.</span>
+<span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--k-9DB0A6,#9DB0A6)">{{ sw.isDash ? 'What people can do on it' : 'Rights in this widget' }}</span>
+<span style="font-size: 13px; color: var(--k-C9D6CF,#C9D6CF); line-height: 1.5">{{ sw.isDash ? 'For those who open the dashboard: tick what each role or user group may also do on it.' : 'Tick what each role may do here. People can only act within these rights.' }}</span>
 <div style="overflow-x: auto; border-radius: 12px; border: 1px solid var(--k-24322C,#24322C)">
 <table style="width: 100%; border-collapse: collapse; font-size: 13px">
 <thead><tr><th style="text-align: left; padding: 10px 12px; background: var(--k-121B17,#121B17); color: var(--k-9DB0A6,#9DB0A6); font-weight: 600; font-size: 12px">Role</th><template v-for="(rn, rn__i) in sw.rightNames" :key="rn__i"><th style="padding: 10px 6px; background: var(--k-121B17,#121B17); color: var(--k-9DB0A6,#9DB0A6); font-weight: 600; font-size: 11px; text-align: center; min-width: 64px">{{ rn.name }}</th></template></tr></thead>

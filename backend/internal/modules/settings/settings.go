@@ -234,6 +234,9 @@ func validWidgets(in map[string]any) error {
 		if see, has := c["see"]; has && see != "Everyone" && see != "Specific groups" {
 			return httpx.Bad("Choose who can see the widget from the list.")
 		}
+		if acc, has := c["access"]; has && acc != "roles" && acc != "groups" {
+			return httpx.Bad("Choose whether roles or user groups open the dashboard.")
+		}
 	}
 	return nil
 }

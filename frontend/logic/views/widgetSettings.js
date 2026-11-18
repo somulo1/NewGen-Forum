@@ -32,7 +32,11 @@ export function buildWidgetSettings(ctx) {
     const isOn = !!s.wcfg[sid] && s.wcfg[sid].enabled === true;   // switched on for the whole organization
     const setCfg = (k) => (e) => { const v = e.target.value; this.setState((st) => ({ wcfg: { ...st.wcfg, [sid]: Object.assign({ title: catalog[sid].title, see: 'Everyone', manage: 'Admins', enabled: false }, st.wcfg[sid] || {}, { [k]: v }) } })); };
     const wmod = sid;
-    const rn = rightsDef[wmod] || genericRights;
+    // The place dashboards (departments, sectors, branches, units): who opens them is one choice, made below (by roles, or by user
+    // groups only), so their "View dashboard" right is not repeated in the table of other rights.
+    const isDash = ['departments', 'sectors', 'branches', 'units'].indexOf(sid) !== -1;
+    const VIEW = 'View dashboard';
+    const rn = (rightsDef[wmod] || genericRights).filter((x) => !(isDash && x === VIEW));
     const wflows = s.flows.filter((f) => f.mod === wmod).map(flowItem);
     sw = { ...catalog[sid], baseTitle: catalog[sid].title, t: { [sid]: true }, genericOnly: special.indexOf(sid) === -1,
       rightNames: rn.map((x) => ({ name: x })),
@@ -49,18 +53,38 @@ export function buildWidgetSettings(ctx) {
     const managers = cfg.managers || [];
     const managerGroups = cfg.managerGroups || [];
     const isGroups = cfg.see === 'Specific groups';
-    // The dashboard widgets (departments, sectors, branches, units) are opened only by the user groups chosen here: placing
-    // someone in a place does not give them its dashboard. Every other widget keeps its usual groups (places and forums).
-    const isDash = ['departments', 'sectors', 'branches', 'units'].indexOf(sid) !== -1;
-    const groupSets = (isDash
-      ? [{ label: 'User groups (every role in the group)', items: groupDefs.map((g) => ({ key: 'ugroup:' + g.id, name: g.name })) }]
-      : ['departments', 'sectors', 'branches', 'units'].filter((t) => has[t]).map((t) => ({ label: typeName[t] + (t === 'branches' ? 'es' : 's'), items: O[t].map((r) => ({ key: t + ':' + r.id, name: r.name })) }))
-        .concat([{ label: 'Forums', items: forums.map((f) => ({ key: 'forum:' + f.id, name: f.name })) }]))
+    // Every other widget is seen by everyone, or by the places and forums chosen here.
+    const groupSets = ['departments', 'sectors', 'branches', 'units'].filter((t) => has[t]).map((t) => ({ label: typeName[t] + (t === 'branches' ? 'es' : 's'), items: O[t].map((r) => ({ key: t + ':' + r.id, name: r.name })) }))
+      .concat([{ label: 'Forums', items: forums.map((f) => ({ key: 'forum:' + f.id, name: f.name })) }])
       .map((gs) => ({ label: gs.label, items: gs.items.map((it) => { const on = groups.indexOf(it.key) !== -1; return { name: it.name, on: on, style: chipS(on), toggle: () => setW((c) => ({ groups: on ? c.groups.filter((x) => x !== it.key) : c.groups.concat([it.key]) })) }; }) }));
+    // A place dashboard: one rule, two ways. By roles, the roles ticked here open it. By user groups only, the roles inside the user
+    // groups ticked here open it and a role's own tick does not count. Each tick is the "View dashboard" right itself (the same one
+    // the Roles & rights page shows), so the two pages always agree; the server checks exactly this.
+    const mode = cfg.access === 'groups' || (!cfg.access && cfg.see === 'Specific groups') ? 'groups' : 'roles';
+    const dash = !isDash ? null : {
+      mode,
+      modes: [['roles', 'Roles'], ['groups', 'User groups only']].map(([k, label]) => ({ label, on: mode === k, style: chip(mode === k),
+        pick: () => setW({ access: k, see: 'Everyone', groups: [] }) })),
+      hint: mode === 'roles'
+        ? 'The roles ticked here open the dashboard of the place their people belong to. User groups do not count for this dashboard.'
+        : 'Only roles inside the user groups ticked here open it; a role\'s own setting does not count. Groups are made on Roles & rights.',
+      items: mode === 'roles'
+        ? visibleRoles.map((r) => {
+          const k = rKey(r.id, wmod, VIEW), on = r.locked || (mk[k] ? mk[k].allowed : rightOf(r.id, wmod, VIEW));
+          return { name: r.name + (r.locked ? ' (always)' : ''), title: r.locked ? 'This role can always open every dashboard' : '', on, locked: !!r.locked, pending: s.pendingRights[k] !== undefined || !!mk[k], style: chipS(on), toggle: () => toggleRight(r.id, wmod, VIEW) };
+        })
+        : groupDefs.map((g) => {
+          const k = 'g:' + rKey(g.id, wmod, VIEW), on = mk[k] ? mk[k].allowed : groupRightOf(g.id, wmod, VIEW);
+          const roleNames = g.roles.map((id) => (visibleRoles.find((r) => r.id === id) || {}).name).filter(Boolean).join(', ') || 'no roles yet';
+          return { name: g.name, title: 'Roles in this group: ' + roleNames, on, locked: false, pending: s.pendingRights[k] !== undefined || !!mk[k], style: chipS(on), toggle: () => toggleGroupRight(g.id, wmod, VIEW) };
+        }),
+      empty: mode === 'groups' && !groupDefs.length ? 'No user groups yet. Make one on Roles & rights (a group of roles), then tick it here.' : ''
+    };
     Object.assign(sw, {
+      isDash, dash,
       seeOpts: ['Everyone', 'Specific groups'].map((v) => ({ label: v, on: cfg.see === v, style: chip(cfg.see === v), pick: () => setW({ see: v }) })),
       isGroups: isGroups, groupSets: groupSets,
-      groupsHint: isDash && !groupDefs.length ? 'No user groups yet. Make one on the Roles & rights page (a group of roles), then choose it here.' : groups.length ? groups.length + (groups.length === 1 ? ' group selected. Only its members see this widget.' : ' groups selected. Only their members see this widget.') : 'Pick at least one group. You can\'t save until you do.',
+      groupsHint: groups.length ? groups.length + (groups.length === 1 ? ' group selected. Only its members see this widget.' : ' groups selected. Only their members see this widget.') : 'Pick at least one group. You can\'t save until you do.',
       groupsHintColor: groups.length ? '#C9D6CF' : '#FFB86B', groupsBorder: groups.length ? '#24322C' : '#6A5426',
       managerRoles: visibleRoles.map((r) => {
         // the locked (super admin) role is on unless someone switched it off for this widget; the others are on only when ticked

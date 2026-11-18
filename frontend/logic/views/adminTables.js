@@ -4,7 +4,7 @@ import { askConfirm, confirmed } from '~/logic/confirm.js';
 
 // renderVals step: adminTables. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildAdminTables(ctx) {
-  const { C, O, can, apGroups, agoLabel, rightMeta, defaultCats, deskTickets, myTickets, alertsAll, alertsRange, logsRange, allLogs, chip, corePeople, f8, flowItem, fmtDay, has, modEnabled, modInfo, nowMs, rKey, requestsShown, rightOf, rightsDef, roleScope, ruleDefs, ruleOn, ruleSev, s, sec, sevColor, tickets, titleOf, toggleRight, tz9, visibleRoles } = ctx;
+  const { C, O, can, canDash, apGroups, agoLabel, rightMeta, defaultCats, deskTickets, myTickets, alertsAll, alertsRange, logsRange, allLogs, chip, corePeople, f8, flowItem, fmtDay, has, modEnabled, modInfo, nowMs, rKey, requestsShown, rightOf, rightsDef, roleScope, ruleDefs, ruleOn, ruleSev, s, sec, sevColor, tickets, titleOf, toggleRight, tz9, visibleRoles } = ctx;
   // =============== Tables for existing pages ===============
   const prioColor = { High: '#FF9B8A', Medium: '#FFB86B', Low: '#9DB0A6' };
   // ID, title, then a one-line description (cut with … and opening the ticket) and whether evidence is attached
@@ -236,7 +236,7 @@ export function buildAdminTables(ctx) {
   const tLevels = levelsOf(has);
   // a business request goes to a department only; a ticket to any level the organization uses
   // business requests are departmental: only people with access to departments send them
-  const canRequest = tLevels.indexOf('departments') !== -1 && (!this.srv || can('departments', 'View dashboard'));
+  const canRequest = tLevels.indexOf('departments') !== -1 && (!this.srv || canDash('departments'));
   const canComm = tLevels.length > 0;   // communications go between departments, units, branches and sectors
   // a person raises tickets and business requests here; communications are sent from a place's dashboard
   const ntKind = s.nt.kind === 'request' && canRequest ? 'request' : 'ticket';

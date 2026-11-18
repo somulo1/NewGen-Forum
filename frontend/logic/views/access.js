@@ -65,7 +65,15 @@ export function buildAccess(ctx) {
   const groupDefs = (s.serverGroups || []).map((g) => ({ id: g.id, name: g.name, desc: g.desc || '', roles: g.roles || [], count: g.count || 0 }));
   const groupRightOf = (gid, mod, right) => !!(s.groupRights && s.groupRights[gid] && s.groupRights[gid][mod] && s.groupRights[gid][mod][right]);
   const viaGroups = (role, mod, right) => groupDefs.filter((g) => g.roles.indexOf(role) !== -1 && groupRightOf(g.id, mod, right));
-  const can = (mod, right) => rightOf(s.actingRole, mod, right) || viaGroups(s.actingRole, mod, right).length > 0;
+  // What I may do comes from the server, which counts my role, every user group my role is in and my personal rights (the
+  // rights tables above are only readable by people who manage roles). Previewing another role uses those tables.
+  const previewing = !!(s.actingRole && s.myRole && s.actingRole !== s.myRole);
+  const mine = this.srv && !previewing && this.srv.me && this.srv.me.rights ? this.srv.me.rights : null;
+  const can = mine ? (mod, right) => (mine[mod] || []).indexOf(right) !== -1
+    : (mod, right) => rightOf(s.actingRole, mod, right) || viaGroups(s.actingRole, mod, right).length > 0;
+  // May I open the dashboards of this level (departments, sectors, branches, units)? The server's one rule (that dashboard's
+  // Widget settings: by roles, or by user groups only, and switched on), so every page and the sidebar give the same answer.
+  const canDash = (t) => (mine && Array.isArray(s.myWidgets) ? s.myWidgets.indexOf(t) !== -1 : can(t, 'View dashboard'));
   // Places that pick "a role" can also pick a user group, written 'group:<id>'. These read such a pick.
   const refName = (ref) => {
     if (typeof ref === 'string' && ref.indexOf('group:') === 0) { const g = groupDefs.find((x) => x.id === ref.slice(6)); return g ? g.name + ' (group)' : 'a deleted group'; }
@@ -137,5 +145,5 @@ export function buildAccess(ctx) {
       .then((r) => this.notify(r === 'applied' ? 'Rights updated: ' + label + '. Logged for review.' : 'Sent for approval: Change rights of user group: ' + label + '.', r === 'applied' ? '#B8F36B' : '#FFB86B'))
       .catch((e) => this.notify(e.message || 'Could not change the right.', '#FF9B8A'));
   };
-  return { can, refName, holdsRef, groupDefs, groupRightOf, toggleGroupRight, viaGroups, catalog, rightMeta, flowById, genericRights, has, makeRequest, modEnabled, modInfo, openPersonName, rKey, rightOf, rightsDef, roleDefs, roleScope, s, set, toggleRight, visibleRoles };
+  return { can, canDash, refName, holdsRef, groupDefs, groupRightOf, toggleGroupRight, viaGroups, catalog, rightMeta, flowById, genericRights, has, makeRequest, modEnabled, modInfo, openPersonName, rKey, rightOf, rightsDef, roleDefs, roleScope, s, set, toggleRight, visibleRoles };
 }

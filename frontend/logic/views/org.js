@@ -5,7 +5,7 @@ import * as commsW from '~/logic/server/widgets/comms.js';
 import * as approvalsW from '~/logic/server/widgets/approvals.js';
 // renderVals step: org. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildOrg(ctx) {
-  const { C, badge, can, cur_t, fmtDay, has, isoAdd, projects, refName, roleDefs, s, tagNames, ticketPeople, tatText, tickets, todayISO, ts } = ctx;
+  const { C, badge, can, canDash, cur_t, fmtDay, has, isoAdd, projects, refName, roleDefs, s, tagNames, ticketPeople, tatText, tickets, todayISO, ts } = ctx;
   // =============== Organization structure ===============
   const O = this.org;
   const typeName = { sectors: 'Sector', branches: 'Branch', units: 'Unit', departments: 'Department' };
@@ -226,7 +226,9 @@ export function buildOrg(ctx) {
   // which of my places' dashboards I use day to day is decided in widget settings (My department, My sector, My branch, My unit
   // widgets, and who sees them); I may still open the others I have the right to from Organization
   const wGate = widgetGate(this, s, can);
-  const myUnits = ['departments', 'sectors', 'branches', 'units'].filter((t) => has[t] && can(t, 'View dashboard') && recOf(t, O.mine[t]) && wGate.allows(t)).map((t) => {
+  // whether I may open my place's dashboard is the server's one rule (that dashboard's Widget settings: by roles, or by user groups
+  // only), so the sidebar and the dashboard never disagree; an older server without that answer falls back to the right
+  const myUnits = ['departments', 'sectors', 'branches', 'units'].filter((t) => has[t] && recOf(t, O.mine[t]) && canDash(t) && wGate.allows(t)).map((t) => {
     const r = recOf(t, O.mine[t]);
     const key = t + ':' + r.id;
     const on = s.section === 'orgunit' && s.ou === key;
@@ -245,7 +247,7 @@ export function buildOrg(ctx) {
   const ouTab = ((s.ouTab === 'tks' || s.ouTab === 'cats') && !has.tickets) || (s.ouTab === 'projects' && !has.projects) ? 'comms' : s.ouTab === 'people' ? 'members' : s.ouTab;
   const ouParts = s.ou ? s.ou.split(':') : null;
   // the place's own viewers, or whoever manages the organization structure (they open it from there, to view)
-  const ouRec = ouParts && has[ouParts[0]] && (can(ouParts[0], 'View dashboard') || can('settings', 'Edit organization profile')) ? recOf(ouParts[0], ouParts[1]) : null;
+  const ouRec = ouParts && has[ouParts[0]] && (canDash(ouParts[0]) || can('settings', 'Edit organization profile')) ? recOf(ouParts[0], ouParts[1]) : null;
   if (ouRec) {
     const t = ouParts[0], key = s.ou, D = unitPerf[key] || unitData(t, ouRec), tg = targetOf(key);
     if (this.srv) orgW.ensure(this, this.srv, key);
@@ -361,7 +363,7 @@ export function buildOrg(ctx) {
       reqDirs: ['Received', 'Escalated', 'Sent'].map((d) => ({ label: d, count: D.reqs.filter((x) => x.dir === d).length, on: (s.ouReqDir || 'Received') === d, pick: () => this.setState({ ouReqDir: d }) })),
       commDirs: ['Received', 'Escalated', 'Sent'].map((d) => ({ label: d, count: D.comms.filter((x) => x.dir === d).length, on: (s.ouCommDir || 'Received') === d, pick: () => this.setState({ ouCommDir: d }) })),
       // places write to each other here (two-way). Memos, announcements and newsletters go out from the Communications page instead.
-      commSend: (has.tickets ? [['communication', 'New communication']].concat(t === 'departments' && can('departments', 'View dashboard') ? [['request', 'New business request']] : []) : []).map(([k, l]) => ({ label: l,
+      commSend: (has.tickets ? [['communication', 'New communication']].concat(t === 'departments' && canDash('departments') ? [['request', 'New business request']] : []) : []).map(([k, l]) => ({ label: l,
         run: () => this.setState({ ouSend: { key, kind: k, toType: k === 'request' ? 'departments' : '', toName: '', title: '', desc: '', files: [], busy: false, err: '' } }) })),
       send: sendForm(),
       target: tg, setTarget: (e) => { const v = Math.max(50, Math.min(100, Number(e.target.value) || 95)); if (this.srv) { orgW.setTarget(this, this.srv, key, v).catch((err) => this.notify(err.message || 'Could not save the threshold.', '#FF9B8A')); return; } this.setState((x) => ({ targets: { ...x.targets, [key]: v } })); },
