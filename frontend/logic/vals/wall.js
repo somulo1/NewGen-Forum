@@ -1,8 +1,9 @@
 import { hashtagsOf } from '~/logic/richText.js';
 // Values and handlers the Community wall reads through hubBindings: moments, polls, audience, hashtags, wishes.
 import * as wallW from '~/logic/server/widgets/wall.js';
+import * as wallPages from '~/logic/server/widgets/wallPages.js';
 export function valsWall(ctx) {
-  const { wallBirthdays, moments, openEv, openPersonName, people, s, sharedViews, settingsPage, orgName, orgLogo, notesPage, noteWidget } = ctx;
+  const { wallBirthdays, moments, openEv, openPersonName, people, s, sharedViews, settingsPage, orgName, orgLogo, notesPage, noteWidget, posts } = ctx;
   const set = (o) => this.setState(o);
   const COLORS = ['#2B4A63', '#6B4A2B', '#5A2E47', '#3B5A2B', '#4A3A6B', '#6B2B2B'];
   const wp = s.wpoll;
@@ -22,6 +23,18 @@ export function valsWall(ctx) {
     // one tap adds a popular hashtag to what you are writing
     addHashtag: (tg) => this.setState((st) => ({ draft: (st.draft && !/\s$/.test(st.draft) ? st.draft + ' ' : st.draft || '') + '#' + tg + ' ' })),
     wallFilter: { active: !!s.wallTag, tag: s.wallTag, clear: () => set({ wallTag: '' }) },
+    // the wall a batch at a time: the posts revealed so far (all matching ones while a hashtag is picked), and the next batch
+    wallPosts: (() => {
+      if (s.wallTag || !this.srv) return posts || [];
+      const keep = new Set(wallPages.visible(s).map((p) => p.id));
+      return (posts || []).filter((p) => keep.has(p.id));
+    })(),
+    wallMore: (() => {
+      const held = (s.posts || []).length, shown = wallPages.shownCount(s);
+      const done = !!this.srv && shown >= held && this.srv.wallEnd === this.srv.wallId;
+      return { loading: !!s.wallLoadingMore, done, active: !!this.srv && !s.wallTag && !done && held > 0,
+        next: () => { if (this.srv) wallW.showMore(this, this.srv).catch(() => {}); } };
+    })(),
     // Moments (stories): photo, video or text; like, love (double tap), and the owner sees who reacted.
     momentView: (() => {
       const ME = this.srv ? this.srv.me.name : 'Sam';   // the name a reaction of mine carries

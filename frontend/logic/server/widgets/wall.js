@@ -8,6 +8,7 @@ import { connectRealtime } from '../realtime.js';
 import * as files from '../files.js';
 import * as plain from '../plain.js';
 import { newId } from '../e2ee.js';
+import * as pages from './wallPages.js';
 
 export const name = 'wall';
 
@@ -21,8 +22,9 @@ const ago = (iso) => {
   return d === 1 ? 'Yesterday' : d + ' days ago';
 };
 
-// The wall shows as soon as its newest page is in; older pages follow in the background (each page costs a round trip to the server).
-// What an earlier load already holds is kept, so a like or a comment only fetches the newest page again.
+// Server pages of wall messages (posts, comments, likes), newest first. Older ones are read only as the person reaches them, a batch
+// of posts at a time (see wallPages.js). What an earlier load already holds is kept, so a like or a comment only fetches the newest
+// page again.
 async function page(srv, conv, before) {
   const { messages } = await srv.request('GET', `/conversations/${conv}/messages?limit=100${before ? '&before=' + before : ''}`);
   return messages;
@@ -112,26 +114,34 @@ export async function load(logic, srv) {
     delta.gone.forEach((id) => all.delete(id));
     delta.fresh.forEach((m) => all.set(m.id, m));
     await render(logic, srv, all);   // from what is held (no request): also drops moments that passed their 24 hours
+    await pages.first(logic, srv, older(logic, srv));
     return;
   }
   const first = await page(srv, wall.id, '');
   srv.wallSince = { conv: wall.id, at: markerAfter(first) };
   first.forEach((m) => all.set(m.id, m));
+  if (!srv.wallBefore || srv.wallBeforeOf !== wall.id) {
+    srv.wallBeforeOf = wall.id;
+    srv.wallBefore = first.length >= 100 ? first[first.length - 1].id : '';
+    srv.wallEnd = first.length < 100 ? wall.id : null;
+  }
   await render(logic, srv, all);
-  if (first.length < 100 || srv.wallOlderDone === wall.id) return;
-  srv.wallOlderDone = wall.id;
-  // older posts (and the likes and comments on them), a page at a time, without holding up the screen
-  (async () => {
-    let before = first[first.length - 1].id;
-    for (let i = 0; i < 2; i++) {
-      const older = await page(srv, wall.id, before);
-      older.forEach((m) => { if (!all.has(m.id)) all.set(m.id, m); });
-      await render(logic, srv, all);
-      if (older.length < 100) break;
-      before = older[older.length - 1].id;
-    }
-  })().catch(() => { srv.wallOlderDone = null; });
+  await pages.first(logic, srv, older(logic, srv));
 }
+
+// reads the next older server page into what is held; false when the wall has nothing older
+const older = (logic, srv) => async () => {
+  const wall = srv.wallId;
+  if (!wall || srv.wallEnd === wall || !srv.wallBefore) return false;
+  const got = await page(srv, wall, srv.wallBefore);
+  got.forEach((m) => { if (!srv.wallAll.has(m.id)) srv.wallAll.set(m.id, m); });
+  if (got.length < 100) srv.wallEnd = wall; else srv.wallBefore = got[got.length - 1].id;
+  await render(logic, srv, srv.wallAll);
+  return got.length > 0;
+};
+
+// the person reached the end of the posts shown: the next batch (already prepared, normally) appears
+export const showMore = (logic, srv) => pages.next(logic, srv, older(logic, srv), () => srv.wallEnd !== srv.wallId);
 
 function build(logic, srv, items) {
   const me = srv.me.account;
@@ -177,7 +187,8 @@ function build(logic, srv, items) {
     const likerNames = [...new Set(likes.filter((x) => x.m.sender_account !== me).map((x) => who(x.m)).concat(srvNames(m.id, 'like').filter((n) => n !== srv.me.name)))];
     // a newsletter or job post sent from Communications is stored as a "post" message, but carries a title and body, not text
     const fromComms = m.type !== 'post' || (pl.title !== undefined && pl.text === undefined);
-    const media = (pl.media || pl.files || []).map((f) => { const it = { id: f.fileId, name: f.name, meta: f.meta || '', isImg: !!f.isImg, isVideo: !!f.isVideo, url: '', ref: f }; mediaToLoad.push(f); return it; });
+    // pictures already opened keep their address; the others are opened a batch at a time (wallPages.js)
+    const media = (pl.media || pl.files || []).map((f) => ({ id: f.fileId, name: f.name, meta: f.meta || '', isImg: !!f.isImg, isVideo: !!f.isVideo, url: files.knownUrl(f.fileId), ref: f }));
     const p = person(m);
     const isComm = fromComms;
     const commLabel = pl.type || (m.type === 'memo' ? 'Memo' : 'Announcement');
@@ -197,23 +208,17 @@ function build(logic, srv, items) {
   });
   const moments = items.filter((x) => x.m.type === 'moment' && Date.now() - new Date(x.m.created_at).getTime() < 24 * 3600 * 1000).reverse().map(({ m, pl }) => {
     const names = (kind) => [...new Set(reacts(m.id, kind).map((x) => { if (x.m.sender_account === me) srv.wallMine[kind + ':' + m.id] = x.m.id; return who(x.m); }).concat(srvNames(m.id, kind)))];
-    const media = pl.media ? (pl.media.fileId ? { ...pl.media, url: '' } : pl.media) : undefined;
-    if (media && media.fileId) mediaToLoad.push(media);
+    const media = pl.media ? (pl.media.fileId ? { ...pl.media, url: files.knownUrl(pl.media.fileId) } : pl.media) : undefined;
+    if (media && media.fileId && !media.url) mediaToLoad.push(media);
     return { id: m.id, owner: who(m), ...look(m), bg: pl.bg || '#2B4A63', caption: pl.caption || '', media, likes: names('like'), loves: names('love') };
   });
   srv.applyingWall = true;
   logic.setState({ posts, moments, liked, pollVotes });
   srv.applyingWall = false;
-  // decrypt attachments and drop their URLs in as they are ready
-  const opening = mediaToLoad.map((f) => files.openUrl(srv, f).then((url) => {
-    logic.setState((st) => ({
-      posts: st.posts.map((p) => (p.media && p.media.some((x) => x.id === f.fileId) ? { ...p, media: p.media.map((x) => (x.id === f.fileId ? { ...x, url } : x)) } : p)),
-      moments: st.moments.map((x) => (x.media && x.media.fileId === f.fileId ? { ...x, media: { ...x.media, url } } : x))
-    }));
+  // moments (a handful, shown at the top) open their picture straight away
+  mediaToLoad.forEach((f) => files.openUrl(srv, f).then((url) => {
+    logic.setState((st) => ({ moments: st.moments.map((x) => (x.media && x.media.fileId === f.fileId ? { ...x, media: { ...x.media, url } } : x)) }));
   }).catch(() => {}));
-  // The wall counts as loaded when the pictures and videos of the newest posts are in too (the rest, or a slow one after a few
-  // seconds, carry on behind), so the page opens complete instead of filling in while you look at it.
-  return Promise.race([Promise.all(opening.slice(0, 12)), new Promise((r) => setTimeout(r, 6000))]);
 }
 
 // A new organization has no wall until someone first posts: the first post makes it, sealing its key for every person in the

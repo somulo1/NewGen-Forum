@@ -17,7 +17,19 @@ export function valsPanels(ctx) {
   const liveText = (c) => (c.kind === 'video' ? 'Video call' : 'Voice call') + ' in progress' + (c.joined ? ' · ' + c.joined + (c.joined === 1 ? ' person' : ' people') + ' in it' : '');
   const curConv = isDM ? s.dmId : (((s.forumsLive || []).find((f) => f.id === s.forum)) || {}).sid;
   const curLiveCall = curConv ? liveByConv[curConv] : null;
+  // the chats before and after this one (private chats by latest message, forums by latest activity), to move between them on a
+  // phone with a swipe across the chat's header, and the new messages waiting in the others (shown on the list button)
+  const chatSwitch = (() => {
+    const list = isDM ? dmsByActivity.map((d) => ({ id: d.id, name: d.with, unread: d.unread || 0, open: () => this.openDm(d.with) }))
+      : (forums || []).map((f) => ({ id: f.id, name: f.name, unread: f.unread || 0, open: f.open }));
+    const at = list.findIndex((x) => x.id === (isDM ? s.dmId : s.forum));
+    const prev = at > 0 ? list[at - 1] : null, next = at >= 0 && at < list.length - 1 ? list[at + 1] : null;
+    const waiting = list.reduce((n, x, i) => n + (i === at ? 0 : x.unread), 0);
+    return { prev: prev ? prev.open : null, next: next ? next.open : null, prevName: prev ? prev.name : '', nextName: next ? next.name : '',
+      waiting, position: at >= 0 ? (at + 1) + ' of ' + list.length : '' };
+  })();
   return {
+    chatSwitch,
     curLive: curLiveCall ? { text: liveText(curLiveCall), video: curLiveCall.kind === 'video', join: () => this.joinLive(curLiveCall) } : null,
     liveConv: Object.fromEntries(Object.entries(liveByConv).map(([k, c]) => [k, { text: liveText(c), join: () => this.joinLive(c) }])),
     liveCounts: { dm: live.filter((c) => c.context === 'dm').length, forum: live.filter((c) => c.context === 'forum').length, meeting: live.filter((c) => c.context !== 'dm' && c.context !== 'forum' && c.invited).length },

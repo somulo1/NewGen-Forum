@@ -48,6 +48,8 @@ export const settle = (promises, n = 12, ms = 6000) => Promise.race([Promise.all
 
 // a picture or file just uploaded is shown from this browser's own copy
 export const remember = (id, url) => urls.set(id, url);
+// the address of a file already opened in this session ('' when it is not open yet)
+export const knownUrl = (id) => (typeof urls.get(id) === 'string' ? urls.get(id) : '');
 
 export async function openUrl(srv, ref) {
   if (urls.has(ref.fileId)) return urls.get(ref.fileId);
