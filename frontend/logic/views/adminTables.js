@@ -4,7 +4,7 @@ import { askConfirm, confirmed } from '~/logic/confirm.js';
 
 // renderVals step: adminTables. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildAdminTables(ctx) {
-  const { C, O, can, apGroups, agoLabel, rightMeta, defaultCats, deskTickets, myTickets, alertsAll, alertsRange, logsRange, allLogs, chip, corePeople, f8, flowItem, fmtDay, has, modEnabled, modInfo, nowMs, rKey, requestsShown, rightOf, rightsDef, roleScope, ruleDefs, ruleOn, ruleSev, s, sec, sevColor, tickets, titleOf, toggleRight, tz9, visibleRoles } = ctx;
+  const { C, O, can, canDash, apGroups, agoLabel, rightMeta, seeOf, defaultCats, deskTickets, myTickets, alertsAll, alertsRange, logsRange, allLogs, chip, corePeople, f8, flowItem, fmtDay, has, modEnabled, modInfo, nowMs, rKey, requestsShown, rightOf, rightsDef, roleScope, ruleDefs, ruleOn, ruleSev, s, sec, sevColor, tickets, titleOf, toggleRight, tz9, visibleRoles } = ctx;
   // =============== Tables for existing pages ===============
   const prioColor = { High: '#FF9B8A', Medium: '#FFB86B', Low: '#9DB0A6' };
   // ID, title, then a one-line description (cut with … and opening the ticket) and whether evidence is attached
@@ -114,7 +114,7 @@ export function buildAdminTables(ctx) {
     const pend = s.pendingRights[rKey(roleCur.id, m, x)] !== undefined;
     const mk = (s.rightsMarks || {})[rKey(roleCur.id, m, x)];   // marked, not sent yet
     const meta = (rightMeta[m] || {})[x] || {};
-    rightsRows.push({ cells: [C.t(modInfo[m][0], { fv: modInfo[m][0] }), C.t(meta.label || x, { strong: true }), C.t(KIND_LABEL[meta.kind] || 'Other', { fv: KIND_LABEL[meta.kind] || 'Other' }),
+    rightsRows.push({ cells: [C.t(modInfo[m][0], { fv: modInfo[m][0] }), C.t(meta.label || x, { strong: true, sub: seeOf[m] === x ? 'Who has this widget: on Home and in the menu' : '' }), C.t(KIND_LABEL[meta.kind] || 'Other', { fv: KIND_LABEL[meta.kind] || 'Other' }),
       C.chk(mk ? mk.allowed : rightOf(roleCur.id, m, x), () => toggleRight(roleCur.id, m, x), { disabled: !!roleCur.locked || !roleCur.id, pending: pend || !!mk, label: roleCur.name + ': ' + modInfo[m][0] + ' · ' + x }),
       C.a(meta.builtin === false ? [{ label: 'Remove right', kind: 'danger', run: confirmed({ title: 'Remove this right?', body: '"' + x + '" is removed from every role that has it.', action: 'Remove right' }, () => rolesW.removeRight(this, srv, m, x).then(() => this.notify('Right removed.', '#B8F36B')).catch(fail)) }] : [])] });
   }));
@@ -136,7 +136,7 @@ export function buildAdminTables(ctx) {
     } };
   const rightsTable = { widget: { value: rightsMod, options: rightsMods.map((m) => ({ v: m, l: modInfo[m][0] + ' (' + rightsDef[m].length + ')' })), pick: (e) => this.setState({ rightsMod: e.target.value }) }, id: 'rights-' + roleCur.id + '-' + rightsMod, pageSize: 12, minWidth: '680px', emptyText: 'The rights catalog is empty.',
     cols: [{ label: 'Page', filter: 'select' }, { label: 'Right', filter: 'text' }, { label: 'Kind', filter: 'select' }, { label: roleCur.name + ' can', align: 'center' }, { label: '', align: 'right' }], rows: rightsRows };
-  const rightsHint = 'Setting rights for ' + roleCur.name + '. Tick a box to let this role do that. ' + (f8 && f8.levels > 0 ? 'Changes need approval (' + (f8.levels === 1 ? 'direct' : f8.levels + ' levels') + '): tick the rights to change, then press Send for approval. They go as one approval and show as pending until approved. ' : '') + (roleCur.locked ? 'The owner role can always do everything.' : '');
+  const rightsHint = 'Setting rights for ' + roleCur.name + '. Tick a box to let this role do that. In a widget, the right marked "Who has this widget" decides who sees it at all. ' + (f8 && f8.levels > 0 ? 'Changes need approval (' + (f8.levels === 1 ? 'direct' : f8.levels + ' levels') + '): tick the rights to change, then press Send for approval. They go as one approval and show as pending until approved. ' : '') + (roleCur.locked ? 'The owner role can always do everything.' : '');
   const meName = srv ? srv.me.name : '';
   const memberList = [meName].concat(this.dir.map((d) => d.name)).filter((n, i, a) => n && a.indexOf(n) === i);
   const roleOpts = [{ v: '', l: '— none —' }].concat(visibleRoles.map((r) => ({ v: r.id, l: r.name })));
@@ -230,13 +230,13 @@ export function buildAdminTables(ctx) {
         C.b(rq.statusLabel, rq.status === 'Approved' ? '#B8F36B' : rq.status === 'Rejected' ? '#FF9B8A' : '#FFB86B', { fv: stFv }),
         C.a(rq.canAct ? [{ label: rq.approveLabel, kind: 'primary', run: rq.approve }, { label: 'Reject', kind: 'danger', run: rq.reject }] : [])] };
     })) };
-  const rolesTabs = [['roles', 'Roles'], ['groups', 'User groups'], ['rights', 'Rights'], ['members', 'Members'], ['reporting', 'Reporting lines'], ['flows', 'Approval rules']].map(([k, l]) => ({ label: l, go: () => this.setState({ rolesTab: k }),
+  const rolesTabs = [['roles', 'Roles'], ['rights', 'Rights'], ['members', 'Members'], ['reporting', 'Reporting lines'], ['flows', 'Approval rules']].map(([k, l]) => ({ label: l, go: () => this.setState({ rolesTab: k }),
     style: 'min-height:44px;padding:0 16px;border:0;background:transparent;cursor:pointer;font-size:14px;font-family:inherit;border-bottom:2px solid ' + (s.rolesTab === k ? '#B8F36B' : 'transparent') + ';color:' + (s.rolesTab === k ? 'var(--k-E8EFEA,#E8EFEA)' : 'var(--k-9DB0A6,#9DB0A6)') + ';font-weight:' + (s.rolesTab === k ? '600' : '500') }));
-  const rolesView = { isRoles: s.rolesTab === 'roles', isRights: s.rolesTab === 'rights', isMembers: s.rolesTab === 'members', isReporting: s.rolesTab === 'reporting', isFlows: s.rolesTab === 'flows', isGroups: s.rolesTab === 'groups' };
+  const rolesView = { isRoles: s.rolesTab === 'roles', isRights: s.rolesTab === 'rights', isMembers: s.rolesTab === 'members', isReporting: s.rolesTab === 'reporting', isFlows: s.rolesTab === 'flows' };
   const tLevels = levelsOf(has);
   // a business request goes to a department only; a ticket to any level the organization uses
   // business requests are departmental: only people with access to departments send them
-  const canRequest = tLevels.indexOf('departments') !== -1 && (!this.srv || can('departments', 'View dashboard'));
+  const canRequest = tLevels.indexOf('departments') !== -1 && (!this.srv || canDash('departments'));
   const canComm = tLevels.length > 0;   // communications go between departments, units, branches and sectors
   // a person raises tickets and business requests here; communications are sent from a place's dashboard
   const ntKind = s.nt.kind === 'request' && canRequest ? 'request' : 'ticket';

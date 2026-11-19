@@ -15,6 +15,8 @@ export function buildAccess(ctx) {
   const catalog = (s.catalog && s.catalog.modules) || [];
   const rightsDef = Object.fromEntries(catalog.map((m) => [m.key, m.rights.map((r) => r.name)]));
   const rightMeta = Object.fromEntries(catalog.map((m) => [m.key, Object.fromEntries(m.rights.map((r) => [r.name, r]))]));
+  // the right that decides who has a widget (its "see" right), as the server names it
+  const seeOf = Object.fromEntries(catalog.map((m) => [m.key, m.see || '']));
   // Which features (and so which sidebar items and pages) exist for this person: the ones the organization switched on for them. It is
   // the organization's choice, not each person's own list: the person's own list only decides what is drawn on their Home. Without the
   // server (the built-in samples) the person's own list decides, as before.
@@ -46,7 +48,6 @@ export function buildAccess(ctx) {
   const orgOn = (id) => (this.srv ? switchedOn(s.wcfg, id) : s.widgets.indexOf(id) !== -1);
   const modEnabled = (m) => optionalMods.indexOf(m) === -1 || (m === 'jobposts' ? (orgOn('jobposts') || orgOn('memos') || orgOn('newsletter') || orgOn('announcements')) : m === 'performance' ? has.structure : ['departments', 'sectors', 'branches', 'units'].indexOf(m) !== -1 ? has[m] : orgOn(m));
   const modInfo = Object.fromEntries(catalog.map((m) => [m.key, [m.label, m.tint]]));
-  const genericRights = ['View'];
   // the roles of the organization, as made on the Roles page (the count and the "needs" level come from the server)
   const roleDefs = (s.serverRoles || []).map((r) => ({ id: r.id, name: r.name, desc: r.desc || '', count: r.count, locked: !!r.locked, needs: r.needs || '', scope: r.scope || '', isDefault: !!r.default }));
   const roleScope = Object.fromEntries(roleDefs.map((r) => [r.id, r.scope || 'Whole organization']));
@@ -60,18 +61,17 @@ export function buildAccess(ctx) {
     const sr = s.roleRights && s.roleRights[role] && s.roleRights[role][mod];
     return !!(sr && sr[right]);               // a right nobody gave the role is off
   };
-  // User groups: sets of roles that are given rights together. A role holds a right its own settings give it, or one a group it
-  // belongs to gives it.
-  const groupDefs = (s.serverGroups || []).map((g) => ({ id: g.id, name: g.name, desc: g.desc || '', roles: g.roles || [], count: g.count || 0 }));
-  const groupRightOf = (gid, mod, right) => !!(s.groupRights && s.groupRights[gid] && s.groupRights[gid][mod] && s.groupRights[gid][mod][right]);
-  const viaGroups = (role, mod, right) => groupDefs.filter((g) => g.roles.indexOf(role) !== -1 && groupRightOf(g.id, mod, right));
-  const can = (mod, right) => rightOf(s.actingRole, mod, right) || viaGroups(s.actingRole, mod, right).length > 0;
-  // Places that pick "a role" can also pick a user group, written 'group:<id>'. These read such a pick.
-  const refName = (ref) => {
-    if (typeof ref === 'string' && ref.indexOf('group:') === 0) { const g = groupDefs.find((x) => x.id === ref.slice(6)); return g ? g.name + ' (group)' : 'a deleted group'; }
-    return (roleDefs.find((r) => r.id === ref) || {}).name || ref;
-  };
-  const holdsRef = (ref) => (typeof ref === 'string' && ref.indexOf('group:') === 0 ? !!(groupDefs.find((g) => g.id === ref.slice(6)) || { roles: [] }).roles.includes(s.actingRole) : s.actingRole === ref);
+  // What I may do comes from the server, which counts my role and my personal rights (the rights tables above are only readable by
+  // people who manage roles). Previewing another role uses those tables.
+  const previewing = !!(s.actingRole && s.myRole && s.actingRole !== s.myRole);
+  const mine = this.srv && !previewing && this.srv.me && this.srv.me.rights ? this.srv.me.rights : null;
+  const can = mine ? (mod, right) => (mine[mod] || []).indexOf(right) !== -1
+    : (mod, right) => rightOf(s.actingRole, mod, right);
+  // May I open the dashboards of this level (departments, sectors, branches, units)? The server's one rule (switched on, and the
+  // role's "View dashboard"), so every page and the sidebar give the same answer.
+  const canDash = (t) => (mine && Array.isArray(s.myWidgets) ? s.myWidgets.indexOf(t) !== -1 : can(t, 'View dashboard'));
+  const refName = (ref) => (roleDefs.find((r) => r.id === ref) || {}).name || ref;
+  const holdsRef = (ref) => s.actingRole === ref;
   this._canFullProfile = can('people', 'View full profiles');
   const flowById = (id) => s.flows.find((f) => f.id === id);
   const nextReqId = () => 'AP-' + (34 + s.requests.length);
@@ -117,25 +117,5 @@ export function buildAccess(ctx) {
       this.notify('Rights updated: ' + label + '. Logged for review.', '#FFB86B');
     }
   };
-  const toggleGroupRight = (gid, mod, right) => {
-    if (!this.srv) return;
-    const k = 'g:' + rKey(gid, mod, right);
-    if (s.pendingRights[k] !== undefined) return;
-    const nv = !groupRightOf(gid, mod, right);
-    const fg = flowById('f8');
-    if (fg && fg.levels > 0) {
-      // marked first, then sent together as ONE approval ("Send for approval" in the widget settings)
-      this.setState((st) => {
-        const marks = { ...(st.rightsMarks || {}) };
-        if (marks[k]) delete marks[k]; else marks[k] = { group: gid, mod, right, allowed: nv };
-        return { rightsMarks: marks };
-      });
-      return;
-    }
-    const label = ((groupDefs.find((g) => g.id === gid) || {}).name || 'Group') + ' · ' + (modInfo[mod] ? modInfo[mod][0] : mod) + ' · ' + right + (nv ? ' (allow)' : ' (remove)');
-    rolesW.setGroupRight(this, this.srv, gid, mod, right, nv)
-      .then((r) => this.notify(r === 'applied' ? 'Rights updated: ' + label + '. Logged for review.' : 'Sent for approval: Change rights of user group: ' + label + '.', r === 'applied' ? '#B8F36B' : '#FFB86B'))
-      .catch((e) => this.notify(e.message || 'Could not change the right.', '#FF9B8A'));
-  };
-  return { can, refName, holdsRef, groupDefs, groupRightOf, toggleGroupRight, viaGroups, catalog, rightMeta, flowById, genericRights, has, makeRequest, modEnabled, modInfo, openPersonName, rKey, rightOf, rightsDef, roleDefs, roleScope, s, set, toggleRight, visibleRoles };
+  return { can, canDash, refName, holdsRef, catalog, rightMeta, seeOf, flowById, has, makeRequest, modEnabled, modInfo, openPersonName, rKey, rightOf, rightsDef, roleDefs, roleScope, s, set, toggleRight, visibleRoles };
 }

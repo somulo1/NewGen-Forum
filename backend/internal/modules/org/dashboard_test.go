@@ -160,6 +160,7 @@ func TestBusinessRequestsComeFromTheForm(t *testing.T) {
 	}
 	e.MustDo(204, "PUT", "/approvals/flows/f8", map[string]any{"levels": 0}, ownerU.Access)
 	e.MustDo(200, "PUT", "/people/"+amy.Person+"/rights", map[string]any{"module": "departments", "right": "View dashboard", "allowed": true}, ownerU.Access)
+	e.MustDo(204, "PUT", "/settings/widgets", map[string]any{"departments": map[string]any{"enabled": true}}, ownerU.Access)
 	tk := e.MustDo(201, "POST", "/tickets", map[string]any{"conversation": conv(), "category": "Hardware", "to_type": "department", "to_ref": dept, "kind": "request", "priority": "High"}, amy.Access)
 	if tk["kind"] != "request" || tk["priority"] != "Low" { // Hardware is 48 hours: beyond a day is low priority, whatever was asked
 		t.Fatalf("request: kind %v priority %v", tk["kind"], tk["priority"])
@@ -205,6 +206,7 @@ func TestRequestTurnaroundAndEscalatedTickets(t *testing.T) {
 	}
 	e.MustDo(204, "PUT", "/approvals/flows/f8", map[string]any{"levels": 0}, ownerU.Access)
 	e.MustDo(200, "PUT", "/people/"+amy.Person+"/rights", map[string]any{"module": "departments", "right": "View dashboard", "allowed": true}, ownerU.Access)
+	e.MustDo(204, "PUT", "/settings/widgets", map[string]any{"departments": map[string]any{"enabled": true}}, ownerU.Access)
 	rq := e.MustDo(201, "POST", "/tickets", map[string]any{"conversation": conv(), "to_type": "department", "to_ref": fin, "kind": "request"}, amy.Access)
 	if rq["tat_hours"].(float64) != 6 || rq["priority"] != "High" {
 		t.Fatalf("request: tat %v priority %v", rq["tat_hours"], rq["priority"])
@@ -361,6 +363,7 @@ func TestPlacesSendEachOtherCommunications(t *testing.T) {
 	}
 	e.MustDo(204, "PUT", "/approvals/flows/f8", map[string]any{"levels": 0}, ownerU.Access)
 	e.MustDo(200, "PUT", "/people/"+amy.Person+"/rights", map[string]any{"module": "departments", "right": "View dashboard", "allowed": true}, ownerU.Access)
+	e.MustDo(204, "PUT", "/settings/widgets", map[string]any{"departments": map[string]any{"enabled": true}}, ownerU.Access)
 	if c, _ := e.Do("POST", "/tickets", map[string]any{"conversation": conv, "category": "Hardware", "to_type": "branch", "to_ref": br, "from_ref": fin}, amy.Access); c != 400 {
 		t.Fatalf("a ticket on a place's behalf: %d", c)
 	}
@@ -417,6 +420,7 @@ func TestDepartmentBusinessRequestsAreTrackedBothWays(t *testing.T) {
 	}
 	e.MustDo(200, "PATCH", "/people/"+amy.Person, map[string]any{"department_id": fin}, ownerU.Access)
 	e.MustDo(200, "PUT", "/people/"+amy.Person+"/rights", map[string]any{"module": "departments", "right": "View dashboard", "allowed": true}, ownerU.Access)
+	e.MustDo(204, "PUT", "/settings/widgets", map[string]any{"departments": map[string]any{"enabled": true}}, ownerU.Access)
 	key, _ := e2ee.NewConversationKey()
 	conv := e.MustDo(201, "POST", "/conversations", map[string]any{"kind": "ticket", "members": []string{o.Person}, "keys": amy.WrapFor(e, key, 1, amy.Person, o.Person)}, amy.Access)["id"].(string)
 	e.MustDo(201, "POST", "/tickets", map[string]any{"conversation": conv, "to_type": "department", "to_ref": it, "kind": "request", "from_ref": fin, "title": "Budget lines"}, amy.Access)

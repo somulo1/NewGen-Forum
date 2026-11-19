@@ -14,7 +14,7 @@ export function callsState() {
       start: '08:00', end: '17:00',
       pause: { weekends: true, holidays: true, offhours: true, onhold: true, awaiting: false },
       notify: { solved: true, overdue: true, nearing: true, assigned: true },
-      nearPct: 80, escalate: 'Head of IT Operations', newCat: '', newTat: '', newUnit: 'hours'
+      nearPct: 80, escalate: 'Head of IT Operations'
     }
   };
 }

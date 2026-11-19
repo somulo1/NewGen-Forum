@@ -2,16 +2,24 @@ import { hashtagsOf } from '~/logic/richText.js';
 // Values and handlers the Community wall reads through hubBindings: moments, polls, audience, hashtags, wishes.
 import * as wallW from '~/logic/server/widgets/wall.js';
 import * as wallPages from '~/logic/server/widgets/wallPages.js';
+
+const TREND_DAYS = 7;
+const TREND_MAX = 5;
 export function valsWall(ctx) {
   const { wallBirthdays, moments, openEv, openPersonName, people, s, sharedViews, settingsPage, orgName, orgLogo, notesPage, noteWidget, posts } = ctx;
   const set = (o) => this.setState(o);
   const COLORS = ['#2B4A63', '#6B4A2B', '#5A2E47', '#3B5A2B', '#4A3A6B', '#6B2B2B'];
   const wp = s.wpoll;
   const setOpts = (fn) => this.setState((st) => ({ wpoll: { ...st.wpoll, opts: fn(st.wpoll.opts) } }));
-  // Trending: the hashtags people really used on the wall, most used first (ties: newest)
+  // Trending (and Popular, under the post box): the five hashtags most used on the wall in the last week, ties going to the newest.
+  // A hashtag leaves when five others pass it or when its posts are more than a week old; the posts themselves stay on the wall.
+  const weekAgo = Date.now() - TREND_DAYS * 24 * 3600 * 1000;
   const counts = new Map();
-  (s.posts || []).forEach((p, i) => hashtagsOf(p.text).forEach((t) => { const k = t.toLowerCase(); const c = counts.get(k) || { tag: t, n: 0, first: i }; c.n++; c.first = Math.min(c.first, i); counts.set(k, c); }));
-  const tags = [...counts.values()].sort((a, b) => b.n - a.n || a.first - b.first).slice(0, 8).map((c) => c.tag);
+  (s.posts || []).forEach((p, i) => {
+    if (!(Date.parse(p.at) >= weekAgo)) return;
+    hashtagsOf(p.text).forEach((t) => { const k = t.toLowerCase(); const c = counts.get(k) || { tag: t, n: 0, first: i }; c.n++; c.first = Math.min(c.first, i); counts.set(k, c); });
+  });
+  const tags = [...counts.values()].sort((a, b) => b.n - a.n || a.first - b.first).slice(0, TREND_MAX).map((c) => c.tag);
   const m = s.momentOpen !== null && s.momentOpen !== undefined ? moments[s.momentOpen] : null;
   const mi = s.meInfo || {};
   const meAv = { name: mi.name || '', initials: mi.initials || ((mi.name || '').split(' ').map((x) => x[0]).join('').slice(0, 2).toUpperCase()), color: mi.color || '#C2185B', first: (mi.name || '').split(' ')[0] };

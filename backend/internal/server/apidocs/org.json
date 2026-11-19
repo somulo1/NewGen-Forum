@@ -805,6 +805,7 @@
      "label": "string",
      "tint": "string. Hex colour",
      "builtin": "boolean. true for modules Hub ships",
+     "see": "string, optional. The right that shows this widget to a role",
      "rights": [
       {
        "name": "string",

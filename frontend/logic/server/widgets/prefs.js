@@ -1,5 +1,7 @@
 // Home layout: which widgets this person has, which are hidden, the theme (per person, /me/prefs) and the widget
 // settings an admin sets for the whole organization (/settings/widgets). Changes are saved by watching the state.
+import * as rolesW from './roles.js';
+
 export const name = 'prefs';
 
 const PERSONAL = ['widgets', 'hiddenWidgets', 'theme', 'hiddenPosts', 'savedPosts', 'dmPrivacy', 'hiddenChatMessages', 'levelsAdded', 'notifTones'];
@@ -13,7 +15,7 @@ export async function load(logic, srv) {
   PERSONAL.forEach((k) => { if (prefs[k] !== undefined) patch[k] = prefs[k]; });
   try { patch.wcfg = await srv.request('GET', '/settings/widgets'); } catch (e) { /* not allowed to see it */ }
   try { patch.orgBlocks = await srv.request('GET', '/settings/blocks'); } catch (e) { /* the server still refuses what is blocked */ }
-  // which widgets (and dashboards) the server says this person may use: their groups, user groups included
+  // which widgets (and dashboards) the server says this person may use: switched on, and their role holds the widget's see right
   try { patch.myWidgets = (await srv.request('GET', '/me/widgets')).allowed; } catch (e) { /* the old way decides */ }
   patch.widgetsReady = true;   // the home page may now decide which widgets to show
   logic.setState(patch);
@@ -34,7 +36,7 @@ function watch(logic, srv) {
     const wcfg = JSON.stringify(s.wcfg || {});
     if (wcfg !== saved.wcfg) {
       saved.wcfg = wcfg;
-      srv.request('PUT', '/settings/widgets', s.wcfg || {}).catch((e) => {
+      srv.request('PUT', '/settings/widgets', s.wcfg || {}).then(myWidgets).catch((e) => {
         // not saved (no right, or the server refused it): say so, and show what the organization really has
         logic.notify((e && e.message) || 'The widget settings could not be saved.', '#FF9B8A');
         reloadCfg();
@@ -47,8 +49,22 @@ function watch(logic, srv) {
     try { logic.setState({ orgBlocks: await srv.request('GET', '/settings/blocks') }); } catch (e) { /* keeps what it has */ }
     try { logic.setState({ myWidgets: (await srv.request('GET', '/me/widgets')).allowed }); } catch (e) { /* keeps what it has */ }
   }
+  // which widgets and dashboards the server lets this person use now (the sidebar's My department ... follow it)
+  async function myWidgets() {
+    try { logic.setState({ myWidgets: (await srv.request('GET', '/me/widgets')).allowed }); } catch (e) { /* keeps what it has */ }
+  }
+  // Rights moved (a role's, or a personal grant): this person's rights, the dashboards
+  // they may open and, for whoever manages roles, the rights tables are read again, so the sidebar and pages follow at once.
+  let rightsT = 0;
+  const rightsMoved = async () => {
+    try { const me = await srv.request('GET', '/me'); srv.me.rights = me.rights; srv.me.role = me.role; srv.meSeen = JSON.stringify([me.role, me.rights]); } catch (e) { /* keeps what it has */ }
+    await myWidgets();
+    if (logic.loaded && logic.loaded.has('roles')) await rolesW.load(logic, srv).catch(() => {});
+    logic.forceUpdate();
+  };
   // another administrator switched widgets on or off: it shows here now, without a reload
   if (srv.rt) srv.rt.on('widgets.changed', (ev) => { if (ev && ev.actor === srv.me.person) return; reloadCfg(); });
+  if (srv.rt) srv.rt.on('rights.changed', () => { clearTimeout(rightsT); rightsT = setTimeout(rightsMoved, 300 + Math.random() * 700); });
   const orig = logic.setState.bind(logic);
   logic.setState = (update, done) => { orig(update, done); clearTimeout(timer); timer = setTimeout(flush, 700); };
 }

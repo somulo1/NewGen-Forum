@@ -230,12 +230,6 @@ export function buildTickets(ctx) {
   const ntCats = ts.cats.map((c) => ({ label: c.name + ' · ' + tatText(c.name), pick: () => this.setState((st) => ({ nt: { ...st.nt, cat: c.name } })), style: chip(s.nt.cat === c.name) }));
   const ntPrios = ['High', 'Medium', 'Low'].map((p) => ({ label: p, pick: () => this.setState((st) => ({ nt: { ...st.nt, prio: p } })), style: chip(s.nt.prio === p) }));
   const setTs = (patch) => this.setState((st) => ({ tset: Object.assign({}, st.tset, typeof patch === 'function' ? patch(st.tset) : patch) }));
-  const tsetCats = ts.cats.map((c, i) => ({
-    ...c,
-    setTat: (e) => setTs((t) => ({ cats: t.cats.map((x, j) => (j === i ? { ...x, tat: Math.max(1, Number(e.target.value) || 1) } : x)) })),
-    setUnit: (e) => setTs((t) => ({ cats: t.cats.map((x, j) => (j === i ? { ...x, unit: e.target.value } : x)) })),
-    remove: () => setTs((t) => ({ cats: t.cats.filter((x, j) => j !== i) }))
-  }));
   const pauseRules = [
     { key: 'weekends', label: 'Weekends', desc: 'Saturday and Sunday do not count.' },
     { key: 'holidays', label: 'Public holidays', desc: 'Days on the holiday calendar do not count.' },
@@ -251,5 +245,5 @@ export function buildTickets(ctx) {
   ].map((r) => ({ ...r, checked: !!ts.notify[r.key], toggle: () => setTs((t) => ({ notify: { ...t.notify, [r.key]: !t.notify[r.key] } })) }));
   const people = [];
   const defaultCats = ts.cats.map((c) => ({ name: c.name, tat: tatHours(c.name) }));
-  return { defaultCats, deskStats, deskTickets, myTicketStats, myTickets, badge, chip, cur_t, dayH, ini, nOpen, nOver, nSoon, notifList, notifyRules, ntCats, ntPrios, pColor, pauseRules, people, setTs, tagNames, ticketPeople, canTag, tagPeople, tatText, ticketStats, tickets, tk, ts, tsetCats };
+  return { defaultCats, deskStats, deskTickets, myTicketStats, myTickets, badge, chip, cur_t, dayH, ini, nOpen, nOver, nSoon, notifList, notifyRules, ntCats, ntPrios, pColor, pauseRules, people, setTs, tagNames, ticketPeople, canTag, tagPeople, tatText, ticketStats, tickets, tk, ts };
 }

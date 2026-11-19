@@ -9,151 +9,20 @@
 </div>
 <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 22px">
 
-<div style="display: flex; flex-direction: column; gap: 12px">
-<span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--k-9DB0A6,#9DB0A6)">General</span>
-<template v-if="sw.markBar && sw.markBar.show"><div role="region" aria-label="Marked rights" style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 12px; border: 2px solid #FFB86B; background: var(--k-1B1A12,#1B1A12)"><strong style="flex: 1 1 160px; font-size: 13px">{{ sw.markBar.label }}</strong><button type="button" @click="sw.markBar.clear" style="height: 32px; padding: 0 12px; border-radius: 16px; border: 1px solid var(--k-6B7A72,#6B7A72); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer">Clear</button><button type="button" :disabled="sw.markBar.busy" @click="sw.markBar.send" style="height: 32px; padding: 0 14px; border-radius: 16px; border: 0; background: #B8F36B; color: #0F1714; font-weight: 700; cursor: pointer">{{ sw.markBar.busy ? 'Sending…' : 'Send ' + sw.markBar.count + ' for approval' }}</button></div></template>
+<div style="display: flex; flex-direction: column; gap: 14px">
 <button type="button" role="switch" :aria-checked="sw.orgOn" @click="sw.toggleOrgOn" :style="`display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 14px; border-radius: 12px; cursor: pointer; text-align: left; font-size: 14px; font-weight: 600; color: var(--k-E8EFEA,#E8EFEA); background: var(--k-121B17,#121B17); border: 2px solid ${sw.orgOn ? '#7BB93A' : 'var(--k-6B7A72,#6B7A72)'}`"><span :style="`flex: none; width: 36px; height: 20px; border-radius: 10px; position: relative; background: ${sw.orgOn ? '#B8F36B' : 'var(--k-3F524A,#3F524A)'}`"><span :style="`position: absolute; top: 2px; ${sw.orgOn ? 'right: 2px' : 'left: 2px'}; width: 16px; height: 16px; border-radius: 50%; background: #0F1714`"></span></span>{{ sw.orgOnLabel }}</button>
-<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">Display name<input type="text" :value="sw.title" @input="sw.setTitle" style="height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px"></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">Widget name<input type="text" maxlength="60" :value="sw.title" @input="sw.setTitle" style="height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px"></label>
 <div style="display: flex; flex-direction: column; gap: 8px">
-<span style="font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">Who can see it</span>
-<div role="radiogroup" aria-label="Who can see it" style="display: flex; flex-wrap: wrap; gap: 8px"><template v-for="(so, so__i) in sw.seeOpts" :key="so__i"><button role="radio" :aria-checked="so.on" @click="so.pick" :style="so.style">{{ so.label }}</button></template></div>
-<template v-if="sw.isGroups">
-<div :style="`padding: 12px; border-radius: 12px; background: var(--k-121B17,#121B17); border: 1px solid ${sw.groupsBorder}; display: flex; flex-direction: column; gap: 10px`">
-<span :style="`font-size: 12px; color: ${sw.groupsHintColor}`">{{ sw.groupsHint }}</span>
-<template v-for="(gs, gs__i) in sw.groupSets" :key="gs__i"><div style="display: flex; flex-direction: column; gap: 6px"><span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">{{ gs.label }}</span><div style="display: flex; flex-wrap: wrap; gap: 6px"><template v-for="(gi, gi__i) in gs.items" :key="gi__i"><button :aria-pressed="gi.on" @click="gi.toggle" :style="gi.style">{{ gi.name }}</button></template></div></div></template>
+<span style="font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">Who manages it <span style="color: var(--k-9DB0A6,#9DB0A6)">(roles that may change these settings)</span></span>
+<div v-if="sw.editManagers" style="display: flex; flex-wrap: wrap; gap: 6px"><template v-for="mr in sw.managerRoles" :key="mr.name"><button type="button" :aria-pressed="mr.on" :title="mr.title" @click="mr.toggle" :disabled="mr.locked" :style="mr.style">{{ mr.name }}</button></template></div>
+<span v-else style="font-size: 14px">{{ sw.managerNames }}</span>
 </div>
-</template>
-</div>
-<div style="display: flex; flex-direction: column; gap: 8px">
-<span style="font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">Who can manage it <span style="color: var(--k-9DB0A6,#9DB0A6)">(roles)</span></span>
-<div style="display: flex; flex-wrap: wrap; gap: 6px"><template v-for="(mr2, mr2__i) in sw.managerRoles" :key="mr2__i"><button :aria-pressed="mr2.on" @click="mr2.toggle" :disabled="mr2.locked" :style="mr2.style">{{ mr2.name }}</button></template></div>
-<template v-if="sw.managerGroups.length"><span style="font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">User groups <span style="color: var(--k-9DB0A6,#9DB0A6)">(every role in the group)</span></span>
-<div style="display: flex; flex-wrap: wrap; gap: 6px"><template v-for="(mg, mg__i) in sw.managerGroups" :key="'g' + mg__i"><button :aria-pressed="mg.on" @click="mg.toggle" :style="mg.style">{{ mg.name }}</button></template></div></template>
-<span style="font-size: 11px; color: var(--k-9DB0A6,#9DB0A6)">Tap a role or group to switch it on or off for this widget.</span>
+<label v-if="sw.items" style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">Items to show on Home<select :value="sw.items.value" @change="sw.items.set" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px"><template v-for="o in sw.items.options" :key="o"><option :value="o">{{ o }}</option></template></select></label>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px; border-radius: 12px; background: var(--k-121B17,#121B17); border: 1px solid var(--k-24322C,#24322C)">
+<span style="flex: 1 1 220px; font-size: 13px; line-height: 1.5; color: var(--k-C9D6CF,#C9D6CF)">{{ sw.seeHint }}</span>
+<button v-if="sw.canRights" type="button" @click="sw.openRights" style="height: 36px; padding: 0 14px; border-radius: 18px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; font-size: 13px">Open rights</button>
 </div>
 </div>
-
-<div style="display: flex; flex-direction: column; gap: 10px">
-<span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--k-9DB0A6,#9DB0A6)">Rights in this widget</span>
-<span style="font-size: 13px; color: var(--k-C9D6CF,#C9D6CF); line-height: 1.5">Tick what each role may do here. People can only act within these rights.</span>
-<div style="overflow-x: auto; border-radius: 12px; border: 1px solid var(--k-24322C,#24322C)">
-<table style="width: 100%; border-collapse: collapse; font-size: 13px">
-<thead><tr><th style="text-align: left; padding: 10px 12px; background: var(--k-121B17,#121B17); color: var(--k-9DB0A6,#9DB0A6); font-weight: 600; font-size: 12px">Role</th><template v-for="(rn, rn__i) in sw.rightNames" :key="rn__i"><th style="padding: 10px 6px; background: var(--k-121B17,#121B17); color: var(--k-9DB0A6,#9DB0A6); font-weight: 600; font-size: 11px; text-align: center; min-width: 64px">{{ rn.name }}</th></template></tr></thead>
-<tbody><template v-for="(mr, mr__i) in sw.matrix" :key="mr__i"><tr style="border-top: 1px solid var(--k-24322C,#24322C)"><td style="padding: 8px 12px; white-space: nowrap">{{ mr.role }}</td><template v-for="(mc, mc__i) in mr.cells" :key="mc__i"><td style="text-align: center; padding: 6px"><input type="checkbox" :aria-label="mc.label" :checked="mc.on" :disabled="mc.locked" @change="mc.toggle"><template v-if="mc.pending"><div style="font-size: 9px; font-weight: 700; color: var(--k-FFB86B,#FFB86B)">PENDING</div></template><template v-if="mc.via"><div style="font-size: 9px; color: var(--k-B8F36B,#B8F36B)" :title="mc.label">{{ mc.via }}</div></template></td></template></tr></template>
-<template v-if="sw.hasGroups"><tr style="border-top: 2px solid var(--k-2A3832,#2A3832)"><td :colspan="sw.rightNames.length + 1" style="padding: 8px 12px; background: var(--k-121B17,#121B17); color: var(--k-9DB0A6,#9DB0A6); font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase">User groups · a ticked right is held by every role in the group</td></tr>
-<template v-for="(gr, gr__i) in sw.groupMatrix" :key="'g' + gr__i"><tr style="border-top: 1px solid var(--k-24322C,#24322C)"><td style="padding: 8px 12px"><strong style="font-weight: 600">{{ gr.group }}</strong><span style="display: block; font-size: 11px; color: var(--k-9DB0A6,#9DB0A6); max-width: 220px; white-space: normal">{{ gr.roles }}</span></td><template v-for="(gc, gc__i) in gr.cells" :key="gc__i"><td style="text-align: center; padding: 6px"><input type="checkbox" :aria-label="gc.label" :checked="gc.on" @change="gc.toggle"><template v-if="gc.pending"><div style="font-size: 9px; font-weight: 700; color: var(--k-FFB86B,#FFB86B)">PENDING</div></template></td></template></tr></template></template></tbody>
-</table>
-</div>
-</div>
-
-<div style="display: flex; flex-direction: column; gap: 10px">
-<span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--k-9DB0A6,#9DB0A6)">Approvals</span>
-<template v-if="sw.noFlows"><span style="font-size: 13px; color: var(--k-9DB0A6,#9DB0A6)">Nothing done in this widget needs approval.</span></template>
-<template v-for="(fw, fw__i) in sw.flows" :key="fw__i">
-<div style="padding: 12px; border-radius: 12px; background: var(--k-121B17,#121B17); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 10px">
-<div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap"><strong style="flex: 1 1 200px; font-size: 14px; font-weight: 600">{{ fw.action }}</strong>
-<select :aria-label="`Approval levels for ${fw.action}`" :value="fw.levelsVal" @change="fw.setLevels" style="height: 38px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-16201C,#16201C); color: var(--k-E8EFEA,#E8EFEA); font-size: 13px"><option value="0">No approval</option><option value="1">Direct (1 level)</option><option value="2">2 levels</option><option value="3">3 levels</option></select></div>
-<template v-if="fw.hasLevels"><div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px"><template v-for="(lv, lv__i) in fw.levels" :key="lv__i"><label style="display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--k-9DB0A6,#9DB0A6)">Level {{ lv.n }} approver<select :value="lv.who" @change="lv.set" style="height: 38px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-16201C,#16201C); color: var(--k-E8EFEA,#E8EFEA); font-size: 13px"><option>Line manager</option><option>Head of department</option><option>Finance approver</option><option>HR Manager</option><option>Communications lead</option><option>Security officer</option><option>Head of IT Operations</option><option>Managing Director</option></select></label></template></div></template>
-</div>
-</template>
-</div>
-
-<template v-if="sw.t.tickets">
-<div style="display: flex; flex-direction: column; gap: 12px">
-<span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--k-9DB0A6,#9DB0A6)">Categories and TAT</span>
-<span style="font-size: 13px; color: var(--k-C9D6CF,#C9D6CF); line-height: 1.5">Each category has a turnaround time. A ticket must be solved within it or it goes overdue.</span>
-<template v-for="(tc, tc__i) in tsetCats" :key="tc__i">
-<div style="display: grid; grid-template-columns: minmax(0, 1fr) 72px 132px 36px; gap: 8px; align-items: center; padding: 8px 10px; border-radius: 12px; background: var(--k-121B17,#121B17); border: 1px solid var(--k-24322C,#24322C)">
-<span style="font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ tc.name }}</span>
-<input type="number" min="1" :aria-label="`TAT for ${tc.name}`" :value="tc.tat" @input="tc.setTat" style="height: 36px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-16201C,#16201C); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px">
-<select :aria-label="`Unit for ${tc.name}`" :value="tc.unit" @change="tc.setUnit" style="height: 36px; padding: 0 6px; border-radius: 8px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-16201C,#16201C); color: var(--k-E8EFEA,#E8EFEA); font-size: 13px"><option value="hours">hours</option><option value="days">working days</option></select>
-<button :aria-label="`Remove ${tc.name}`" @click="tc.remove" style="width: 36px; height: 36px; border-radius: 8px; border: 0; background: transparent; color: var(--k-FF9B8A,#FF9B8A); cursor: pointer; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
-</div>
-</template>
-<div style="display: grid; grid-template-columns: minmax(0, 1fr) 72px 132px; gap: 8px">
-<input type="text" aria-label="New category name" placeholder="New category" :value="tset.newCat" @input="setNewCat" style="height: 38px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px">
-<input type="number" min="1" aria-label="New category TAT" placeholder="TAT" :value="tset.newTat" @input="setNewTat" style="height: 38px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px">
-<select aria-label="New category unit" :value="tset.newUnit" @change="setNewUnit" style="height: 38px; padding: 0 6px; border-radius: 8px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 13px"><option value="hours">hours</option><option value="days">working days</option></select>
-</div>
-<button @click="addCat" style="align-self: flex-start; height: 38px; padding: 0 16px; border-radius: 10px; border: 1px dashed var(--k-4A5C54,#4A5C54); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer">+ Add category</button>
-</div>
-
-<div style="display: flex; flex-direction: column; gap: 12px">
-<span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--k-9DB0A6,#9DB0A6)">Working hours</span>
-<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
-<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">Day starts<input type="time" :value="tset.start" @input="setStart" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px; color-scheme: dark"></label>
-<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">Day ends<input type="time" :value="tset.end" @input="setEnd" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px; color-scheme: dark"></label>
-</div>
-<span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">One working day = {{ dayHoursLabel }} of TAT.</span>
-</div>
-
-<div style="display: flex; flex-direction: column; gap: 10px">
-<span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--k-9DB0A6,#9DB0A6)">TAT does not count during</span>
-<template v-for="(pr, pr__i) in pauseRules" :key="pr__i">
-<label style="display: flex; gap: 12px; align-items: flex-start; padding: 10px 12px; border-radius: 12px; background: var(--k-121B17,#121B17); border: 1px solid var(--k-24322C,#24322C); cursor: pointer"><input type="checkbox" :checked="pr.checked" @change="pr.toggle"><span style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 14px">{{ pr.label }}</span><span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">{{ pr.desc }}</span></span></label>
-</template>
-</div>
-
-<div style="display: flex; flex-direction: column; gap: 10px">
-<span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--k-9DB0A6,#9DB0A6)">Notifications</span>
-<template v-for="(nr, nr__i) in notifyRules" :key="nr__i">
-<label style="display: flex; gap: 12px; align-items: flex-start; padding: 10px 12px; border-radius: 12px; background: var(--k-121B17,#121B17); border: 1px solid var(--k-24322C,#24322C); cursor: pointer"><input type="checkbox" :checked="nr.checked" @change="nr.toggle"><span style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 14px">{{ nr.label }}</span><span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">{{ nr.desc }}</span></span></label>
-</template>
-<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">Warn when this much of the TAT is used: {{ tset.nearPct }}%<input type="range" min="50" max="95" step="5" :value="tset.nearPct" @input="setNearPct"></label>
-<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">Escalate overdue tickets to<select :value="tset.escalate" @change="setEscalate" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px"><option value="Head of IT Operations">Head of IT Operations</option><option value="Head of Software Development">Head of Software Development</option><option value="HR Manager">HR Manager</option><option value="The requester's department head">The requester's department head</option></select></label>
-</div>
-</template>
-
-<template v-if="sw.t.announcements">
-<div style="display: flex; flex-direction: column; gap: 10px">
-<span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--k-9DB0A6,#9DB0A6)">Announcements</span>
-<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">Who can post<select defaultValue="HODs and admins" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px"><option>Admins only</option><option>HODs and admins</option><option>Everyone</option></select></label>
-<label style="display: flex; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 12px; background: var(--k-121B17,#121B17); border: 1px solid var(--k-24322C,#24322C); cursor: pointer"><input type="checkbox" :defaultChecked="true"><span style="font-size: 14px">Ask staff to mark each announcement as read</span></label>
-<label style="display: flex; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 12px; background: var(--k-121B17,#121B17); border: 1px solid var(--k-24322C,#24322C); cursor: pointer"><input type="checkbox" :defaultChecked="true"><span style="font-size: 14px">Send a notification for every new announcement</span></label>
-<label style="display: flex; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 12px; background: var(--k-121B17,#121B17); border: 1px solid var(--k-24322C,#24322C); cursor: pointer"><input type="checkbox"><span style="font-size: 14px">Expire announcements after 30 days</span></label>
-</div>
-</template>
-
-<template v-if="sw.t.awards">
-<div style="display: flex; flex-direction: column; gap: 10px">
-<span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--k-9DB0A6,#9DB0A6)">Awards</span>
-<div style="display: flex; flex-wrap: wrap; gap: 6px"><span style="padding: 6px 12px; border-radius: 16px; background: var(--k-2A2716,#2A2716); border: 1px solid var(--k-4A4426,#4A4426); font-size: 13px">Employee of the month</span><span style="padding: 6px 12px; border-radius: 16px; background: var(--k-2A2716,#2A2716); border: 1px solid var(--k-4A4426,#4A4426); font-size: 13px">Star performer</span><span style="padding: 6px 12px; border-radius: 16px; background: var(--k-2A2716,#2A2716); border: 1px solid var(--k-4A4426,#4A4426); font-size: 13px">Customer hero</span><span style="padding: 6px 12px; border-radius: 16px; background: var(--k-2A2716,#2A2716); border: 1px solid var(--k-4A4426,#4A4426); font-size: 13px">Team of the quarter</span></div>
-<div style="display: flex; gap: 8px"><input type="text" aria-label="New award" placeholder="Add an award, e.g. Innovation" style="flex: 1; min-width: 0; height: 38px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px"><button style="height: 38px; padding: 0 14px; border-radius: 8px; border: 1px dashed var(--k-4A5C54,#4A5C54); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer">Add</button></div>
-<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
-<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">How often<select defaultValue="Monthly" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px"><option>Monthly</option><option>Quarterly</option><option>Yearly</option></select></label>
-<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">Who approves<select defaultValue="HR" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px"><option>HR</option><option>Management</option><option>HODs</option></select></label>
-</div>
-<label style="display: flex; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 12px; background: var(--k-121B17,#121B17); border: 1px solid var(--k-24322C,#24322C); cursor: pointer"><input type="checkbox" :defaultChecked="true"><span style="font-size: 14px">Nominations are open to all staff</span></label>
-</div>
-</template>
-
-<template v-if="sw.t.secureshare">
-<div style="display: flex; flex-direction: column; gap: 10px">
-<span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--k-9DB0A6,#9DB0A6)">Secure share</span>
-<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">Link expires<select defaultValue="After 1 view" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px"><option>After 1 view</option><option>After 1 hour</option><option>After 24 hours</option><option>After 7 days</option></select></label>
-<label style="display: flex; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 12px; background: var(--k-121B17,#121B17); border: 1px solid var(--k-24322C,#24322C); cursor: pointer"><input type="checkbox" :defaultChecked="true"><span style="font-size: 14px">Always require a password</span></label>
-<label style="display: flex; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 12px; background: var(--k-121B17,#121B17); border: 1px solid var(--k-24322C,#24322C); cursor: pointer"><input type="checkbox" :defaultChecked="true"><span style="font-size: 14px">Notify the sender when the link is opened</span></label>
-<label style="display: flex; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 12px; background: var(--k-121B17,#121B17); border: 1px solid var(--k-24322C,#24322C); cursor: pointer"><input type="checkbox"><span style="font-size: 14px">Allow sharing files, not just text</span></label>
-</div>
-</template>
-
-<template v-if="sw.t.sessions">
-<div style="display: flex; flex-direction: column; gap: 10px">
-<span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--k-9DB0A6,#9DB0A6)">Meetings &amp; standups</span>
-<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">Most people in one meeting<select defaultValue="100" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px"><option>25</option><option>100</option><option>300</option></select></label>
-<label style="display: flex; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 12px; background: var(--k-121B17,#121B17); border: 1px solid var(--k-24322C,#24322C); cursor: pointer"><input type="checkbox" :defaultChecked="true"><span style="font-size: 14px">Allow recording</span></label>
-<label style="display: flex; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 12px; background: var(--k-121B17,#121B17); border: 1px solid var(--k-24322C,#24322C); cursor: pointer"><input type="checkbox"><span style="font-size: 14px">Use a waiting room</span></label>
-<label style="display: flex; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 12px; background: var(--k-121B17,#121B17); border: 1px solid var(--k-24322C,#24322C); cursor: pointer"><input type="checkbox"><span style="font-size: 14px">Allow guests from outside the organization</span></label>
-</div>
-</template>
-
-<template v-if="sw.genericOnly">
-<div style="display: flex; flex-direction: column; gap: 10px">
-<span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--k-9DB0A6,#9DB0A6)">Display</span>
-<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">Items to show<select defaultValue="4" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px"><option>3</option><option>4</option><option>6</option><option>10</option></select></label>
-<label style="display: flex; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 12px; background: var(--k-121B17,#121B17); border: 1px solid var(--k-24322C,#24322C); cursor: pointer"><input type="checkbox" :defaultChecked="true"><span style="font-size: 14px">Show a "View all" link</span></label>
-</div>
-</template>
 </div>
 <div style="flex: none; display: flex; justify-content: flex-end; gap: 8px; padding: 14px 20px; border-top: 1px solid var(--k-24322C,#24322C)">
 <button @click="closeSettings" style="height: 42px; padding: 0 18px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer">Cancel</button>
@@ -169,6 +38,6 @@ import { hubBindings } from '~/composables/useHub';
 
 export default {
   name: 'WidgetSettingsDrawer',
-  ...hubBindings(["addCat","closeSettings","dayHoursLabel","notifyRules","pauseRules","saveSettings","setEnd","setEscalate","setNearPct","setNewCat","setNewTat","setNewUnit","setStart","settingsOpen","sw","tset","tsetCats"])
+  ...hubBindings(["closeSettings","saveSettings","settingsOpen","sw"])
 };
 </script>

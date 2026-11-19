@@ -107,8 +107,8 @@ export function buildRoles(ctx) {
       approve: decide(true), reject: decide(false) };
   });
   const pendingCount = reqItems.filter((r) => r.status === 'Pending').length;
-  // Rights changes that wait for approval and belong together (one role, user group or person, from one requester) are listed as one
-  // row that opens to the single rights, each with a checkbox, so some can be approved or rejected and the rest left waiting.
+  // Rights changes that wait for approval and belong together (one role or person, from one requester; older ones may name a user
+  // group) are listed as one row that opens to the single rights, each with a checkbox, so some can be approved or rejected.
   const RIGHTS_TITLES = [
     ['Role', /^Change rights: (.+?) · (.+?) · (.+) \((.+)\)$/, (m) => [m[1], m[2], m[3], m[4]]],
     ['User group', /^Change rights of user group: (.+?) · (.+?) · (.+) \((.+)\)$/, (m) => [m[1], m[2], m[3], m[4]]],

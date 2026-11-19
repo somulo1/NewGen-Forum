@@ -157,7 +157,7 @@ func (m *Module) Private(r chi.Router) {
 		httpx.JSON(w, 200, out)
 		return nil
 	}))
-	// the widgets (and so the dashboards) this person may use: switched on and, when limited, they are in one of its groups
+	// the widgets (and so the dashboards) this person may use: switched on, and their role holds the widget's right
 	r.Get("/me/widgets", org(func(w http.ResponseWriter, r *http.Request, p *tenant.Principal) error {
 		var out map[string]bool
 		err := m.A.DB.WithOrg(r.Context(), p.Org, func(tx pgx.Tx) error {

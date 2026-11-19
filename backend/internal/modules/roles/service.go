@@ -32,7 +32,7 @@ func New(a *app.App, ap *approvals.Engine) *Service {
 	s := &Service{A: a, Ap: ap}
 	ap.Register("rights.role", s.applyRoleRight)
 	ap.Register("rights.person", s.applyPersonRight)
-	ap.Register("rights.group", s.applyGroupRight)
+	ap.Register("rights.group", func(context.Context, pgx.Tx, approvals.Applied) error { return errGroupsRetired })
 	ap.Register("rights.batch", s.applyBatch)
 	return s
 }
@@ -143,6 +143,9 @@ func (s *Service) Role(ctx context.Context, p *tenant.Principal, key string) (*R
 	}
 	return &d, nil
 }
+
+// errGroupsRetired answers an approval for a user group's right that was asked for before user groups were retired.
+var errGroupsRetired = httpx.Err(409, "gone", "User groups were retired. Give the right to the roles on Roles & rights.")
 
 type rightChange struct {
 	Role    string    `json:"role,omitempty"`

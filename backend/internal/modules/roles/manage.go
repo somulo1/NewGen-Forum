@@ -15,6 +15,7 @@ import (
 	"hub/internal/httpx"
 	"hub/internal/integrity"
 	"hub/internal/tenant"
+	"hub/internal/widgetaccess"
 )
 
 // ensureCatalog installs the starting modules and rights for an organization that does not have them yet (older
@@ -48,6 +49,7 @@ type CatalogModule struct {
 	Label   string         `json:"label"`
 	Tint    string         `json:"tint"`
 	Builtin bool           `json:"builtin"`
+	See     string         `json:"see,omitempty"` // the right that shows this widget to a role
 	Rights  []CatalogRight `json:"rights"`
 }
 
@@ -74,7 +76,7 @@ func (s *Service) Catalog(ctx context.Context, p *tenant.Principal) (*CatalogOut
 				ms.Close()
 				return err
 			}
-			m.Rights = []CatalogRight{}
+			m.Rights, m.See = []CatalogRight{}, widgetaccess.SeeRight(m.Key)
 			idx[m.Key] = len(out.Modules)
 			out.Modules = append(out.Modules, m)
 		}
@@ -302,7 +304,6 @@ func (s *Service) DeleteRole(ctx context.Context, p *tenant.Principal, key strin
 		}
 		for _, q := range []string{
 			`delete from hub.person_roles where role_id=$1`,
-			`delete from hub.role_group_roles where role_id=$1`,
 			`delete from hub.role_rights where role_id=$1`,
 			`delete from hub.role_reports where role_id=$1 or reports_to_role=$1`,
 			`delete from hub.default_role where role_id=$1`,

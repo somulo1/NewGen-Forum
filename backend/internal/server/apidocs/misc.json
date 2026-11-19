@@ -369,23 +369,38 @@
  },
  "GET /v1/settings/widgets": {
   "summary": "Home widget settings for the organization",
-  "description": "Free-form object the app keeps.",
+  "description": "Per widget: switched on or not, its name, the roles that manage it and how many entries it lists on Home. Who sees a widget is its right on Roles & rights (see the `see` right in GET /v1/access/catalog). People who do not hold Home: Manage widget settings get only the switched-on widgets and the ones their role manages.",
   "access": "any signed-in member of the organization (token issued with `org`)",
   "response": {
-   "<key>": "any. Whatever was saved"
+   "<widget id>": {
+    "enabled": "boolean",
+    "title": "string",
+    "managers": [
+     "string. Role keys that manage it"
+    ],
+    "items": "integer. Entries on Home, 1-20 (absent: the widget's own default)"
+   }
   }
  },
  "PUT /v1/settings/widgets": {
   "summary": "Save home widget settings",
-  "description": "Replaces the object.",
-  "access": "a role with Home: Manage widget settings",
+  "description": "Saves the widgets in the body; widgets left out keep their settings. Unknown fields are dropped.",
+  "access": "a role with Home: Manage widget settings for any widget; a role named in a widget's managers for that widget's enabled, title and items",
   "status": 204,
   "request": {
-   "<key>": "any. A JSON object up to 32 KB"
+   "<widget id>": {
+    "enabled": "boolean",
+    "title": "string, up to 60 characters",
+    "managers": [
+     "string. Role keys"
+    ],
+    "items": "integer, 0-20"
+   }
   },
   "response": null,
   "errors": {
-   "400": "Too much configuration"
+   "400": "Not a valid widget setting",
+   "403": "Not allowed to change that widget, or who manages it"
   }
  },
  "POST /v1/settings/deletion": {
@@ -1098,7 +1113,7 @@
  },
  "GET /v1/me/widgets": {
   "summary": "The widgets (and dashboards) I may use",
-  "description": "Switched on by the organization and, when limited to specific groups, I am in one of them: placed in the department, sector, branch or unit; a member of the forum; or my role is in the user group. Department, sector, branch and unit dashboards refuse anyone outside their widget's audience (403 not_your_dashboard), except people who may edit the organization profile.",
+  "description": "Switched on by the organization, and my role holds the widget's `see` right on Roles & rights (a widget without one is for everyone once switched on). Department, sector, branch and unit dashboards refuse anyone without it (403 not_your_dashboard), except people who may edit the organization profile.",
   "access": "signed in to the organization",
   "status": 200,
   "response": {

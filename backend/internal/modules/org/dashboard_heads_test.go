@@ -103,6 +103,7 @@ func TestCategoriesDecideWhoHandles(t *testing.T) {
 	}
 	// a business request to IT goes to its head, who is on it
 	e.MustDo(200, "PUT", "/people/"+amy.Person+"/rights", map[string]any{"module": "departments", "right": "View dashboard", "allowed": true}, ownerU.Access)
+	e.MustDo(204, "PUT", "/settings/widgets", map[string]any{"departments": map[string]any{"enabled": true}}, ownerU.Access)
 	rq := e.MustDo(201, "POST", "/tickets", map[string]any{"conversation": newConv(hana), "to_type": "department", "to_ref": it, "kind": "request", "title": "Budget"}, amy.Access)
 	if rq["handler"] != hana.Person {
 		t.Fatalf("business request not with IT's head: %v", rq["handler"])

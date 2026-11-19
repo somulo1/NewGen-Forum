@@ -1,6 +1,7 @@
 import * as calendarW from '~/logic/server/widgets/calendar.js';
 import { clockNow, stateOf, canJoin as joinable, untilNextChange } from '~/logic/schedule.js';
 import { askConfirm, confirmed } from '~/logic/confirm.js';
+import { homeItems } from '~/logic/widgetAccess.js';
 // renderVals step: calendar. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildCalendar(ctx) {
   const { C, chip, corePeople, dowOf, fmtDay, has, isoAdd, personOf, s, set, todayISO } = ctx;
@@ -109,7 +110,8 @@ export function buildCalendar(ctx) {
     }
   };
   const calUpcoming = [];
-  for (let k = 0; k < 14 && calUpcoming.length < 4; k++) { const iso = isoAdd(todayISO, k); itemsOn(iso).forEach((e) => { if (calUpcoming.length < 4) calUpcoming.push({ ...e, iso: iso }); }); }
+  const calCap = homeItems(s.wcfg, 'calendar');
+  for (let k = 0; k < 14 && calUpcoming.length < calCap; k++) { const iso = isoAdd(todayISO, k); itemsOn(iso).forEach((e) => { if (calUpcoming.length < calCap) calUpcoming.push({ ...e, iso: iso }); }); }
   const calItems = calUpcoming.map((e) => ({ title: e.type === 'Deadline' ? 'Due: ' + e.title : e.title, color: typeColor[e.type], time: e.start || 'All day', day: e.iso === todayISO ? 'Today' : e.iso === isoAdd(todayISO, 1) ? 'Tomorrow' : fmtDay(e.iso).split(' ').slice(0, 2).join(' '), type: e.type === 'Deadline' ? 'Project deadline' : e.type, peopleLabel: e.people.length ? ' · ' + e.people.length + ' people' : '' }));
   const meetingEvents = s.events.filter((e) => e.type === 'Meeting' || e.type === 'Standup').slice().sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
   const meetingsTable = { id: 'meetings', pageSize: 8, minWidth: '960px', emptyText: 'No meetings scheduled yet.',
