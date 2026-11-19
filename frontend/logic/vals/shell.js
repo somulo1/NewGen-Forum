@@ -19,7 +19,7 @@ export function valsShell(ctx) {
       this.dir.filter((d) => hit(d.name) || hit(d.title)).slice(0, limit).forEach((d) => results.push({ group: 'People', label: d.name, sub: d.title, initials: d.initials, color: d.color, run: () => { clear(); this.setState({ personOpen: d.id }); } }));
       pages.filter((p) => p[2] && hit(p[0])).forEach((p) => results.push({ group: 'Pages', label: p[0], sub: '', initials: p[0][0], color: '#E8EFEA', run: () => { go[p[1]](); clear(); } }));
       forums.filter((f) => hit(f.name)).forEach((f) => results.push({ group: 'Forums', label: f.name, sub: f.members + ' members', initials: f.initials, color: f.color, run: () => { f.open(); clear(); } }));
-      myUnits.filter((u) => hit(u.name)).forEach((u) => results.push({ group: 'Organization', label: u.name, sub: u.type, initials: u.short, color: u.color, run: () => { u.open(); clear(); } }));
+      myUnits.filter((u) => hit(u.name)).forEach((u) => results.push({ group: 'Organization', label: u.name, sub: u.type, color: u.color, run: () => { u.open(); clear(); } }));
     }
     return { q: s[key] || '', active: !!nq, onInput: (e) => this.setState({ [key]: e.target.value }), clear: () => this.setState({ [key]: '' }), none: !!nq && results.length === 0, results: results.slice(0, 20) };
   };

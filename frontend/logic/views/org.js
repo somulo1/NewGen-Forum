@@ -232,7 +232,7 @@ export function buildOrg(ctx) {
     const r = recOf(t, O.mine[t]);
     const key = t + ':' + r.id;
     const on = s.section === 'orgunit' && s.ou === key;
-    return { name: r.name, type: typeName[t], typeLower: typeName[t].toLowerCase(), navLabel: 'My ' + typeName[t].toLowerCase(), on, short: shortOf(r.name), color: typeTint[t], key: key, perf: unitPerf[key].perf, open: openOu(t, r.id),
+    return { name: r.name, type: typeName[t], typeLower: typeName[t].toLowerCase(), navLabel: 'My ' + typeName[t].toLowerCase(), on, color: typeTint[t], key: key, perf: unitPerf[key].perf, open: openOu(t, r.id),
       style: 'display:flex;align-items:center;gap:10px;width:100%;min-height:46px;padding:4px 10px;border:0;border-radius:10px;cursor:pointer;color:var(--k-E8EFEA,#E8EFEA);font-family:inherit;background:' + (on ? 'var(--k-22302A,#22302A)' : 'transparent') };
   });
   const roleNameOf = (id) => refName(id);
@@ -338,7 +338,7 @@ export function buildOrg(ctx) {
       onPeriod: (e) => this.setState({ ouPeriod: e.target.value }),
       perfFormula: 'Performance = (resolved in time + escalated in time) ÷ everything received in the period × 100%',
       loading: !!this.srv && !D.loaded,   // its dashboard is still being fetched from the server
-      name: ouRec.name, type: typeName[t], short: shortOf(ouRec.name), color: typeTint[t], badge: badge(typeTint[t]), path: pathOf(t, ouRec),
+      name: ouRec.name, type: typeName[t], badge: badge(typeTint[t]), path: pathOf(t, ouRec),
       managerRole: unitRow && unitRow.head_role_name ? unitRow.head_role_name + (headNames.length > 1 ? 's' : '') : mgrRole[t], manager: unitRow && unitRow.head_role ? (headNames.length ? headNames.join(', ') : 'Nobody yet') : lead ? lead.name : 'Not set', members: mem.length,
       typePlural: typeName[t] + (t === 'branches' ? 'es' : 's'),
       commRules: ['Memo', 'Announcement'].map((ty) => ({ text: ruleSentence(t, ty) })),
@@ -535,7 +535,7 @@ export function buildOrg(ctx) {
   }
   const orgWidgetItems = {};
   ['departments', 'units'].forEach((t) => { if (!has[t]) return; orgWidgetItems[t] = O[t].map((r) => { const k = t + ':' + r.id; const pf = unitPerf[k].perf; const pp = parentFor(t, r); return { name: r.name, sub: (pp && recOf(pp[0], pp[1]) ? recOf(pp[0], pp[1]).name + ' · ' : '') + membersOf(t, r.name).length + ' people', perf: pf, perfText: pf == null ? '—' : pf + '%', perfColor: perfColor(pf, targetOf(k)), open: openOu(t, r.id) }; }); });
-  if (has.branches) orgWidgetItems.branches = O.branches.map((b) => ({ name: b.name, initials: shortOf(b.name), place: has.sectors && recOf('sectors', b.sector) ? recOf('sectors', b.sector).name + ' sector' : 'Branch', head: (membersOf('branches', b.name).find((p) => /Supervisor|Lead|Manager/.test(p.title)) || {}).name || 'Not set', staff: membersOf('branches', b.name).length, statusColor: '#B8F36B', statusLabel: (unitPerf['branches:' + b.id] && unitPerf['branches:' + b.id].perf != null ? unitPerf['branches:' + b.id].perf + '% on time' : 'Nothing due yet'), open: openOu('branches', b.id) }));
+  if (has.branches) orgWidgetItems.branches = O.branches.map((b) => ({ name: b.name, place: has.sectors && recOf('sectors', b.sector) ? recOf('sectors', b.sector).name + ' sector' : 'Branch', head: (membersOf('branches', b.name).find((p) => /Supervisor|Lead|Manager/.test(p.title)) || {}).name || 'Not set', staff: membersOf('branches', b.name).length, statusColor: '#B8F36B', statusLabel: (unitPerf['branches:' + b.id] && unitPerf['branches:' + b.id].perf != null ? unitPerf['branches:' + b.id].perf + '% on time' : 'Nothing due yet'), open: openOu('branches', b.id) }));
   if (has.sectors) orgWidgetItems.sectors = O.sectors.map((sc, i) => ({ name: sc.name, color: ['#FFB86B', '#7CC4FF', '#F49AC1'][i % 3], depts: (has.branches ? O.branches.filter((b) => b.sector === sc.id) : O.departments.filter((d) => d.sector === sc.id)).map((x) => x.name).join(' · '), staff: membersOf('sectors', sc.name).length, open: openOu('sectors', sc.id) }));
   orgWidgetItems.performance = myUnits.map((u) => { const tg = targetOf(u.key); return { name: u.name, type: u.type, perf: u.perf, perfText: u.perf == null ? '—' : u.perf + '%', target: tg, color: perfColor(u.perf, tg), open: u.open, bar: 'height:100%;width:' + (u.perf || 0) + '%;background:' + perfColor(u.perf, tg) + ';border-radius:4px', marker: 'position:absolute;top:-3px;left:calc(' + tg + '% - 1px);width:2px;height:14px;background:var(--k-E8EFEA,#E8EFEA)' }; });
   return { O, esc, myUnits, org, orgWidgetItems, ou, ouTable, recOf, roleNameOf, ruleSentence, typeName };
