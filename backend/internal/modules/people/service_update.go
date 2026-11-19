@@ -30,8 +30,11 @@ func (s *Service) Update(ctx context.Context, p *tenant.Principal, id uuid.UUID,
 	var req *approvals.Request
 	var applied bool
 	err := s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
-		if err := authz.Require(ctx, tx, p.Person, "people", "Edit profiles"); err != nil {
-			return err
+		// moving someone to another role is a roles-and-rights matter; any other change edits their profile
+		if !c.roleOnly() {
+			if err := authz.Require(ctx, tx, p.Person, "people", "Edit profiles"); err != nil {
+				return err
+			}
 		}
 		var name string
 		if err := tx.QueryRow(ctx, `select first_name || ' ' || last_name from hub.people where id=$1 and status <> 'deleted'`, id).Scan(&name); errors.Is(err, pgx.ErrNoRows) {
@@ -55,6 +58,9 @@ func (s *Service) Update(ctx context.Context, p *tenant.Principal, id uuid.UUID,
 			}
 		}
 		if err := s.validateChanges(ctx, tx, c); err != nil {
+			return err
+		}
+		if err := keepOwner(ctx, tx, id, c.Role); err != nil {
 			return err
 		}
 		// protected (locked-role) people can only be changed by someone holding a protected role themselves
@@ -153,6 +159,9 @@ func (s *Service) applyUpdate(ctx context.Context, tx pgx.Tx, a approvals.Applie
 		if err := chat.SyncAudience(ctx, tx, s.A.Sign, a.Org, *acct); err != nil {
 			return err
 		}
+	}
+	if err := keepOwner(ctx, tx, pl.Person, c.Role); err != nil {
+		return err
 	}
 	if c.Role != nil && *c.Role == "" {
 		if _, err := tx.Exec(ctx, `delete from hub.person_roles where person_id=$1`, pl.Person); err != nil {
@@ -337,4 +346,28 @@ func (s *Service) Photos(ctx context.Context, p *tenant.Principal, ids []uuid.UU
 		return rs.Err()
 	})
 	return out, err
+}
+
+// roleOnly says whether the change only moves the person to another role.
+func (c Changes) roleOnly() bool { return c.Role != nil && c == Changes{Role: c.Role} }
+
+// keepOwner lets the owner role move from one person to another, but never leaves the organization without an active owner:
+// it is given to someone else first, then the last holder may take another role.
+func keepOwner(ctx context.Context, tx pgx.Tx, person uuid.UUID, role *string) error {
+	if role == nil {
+		return nil
+	}
+	var had, stays bool
+	var name string
+	var others int
+	err := tx.QueryRow(ctx, `select coalesce(r.locked, false), coalesce(r.name, ''), coalesce((select locked from hub.roles where key=$2), false),
+		(select count(*) from hub.person_roles x join hub.roles y on y.id = x.role_id join hub.people z on z.id = x.person_id where y.locked and z.status = 'active' and z.id <> $1)
+		from hub.people p left join hub.person_roles pr on pr.person_id = p.id left join hub.roles r on r.id = pr.role_id where p.id=$1`, person, *role).Scan(&had, &name, &stays, &others)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil || !had || stays || others > 0 {
+		return err
+	}
+	return httpx.Err(409, "last_owner", "Give the "+name+" role to someone else first: the organization always needs an active "+name+".")
 }

@@ -85,8 +85,5 @@ func ensureRights(ctx context.Context, tx pgx.Tx, org uuid.UUID, module string, 
 	if err := seal("role_rights", "org_id=$1 and module='"+module+"'", org); err != nil {
 		return err
 	}
-	if err := seal("person_rights", "org_id=$1 and module='"+module+"'", org); err != nil {
-		return err
-	}
-	return LinkLockedRoles(ctx, tx, org, seal)
+	return seal("person_rights", "org_id=$1 and module='"+module+"'", org)
 }

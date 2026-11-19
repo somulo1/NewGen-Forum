@@ -254,9 +254,8 @@ func (s *Service) fillViewers(ctx context.Context, tx pgx.Tx, p *tenant.Principa
 // eligibleSQL: people who can be on a project: their role, or a right given to them personally, lets them view projects.
 const eligibleSQL = `select p.id from hub.people p
 	left join hub.person_roles pr on pr.person_id = p.id
-	left join hub.roles r on r.id = pr.role_id
 	left join hub.person_rights x on x.person_id = p.id and x.module = 'projects' and x.right_name = 'View'
-	where p.status = 'active' and (coalesce(r.locked, false) or coalesce(x.allowed, case when pr.role_id is null then null else hub.role_right(pr.role_id, 'projects', 'View') end, false))`
+	where p.status = 'active' and coalesce(x.allowed, case when pr.role_id is null then null else hub.role_right(pr.role_id, 'projects', 'View') end, false)`
 
 // Eligible lists who may be chosen for a project team.
 func (s *Service) Eligible(ctx context.Context, p *tenant.Principal) ([]uuid.UUID, error) {

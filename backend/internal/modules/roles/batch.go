@@ -96,8 +96,10 @@ func (s *Service) SetRightsBatch(ctx context.Context, p *tenant.Principal, scope
 			} else if err != nil {
 				return err
 			}
-			if locked {
-				return httpx.Err(409, "locked_role", name+" cannot be limited.")
+			for _, it := range items {
+				if err := keeps(locked, name, it.Change); err != nil {
+					return err
+				}
 			}
 		case "person":
 			var locked bool

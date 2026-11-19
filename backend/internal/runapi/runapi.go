@@ -37,7 +37,7 @@ import (
 	"hub/internal/modules/tones"
 	"hub/internal/push"
 	"hub/internal/server"
-	"hub/internal/widgetaccess"
+	"hub/internal/upkeep"
 	"hub/migrations"
 )
 
@@ -99,8 +99,8 @@ func Run() {
 	if err := tones.New(a).Install(ctx); err != nil {
 		fatal("install tones", err)
 	}
-	// 2b. rights that user groups gave move onto their roles, once
-	widgetaccess.FoldUserGroups(ctx, a)
+	// 2b. data changes that need the system's keys (user groups folded into roles, the owner role's description), once
+	upkeep.Run(ctx, a)
 
 	// 3. the first owner and organization, once, when asked for and the database has no accounts
 	seedOwner(ctx, a, cfg)

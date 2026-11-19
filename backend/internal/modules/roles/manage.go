@@ -42,6 +42,7 @@ type CatalogRight struct {
 	Label   string `json:"label"`
 	Kind    string `json:"kind"`
 	Builtin bool   `json:"builtin"`
+	Kept    bool   `json:"kept,omitempty"` // the owner role always keeps it
 }
 
 type CatalogModule struct {
@@ -93,6 +94,7 @@ func (s *Service) Catalog(ctx context.Context, p *tenant.Principal) (*CatalogOut
 				return err
 			}
 			if i, ok := idx[mod]; ok {
+				r.Kept = access.OwnerKeeps(mod, r.Name)
 				out.Modules[i].Rights = append(out.Modules[i].Rights, r)
 			}
 		}

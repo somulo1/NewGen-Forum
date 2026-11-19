@@ -1,5 +1,5 @@
 // Package authz answers "may this person do this?" on the server. A personal override beats everything; otherwise the
-// person's role decides. With neither, the answer is no. Locked roles (super admin) are always yes.
+// person's role decides (hub.role_right: the owner role holds a right until it is switched off for it). With neither, no.
 package authz
 
 import (
@@ -13,16 +13,13 @@ import (
 
 // Can must run inside a tenant transaction (db.WithOrg), so row-level security scopes the lookup.
 func Can(ctx context.Context, tx pgx.Tx, person uuid.UUID, module, right string) (bool, error) {
-	var locked bool
 	var roleAllowed, personAllowed *bool
 	err := tx.QueryRow(ctx, `
-		select coalesce(r.locked, false),
-		       case when pr.role_id is null then null else hub.role_right(pr.role_id, $2, $3) end,
+		select case when pr.role_id is null then null else hub.role_right(pr.role_id, $2, $3) end,
 		       (select x.allowed from hub.person_rights x where x.person_id = $1 and x.module=$2 and x.right_name=$3)
 		from hub.people p
 		left join hub.person_roles pr on pr.person_id = p.id
-		left join hub.roles r on r.id = pr.role_id
-		where p.id = $1 and p.status = 'active'`, person, module, right).Scan(&locked, &roleAllowed, &personAllowed)
+		where p.id = $1 and p.status = 'active'`, person, module, right).Scan(&roleAllowed, &personAllowed)
 	if err == pgx.ErrNoRows {
 		return false, nil
 	}
@@ -30,8 +27,6 @@ func Can(ctx context.Context, tx pgx.Tx, person uuid.UUID, module, right string)
 		return false, err
 	}
 	switch {
-	case locked:
-		return true, nil
 	case personAllowed != nil:
 		return *personAllowed, nil
 	case roleAllowed != nil:
@@ -62,43 +57,36 @@ func Effective(ctx context.Context, tx pgx.Tx, person uuid.UUID, all map[string]
 		}
 		return nil, err
 	}
-	if locked {
-		return all, nil
-	}
+	// the role's settings, then the person's own overrides on top; the owner role holds what was never switched off for it
 	on := map[string]bool{}
-	if role != nil {
-		rs, err := tx.Query(ctx, `select module, right_name from hub.role_rights where role_id=$1 and allowed`, *role)
+	read := func(q string, id uuid.UUID) error {
+		rs, err := tx.Query(ctx, q, id)
 		if err != nil {
-			return nil, err
+			return err
 		}
+		defer rs.Close()
 		for rs.Next() {
 			var m, r string
-			if err := rs.Scan(&m, &r); err != nil {
-				rs.Close()
-				return nil, err
+			var a bool
+			if err := rs.Scan(&m, &r, &a); err != nil {
+				return err
 			}
-			on[m+"\x00"+r] = true
+			on[m+"\x00"+r] = a
 		}
-		rs.Close()
+		return rs.Err()
 	}
-	rs, err := tx.Query(ctx, `select module, right_name, allowed from hub.person_rights where person_id=$1`, person)
-	if err != nil {
-		return nil, err
-	}
-	for rs.Next() {
-		var m, r string
-		var a bool
-		if err := rs.Scan(&m, &r, &a); err != nil {
-			rs.Close()
+	if role != nil {
+		if err := read(`select module, right_name, allowed from hub.role_rights where role_id=$1`, *role); err != nil {
 			return nil, err
 		}
-		on[m+"\x00"+r] = a
 	}
-	rs.Close()
+	if err := read(`select module, right_name, allowed from hub.person_rights where person_id=$1`, person); err != nil {
+		return nil, err
+	}
 	out := map[string][]string{}
 	for m, rights := range all {
 		for _, r := range rights {
-			if on[m+"\x00"+r] {
+			if v, set := on[m+"\x00"+r]; v || (!set && locked) {
 				out[m] = append(out[m], r)
 			}
 		}
@@ -106,16 +94,13 @@ func Effective(ctx context.Context, tx pgx.Tx, person uuid.UUID, all map[string]
 	return out, nil
 }
 
-// PeopleWith lists the active people who hold a right (through their role, a personal grant, or a protected role).
+// PeopleWith lists the active people who hold a right (through their role or a personal grant).
 func PeopleWith(ctx context.Context, tx pgx.Tx, module, right string) ([]uuid.UUID, error) {
 	rs, err := tx.Query(ctx, `
 		select p.id from hub.people p
 		left join hub.person_roles pr on pr.person_id = p.id
-		left join hub.roles r on r.id = pr.role_id
-		where p.status = 'active' and (
-		  coalesce(r.locked,false)
-		  or coalesce((select x.allowed from hub.person_rights x where x.person_id = p.id and x.module=$1 and x.right_name=$2),
-		              case when pr.role_id is null then null else hub.role_right(pr.role_id, $1, $2) end, false))
+		where p.status = 'active' and coalesce((select x.allowed from hub.person_rights x where x.person_id = p.id and x.module=$1 and x.right_name=$2),
+		              case when pr.role_id is null then null else hub.role_right(pr.role_id, $1, $2) end, false)
 		limit 200`, module, right)
 	if err != nil {
 		return nil, err

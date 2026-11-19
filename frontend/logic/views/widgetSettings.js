@@ -2,7 +2,7 @@ import { HOME_ITEMS, homeItems, widgetGate } from '~/logic/widgetAccess.js';
 // renderVals step: widgetSettings. A widget's settings are its switch, its name, the roles that manage it and how many entries it
 // lists on Home. Who sees it and what each role may do in it are rights, set on Roles & rights > Rights.
 export function buildWidgetSettings(ctx) {
-  const { can, catalog, chipS, modInfo, s, visibleRoles } = ctx;
+  const { can, catalog, chipS, modInfo, rightOf, s, visibleRoles } = ctx;
   const sid = s.settingsFor;
   if (!sid || !catalog[sid]) return { sid, sw: {} };
   const gate = widgetGate(this, s, can);
@@ -21,7 +21,10 @@ export function buildWidgetSettings(ctx) {
     // only someone who manages every widget changes who manages this one; a widget's own managers see the list
     editManagers: gate.manage,
     managerRoles: gate.manage
-      ? visibleRoles.map((r) => { const on = r.locked || managers.indexOf(r.id) !== -1; return { name: r.name, on, locked: !!r.locked, title: r.locked ? 'Manages every widget' : '', style: chipS(on), toggle: () => setW((c) => ({ managers: on ? c.managers.filter((x) => x !== r.id) : c.managers.concat([r.id]) })) }; })
+      ? visibleRoles.map((r) => {
+        const every = rightOf(r.id, 'home', 'Manage widget settings'), on = every || managers.indexOf(r.id) !== -1;
+        return { name: r.name, on, locked: every, title: every ? 'Manages every widget (Home & widgets right)' : '', style: chipS(on), toggle: () => setW((c) => ({ managers: on ? c.managers.filter((x) => x !== r.id) : c.managers.concat([r.id]) })) };
+      })
       : [],
     managerNames: managers.map(roleName).join(', ') || 'Only those who manage widget settings',
     items: HOME_ITEMS[sid] ? { value: String(homeItems(s.wcfg, sid)), options: [3, 4, 5, 6, 8, 10, 15, 20].map(String), set: (e) => setW({ items: Number(e.target.value) }) } : null,

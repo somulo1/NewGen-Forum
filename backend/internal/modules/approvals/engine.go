@@ -326,15 +326,18 @@ func (e *Engine) mayDecide(ctx context.Context, tx pgx.Tx, who, requester uuid.U
 	if err := tx.QueryRow(ctx, `select count(*), count(*) filter (where person_id=$3) from hub.approval_designees where flow_key=$1 and level=$2`, f.Key, level, who).Scan(&n, &mine); err != nil {
 		return false, err
 	}
-	if n > 0 {
-		if mine > 0 {
-			return true, nil
-		}
-		var locked bool // the owner role can always stand in
-		err := tx.QueryRow(ctx, `select coalesce(bool_or(r.locked), false) from hub.person_roles pr join hub.roles r on r.id = pr.role_id where pr.person_id=$1`, who).Scan(&locked)
-		return locked, err
+	if mine > 0 {
+		return true, nil
 	}
-	return authz.Can(ctx, tx, who, f.Module, access.ApproveRight(level))
+	if n == 0 {
+		if ok, err := authz.Can(ctx, tx, who, f.Module, access.ApproveRight(level)); err != nil || ok {
+			return ok, err
+		}
+	}
+	// the owner role can always stand in, even with its approval rights switched off, so nothing is ever stuck waiting
+	var locked bool
+	err := tx.QueryRow(ctx, `select coalesce(bool_or(r.locked), false) from hub.person_roles pr join hub.roles r on r.id = pr.role_id where pr.person_id=$1`, who).Scan(&locked)
+	return locked, err
 }
 
 // designee names the people chosen for a level (comma separated), or "" when nobody was.

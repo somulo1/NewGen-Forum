@@ -56,10 +56,8 @@ export function buildAccess(ctx) {
   const rightOf = (role, mod, right) => {
     const k = rKey(role, mod, right);
     if (Object.prototype.hasOwnProperty.call(s.rightsOv, k)) return s.rightsOv[k];
-    const def = roleDefs.find((r) => r.id === role);
-    if (def && def.locked) return true;      // a locked (owner) role can do everything
     const sr = s.roleRights && s.roleRights[role] && s.roleRights[role][mod];
-    return !!(sr && sr[right]);               // a right nobody gave the role is off
+    return !!(sr && sr[right]);               // the server's matrix: a right nobody gave the role is off (the owner's are on until switched off)
   };
   // What I may do comes from the server, which counts my role and my personal rights (the rights tables above are only readable by
   // people who manage roles). Previewing another role uses those tables.
@@ -83,9 +81,9 @@ export function buildAccess(ctx) {
   };
   this._makeRequest = makeRequest; this._flowById = flowById;
   const toggleRight = (role, mod, right) => {
-    if ((roleDefs.find((r) => r.id === role) || {}).locked) return;
     const k = rKey(role, mod, right);
     const nv = !rightOf(role, mod, right);
+    if (!nv && (roleDefs.find((r) => r.id === role) || {}).locked && ((rightMeta[mod] || {})[right] || {}).kept) return;   // the owner role always keeps it
     const f = flowById('f8');
     const roleName = (roleDefs.find((r) => r.id === role) || {}).name;
     const logIt = (txt) => this.setState((st) => ({ extraLogs: [{ id: 'x' + Date.now(), ago: 0, user: 'Samwel Okoth Omulo', action: txt, module: 'Roles', ip: '10.0.4.21', loc: 'Office network', result: 'Success', rule: 'r5' }].concat(st.extraLogs) }));

@@ -115,7 +115,7 @@ export function buildAdminTables(ctx) {
     const mk = (s.rightsMarks || {})[rKey(roleCur.id, m, x)];   // marked, not sent yet
     const meta = (rightMeta[m] || {})[x] || {};
     rightsRows.push({ cells: [C.t(modInfo[m][0], { fv: modInfo[m][0] }), C.t(meta.label || x, { strong: true, sub: seeOf[m] === x ? 'Who has this widget: on Home and in the menu' : '' }), C.t(KIND_LABEL[meta.kind] || 'Other', { fv: KIND_LABEL[meta.kind] || 'Other' }),
-      C.chk(mk ? mk.allowed : rightOf(roleCur.id, m, x), () => toggleRight(roleCur.id, m, x), { disabled: !!roleCur.locked || !roleCur.id, pending: pend || !!mk, label: roleCur.name + ': ' + modInfo[m][0] + ' · ' + x }),
+      C.chk(mk ? mk.allowed : rightOf(roleCur.id, m, x), () => toggleRight(roleCur.id, m, x), { disabled: !roleCur.id || (!!roleCur.locked && !!meta.kept), pending: pend || !!mk, label: roleCur.name + ': ' + modInfo[m][0] + ' · ' + x }),
       C.a(meta.builtin === false ? [{ label: 'Remove right', kind: 'danger', run: confirmed({ title: 'Remove this right?', body: '"' + x + '" is removed from every role that has it.', action: 'Remove right' }, () => rolesW.removeRight(this, srv, m, x).then(() => this.notify('Right removed.', '#B8F36B')).catch(fail)) }] : [])] });
   }));
   // the rights marked for this role, waiting to be sent as one approval
@@ -136,7 +136,7 @@ export function buildAdminTables(ctx) {
     } };
   const rightsTable = { widget: { value: rightsMod, options: rightsMods.map((m) => ({ v: m, l: modInfo[m][0] + ' (' + rightsDef[m].length + ')' })), pick: (e) => this.setState({ rightsMod: e.target.value }) }, id: 'rights-' + roleCur.id + '-' + rightsMod, pageSize: 12, minWidth: '680px', emptyText: 'The rights catalog is empty.',
     cols: [{ label: 'Page', filter: 'select' }, { label: 'Right', filter: 'text' }, { label: 'Kind', filter: 'select' }, { label: roleCur.name + ' can', align: 'center' }, { label: '', align: 'right' }], rows: rightsRows };
-  const rightsHint = 'Setting rights for ' + roleCur.name + '. Tick a box to let this role do that. In a widget, the right marked "Who has this widget" decides who sees it at all. ' + (f8 && f8.levels > 0 ? 'Changes need approval (' + (f8.levels === 1 ? 'direct' : f8.levels + ' levels') + '): tick the rights to change, then press Send for approval. They go as one approval and show as pending until approved. ' : '') + (roleCur.locked ? 'The owner role can always do everything.' : '');
+  const rightsHint = 'Setting rights for ' + roleCur.name + '. Tick a box to let this role do that. In a widget, the right marked "Who has this widget" decides who sees it at all. ' + (f8 && f8.levels > 0 ? 'Changes need approval (' + (f8.levels === 1 ? 'direct' : f8.levels + ' levels') + '): tick the rights to change, then press Send for approval. They go as one approval and show as pending until approved. ' : '') + (roleCur.locked ? roleCur.name + ' always keeps "View roles" and "Manage roles & rights", so someone can always fix rights.' : '');
   const meName = srv ? srv.me.name : '';
   const memberList = [meName].concat(this.dir.map((d) => d.name)).filter((n, i, a) => n && a.indexOf(n) === i);
   const roleOpts = [{ v: '', l: '— none —' }].concat(visibleRoles.map((r) => ({ v: r.id, l: r.name })));
@@ -144,6 +144,14 @@ export function buildAdminTables(ctx) {
   const assignRole = (n, v) => {
     const rn = (visibleRoles.find((r) => r.id === v) || {}).name || 'no role';
     rolesW.setRole(this, srv, n, v).then((r) => this.notify(r === 'applied' ? n + ' now has ' + rn + '. Logged.' : 'Sent for approval: ' + n + ' as ' + rn + '.', r === 'applied' ? '#B8F36B' : '#FFB86B')).catch(fail);
+  };
+  // my own role changes too (that is how the owner role is handed over), after a warning: I keep only what the new role allows
+  const leaveNote = roleCur.locked ? ' The organization always keeps an active ' + roleCur.name + ': give it to someone else first.' : '';
+  const moveSelf = (e) => {
+    const el = e.target, v = el.value, to = (visibleRoles.find((r) => r.id === v) || {}).name || 'no role';
+    const what = v ? ' and get ' + to + '. From then on you can only do what ' + to + ' allows.' : ' and have no role, so you lose the rights it gives.';
+    askConfirm({ title: 'Change your own role?', body: 'You leave ' + roleCur.name + what + leaveNote, action: 'Change my role' })
+      .then((ok) => { if (ok) assignRole(meName, v); else el.value = roleCur.id; });
   };
   const roleMembers = memberList.filter((n) => ridOf(n) === roleCur.id);
   const roleAddOpts = memberList.filter((n) => ridOf(n) !== roleCur.id && n !== meName).map((n) => ({ v: n, l: n }));
@@ -154,13 +162,14 @@ export function buildAdminTables(ctx) {
       const mine = n === meName;
       return { cells: [C.p(n, { sub: d ? d.title : (s.meInfo || {}).title || '', fv: n }),
         C.t(d ? d.dept : (s.meInfo || {}).dept || '', {}),
-        C.sel(roleCur.id, roleOpts, (e) => assignRole(n, e.target.value), { fv: roleCur.name, label: 'Role for ' + n, minWidth: '170px', disabled: mine }),
-        C.a([{ label: 'Remove from role', kind: 'danger', disabled: mine, run: confirmed({ title: 'Remove from this role?', body: n + ' loses this role and the rights it gives.', action: 'Remove' }, () => assignRole(n, '')) }])] };
+        C.sel(roleCur.id, roleOpts, (e) => (mine ? moveSelf(e) : assignRole(n, e.target.value)), { fv: roleCur.name, label: 'Role for ' + n, minWidth: '170px' }),
+        C.a([{ label: 'Remove from role', kind: 'danger', run: confirmed({ title: mine ? 'Leave this role?' : 'Remove from this role?', body: (mine ? 'You lose ' : n + ' loses ') + roleCur.name + ' and the rights it gives.' + leaveNote, action: 'Remove' }, () => assignRole(n, '')) }])] };
     }) };
   const nr = s.newRole || { name: '', desc: '', err: '' };
   const setNr = (patch) => this.setState((st) => ({ newRole: { ...st.newRole, ...patch, err: '' } }));
   const roleBar = { name: roleCur.name, desc: roleCur.desc, scope: roleScope[roleCur.id] || 'Whole organization', count: roleMembers.length, options: visibleRoles.map((r) => ({ v: r.id, l: r.name })), value: roleCur.id, addOpts: roleAddOpts, locked: !!roleCur.locked,
     hasRole: !!roleCur.id, isDefault: !!roleCur.isDefault, canDelete: !!roleCur.id && !roleCur.locked && !roleCur.count,
+    handOver: roleCur.locked ? 'To hand over ' + roleCur.name + ': add the new holder with "Add a person", then move yourself to another role.' + leaveNote : '',
     toggleDefault: () => rolesW.updateRole(this, srv, roleCur.id, { default: !roleCur.isDefault }).then(() => this.notify(roleCur.isDefault ? 'New people no longer get a role automatically.' : roleCur.name + ' is now the role new people get.', '#B8F36B')).catch(fail),
     remove: confirmed({ title: 'Delete this role?', body: 'The role "' + (roleCur && roleCur.name) + '" is deleted.' }, () => rolesW.deleteRole(this, srv, roleCur.id).then(() => this.notify('Role deleted.', '#B8F36B')).catch(fail)),
     editName: nr.editing ? nr.editName : roleCur.name, editDesc: nr.editing ? nr.editDesc : roleCur.desc, editing: !!nr.editing,

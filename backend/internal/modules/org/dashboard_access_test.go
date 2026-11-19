@@ -9,7 +9,7 @@ import (
 
 	"hub/internal/orgsettings"
 	"hub/internal/testkit"
-	"hub/internal/widgetaccess"
+	"hub/internal/upkeep"
 )
 
 type dashCase struct {
@@ -77,7 +77,7 @@ func TestUserGroupsFoldIntoRoles(t *testing.T) {
 	d.e.RootExec(`insert into hub.role_group_roles (org_id, group_id, role_id) select $1, $2, id from hub.roles where key='hod'`, d.org, g)
 	d.e.RootExec(`insert into hub.role_group_rights (org_id, group_id, module, right_name, allowed) values ($1, $2, 'tickets', 'Raise', true)`, d.org, g)
 
-	widgetaccess.FoldUserGroups(ctx, d.e.A)
+	upkeep.Run(ctx, d.e.A)
 
 	d.agree(t, false, "the group never gave View dashboard")
 	rights := d.e.MustDo(200, "GET", "/roles/hod", nil, d.owner)["rights"].(map[string]any)

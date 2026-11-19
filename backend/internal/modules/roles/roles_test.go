@@ -51,9 +51,9 @@ func TestRolesRightsAndMe(t *testing.T) {
 	if code, _ := e.Do("PUT", "/roles/staff/rights", map[string]any{"module": "wall", "right": "Post", "allowed": false}, staff.Access); code != 403 {
 		t.Fatalf("staff changed rights: %d", code)
 	}
-	// the super admin role cannot be limited
-	if code, _ := e.Do("PUT", "/roles/owner/rights", map[string]any{"module": "wall", "right": "Post", "allowed": false}, owner.Access); code != 409 {
-		t.Fatalf("super admin was limited: %d", code)
+	// the owner role always keeps managing roles and rights (owner_test.go covers the rest of its rights)
+	if code, _ := e.Do("PUT", "/roles/owner/rights", map[string]any{"module": "roles", "right": "Manage roles & rights", "allowed": false}, owner.Access); code != 409 {
+		t.Fatalf("the owner role lost Manage roles & rights: %d", code)
 	}
 	// with 3 approval levels on f8 the change waits, and nothing happens until all approve
 	e.MustDo(204, "PUT", "/approvals/flows/f8", map[string]any{"levels": 3}, owner.Access)

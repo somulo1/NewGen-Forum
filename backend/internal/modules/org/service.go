@@ -65,14 +65,10 @@ func (s *Service) Create(ctx context.Context, account uuid.UUID, displayName, na
 			return err
 		}
 		ownerRole := app.NewID()
-		if _, err := tx.Exec(ctx, `insert into hub.roles (id, org_id, key, name, description, scope, locked) values ($1,$2,'owner','Owner','Full control of Hub. This role cannot be limited.','Whole organization',true)`, ownerRole, org); err != nil {
+		if _, err := tx.Exec(ctx, `insert into hub.roles (id, org_id, key, name, description, scope, locked) values ($1,$2,'owner','Owner','Full control of Hub. Its rights can be changed; it always keeps managing roles and rights.','Whole organization',true)`, ownerRole, org); err != nil {
 			return err
 		}
 		if err := s.A.Sign.Seal(ctx, tx, "roles", "org_id=$1", org); err != nil {
-			return err
-		}
-		// the owner role is linked to every right in the catalog from the start
-		if err := access.LinkLockedRoles(ctx, tx, org, func(table, where string, args ...any) error { return s.A.Sign.Seal(ctx, tx, table, where, args...) }); err != nil {
 			return err
 		}
 		for _, f := range cat.Flows {

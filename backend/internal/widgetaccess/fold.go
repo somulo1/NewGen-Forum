@@ -2,7 +2,6 @@ package widgetaccess
 
 import (
 	"context"
-	"log/slog"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -10,44 +9,15 @@ import (
 	"hub/internal/app"
 	"hub/internal/integrity"
 	"hub/internal/orgsettings"
-	"hub/internal/realtime"
 )
 
 var dashboards = []string{"departments", "sectors", "branches", "units"}
 
-// FoldUserGroups retires user groups. Every right a user group gave is written onto the roles in it, so nobody loses what they
-// could do, and the groups are removed. A dashboard that was opened by user groups only keeps exactly the roles the groups let
-// in. Widget settings lose their old audience fields (who sees a widget is now its right on Roles & rights). It runs when the
-// API starts and does nothing once an organization has been folded.
-func FoldUserGroups(ctx context.Context, a *app.App) {
-	var orgs []uuid.UUID
-	err := a.DB.Tx(ctx, func(tx pgx.Tx) error {
-		rs, err := tx.Query(ctx, `select id from hub.orgs where status <> 'deleted'`)
-		if err != nil {
-			return err
-		}
-		orgs, err = pgx.CollectRows(rs, pgx.RowTo[uuid.UUID])
-		return err
-	})
-	if err != nil {
-		slog.Error("fold user groups", "err", err)
-		return
-	}
-	for _, org := range orgs {
-		folded := false
-		if err := a.DB.WithOrg(ctx, org, func(tx pgx.Tx) error {
-			var e error
-			folded, e = foldOrg(ctx, a, tx, org)
-			return e
-		}); err != nil {
-			slog.Error("fold user groups", "org", org, "err", err)
-		} else if folded {
-			a.Publish(ctx, realtime.Event{Type: "rights.changed", Channel: realtime.OrgChannel(org), Org: org.String()})
-		}
-	}
-}
-
-func foldOrg(ctx context.Context, a *app.App, tx pgx.Tx, org uuid.UUID) (bool, error) {
+// FoldOrg retires an organization's user groups. Every right a user group gave is written onto the roles in it, so nobody loses
+// what they could do, and the groups are removed. A dashboard that was opened by user groups only keeps exactly the roles the
+// groups let in. Widget settings lose their old audience fields (who sees a widget is now its right on Roles & rights). It does
+// nothing once the organization has been folded, and says whether it changed anything.
+func FoldOrg(ctx context.Context, a *app.App, tx pgx.Tx, org uuid.UUID) (bool, error) {
 	if _, err := tx.Exec(ctx, `select pg_advisory_xact_lock(hashtext('fold-user-groups:' || $1))`, org.String()); err != nil {
 		return false, err
 	}

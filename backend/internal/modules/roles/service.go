@@ -114,11 +114,11 @@ func (s *Service) Role(ctx context.Context, p *tenant.Principal, key string) (*R
 			if d.Rights[m] == nil {
 				d.Rights[m] = map[string]bool{}
 			}
-			d.Rights[m][r] = a || d.Locked
+			d.Rights[m][r] = a
 		}
 		rs.Close()
 		if d.Locked {
-			// a locked role (the owner) holds every right in the catalog, including ones added after it was made
+			// the owner role holds every right not switched off for it, including ones added to the catalog after it was made
 			all, err := tx.Query(ctx, `select module, name from hub.rights`)
 			if err != nil {
 				return err
@@ -132,7 +132,9 @@ func (s *Service) Role(ctx context.Context, p *tenant.Principal, key string) (*R
 				if d.Rights[m] == nil {
 					d.Rights[m] = map[string]bool{}
 				}
-				d.Rights[m][r] = true
+				if _, set := d.Rights[m][r]; !set {
+					d.Rights[m][r] = true
+				}
 			}
 			all.Close()
 		}
@@ -175,7 +177,15 @@ func (s *Service) validate(ctx context.Context, org uuid.UUID, c rightChange, pe
 	return nil
 }
 
-// SetRoleRight changes one right of a role. Flow f8 may need approval first; locked roles can never be limited.
+// keeps refuses to take from the owner role a right it always keeps (see access.OwnerKeeps).
+func keeps(locked bool, name string, c rightChange) error {
+	if locked && c.Allowed != nil && !*c.Allowed && access.OwnerKeeps(c.Module, c.Right) {
+		return httpx.Err(409, "kept_right", name+" always keeps \""+c.Right+"\", so someone can always manage roles and rights.")
+	}
+	return nil
+}
+
+// SetRoleRight changes one right of a role. Flow f8 may need approval first.
 func (s *Service) SetRoleRight(ctx context.Context, p *tenant.Principal, role string, c rightChange) (*approvals.Request, bool, error) {
 	c.Role, c.Person = role, uuid.Nil
 	if err := s.validate(ctx, p.Org, c, false); err != nil {
@@ -194,8 +204,8 @@ func (s *Service) SetRoleRight(ctx context.Context, p *tenant.Principal, role st
 		} else if err != nil {
 			return err
 		}
-		if locked {
-			return httpx.Err(409, "locked_role", name+" cannot be limited.")
+		if err := keeps(locked, name, c); err != nil {
+			return err
 		}
 		verb := "allow"
 		if !*c.Allowed {
@@ -213,8 +223,15 @@ func (s *Service) applyRoleRight(ctx context.Context, tx pgx.Tx, a approvals.App
 	if err := json.Unmarshal(a.Payload, &c); err != nil {
 		return err
 	}
+	var locked bool
+	var name string
+	if err := tx.QueryRow(ctx, `select locked, name from hub.roles where key=$1`, c.Role).Scan(&locked, &name); err == nil {
+		if err := keeps(locked, name, c); err != nil {
+			return err
+		}
+	}
 	tag, err := tx.Exec(ctx, `insert into hub.role_rights (org_id, role_id, module, right_name, allowed)
-		select $5::uuid, r.id, $2::text, $3::text, $4::boolean from hub.roles r where r.key=$1 and not r.locked
+		select $5::uuid, r.id, $2::text, $3::text, $4::boolean from hub.roles r where r.key=$1
 		on conflict (org_id, role_id, module, right_name) do update set allowed=excluded.allowed, `+integrity.BumpOn("role_rights"), c.Role, c.Module, c.Right, *c.Allowed, a.Org)
 	if err != nil {
 		return err
