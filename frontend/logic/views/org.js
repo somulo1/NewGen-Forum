@@ -338,7 +338,7 @@ export function buildOrg(ctx) {
       onPeriod: (e) => this.setState({ ouPeriod: e.target.value }),
       perfFormula: 'Performance = (resolved in time + escalated in time) ÷ everything received in the period × 100%',
       loading: !!this.srv && !D.loaded,   // its dashboard is still being fetched from the server
-      name: ouRec.name, type: typeName[t], short: shortOf(ouRec.name), color: typeTint[t], badge: badge(typeTint[t]), path: pathOf(t, ouRec),
+      name: ouRec.name, type: typeName[t], badge: badge(typeTint[t]), path: pathOf(t, ouRec),
       managerRole: unitRow && unitRow.head_role_name ? unitRow.head_role_name + (headNames.length > 1 ? 's' : '') : mgrRole[t], manager: unitRow && unitRow.head_role ? (headNames.length ? headNames.join(', ') : 'Nobody yet') : lead ? lead.name : 'Not set', members: mem.length,
       typePlural: typeName[t] + (t === 'branches' ? 'es' : 's'),
       commRules: ['Memo', 'Announcement'].map((ty) => ({ text: ruleSentence(t, ty) })),
