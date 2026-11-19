@@ -8,8 +8,8 @@ export function buildNav(ctx) {
   const nav = {}, go = {}, show = {};
   const secNeeds = { meetings: 'sessions', projects: 'projects', calendar: 'calendar', comms: 'comms', structure: 'structure', orgunit: 'structure', tickets: 'tickets', files: 'files', notes: 'notes', share: 'secureshare', pbx: 'pbx' };
   const ticketDeskOk = !!has.tickets && !has.structure && (can('tickets', 'Solve') || can('tickets', 'Assign & hand over'));
-  // Calls management (the customer phone system) is a widget: it exists once the organization switches it on in Widgets, and only for
-  // the people its "Who can see it" setting names. It is a front end for now, so the server must enforce this once the PBX is connected.
+  // Calls management (the customer phone system) is a widget: it exists once the organization switches it on in Widgets. It is a front
+  // end for now, so the server must enforce who uses it once the PBX is connected.
   const pbxOk = !!has.pbx;
   const secOk = (k) => (k === 'pbx' ? pbxOk : k === 'ticketdesk' ? ticketDeskOk : k === 'orgedit' ? !!this.srv && can('settings', 'Edit organization profile') : k === 'widgets' ? can('home', 'Open widgets page') : k === 'security' ? (can('security', 'View alerts') || can('security', 'View logs')) : k === 'roles' ? can('roles', 'View roles') : k === 'settings' ? can('settings', 'View settings') : !secNeeds[k] || !!has[secNeeds[k]]);
   const pending = !!this._accessPending;   // rights are still arriving: do not call a page "no access" yet

@@ -203,7 +203,7 @@ func (e *Env) RemoveRights(slug, module string, names ...string) {
 	defer root.Close(context.Background())
 	_, _ = root.Exec(context.Background(), "set session_replication_role = replica")
 	org := e.OrgID(slug)
-	for _, table := range []string{"role_rights", "person_rights", "role_group_rights"} {
+	for _, table := range []string{"role_rights", "person_rights"} {
 		if _, err := root.Exec(context.Background(), `delete from hub.`+table+` where org_id=$1 and module=$2 and right_name = any($3)`, org, module, names); err != nil {
 			e.T.Fatal(err)
 		}

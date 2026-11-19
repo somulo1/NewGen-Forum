@@ -1,4 +1,4 @@
-import { widgetGate, switchedOn } from '~/logic/widgetAccess.js';
+import { homeItems, widgetGate, switchedOn } from '~/logic/widgetAccess.js';
 import * as calendarW from '~/logic/server/widgets/calendar.js';
 import * as commsW from '~/logic/server/widgets/comms.js';
 import * as dmsW from '~/logic/server/widgets/dms.js';
@@ -27,7 +27,7 @@ export function buildHomeWidgets(ctx) {
     tickets: { title: 'Tickets', sub: 'Turnaround time tracking', tint: '#FF9B8A', desc: 'Open, overdue and due-soon tickets, the most urgent ones to view, and a quick way to raise a new one.' },
     projects: { title: 'Projects', sub: 'Progress and health', tint: '#7CC4FF', desc: 'Every project with its status, progress and due date, plus a View button into each one.' },
     awards: { title: 'Performance awards', sub: 'Recognition', tint: '#FFD66B', desc: 'Spotlight top performers, show award winners and let staff nominate colleagues.' },
-    pbx: { title: 'Calls management', sub: 'Customer phone system', tint: '#7CC4FF', desc: 'Call customers on their own phones, take inbound queue calls, message them by SMS, and monitor queues and agents. Only the people chosen under Who can see it use it.' },
+    pbx: { title: 'Calls management', sub: 'Customer phone system', tint: '#7CC4FF', desc: 'Call customers on their own phones, take inbound queue calls, message them by SMS, and monitor queues and agents.' },
     secureshare: { title: 'Secure share', sub: 'One-time links', tint: '#6EE7C8', desc: 'Share a password or credential through a link that self-destructs after one view.' },
     files: { title: 'Recent files', sub: 'Across your forums', tint: '#C9B6FF', desc: 'The latest documents shared with you.' },
     joiners: { title: 'New joiners', sub: 'This week', tint: '#B8F36B', desc: 'Welcome new colleagues and help them settle in.' },
@@ -62,9 +62,9 @@ export function buildHomeWidgets(ctx) {
   const recent = (iso) => iso && (new Date(todayISO + 'T12:00:00+03:00') - new Date(iso + 'T12:00:00+03:00')) / 86400000 <= 14;
   const newJoiners = (this.dir || []).filter((p) => recent(p.joined)).sort((a, b) => (a.joined < b.joined ? 1 : -1)).slice(0, 3).map((p) => ({ name: p.name, role: [p.title, p.dept].filter(Boolean).join(' · '), initials: p.initials, color: p.color }));
   const itemsFor = {
-    chat: (has.chat ? s.dms : []).slice(0, 4).map((d) => { const pr = this.dir.find((x) => x.name === d.with) || { initials: ini(d.with), color: '#C9B6FF' }; const last = d.msgs[d.msgs.length - 1];
+    chat: (has.chat ? s.dms : []).slice(0, homeItems(s.wcfg, 'chat')).map((d) => { const pr = this.dir.find((x) => x.name === d.with) || { initials: ini(d.with), color: '#C9B6FF' }; const last = d.msgs[d.msgs.length - 1];
       return { name: d.with, initials: pr.initials, color: pr.color, unread: d.unread, hasUnread: d.unread > 0, last: last ? (last.from === 'me' ? 'You: ' : '') + (last.text || 'Sent a file') : 'Say hello', open: () => this.openDm(d.with) }; }),
-    announcements: s.comms.filter((c) => c.type === 'Announcement' && c.status === 'Published').slice(0, 3).map((c) => ({ id: c.id, tag: (c.byDept || 'News').split(' ')[0], title: c.title, meta: c.by + ' · ' + fmtDay(c.date), ackLabel: c.iRead ? 'Read' : 'Mark read', ackStyle: pillBtn(!!c.iRead), ack: () => commsW.markRead(this, this.srv, c) })),
+    announcements: s.comms.filter((c) => c.type === 'Announcement' && c.status === 'Published').slice(0, homeItems(s.wcfg, 'announcements')).map((c) => ({ id: c.id, tag: (c.byDept || 'News').split(' ')[0], title: c.title, meta: c.by + ' · ' + fmtDay(c.date), ackLabel: c.iRead ? 'Read' : 'Mark read', ackStyle: pillBtn(!!c.iRead), ack: () => commsW.markRead(this, this.srv, c) })),
     events: calendarW.upcomingEvents(s.events, todayISO).map((e) => ({ id: e.id, mon: new Date(e.date + 'T12:00:00+03:00').toLocaleDateString('en-GB', { month: 'short', timeZone: 'Africa/Nairobi' }).toUpperCase(), day: String(Number(e.date.slice(8, 10))), title: e.title,
       meta: new Date(e.date + 'T12:00:00+03:00').toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'Africa/Nairobi' }) + (e.start ? ' · ' + e.start : '') + (e.forum ? ' · ' + e.forum : ''),
       rsvpLabel: s.rsvp[e.id] ? 'Going' : 'RSVP', rsvpStyle: pillBtn(!!s.rsvp[e.id]), rsvp: () => calendarW.toggleRsvp(this, this.srv, e).catch((x) => this.notify(x.message, '#FF9B8A')) })),
@@ -94,7 +94,7 @@ export function buildHomeWidgets(ctx) {
     }),
     tickets: [{ n: nOpen, label: 'Open', color: '#E8EFEA' }, { n: nOver, label: 'Overdue', color: '#FF9B8A' }, { n: nSoon, label: 'Due soon', color: '#FFB86B' }],
     // only files that really exist in the folders this person can open, newest first
-    files: s.folders.flatMap((f) => f.files.map((x) => ({ kind: x.kind, color: kindColor[x.kind] || '#9DB0A6', name: x.name, meta: f.name + ' · ' + x.when, at: x.at }))).sort((a, b) => (a.at < b.at ? 1 : -1)).slice(0, 4),
+    files: s.folders.flatMap((f) => f.files.map((x) => ({ kind: x.kind, color: kindColor[x.kind] || '#9DB0A6', name: x.name, meta: f.name + ' · ' + x.when, at: x.at }))).sort((a, b) => (a.at < b.at ? 1 : -1)).slice(0, homeItems(s.wcfg, 'files')),
     joiners: newJoiners,
     sessions: sessions,
     projects: projects,
@@ -103,9 +103,8 @@ export function buildHomeWidgets(ctx) {
   const LEVELS = ['departments', 'sectors', 'branches', 'units'];
   // A level (departments, sectors, branches, units) shows once the organization has one, or once the person added its widget:
   // an empty one then offers to add the first.
-  // The organization decides which widgets exist for its people. Once it has set any (Widget settings), a widget it never set is not
-  // shown to the others, and one it limited to specific groups (departments, branches, forums...) shows only to their members. People
-  // who manage widget settings see every widget, so they can set them up.
+  // The organization decides which widgets exist for its people: switched on in Widget settings, and shown to the roles that hold the
+  // widget's see right on Roles & rights. People who manage widget settings see every widget, so they can set them up.
   const gate = widgetGate(this, s, can);
   const orgAllows = gate.allows;
   const loadingHome = gate.loading;   // signed in, and the organization's widget settings have not arrived yet
@@ -126,13 +125,13 @@ export function buildHomeWidgets(ctx) {
     hidden: isHidden(id), hideLabel: isHidden(id) ? 'Show' : 'Hide', toggleHide: toggleHide(id),
     ...catalog[id],
     title: (s.wcfg[id] && s.wcfg[id].title) || catalog[id].title,
-    openSettings: () => this.setState({ settingsFor: id }),
+    openSettings: () => this.setState({ settingsFor: id }), canSet: gate.manages(id),
     t: LEVELS.indexOf(id) !== -1 && !has[id] ? { levelEmpty: true } : { [id]: true },
     levelEmpty: LEVELS.indexOf(id) !== -1 && !has[id],
     levelOne: ({ departments: 'department', sectors: 'sector', branches: 'branch', units: 'unit' })[id] || '', levelPlural: (catalog[id].title || '').toLowerCase(),
     canAddLevel: !!this.srv && can('settings', 'Edit organization profile'),
     addLevel: () => { const k = ({ departments: 'department', sectors: 'sector', branches: 'branch', units: 'unit' })[id]; this.setState({ section: 'orgedit', structEd: { kind: k, name: '', parent: '', err: '', ok: '', busy: false, edit: null, del: null, move: {}, sel: {}, into: {}, mergeAsk: null, tab: k, q: {} } }); },
-    items: id === 'calendar' ? calItems : (id === 'memos' || id === 'newsletter' || id === 'jobposts') ? s.comms.filter((c) => c.type === (id === 'memos' ? 'Memo' : id === 'jobposts' ? 'Job post' : 'Newsletter') && c.status === 'Published').slice(0, 3).map((c) => ({ ...c, by: c.by === 'Samwel Okoth Omulo' ? 'You' : c.by, dateLabel: fmtDay(c.date), audience: c.to.length > 2 ? c.to.slice(0, 2).join(', ') + ' +' + (c.to.length - 2) : c.to.join(', '), readBar: 'height:100%;width:' + c.read + '%;background:#B8F36B' })) : (orgWidgetItems[id] || itemsFor[id] || []),
+    items: id === 'calendar' ? calItems : (id === 'memos' || id === 'newsletter' || id === 'jobposts') ? s.comms.filter((c) => c.type === (id === 'memos' ? 'Memo' : id === 'jobposts' ? 'Job post' : 'Newsletter') && c.status === 'Published').slice(0, homeItems(s.wcfg, id)).map((c) => ({ ...c, by: c.by === 'Samwel Okoth Omulo' ? 'You' : c.by, dateLabel: fmtDay(c.date), audience: c.to.length > 2 ? c.to.slice(0, 2).join(', ') + ' +' + (c.to.length - 2) : c.to.join(', '), readBar: 'height:100%;width:' + c.read + '%;background:#B8F36B' })) : (orgWidgetItems[id] || itemsFor[id] || []),
     isCommList: id === 'memos' || id === 'newsletter' || id === 'jobposts',
     noComms: (id === 'memos' || id === 'newsletter' || id === 'jobposts') && !s.comms.some((c) => c.type === (id === 'memos' ? 'Memo' : id === 'jobposts' ? 'Job post' : 'Newsletter')),
     compose: () => openCm(id === 'memos' ? 'Memo' : id === 'newsletter' ? 'Newsletter' : id === 'jobposts' ? 'Job post' : 'Announcement'),
@@ -148,7 +147,7 @@ export function buildHomeWidgets(ctx) {
     onNote: (e) => this.setState({ note: e.target.value }),
     goTickets: () => this.setState({ section: 'tickets', ticketOpen: null }),
     goProjects: () => this.setState({ section: 'projects', projectOpen: null }),
-    urgent: tickets.filter((t) => t.step < 3).slice().sort((a, b) => ['Overdue', 'Due soon', 'On time', 'TAT paused'].indexOf(a.slaLabel) - ['Overdue', 'Due soon', 'On time', 'TAT paused'].indexOf(b.slaLabel)).slice(0, 3),
+    urgent: tickets.filter((t) => t.step < 3).slice().sort((a, b) => ['Overdue', 'Due soon', 'On time', 'TAT paused'].indexOf(a.slaLabel) - ['Overdue', 'Due soon', 'On time', 'TAT paused'].indexOf(b.slaLabel)).slice(0, homeItems(s.wcfg, 'tickets')),
     pstats: projStats.slice(1),
     goMeetings: () => this.setState({ section: 'meetings' }),
     goWall: () => this.setState({ section: 'feed' }),
@@ -174,11 +173,11 @@ export function buildHomeWidgets(ctx) {
   const gallery = Object.keys(catalog).filter((id) => !(inApp && id === 'pbx') && (id !== 'performance' || has.structure) && (orgAllows(id) || gate.manage)).map((id) => {
     const added = ids.indexOf(id) !== -1;
     return { ...catalog[id], added, hidden: added && isHidden(id), hideLabel: isHidden(id) ? 'Show on Home' : 'Hide on Home', toggleHide: toggleHide(id), remove: () => removeWidget(id), btnLabel: added ? 'Added' : (switchedOn(s.wcfg, id) ? 'Add to home' : 'Switch on and add'),
-      openSettings: () => this.setState({ settingsFor: id }),
+      openSettings: () => this.setState({ settingsFor: id }), canSet: gate.manages(id),
       btnStyle: 'flex:1;height:38px;border-radius:10px;font-weight:600;cursor:' + (added ? 'default' : 'pointer') + ';' + (added ? 'border:1px solid var(--k-2A3832,#2A3832);background:transparent;color:var(--k-9DB0A6,#9DB0A6)' : 'border:0;background:#B8F36B;color:#0F1714'),
       orgOff: !switchedOn(s.wcfg, id),
-      switchOn: () => this.setState((st) => ({ wcfg: { ...st.wcfg, [id]: Object.assign({ title: catalog[id].title, see: 'Everyone', manage: 'Admins' }, st.wcfg[id] || {}, { enabled: true }) } })),
-      add: () => { if (!switchedOn(s.wcfg, id)) { this.setState((st) => ({ wcfg: { ...st.wcfg, [id]: Object.assign({ title: catalog[id].title, see: 'Everyone', manage: 'Admins' }, st.wcfg[id] || {}, { enabled: true }) } })); } if (!added) this.setState((st) => ({ widgets: st.widgets.indexOf(id) !== -1 ? st.widgets : st.widgets.concat(id), levelsAdded: LEVELS.indexOf(id) !== -1 ? { ...(st.levelsAdded || {}), [id]: true } : (st.levelsAdded || {}) })); } };
+      switchOn: () => this.setState((st) => ({ wcfg: { ...st.wcfg, [id]: Object.assign({ title: catalog[id].title }, st.wcfg[id] || {}, { enabled: true }) } })),
+      add: () => { if (!switchedOn(s.wcfg, id)) { this.setState((st) => ({ wcfg: { ...st.wcfg, [id]: Object.assign({ title: catalog[id].title }, st.wcfg[id] || {}, { enabled: true }) } })); } if (!added) this.setState((st) => ({ widgets: st.widgets.indexOf(id) !== -1 ? st.widgets : st.widgets.concat(id), levelsAdded: LEVELS.indexOf(id) !== -1 ? { ...(st.levelsAdded || {}), [id]: true } : (st.levelsAdded || {}) })); } };
   });
   // today's birthdays, for the Community wall card
   const bToday = celebrations.filter((c) => c.at === 0 && /^Birthday/.test(c.what));

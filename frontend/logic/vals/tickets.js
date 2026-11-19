@@ -7,17 +7,13 @@ const plainText = (h) => String(h || '').replace(/<br\s*\/?>/gi, '\n').replace(/
 
 // Values and handlers the templates read through hubBindings: tickets.
 export function valsTickets(ctx) {
-  const { catalog, cur_t, dayH, esc, notifyRules, ntCats, ntCatSel, ntPrios, ntTargets, pauseRules, ticketDeskOk, s, set, setTs, sid, sw, tagNames, canTag, tagPeople, tatText, ticketStats, tickets, tk, ts, tsetCats } = ctx;
+  const { catalog, cur_t, dayH, esc, notifyRules, ntCats, ntCatSel, ntPrios, ntTargets, pauseRules, ticketDeskOk, s, set, setTs, sid, sw, tagNames, canTag, tagPeople, tatText, ticketStats, tickets, tk, ts } = ctx;
   return {
     sw, settingsOpen: !!(sid && catalog[sid]),
     closeSettings: set({ settingsFor: null }),
-    saveSettings: () => { const wc = this.state.wcfg[sid] || {}; if (wc.see === 'Specific groups' && !(wc.groups || []).length) { this.notify('Pick at least one group, or choose Everyone.', '#FFB86B'); return; } this.setState({ settingsFor: null }); this.notify('Settings saved for ' + ((s.wcfg[sid] && s.wcfg[sid].title) || catalog[sid].title) + '.', '#B8F36B'); },
-    tset: ts, tsetCats, pauseRules, notifyRules,
+    saveSettings: () => { this.setState({ settingsFor: null }); this.notify('Settings saved for ' + ((s.wcfg[sid] && s.wcfg[sid].title) || catalog[sid].title) + '.', '#B8F36B'); },
+    tset: ts, pauseRules, notifyRules,
     dayHoursLabel: (Math.round(dayH * 10) / 10) + ' hours',
-    setNewCat: (e) => setTs({ newCat: e.target.value }),
-    setNewTat: (e) => setTs({ newTat: e.target.value }),
-    setNewUnit: (e) => setTs({ newUnit: e.target.value }),
-    addCat: () => setTs((t) => (t.newCat.trim() ? { cats: t.cats.concat([{ name: t.newCat.trim(), tat: Math.max(1, Number(t.newTat) || 1), unit: t.newUnit }]), newCat: '', newTat: '' } : {})),
     setStart: (e) => setTs({ start: e.target.value }),
     setEnd: (e) => setTs({ end: e.target.value }),
     setNearPct: (e) => setTs({ nearPct: Number(e.target.value) }),

@@ -114,6 +114,7 @@
 <div style="display: flex; flex-wrap: wrap; gap: 8px"><template v-for="d in legalDocs" :key="d.slug"><NuxtLink :to="d.path" target="_blank" :title="d.summary" style="height: 36px; padding: 0 16px; border-radius: 18px; border: 1px solid var(--k-2A3832,#2A3832); color: var(--k-E8EFEA,#E8EFEA); font-size: 13px; display: flex; align-items: center; text-decoration: none">{{ d.title }}</NuxtLink></template></div></section>
 
 <!-- Confirm -->
+<template v-if="settingsPage.isTickets"><TicketPolicy /></template>
 <!-- Call feedback -->
 <template v-if="settingsPage.isFeedback">
 <section aria-label="Call feedback summary" style="padding: 18px; border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-wrap: wrap; gap: 12px">

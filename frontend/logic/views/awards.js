@@ -22,7 +22,7 @@ export function buildAwards(ctx) {
     empty: stripBase.length === 0, emptyText: this.srv ? 'No one has been awarded this week yet. Awards appear here once they are approved, and the board starts afresh every Saturday at 12:00 AM.' : 'No approved awards yet. Awards show here once they are approved.',
     trackStyle: 'display:flex;gap:14px;width:max-content;padding:0 7px;animation:hubMarquee ' + Math.max(30, stripBase.length * 6) + 's linear infinite',
     canGive: can('awards', 'Nominate') || can('awards', 'Approve awards'),
-    openSettings: () => this.setState({ settingsFor: 'awards' }),
+    openSettings: () => this.setState({ settingsFor: 'awards' }), canSet: widgetGate(this, s, can).manages('awards'),
     remove: () => this.setState((x) => ({ widgets: x.widgets.filter((w) => w !== 'awards') }))
   };
   const awS = s.awd;

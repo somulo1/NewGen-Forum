@@ -226,8 +226,8 @@ export function buildOrg(ctx) {
   // which of my places' dashboards I use day to day is decided in widget settings (My department, My sector, My branch, My unit
   // widgets, and who sees them); I may still open the others I have the right to from Organization
   const wGate = widgetGate(this, s, can);
-  // whether I may open my place's dashboard is the server's one rule (that dashboard's Widget settings: by roles, or by user groups
-  // only), so the sidebar and the dashboard never disagree; an older server without that answer falls back to the right
+  // whether I may open my place's dashboard is the server's one rule (switched on, and the role's "View dashboard"), so the sidebar
+  // and the dashboard never disagree; an older server without that answer falls back to the right
   const myUnits = ['departments', 'sectors', 'branches', 'units'].filter((t) => has[t] && recOf(t, O.mine[t]) && canDash(t) && wGate.allows(t)).map((t) => {
     const r = recOf(t, O.mine[t]);
     const key = t + ':' + r.id;

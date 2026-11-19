@@ -6,7 +6,7 @@ import * as feedbackW from '~/logic/server/widgets/feedback.js';
 
 // renderVals step: settings. Organization profile, subscription, billing, security and data. Kept to what an org needs.
 export function buildSettings(ctx) {
-  const { can, s } = ctx;
+  const { can, has, s } = ctx;
   const canEdit = can('settings', 'Edit organization profile');
   const canSub = can('settings', 'Manage subscription');
   const draft = s.setDraft || {};
@@ -174,7 +174,7 @@ export function buildSettings(ctx) {
   const etr = doc ? { open: true, ...doc,
     dateLabel: new Date(inv.date + 'T10:30:00').toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }),
     switchKind: (k) => this.setState({ etrOpen: { no: EO.no, kind: k } }), close: () => this.setState({ etrOpen: null }) } : { open: false };
-  const tabDefs = [['profile', 'Organization profile'], ['subscription', 'Subscription'], ['billing', 'Billing & invoices'], ['security', 'Security & data']].concat(this.srv ? [['feedback', 'Call feedback']] : []);
+  const tabDefs = [['profile', 'Organization profile'], ['subscription', 'Subscription'], ['billing', 'Billing & invoices'], ['security', 'Security & data']].concat(this.srv ? [['feedback', 'Call feedback']] : [], has.tickets && can('tickets', 'Manage TAT settings') ? [['tickets', 'Tickets']] : []);
   // ---- Call feedback: every rated call, meeting and standup, newest first, 10 a page ----
   let feedback = null;
   if (s.setTab === 'feedback' && this.srv) {
@@ -201,7 +201,7 @@ export function buildSettings(ctx) {
       prev: () => go(page - 1, F.context || ''), next: () => go(page + 1, F.context || ''), reload: () => go(page, F.context || '')
     };
   }
-  const settingsPage = { canEdit, canSub, tab: s.setTab, tabs: tabDefs.map(([k, l]) => ({ label: l, on: s.setTab === k, go: () => this.setState({ setTab: k }) })), isProfile: s.setTab === 'profile', isSub: s.setTab === 'subscription', isBilling: s.setTab === 'billing', isSecurity: s.setTab === 'security', isFeedback: s.setTab === 'feedback' && !!feedback, feedback,
+  const settingsPage = { canEdit, canSub, tab: s.setTab, tabs: tabDefs.map(([k, l]) => ({ label: l, on: s.setTab === k, go: () => this.setState({ setTab: k }) })), isProfile: s.setTab === 'profile', isSub: s.setTab === 'subscription', isBilling: s.setTab === 'billing', isSecurity: s.setTab === 'security', isFeedback: s.setTab === 'feedback' && !!feedback, feedback, isTickets: s.setTab === 'tickets' && has.tickets,
     profile, sub, billing, security, confirm, etr, orgName: P.name };
   return { settingsPage, orgName: P.name, orgLogo: P.logo };
 }

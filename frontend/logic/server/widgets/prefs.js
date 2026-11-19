@@ -15,7 +15,7 @@ export async function load(logic, srv) {
   PERSONAL.forEach((k) => { if (prefs[k] !== undefined) patch[k] = prefs[k]; });
   try { patch.wcfg = await srv.request('GET', '/settings/widgets'); } catch (e) { /* not allowed to see it */ }
   try { patch.orgBlocks = await srv.request('GET', '/settings/blocks'); } catch (e) { /* the server still refuses what is blocked */ }
-  // which widgets (and dashboards) the server says this person may use: their groups, user groups included
+  // which widgets (and dashboards) the server says this person may use: switched on, and their role holds the widget's see right
   try { patch.myWidgets = (await srv.request('GET', '/me/widgets')).allowed; } catch (e) { /* the old way decides */ }
   patch.widgetsReady = true;   // the home page may now decide which widgets to show
   logic.setState(patch);
@@ -53,7 +53,7 @@ function watch(logic, srv) {
   async function myWidgets() {
     try { logic.setState({ myWidgets: (await srv.request('GET', '/me/widgets')).allowed }); } catch (e) { /* keeps what it has */ }
   }
-  // Rights moved (a role's or a user group's, a role added to a group, a personal grant): this person's rights, the dashboards
+  // Rights moved (a role's, or a personal grant): this person's rights, the dashboards
   // they may open and, for whoever manages roles, the rights tables are read again, so the sidebar and pages follow at once.
   let rightsT = 0;
   const rightsMoved = async () => {

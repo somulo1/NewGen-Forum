@@ -1,6 +1,5 @@
 // Package authz answers "may this person do this?" on the server. A personal override beats everything; otherwise the
-// person's role allows it, or a user group that includes the role does. With none of these, the answer is no. Locked roles
-// (super admin) are always yes.
+// person's role decides. With neither, the answer is no. Locked roles (super admin) are always yes.
 package authz
 
 import (
@@ -68,9 +67,7 @@ func Effective(ctx context.Context, tx pgx.Tx, person uuid.UUID, all map[string]
 	}
 	on := map[string]bool{}
 	if role != nil {
-		// the role's own rights, and those of every user group the role is in
-		rs, err := tx.Query(ctx, `select module, right_name from hub.role_rights where role_id=$1 and allowed
-			union select g.module, g.right_name from hub.role_group_rights g join hub.role_group_roles gr on gr.group_id = g.group_id where gr.role_id=$1 and g.allowed`, *role)
+		rs, err := tx.Query(ctx, `select module, right_name from hub.role_rights where role_id=$1 and allowed`, *role)
 		if err != nil {
 			return nil, err
 		}

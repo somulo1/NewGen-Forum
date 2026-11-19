@@ -39,14 +39,14 @@ func (s *Service) Dashboard(ctx context.Context, p *tenant.Principal, id uuid.UU
 				return err
 			}
 			if !admin {
-				// the one dashboard rule (its Widget settings: by roles, or by user groups only), so a typed address opens only
-				// what the sidebar offers
+				// the one dashboard rule (switched on, and the role's "View dashboard"), so a typed address opens only what the
+				// sidebar offers
 				ok, err := widgetaccess.Dashboard(ctx, s.A, tx, p, rightsMod[d.Unit.Kind])
 				if err != nil {
 					return err
 				}
 				if !ok {
-					return httpx.Err(403, "not_your_dashboard", "This dashboard is not open to your role or user group. Ask an administrator.")
+					return httpx.Err(403, "not_your_dashboard", "This dashboard is not open to your role. Ask an administrator.")
 				}
 			}
 		}

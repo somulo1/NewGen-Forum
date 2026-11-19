@@ -1,102 +1,32 @@
-import * as rolesW from '~/logic/server/widgets/roles.js';
-// renderVals step: widgetSettings. Receives the names built by earlier steps and returns the ones later steps need.
+import { HOME_ITEMS, homeItems, widgetGate } from '~/logic/widgetAccess.js';
+// renderVals step: widgetSettings. A widget's settings are its switch, its name, the roles that manage it and how many entries it
+// lists on Home. Who sees it and what each role may do in it are rights, set on Roles & rights > Rights.
 export function buildWidgetSettings(ctx) {
-  const { O, catalog, chip, chipS, flowItem, forums, genericRights, groupDefs, groupRightOf, has, rKey, rightOf, rightsDef, s, toggleGroupRight, toggleRight, typeName, viaGroups, visibleRoles } = ctx;
-  // ---- Widget settings ----
-  const mk = s.rightsMarks || {};   // rights marked (roles and user groups), sent together as one approval per role or group
-  const marks = Object.entries(mk);
-  const markBar = { show: marks.length > 0, count: marks.length, busy: !!s.rightsSending,
-    label: marks.length + (marks.length === 1 ? ' right marked' : ' rights marked'),
-    clear: () => this.setState({ rightsMarks: {} }),
-    send: () => {
-      if (!this.srv || !marks.length || s.rightsSending) return;
-      const byTarget = new Map();
-      marks.forEach(([k, v]) => { const t = v.group ? 'g:' + v.group : 'r:' + v.role; if (!byTarget.has(t)) byTarget.set(t, []); byTarget.get(t).push([k, v]); });
-      this.setState({ rightsSending: true });
-      Promise.all([...byTarget.entries()].map(([t, list]) => {
-        const changes = list.map(([, v]) => ({ module: v.mod, right: v.right, allowed: v.allowed }));
-        return (t.startsWith('g:') ? rolesW.setGroupRightsBatch(this, this.srv, t.slice(2), changes) : rolesW.setRightsBatch(this, this.srv, t.slice(2), changes)).then((r) => ({ r, list }));
-      })).then((done) => {
-        const pend = {};
-        done.forEach(({ r, list }) => { if (r === 'pending') list.forEach(([k, v]) => { pend[k] = v.allowed; }); });
-        this.setState((st) => ({ rightsSending: false, rightsMarks: {}, pendingRights: { ...st.pendingRights, ...pend } }));
-        this.notify('Sent ' + marks.length + (marks.length === 1 ? ' right' : ' rights') + ' for approval (' + done.length + (done.length === 1 ? ' approval' : ' approvals: one per role or group') + ').', '#FFB86B');
-      }).catch((e) => { this.setState({ rightsSending: false }); this.notify((e && e.message) || 'That did not go through.', '#FF9B8A'); });
-    } };
+  const { can, catalog, chipS, modInfo, s, visibleRoles } = ctx;
   const sid = s.settingsFor;
-  // widgets with their own settings section; every other one (departments, sectors, branches, units ...) gets the standard ones
-  const special = ['tickets', 'announcements', 'awards', 'secureshare', 'sessions'];
-  let sw = { t: {} };
-  if (sid && catalog[sid]) {
-    const cfg = Object.assign({ title: catalog[sid].title, see: 'Everyone', manage: 'Admins' }, s.wcfg[sid] || {});
-    const isOn = !!s.wcfg[sid] && s.wcfg[sid].enabled === true;   // switched on for the whole organization
-    const setCfg = (k) => (e) => { const v = e.target.value; this.setState((st) => ({ wcfg: { ...st.wcfg, [sid]: Object.assign({ title: catalog[sid].title, see: 'Everyone', manage: 'Admins', enabled: false }, st.wcfg[sid] || {}, { [k]: v }) } })); };
-    const wmod = sid;
-    // The place dashboards (departments, sectors, branches, units): who opens them is one choice, made below (by roles, or by user
-    // groups only), so their "View dashboard" right is not repeated in the table of other rights.
-    const isDash = ['departments', 'sectors', 'branches', 'units'].indexOf(sid) !== -1;
-    const VIEW = 'View dashboard';
-    const rn = (rightsDef[wmod] || genericRights).filter((x) => !(isDash && x === VIEW));
-    const wflows = s.flows.filter((f) => f.mod === wmod).map(flowItem);
-    sw = { ...catalog[sid], baseTitle: catalog[sid].title, t: { [sid]: true }, genericOnly: special.indexOf(sid) === -1,
-      rightNames: rn.map((x) => ({ name: x })),
-      // a role's cell also says when a user group it is in gives the right (so a ticked group explains why a role can act)
-      matrix: visibleRoles.map((r) => ({ role: r.name, cells: rn.map((x) => { const via = viaGroups(r.id, wmod, x).map((g) => g.name); return { label: r.name + ': ' + x, on: mk[rKey(r.id, wmod, x)] ? mk[rKey(r.id, wmod, x)].allowed : rightOf(r.id, wmod, x), locked: !!r.locked, pending: s.pendingRights[rKey(r.id, wmod, x)] !== undefined || !!mk[rKey(r.id, wmod, x)], via: via.length && !rightOf(r.id, wmod, x) && !r.locked ? 'via ' + via.join(', ') : '', toggle: () => toggleRight(r.id, wmod, x) }; }) })),
-      // user groups: a right ticked for a group is held by every role in it
-      groupMatrix: groupDefs.map((g) => ({ group: g.name, roles: g.roles.map((id) => (visibleRoles.find((r) => r.id === id) || {}).name).filter(Boolean).join(', ') || 'No roles yet', cells: rn.map((x) => ({ label: g.name + ' (user group): ' + x, on: mk['g:' + rKey(g.id, wmod, x)] ? mk['g:' + rKey(g.id, wmod, x)].allowed : groupRightOf(g.id, wmod, x), locked: false, pending: s.pendingRights['g:' + rKey(g.id, wmod, x)] !== undefined || !!mk['g:' + rKey(g.id, wmod, x)], toggle: () => toggleGroupRight(g.id, wmod, x) })) })),
-      hasGroups: groupDefs.length > 0,
-      flows: wflows, noFlows: wflows.length === 0,
-      markBar, title: cfg.title, orgOn: isOn, orgOnLabel: isOn ? 'Switched on for the organization' : 'Switched off: nobody in the organization has this widget', toggleOrgOn: () => this.setState((st) => ({ wcfg: { ...st.wcfg, [sid]: Object.assign({ title: catalog[sid].title, see: 'Everyone', manage: 'Admins' }, st.wcfg[sid] || {}, { enabled: !isOn }) } })), see: cfg.see, manage: cfg.manage, setTitle: setCfg('title'), setSee: setCfg('see'), setManage: setCfg('manage') };
-    // Visibility (groups) and management (roles)
-    const setW = (patch) => this.setState((st) => ({ wcfg: { ...st.wcfg, [sid]: Object.assign({ title: catalog[sid].title, see: 'Everyone', groups: [], managers: [] }, st.wcfg[sid] || {}, typeof patch === 'function' ? patch(Object.assign({ groups: [], managers: [] }, st.wcfg[sid] || {})) : patch) } }));
-    const groups = cfg.groups || [];
-    const managers = cfg.managers || [];
-    const managerGroups = cfg.managerGroups || [];
-    const isGroups = cfg.see === 'Specific groups';
-    // Every other widget is seen by everyone, or by the places and forums chosen here.
-    const groupSets = ['departments', 'sectors', 'branches', 'units'].filter((t) => has[t]).map((t) => ({ label: typeName[t] + (t === 'branches' ? 'es' : 's'), items: O[t].map((r) => ({ key: t + ':' + r.id, name: r.name })) }))
-      .concat([{ label: 'Forums', items: forums.map((f) => ({ key: 'forum:' + f.id, name: f.name })) }])
-      .map((gs) => ({ label: gs.label, items: gs.items.map((it) => { const on = groups.indexOf(it.key) !== -1; return { name: it.name, on: on, style: chipS(on), toggle: () => setW((c) => ({ groups: on ? c.groups.filter((x) => x !== it.key) : c.groups.concat([it.key]) })) }; }) }));
-    // A place dashboard: one rule, two ways. By roles, the roles ticked here open it. By user groups only, the roles inside the user
-    // groups ticked here open it and a role's own tick does not count. Each tick is the "View dashboard" right itself (the same one
-    // the Roles & rights page shows), so the two pages always agree; the server checks exactly this.
-    const mode = cfg.access === 'groups' || (!cfg.access && cfg.see === 'Specific groups') ? 'groups' : 'roles';
-    const dash = !isDash ? null : {
-      mode,
-      modes: [['roles', 'Roles'], ['groups', 'User groups only']].map(([k, label]) => ({ label, on: mode === k, style: chip(mode === k),
-        pick: () => setW({ access: k, see: 'Everyone', groups: [] }) })),
-      hint: mode === 'roles'
-        ? 'The roles ticked here open the dashboard of the place their people belong to. User groups do not count for this dashboard.'
-        : 'Only roles inside the user groups ticked here open it; a role\'s own setting does not count. Groups are made on Roles & rights.',
-      items: mode === 'roles'
-        ? visibleRoles.map((r) => {
-          const k = rKey(r.id, wmod, VIEW), on = r.locked || (mk[k] ? mk[k].allowed : rightOf(r.id, wmod, VIEW));
-          return { name: r.name + (r.locked ? ' (always)' : ''), title: r.locked ? 'This role can always open every dashboard' : '', on, locked: !!r.locked, pending: s.pendingRights[k] !== undefined || !!mk[k], style: chipS(on), toggle: () => toggleRight(r.id, wmod, VIEW) };
-        })
-        : groupDefs.map((g) => {
-          const k = 'g:' + rKey(g.id, wmod, VIEW), on = mk[k] ? mk[k].allowed : groupRightOf(g.id, wmod, VIEW);
-          const roleNames = g.roles.map((id) => (visibleRoles.find((r) => r.id === id) || {}).name).filter(Boolean).join(', ') || 'no roles yet';
-          return { name: g.name, title: 'Roles in this group: ' + roleNames, on, locked: false, pending: s.pendingRights[k] !== undefined || !!mk[k], style: chipS(on), toggle: () => toggleGroupRight(g.id, wmod, VIEW) };
-        }),
-      empty: mode === 'groups' && !groupDefs.length ? 'No user groups yet. Make one on Roles & rights (a group of roles), then tick it here.' : ''
-    };
-    Object.assign(sw, {
-      isDash, dash,
-      seeOpts: ['Everyone', 'Specific groups'].map((v) => ({ label: v, on: cfg.see === v, style: chip(cfg.see === v), pick: () => setW({ see: v }) })),
-      isGroups: isGroups, groupSets: groupSets,
-      groupsHint: groups.length ? groups.length + (groups.length === 1 ? ' group selected. Only its members see this widget.' : ' groups selected. Only their members see this widget.') : 'Pick at least one group. You can\'t save until you do.',
-      groupsHintColor: groups.length ? '#C9D6CF' : '#FFB86B', groupsBorder: groups.length ? '#24322C' : '#6A5426',
-      managerRoles: visibleRoles.map((r) => {
-        // the locked (super admin) role is on unless someone switched it off for this widget; the others are on only when ticked
-        const off = cfg.managersOff || [];
-        const on = r.locked ? off.indexOf(r.id) === -1 : managers.indexOf(r.id) !== -1;
-        return { name: r.name, on: on, locked: false, style: chipS(on), toggle: () => setW((c) => (r.locked
-          ? { managersOff: on ? (c.managersOff || []).concat([r.id]) : (c.managersOff || []).filter((x) => x !== r.id) }
-          : { managers: on ? c.managers.filter((x) => x !== r.id) : c.managers.concat([r.id]) })) };
-      }),
-      // a user group can manage the widget too: every role in it does
-      managerGroups: groupDefs.map((g) => { const on = managerGroups.indexOf(g.id) !== -1; return { name: g.name, on: on, locked: false, style: chipS(on), toggle: () => setW((c) => ({ managerGroups: on ? (c.managerGroups || []).filter((x) => x !== g.id) : (c.managerGroups || []).concat([g.id]) })) }; })
-    });
-  }
+  if (!sid || !catalog[sid]) return { sid, sw: {} };
+  const gate = widgetGate(this, s, can);
+  const base = catalog[sid].title;
+  const cfg = Object.assign({ title: base, managers: [] }, s.wcfg[sid] || {});
+  const setW = (patch) => this.setState((st) => ({ wcfg: { ...st.wcfg, [sid]: Object.assign({ title: base, enabled: false }, st.wcfg[sid] || {}, typeof patch === 'function' ? patch(Object.assign({ managers: [] }, st.wcfg[sid] || {})) : patch) } }));
+  const isOn = cfg.enabled === true;
+  const managers = cfg.managers || [];
+  const roleName = (k) => (visibleRoles.find((r) => r.id === k) || {}).name || k;
+  const canRights = can('roles', 'View roles') && !!modInfo[sid];
+  const sw = {
+    tint: catalog[sid].tint, baseTitle: base, title: cfg.title,
+    setTitle: (e) => { const v = e.target.value.slice(0, 60); setW({ title: v }); },
+    orgOn: isOn, toggleOrgOn: () => setW({ enabled: !isOn }),
+    orgOnLabel: isOn ? 'Switched on for the organization' : 'Switched off: nobody in the organization has this widget',
+    // only someone who manages every widget changes who manages this one; a widget's own managers see the list
+    editManagers: gate.manage,
+    managerRoles: gate.manage
+      ? visibleRoles.map((r) => { const on = r.locked || managers.indexOf(r.id) !== -1; return { name: r.name, on, locked: !!r.locked, title: r.locked ? 'Manages every widget' : '', style: chipS(on), toggle: () => setW((c) => ({ managers: on ? c.managers.filter((x) => x !== r.id) : c.managers.concat([r.id]) })) }; })
+      : [],
+    managerNames: managers.map(roleName).join(', ') || 'Only those who manage widget settings',
+    items: HOME_ITEMS[sid] ? { value: String(homeItems(s.wcfg, sid)), options: [3, 4, 5, 6, 8, 10, 15, 20].map(String), set: (e) => setW({ items: Number(e.target.value) }) } : null,
+    seeHint: 'Who sees this widget and what each role may do in it are set on Roles & rights › Rights' + (modInfo[sid] ? ', under ' + modInfo[sid][0] + '.' : '.'),
+    canRights, openRights: () => this.setState({ settingsFor: null, section: 'roles', rolesTab: 'rights', rightsMod: sid })
+  };
   return { sid, sw };
 }

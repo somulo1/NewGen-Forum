@@ -73,7 +73,7 @@ func ensureRights(ctx context.Context, tx pgx.Tx, org uuid.UUID, module string, 
 		if tag.RowsAffected() == 0 || r.From == "" {
 			continue
 		}
-		for _, table := range []struct{ name, key string }{{"role_rights", "role_id"}, {"person_rights", "person_id"}, {"role_group_rights", "group_id"}} {
+		for _, table := range []struct{ name, key string }{{"role_rights", "role_id"}, {"person_rights", "person_id"}} {
 			if _, err := tx.Exec(ctx, `insert into hub.`+table.name+` (org_id, `+table.key+`, module, right_name, allowed) select org_id, `+table.key+`, module, $1, allowed from hub.`+table.name+` where module=$3 and right_name=$2 on conflict do nothing`, r.Name, r.From, module); err != nil {
 				return err
 			}
@@ -86,9 +86,6 @@ func ensureRights(ctx context.Context, tx pgx.Tx, org uuid.UUID, module string, 
 		return err
 	}
 	if err := seal("person_rights", "org_id=$1 and module='"+module+"'", org); err != nil {
-		return err
-	}
-	if err := seal("role_group_rights", "org_id=$1 and module='"+module+"'", org); err != nil {
 		return err
 	}
 	return LinkLockedRoles(ctx, tx, org, seal)
