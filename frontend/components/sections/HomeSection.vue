@@ -301,7 +301,7 @@
 <div style="display: flex; flex-direction: column; gap: 8px">
 <template v-for="(br, br__i) in w.items" :key="br__i">
 <button @click="br.open" style="display: flex; gap: 10px; align-items: center; padding: 10px; border-radius: 12px; border: 1px solid var(--k-24322C,#24322C); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; text-align: left">
-<span style="width: 36px; height: 36px; flex: none; border-radius: 10px; background: var(--k-22302A,#22302A); color: var(--k-7CC4FF,#7CC4FF); display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 12px">{{ br.initials }}</span>
+
 <div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><strong style="font-size: 14px; font-weight: 600">{{ br.name }} · {{ br.place }}</strong><span style="font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">Head: {{ br.head }} · {{ br.staff }} staff</span></div>
 <span :style="`flex: none; font-size: 11px; font-weight: 600; color: ${br.statusColor}`">{{ br.statusLabel }}</span>
 </button>
