@@ -35,7 +35,7 @@ var Rules = []RuleDef{
 	{"r2", "Sign-in from a new country", "Someone signs in from a country they have never used before.", "High", true},
 	{"r3", "Mass file download", "More than 50 files downloaded within 15 minutes.", "High", true},
 	{"r4", "After-hours admin action", "Admin changes made outside working hours.", "Medium", true},
-	{"r5", "Role or rights change", "Any change to roles, rights or approval rules.", "Medium", true},
+	{"r5", "Role or permissions change", "Any change to roles, permissions or approval rules.", "Medium", true},
 	{"r6", "Secure link opened from an unusual IP", "A one-time link is opened from outside the usual IP ranges.", "Medium", true},
 	{"r7", "Outside sharing spike", "More than 10 posts shared outside Hub within an hour.", "Low", false},
 	{"r8", "Tampered records", "Data changed outside Hub: forged likes or votes, edited posts or counts, or any record that no longer matches its seal.", "High", true},

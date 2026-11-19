@@ -1,5 +1,6 @@
 import { widgetGate, switchedOn } from '~/logic/widgetAccess.js';
 import * as rolesW from '~/logic/server/widgets/roles.js';
+import { sayPermissions } from '~/logic/wording.js';
 // renderVals step: access. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildAccess(ctx) {
   const s = this.state;
@@ -14,7 +15,7 @@ export function buildAccess(ctx) {
   // The rights catalog and the roles are data from the server (Roles & rights): nothing about roles or rights is built in here.
   const catalog = (s.catalog && s.catalog.modules) || [];
   const rightsDef = Object.fromEntries(catalog.map((m) => [m.key, m.rights.map((r) => r.name)]));
-  const rightMeta = Object.fromEntries(catalog.map((m) => [m.key, Object.fromEntries(m.rights.map((r) => [r.name, r]))]));
+  const rightMeta = Object.fromEntries(catalog.map((m) => [m.key, Object.fromEntries(m.rights.map((r) => [r.name, { ...r, label: sayPermissions(r.label || r.name) }]))]));
   // the right that decides who has a widget (its "see" right), as the server names it
   const seeOf = Object.fromEntries(catalog.map((m) => [m.key, m.see || '']));
   // Which features (and so which sidebar items and pages) exist for this person: the ones the organization switched on for them. It is
@@ -47,7 +48,7 @@ export function buildAccess(ctx) {
   // has one. Without the server, the sample's own widget list decides.
   const orgOn = (id) => (this.srv ? switchedOn(s.wcfg, id) : s.widgets.indexOf(id) !== -1);
   const modEnabled = (m) => optionalMods.indexOf(m) === -1 || (m === 'jobposts' ? (orgOn('jobposts') || orgOn('memos') || orgOn('newsletter') || orgOn('announcements')) : m === 'performance' ? has.structure : ['departments', 'sectors', 'branches', 'units'].indexOf(m) !== -1 ? has[m] : orgOn(m));
-  const modInfo = Object.fromEntries(catalog.map((m) => [m.key, [m.label, m.tint]]));
+  const modInfo = Object.fromEntries(catalog.map((m) => [m.key, [sayPermissions(m.label), m.tint]]));
   // the roles of the organization, as made on the Roles page (the count and the "needs" level come from the server)
   const roleDefs = (s.serverRoles || []).map((r) => ({ id: r.id, name: r.name, desc: r.desc || '', count: r.count, locked: !!r.locked, needs: r.needs || '', scope: r.scope || '', isDefault: !!r.default }));
   const roleScope = Object.fromEntries(roleDefs.map((r) => [r.id, r.scope || 'Whole organization']));
@@ -100,19 +101,19 @@ export function buildAccess(ctx) {
         return;
       }
       rolesW.setRight(this, this.srv, role, mod, right, nv)
-        .then((r) => this.notify(r === 'applied' ? 'Rights updated: ' + label + '. Logged for review.' : 'Sent for approval: Change rights: ' + label + '.', r === 'applied' ? '#B8F36B' : '#FFB86B'))
-        .catch((e) => this.notify(e.message || 'Could not change the right.', '#FF9B8A'));
+        .then((r) => this.notify(r === 'applied' ? 'Permissions updated: ' + label + '. Logged for review.' : 'Sent for approval: Change permissions: ' + label + '.', r === 'applied' ? '#B8F36B' : '#FFB86B'))
+        .catch((e) => this.notify(e.message || 'Could not change the permission.', '#FF9B8A'));
       return;
     }
     if (f && f.levels > 0) {
       if (s.pendingRights[k] !== undefined) return;
       this.setState((st) => ({ pendingRights: { ...st.pendingRights, [k]: nv } }));
-      makeRequest('f8', 'Change rights: ' + label, { kind: 'rights', key: k, val: nv });
-      logIt('Requested rights change: ' + label);
+      makeRequest('f8', 'Change permissions: ' + label, { kind: 'rights', key: k, val: nv });
+      logIt('Requested permissions change: ' + label);
     } else {
       this.setState((st) => ({ rightsOv: { ...st.rightsOv, [k]: nv } }));
-      logIt('Changed rights: ' + label);
-      this.notify('Rights updated: ' + label + '. Logged for review.', '#FFB86B');
+      logIt('Changed permissions: ' + label);
+      this.notify('Permissions updated: ' + label + '. Logged for review.', '#FFB86B');
     }
   };
   return { can, canDash, refName, holdsRef, catalog, rightMeta, seeOf, flowById, has, makeRequest, modEnabled, modInfo, openPersonName, rKey, rightOf, rightsDef, roleDefs, roleScope, s, set, toggleRight, visibleRoles };

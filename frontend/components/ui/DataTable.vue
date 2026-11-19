@@ -22,10 +22,10 @@
 <template v-if="cl.isCheck"><div style="display: flex; flex-direction: column; align-items: center; gap: 2px"><input type="checkbox" :aria-label="cl.label" :checked="cl.on" :disabled="cl.disabled" @change="cl.toggle" style="width: 18px; height: 18px; accent-color: var(--k-B8F36B,#B8F36B)"><template v-if="cl.pending"><span style="font-size: 9px; font-weight: 700; color: var(--k-FFB86B,#FFB86B)">PENDING</span></template></div></template>
 <template v-if="cl.isSelect"><select :aria-label="cl.label" :value="cl.value" :disabled="cl.disabled" @change="cl.onChange" :style="cl.selectStyle"><template v-for="(op, op__i) in cl.options" :key="op__i"><option :value="op.v">{{ op.l }}</option></template></select></template>
 <template v-if="cl.isPicker"><div style="display: flex; flex-direction: column; gap: 6px; min-width: 230px">
-<select :value="cl.roleId" @change="cl.onRole" :aria-label="`Role for ${cl.label}`" :style="cl.selectStyle"><option value="">Anyone with the right</option><template v-for="r in cl.roles" :key="r.v"><option :value="r.v">{{ r.l }}</option></template></select>
+<select :value="cl.roleId" @change="cl.onRole" :aria-label="`Role for ${cl.label}`" :style="cl.selectStyle"><option value="">Anyone with the permission</option><template v-for="r in cl.roles" :key="r.v"><option :value="r.v">{{ r.l }}</option></template></select>
 <template v-if="cl.roleId || cl.selected.length">
 <PeoplePicker :people="cl.allPeople" :scope="cl.scope" :selected="cl.selected" :placeholder="cl.roleId ? 'Search people in this role…' : 'Search people…'" @pick="cl.onPick" @remove="cl.onRemove"/>
-<span v-if="!cl.selected.length" style="font-size: 11px; color: var(--k-FFB86B,#FFB86B)">Pick who acts here. Until then anyone with the right can.</span>
+<span v-if="!cl.selected.length" style="font-size: 11px; color: var(--k-FFB86B,#FFB86B)">Pick who acts here. Until then anyone with the permission can.</span>
 </template>
 <span v-else-if="cl.hint" style="font-size: 11px; color: var(--k-9DB0A6,#9DB0A6)">{{ cl.hint }}</span>
 </div></template>

@@ -34,7 +34,7 @@ func Err(status int, code, msg string) *Error { return &Error{status, code, msg}
 
 var (
 	ErrUnauthorized = Err(401, "unauthorized", "Sign in to continue.")
-	ErrForbidden    = Err(403, "forbidden", "You do not have the right to do that.")
+	ErrForbidden    = Err(403, "forbidden", "You do not have permission to do that.")
 	ErrNotFound     = Err(404, "not_found", "Not found.")
 	ErrBadRequest   = Err(400, "bad_request", "That request is not valid.")
 	ErrConflict     = Err(409, "conflict", "That conflicts with the current state.")

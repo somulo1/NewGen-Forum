@@ -23,12 +23,12 @@ export function buildWidgetSettings(ctx) {
     managerRoles: gate.manage
       ? visibleRoles.map((r) => {
         const every = rightOf(r.id, 'home', 'Manage widget settings'), on = every || managers.indexOf(r.id) !== -1;
-        return { name: r.name, on, locked: every, title: every ? 'Manages every widget (Home & widgets right)' : '', style: chipS(on), toggle: () => setW((c) => ({ managers: on ? c.managers.filter((x) => x !== r.id) : c.managers.concat([r.id]) })) };
+        return { name: r.name, on, locked: every, title: every ? 'Manages every widget (Home & widgets permission)' : '', style: chipS(on), toggle: () => setW((c) => ({ managers: on ? c.managers.filter((x) => x !== r.id) : c.managers.concat([r.id]) })) };
       })
       : [],
     managerNames: managers.map(roleName).join(', ') || 'Only those who manage widget settings',
     items: HOME_ITEMS[sid] ? { value: String(homeItems(s.wcfg, sid)), options: [3, 4, 5, 6, 8, 10, 15, 20].map(String), set: (e) => setW({ items: Number(e.target.value) }) } : null,
-    seeHint: 'Who sees this widget and what each role may do in it are set on Roles & rights › Rights' + (modInfo[sid] ? ', under ' + modInfo[sid][0] + '.' : '.'),
+    seeHint: 'Who sees this widget and what each role may do in it are set on Roles & permissions › Permissions' + (modInfo[sid] ? ', under ' + modInfo[sid][0] + '.' : '.'),
     canRights, openRights: () => this.setState({ settingsFor: null, section: 'roles', rolesTab: 'rights', rightsMod: sid })
   };
   return { sid, sw };

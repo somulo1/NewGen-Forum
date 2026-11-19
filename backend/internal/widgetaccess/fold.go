@@ -51,7 +51,7 @@ func FoldOrg(ctx context.Context, a *app.App, tx pgx.Tx, org uuid.UUID) (bool, e
 			return false, err
 		}
 	}
-	return true, a.Audit(ctx, tx, org, nil, "Hub", "Retired user groups: their rights now sit on the roles that were in them", "Roles", "", nil)
+	return true, a.Audit(ctx, tx, org, nil, "Hub", "Retired user groups: their permissions now sit on the roles that were in them", "Roles", "", nil)
 }
 
 func foldRights(ctx context.Context, a *app.App, tx pgx.Tx, org uuid.UUID, raw map[string]map[string]any) error {

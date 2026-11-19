@@ -1,6 +1,7 @@
 import { shareUrl } from '~/logic/shareOut.js';
 import * as approvalsW from '~/logic/server/widgets/approvals.js';
 import { askConfirm, confirmed } from '~/logic/confirm.js';
+import { sayPermissions } from '~/logic/wording.js';
 // renderVals step: roles. Receives the names built by earlier steps and returns the ones later steps need.
 export function buildRoles(ctx) {
   const { badge, flowById, ini, modEnabled, modInfo, pColor, rKey, rightOf, rightsDef, roleDefs, s, set, tabS, toggleRight } = ctx;
@@ -101,7 +102,7 @@ export function buildRoles(ctx) {
         this.notify(rq.id + ' fully approved: ' + rq.title + (rq.kind === 'award' ? '. Everyone awarded was tagged and notified.' : projectReady ? '. The project is now open in Projects.' : rq.kind === 'project' ? '. Projects is disabled, so it was not added.' : '.'), '#B8F36B');
       }
     };
-    return { ...rq, modName: modInfo[f.mod] ? modInfo[f.mod][0] : '', steps, statusLabel: pending ? 'Level ' + rq.level + ' of ' + L : rq.status, statusStyle: badge(stC),
+    return { ...rq, title: String(rq.kind).startsWith('rights') ? sayPermissions(rq.title) : rq.title, modName: modInfo[f.mod] ? modInfo[f.mod][0] : '', steps, statusLabel: pending ? 'Level ' + rq.level + ' of ' + L : rq.status, statusStyle: badge(stC),
       levelsLabel: L === 1 ? 'Direct approval' : L + '-level approval', hasNote: !!rq.note,
       canAct: pending, currentApprover: f.approvers[rq.level - 1] || 'approver', approveLabel: rq.level < L ? 'Approve & send on' : 'Approve',
       approve: decide(true), reject: decide(false) };
@@ -110,9 +111,9 @@ export function buildRoles(ctx) {
   // Rights changes that wait for approval and belong together (one role or person, from one requester; older ones may name a user
   // group) are listed as one row that opens to the single rights, each with a checkbox, so some can be approved or rejected.
   const RIGHTS_TITLES = [
-    ['Role', /^Change rights: (.+?) · (.+?) · (.+) \((.+)\)$/, (m) => [m[1], m[2], m[3], m[4]]],
-    ['User group', /^Change rights of user group: (.+?) · (.+?) · (.+) \((.+)\)$/, (m) => [m[1], m[2], m[3], m[4]]],
-    ['Person', /^Change rights for (.+?): (.+?) · (.+) \((.+)\)$/, (m) => [m[1], m[2], m[3], m[4]]]
+    ['Role', /^Change permissions: (.+?) · (.+?) · (.+) \((.+)\)$/, (m) => [m[1], m[2], m[3], m[4]]],
+    ['User group', /^Change permissions of user group: (.+?) · (.+?) · (.+) \((.+)\)$/, (m) => [m[1], m[2], m[3], m[4]]],
+    ['Person', /^Change permissions for (.+?): (.+?) · (.+) \((.+)\)$/, (m) => [m[1], m[2], m[3], m[4]]]
   ];
   const parseRights = (title) => { for (const [scope, re, pick] of RIGHTS_TITLES) { const m = re.exec(title || ''); if (m) { const [target, module, right, verb] = pick(m); return { scope, target, module, right, verb }; } } return null; };
   const byKey = new Map();
@@ -137,18 +138,18 @@ export function buildRoles(ctx) {
     const run = async (approve) => {
       if (!this.srv) return;
       const targets = picked.length ? picked : all;   // nothing ticked: all of them
-      if (!approve && !picked.length && !await askConfirm({ title: 'Reject this request?', body: 'All ' + all.length + ' rights in this request are rejected.', action: 'Reject all' })) return;
+      if (!approve && !picked.length && !await askConfirm({ title: 'Reject this request?', body: 'All ' + all.length + ' permissions in this request are rejected.', action: 'Reject all' })) return;
       const comment = ((s.apNote || {})[g.key] || '').trim();
       this.setState((st) => ({ apBusy: { ...(st.apBusy || {}), [g.key]: true } }));
       approvalsW.decideMany(this, this.srv, targets, approve, comment).then((failed) => {
         this.setState((st) => ({ apBusy: { ...(st.apBusy || {}), [g.key]: false }, apSel: Object.fromEntries(Object.entries(st.apSel || {}).filter(([uid]) => !targets.some((t) => t.uid === uid))) }));
         const done = targets.length - failed.length;
-        if (done) this.notify((approve ? 'Approved ' : 'Rejected ') + done + (done === 1 ? ' right' : ' rights') + (picked.length && all.length > picked.length ? '. ' + (all.length - picked.length) + ' still waiting.' : '.'), approve ? '#B8F36B' : '#FF9B8A');
+        if (done) this.notify((approve ? 'Approved ' : 'Rejected ') + done + (done === 1 ? ' permission' : ' permissions') + (picked.length && all.length > picked.length ? '. ' + (all.length - picked.length) + ' still waiting.' : '.'), approve ? '#B8F36B' : '#FF9B8A');
         if (failed.length) this.notify(failed.length + ' did not go through: ' + failed[0].message, '#FF9B8A');
       }).catch((e) => { this.setState((st) => ({ apBusy: { ...(st.apBusy || {}), [g.key]: false } })); this.notify((e && e.message) || 'That did not go through.', '#FF9B8A'); });
     };
-    return { key: g.key, ref: g.rows.length + ' rights', by: g.by, when: g.when, scope: g.scope, target: g.target, title: 'Change rights · ' + g.scope + ': ' + g.target, sub: g.rows.length + ' rights waiting · requested by ' + g.by + ' · ' + g.when,
-      open: s.apReview === g.key, toggle: () => this.setState({ apReview: g.key }), toggleLabel: 'Review rights (' + g.rows.length + ')',
+    return { key: g.key, ref: g.rows.length + ' permissions', by: g.by, when: g.when, scope: g.scope, target: g.target, title: 'Change permissions · ' + g.scope + ': ' + g.target, sub: g.rows.length + ' permissions waiting · requested by ' + g.by + ' · ' + g.when,
+      open: s.apReview === g.key, toggle: () => this.setState({ apReview: g.key }), toggleLabel: 'Review permissions (' + g.rows.length + ')',
       items, count: g.rows.length, selectedCount: picked.length, allChecked: picked.length === all.length,
       toggleAll: () => this.setState((st) => ({ apSel: { ...(st.apSel || {}), ...Object.fromEntries(all.map((rq) => [rq.uid, picked.length !== all.length])) } })),
       note: (s.apNote || {})[g.key] || '', onNote: (e) => { const v = e.target.value; this.setState((st) => ({ apNote: { ...(st.apNote || {}), [g.key]: v } })); },
@@ -170,17 +171,17 @@ export function buildRoles(ctx) {
     const picked = its.filter((i) => i.checked);
     const run = async (approve) => {
       if (!this.srv) return;
-      if (!approve && !picked.length && !await askConfirm({ title: 'Reject this request?', body: 'All ' + its.length + ' rights in ' + rq.id + ' are rejected.', action: 'Reject all' })) return;
+      if (!approve && !picked.length && !await askConfirm({ title: 'Reject this request?', body: 'All ' + its.length + ' permissions in ' + rq.id + ' are rejected.', action: 'Reject all' })) return;
       const comment = ((s.apNote || {})[key] || '').trim();
       this.setState((st) => ({ apBusy: { ...(st.apBusy || {}), [key]: true } }));
       approvalsW.decideItems(this, this.srv, rq, approve, comment, picked.map((i) => i.itemId)).then(() => {
         this.setState((st) => ({ apBusy: { ...(st.apBusy || {}), [key]: false }, apSel: Object.fromEntries(Object.entries(st.apSel || {}).filter(([k]) => !k.startsWith(rq.uid + ':'))) }));
         const n = picked.length || its.length;
-        this.notify((approve ? 'Approved ' : 'Rejected ') + n + (n === 1 ? ' right' : ' rights') + (picked.length && picked.length < its.length ? '. ' + (its.length - picked.length) + ' still waiting.' : '.'), approve ? '#B8F36B' : '#FF9B8A');
+        this.notify((approve ? 'Approved ' : 'Rejected ') + n + (n === 1 ? ' permission' : ' permissions') + (picked.length && picked.length < its.length ? '. ' + (its.length - picked.length) + ' still waiting.' : '.'), approve ? '#B8F36B' : '#FF9B8A');
       }).catch((e) => { this.setState((st) => ({ apBusy: { ...(st.apBusy || {}), [key]: false } })); this.notify((e && e.message) || 'That did not go through.', '#FF9B8A'); });
     };
-    return { key, ref: rq.id, by: rq.by, when: rq.when, uid: rq.uid, title: rq.id + ' · ' + rq.title, sub: its.length + (its.length === 1 ? ' right' : ' rights') + ' waiting · requested by ' + rq.by + ' · ' + rq.when + (rq.levels > 1 ? ' · level ' + rq.level + ' of ' + rq.levels : ''),
-      open: s.apReview === key, toggle: () => this.setState({ apReview: key }), toggleLabel: 'Review rights (' + its.length + ')',
+    return { key, ref: rq.id, by: rq.by, when: rq.when, uid: rq.uid, title: rq.id + ' · ' + rq.title, sub: its.length + (its.length === 1 ? ' permission' : ' permissions') + ' waiting · requested by ' + rq.by + ' · ' + rq.when + (rq.levels > 1 ? ' · level ' + rq.level + ' of ' + rq.levels : ''),
+      open: s.apReview === key, toggle: () => this.setState({ apReview: key }), toggleLabel: 'Review permissions (' + its.length + ')',
       items: its, count: its.length, selectedCount: picked.length, allChecked: picked.length === its.length,
       toggleAll: () => this.setState((st) => ({ apSel: { ...(st.apSel || {}), ...Object.fromEntries(its.map((i) => [i.uid, picked.length !== its.length])) } })),
       note: (s.apNote || {})[key] || '', onNote: (e) => { const v = e.target.value; this.setState((st) => ({ apNote: { ...(st.apNote || {}), [key]: v } })); },

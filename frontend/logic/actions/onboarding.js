@@ -84,7 +84,7 @@ export const onboardingActions = {
     const rd = ch.rights || {};
     if (Object.keys(rd).length) {
       this.setState((st) => { const cur = { ...(st.personRights[p.name] || {}) }; Object.keys(rd).forEach((k) => { if (rd[k] === null) delete cur[k]; else cur[k] = rd[k]; }); const pr = { ...st.personRights }; if (Object.keys(cur).length) pr[p.name] = cur; else delete pr[p.name]; return { personRights: pr }; });
-      logs.push('Changed individual rights of ' + p.name + ' (' + Object.keys(rd).length + ' change' + (Object.keys(rd).length === 1 ? '' : 's') + ')');
+      logs.push('Changed individual permissions of ' + p.name + ' (' + Object.keys(rd).length + ' change' + (Object.keys(rd).length === 1 ? '' : 's') + ')');
     }
     this.setState((st) => ({ extraLogs: logs.map((a, i) => ({ id: 'xr' + Date.now() + i, ago: 0, user: 'Samwel Okoth Omulo', action: a, module: 'Roles', ip: '10.0.4.21', loc: 'Office network', result: 'Success', rule: 'r5' })).concat([{ id: 'x' + Date.now() + p.id, ago: 0, user: 'Samwel Okoth Omulo', action: 'Edited details of ' + before, module: 'People', ip: '10.0.4.21', loc: 'Office network', result: 'Success', rule: '' }], st.extraLogs) }));
     this.forceUpdate();
@@ -115,7 +115,7 @@ export const onboardingActions = {
       if (ob.roleDraft && ob.roleDraft !== (this.state.memberRoles[p.name] || ob.roleDraft)) lines.push('Role changed to ' + ob.roleDraft);
       else if (ob.roleDraft) lines.push('Role set to ' + ob.roleDraft);
       const rd = ob.rightsDraft || {};
-      if (Object.keys(rd).length) lines.push(Object.keys(rd).length + ' individual right change' + (Object.keys(rd).length === 1 ? '' : 's'));
+      if (Object.keys(rd).length) lines.push(Object.keys(rd).length + ' individual permission change' + (Object.keys(rd).length === 1 ? '' : 's'));
       if (ob.reportDraft !== undefined && ob.reportDraft !== null && ob.reportDraft !== (this.state.personReports[p.name] || '')) lines.push(ob.reportDraft ? 'Reports to ' + ob.reportDraft : 'Reports to the role');
       if (!lines.length) { this.setState({ onboard: null }); this.notify('No changes to ' + p.name + '.', '#9DB0A6'); return; }
       if (this.srv && p.uid) {

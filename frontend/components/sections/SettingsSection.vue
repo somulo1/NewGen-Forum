@@ -7,7 +7,7 @@
 
 <!-- Profile -->
 <template v-if="settingsPage.isProfile">
-<div v-if="!settingsPage.profile.canEdit" role="status" style="padding: 10px 14px; border-radius: 12px; background: var(--k-2A2314,#2A2314); color: var(--k-FFD66B,#FFD66B); font-size: 13px">You can view this page. Ask an admin for the "Edit organization profile" right to change it.</div>
+<div v-if="!settingsPage.profile.canEdit" role="status" style="padding: 10px 14px; border-radius: 12px; background: var(--k-2A2314,#2A2314); color: var(--k-FFD66B,#FFD66B); font-size: 13px">You can view this page. Ask an admin for the "Edit organization profile" permission to change it.</div>
 <div style="padding: 18px; border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-wrap: wrap; align-items: center; gap: 14px">
 <span :style="`width: 64px; height: 64px; flex: none; border-radius: 16px; overflow: hidden; background: #B8F36B; color: #0F1714; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 22px`"><img v-if="settingsPage.profile.logo.url" :src="settingsPage.profile.logo.url" alt="Organization logo" style="width: 100%; height: 100%; object-fit: cover"><template v-else>{{ settingsPage.profile.logo.initials }}</template></span>
 <div style="flex: 1 1 200px; min-width: 0; display: flex; flex-direction: column; gap: 2px"><strong style="font-size: 15px">Logo</strong><span style="font-size: 13px; color: var(--k-9DB0A6,#9DB0A6)">Shown in the top bar. Square images work best.</span></div>
@@ -32,7 +32,7 @@
 
 <!-- Subscription -->
 <template v-if="settingsPage.isSub">
-<div v-if="!settingsPage.canSub" role="status" style="padding: 10px 14px; border-radius: 12px; background: var(--k-2A2314,#2A2314); color: var(--k-FFD66B,#FFD66B); font-size: 13px">You can view the plan. Ask an admin for the "Manage subscription" right to change it.</div>
+<div v-if="!settingsPage.canSub" role="status" style="padding: 10px 14px; border-radius: 12px; background: var(--k-2A2314,#2A2314); color: var(--k-FFD66B,#FFD66B); font-size: 13px">You can view the plan. Ask an admin for the "Manage subscription" permission to change it.</div>
 <section aria-label="Current plan" style="padding: 18px; border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 14px">
 <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px"><div style="flex: 1 1 200px; min-width: 0"><span style="font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--k-9DB0A6,#9DB0A6)">Current plan</span><div style="font-family: 'Space Grotesk', sans-serif; font-size: 26px; font-weight: 700">{{ settingsPage.sub.planName }}</div><span style="font-size: 13px; color: var(--k-9DB0A6,#9DB0A6)">{{ settingsPage.sub.planBlurb }}</span></div>
 <span :style="`padding: 4px 12px; border-radius: 14px; font-size: 12px; font-weight: 600; border: 1px solid ${settingsPage.sub.statusColor}; color: ${settingsPage.sub.statusColor}`">{{ settingsPage.sub.statusLabel }}</span></div>
@@ -94,7 +94,7 @@
 
 <!-- Security & data -->
 <template v-if="settingsPage.isSecurity">
-<div v-if="!settingsPage.security.canEdit" role="status" style="padding: 10px 14px; border-radius: 12px; background: var(--k-2A2314,#2A2314); color: var(--k-FFD66B,#FFD66B); font-size: 13px">You can view these settings. Ask an admin for the "Edit organization profile" right to change them.</div>
+<div v-if="!settingsPage.security.canEdit" role="status" style="padding: 10px 14px; border-radius: 12px; background: var(--k-2A2314,#2A2314); color: var(--k-FFD66B,#FFD66B); font-size: 13px">You can view these settings. Ask an admin for the "Edit organization profile" permission to change them.</div>
 <section aria-label="Security" style="padding: 18px; border-radius: 16px; background: var(--k-16201C,#16201C); border: 1px solid var(--k-24322C,#24322C); display: flex; flex-direction: column; gap: 12px"><strong style="font-size: 15px">Sign-in and sharing</strong>
 <template v-for="fl in settingsPage.security.flags" :key="fl.key"><div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 12px; border-radius: 12px; background: var(--k-121B17,#121B17)"><div style="flex: 1 1 220px; min-width: 0"><strong style="font-size: 14px">{{ fl.label }}</strong><span style="display: block; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6)">{{ fl.note }}</span></div><button role="switch" :aria-checked="fl.on" :disabled="fl.disabled" @click="fl.toggle" :style="`height: 34px; padding: 0 18px; border-radius: 17px; cursor: pointer; font-size: 13px; font-weight: 600; ${fl.on ? 'border: 1px solid var(--k-B8F36B,#B8F36B); background: var(--k-2C3D34,#2C3D34); color: var(--k-E8EFEA,#E8EFEA)' : 'border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA)'}`">{{ fl.on ? 'On' : 'Off' }}</button></div></template>
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 12px">

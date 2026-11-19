@@ -301,7 +301,7 @@ func checkTeam(ctx context.Context, tx pgx.Tx, conv uuid.UUID) error {
 	if err != nil {
 		return err
 	}
-	return httpx.Err(400, "not_eligible", name+" has no role or right that allows projects, so cannot join this team.")
+	return httpx.Err(400, "not_eligible", name+" has no role or permission that allows projects, so cannot join this team.")
 }
 
 // ImportItem is one record of an older encrypted plan, opened by a member's device.

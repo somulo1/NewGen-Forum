@@ -6,7 +6,7 @@ export function valsShell(ctx) {
   const { denied, pageLoading, can, forums, go, myUnits, ticketDeskOk, pbxOk, allNotifs, call, callMiniStyle, cur, curDm, curSec, dmView, has, isDM, restoreCall, s, sendCall, set, showCallMini, showMeetingDock, showMeetingFull, showPanelCall } = ctx;
   const pages = [['Home', 'home', true], ['Community wall', 'feed', has.wall !== false], ['Meetings & standups', 'meetings', has.sessions], ['Calendar', 'calendar', has.calendar], ['Communications', 'comms', has.comms],
     ['My tickets', 'tickets', has.tickets], ['Ticket desk', 'ticketdesk', ticketDeskOk], ['Projects', 'projects', has.projects], ['Files', 'files', has.files], ['Secure share', 'share', has.secureshare], ['Calls management', 'pbx', pbxOk],
-    ['People', 'people', true], ['Approvals', 'approvals', true], ['Security & logs', 'security', can('security', 'View alerts') || can('security', 'View logs')], ['Roles & rights', 'roles', can('roles', 'View roles')],
+    ['People', 'people', true], ['Approvals', 'approvals', true], ['Security & logs', 'security', can('security', 'View alerts') || can('security', 'View logs')], ['Roles & permissions', 'roles', can('roles', 'View roles')],
     ['My profile', 'profile', true], ['Widgets', 'widgets', can('home', 'Open widgets page')]];
   const makeSearch = (key, limit) => {
     const nq = (s[key] || '').trim().toLowerCase();

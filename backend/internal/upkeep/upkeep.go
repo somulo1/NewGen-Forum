@@ -17,7 +17,7 @@ import (
 
 const (
 	oldOwnerNote = "Full control of Hub. This role cannot be limited."
-	ownerNote    = "Full control of Hub. Its rights can be changed; it always keeps managing roles and rights."
+	ownerNote    = "Full control of Hub. Its permissions can be changed; it always keeps managing roles and permissions."
 )
 
 // Run applies every step to every organization.

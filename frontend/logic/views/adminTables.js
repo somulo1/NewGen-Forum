@@ -98,14 +98,13 @@ export function buildAdminTables(ctx) {
   const fail = (e) => this.notify((e && e.message) || 'That did not go through.', '#FF9B8A');
   const srv = this.srv;
   const rolesTable = { id: 'roles', pageSize: 10, minWidth: '900px', emptyText: 'No roles yet. Create the first one above.',
-    cols: [{ label: 'Role', filter: 'text' }, { label: 'Scope', filter: 'select' }, { label: 'People' }, { label: 'Rights granted' }, { label: '', align: 'right' }],
+    cols: [{ label: 'Role', filter: 'text' }, { label: 'Scope', filter: 'select' }, { label: 'People' }, { label: 'Permissions granted' }, { label: '', align: 'right' }],
     rows: visibleRoles.map((r) => { const mods = Object.keys(rightsDef).filter(modEnabled); let on = 0, tot = 0; mods.forEach((m) => rightsDef[m].forEach((x) => { tot++; if (rightOf(r.id, m, x)) on++; })); const pc = tot ? Math.round(on / tot * 100) : 0;
       return { tint: r.id === roleCur.id ? '#B8F36B' : '', cells: [C.t(r.name + (r.isDefault ? ' · default' : '') + (r.locked ? ' · owner' : ''), { strong: true, sub: r.desc, fv: r.name }), C.t(roleScope[r.id] || 'Whole organization'), C.t(String(r.count)), C.bar(pc, pc > 80 ? '#FFB86B' : '#B8F36B', on + ' / ' + tot),
-        C.a([{ label: 'Edit rights', kind: 'primary', run: () => this.setState({ roleSel: r.id, rolesTab: 'rights' }) }, { label: 'Members', run: () => this.setState({ roleSel: r.id, rolesTab: 'members' }) }]
+        C.a([{ label: 'Edit permissions', kind: 'primary', run: () => this.setState({ roleSel: r.id, rolesTab: 'rights' }) }, { label: 'Members', run: () => this.setState({ roleSel: r.id, rolesTab: 'members' }) }]
           .concat(!r.locked && !r.count ? [{ label: 'Delete', kind: 'danger', run: confirmed({ title: 'Delete this role?', body: 'The role "' + r.name + '" is deleted.' }, () => rolesW.deleteRole(this, srv, r.id).then(() => this.notify('Role deleted.', '#B8F36B')).catch(fail)) }] : []))] }; }) };
   // Rights grouped by what they let a person do: see a page, create, edit, delete, export, approve a level, manage.
   const KIND_LABEL = { view: 'See / open', create: 'Create / send', edit: 'Edit / update', delete: 'Delete', export: 'Export', approve: 'Approve', manage: 'Manage', other: 'Other' };
-  const kindOptions = ((s.catalog && s.catalog.kinds) || Object.keys(KIND_LABEL)).map((k) => ({ v: k, l: KIND_LABEL[k] || k }));
   const rightsRows = [];
   // Only the widgets this organization has switched on; the table shows the rights of the one picked here.
   const rightsMods = Object.keys(rightsDef).filter((m) => modEnabled(m) && rightsDef[m].length);
@@ -116,11 +115,11 @@ export function buildAdminTables(ctx) {
     const meta = (rightMeta[m] || {})[x] || {};
     rightsRows.push({ cells: [C.t(modInfo[m][0], { fv: modInfo[m][0] }), C.t(meta.label || x, { strong: true, sub: seeOf[m] === x ? 'Who has this widget: on Home and in the menu' : '' }), C.t(KIND_LABEL[meta.kind] || 'Other', { fv: KIND_LABEL[meta.kind] || 'Other' }),
       C.chk(mk ? mk.allowed : rightOf(roleCur.id, m, x), () => toggleRight(roleCur.id, m, x), { disabled: !roleCur.id || (!!roleCur.locked && !!meta.kept), pending: pend || !!mk, label: roleCur.name + ': ' + modInfo[m][0] + ' · ' + x }),
-      C.a(meta.builtin === false ? [{ label: 'Remove right', kind: 'danger', run: confirmed({ title: 'Remove this right?', body: '"' + x + '" is removed from every role that has it.', action: 'Remove right' }, () => rolesW.removeRight(this, srv, m, x).then(() => this.notify('Right removed.', '#B8F36B')).catch(fail)) }] : [])] });
+      C.a(meta.builtin === false ? [{ label: 'Remove permission', kind: 'danger', run: confirmed({ title: 'Remove this permission?', body: '"' + x + '" is removed from every role that has it.', action: 'Remove permission' }, () => rolesW.removeRight(this, srv, m, x).then(() => this.notify('Permission removed.', '#B8F36B')).catch(fail)) }] : [])] });
   }));
   // the rights marked for this role, waiting to be sent as one approval
   const marked = Object.entries(s.rightsMarks || {}).filter(([, v]) => v.role === roleCur.id);
-  const rightsMarkBar = { show: marked.length > 0, count: marked.length, label: marked.length + (marked.length === 1 ? ' right marked' : ' rights marked') + ' for ' + roleCur.name,
+  const rightsMarkBar = { show: marked.length > 0, count: marked.length, label: marked.length + (marked.length === 1 ? ' permission marked' : ' permissions marked') + ' for ' + roleCur.name,
     busy: !!s.rightsSending,
     clear: () => this.setState((st) => ({ rightsMarks: Object.fromEntries(Object.entries(st.rightsMarks || {}).filter(([, v]) => v.role !== roleCur.id)) })),
     send: () => {
@@ -130,13 +129,13 @@ export function buildAdminTables(ctx) {
         .then((r) => {
           this.setState((st) => ({ rightsSending: false, rightsMarks: Object.fromEntries(Object.entries(st.rightsMarks || {}).filter(([, v]) => v.role !== roleCur.id)),
             pendingRights: r === 'pending' ? { ...st.pendingRights, ...Object.fromEntries(marked.map(([k, v]) => [k, v.allowed])) } : st.pendingRights }));
-          this.notify(r === 'pending' ? 'Sent ' + marked.length + (marked.length === 1 ? ' right' : ' rights') + ' for ' + roleCur.name + ' as one approval.' : 'Rights updated for ' + roleCur.name + '.', r === 'pending' ? '#FFB86B' : '#B8F36B');
+          this.notify(r === 'pending' ? 'Sent ' + marked.length + (marked.length === 1 ? ' permission' : ' permissions') + ' for ' + roleCur.name + ' as one approval.' : 'Permissions updated for ' + roleCur.name + '.', r === 'pending' ? '#FFB86B' : '#B8F36B');
         })
         .catch((e) => { this.setState({ rightsSending: false }); fail(e); });
     } };
-  const rightsTable = { widget: { value: rightsMod, options: rightsMods.map((m) => ({ v: m, l: modInfo[m][0] + ' (' + rightsDef[m].length + ')' })), pick: (e) => this.setState({ rightsMod: e.target.value }) }, id: 'rights-' + roleCur.id + '-' + rightsMod, pageSize: 12, minWidth: '680px', emptyText: 'The rights catalog is empty.',
-    cols: [{ label: 'Page', filter: 'select' }, { label: 'Right', filter: 'text' }, { label: 'Kind', filter: 'select' }, { label: roleCur.name + ' can', align: 'center' }, { label: '', align: 'right' }], rows: rightsRows };
-  const rightsHint = 'Setting rights for ' + roleCur.name + '. Tick a box to let this role do that. In a widget, the right marked "Who has this widget" decides who sees it at all. ' + (f8 && f8.levels > 0 ? 'Changes need approval (' + (f8.levels === 1 ? 'direct' : f8.levels + ' levels') + '): tick the rights to change, then press Send for approval. They go as one approval and show as pending until approved. ' : '') + (roleCur.locked ? roleCur.name + ' always keeps "View roles" and "Manage roles & rights", so someone can always fix rights.' : '');
+  const rightsTable = { widget: { value: rightsMod, options: rightsMods.map((m) => ({ v: m, l: modInfo[m][0] + ' (' + rightsDef[m].length + ')' })), pick: (e) => this.setState({ rightsMod: e.target.value }) }, id: 'rights-' + roleCur.id + '-' + rightsMod, pageSize: 12, minWidth: '680px', emptyText: 'The permissions list is empty.',
+    cols: [{ label: 'Page', filter: 'select' }, { label: 'Permission', filter: 'text' }, { label: 'Kind', filter: 'select' }, { label: roleCur.name + ' can', align: 'center' }, { label: '', align: 'right' }], rows: rightsRows };
+  const rightsHint = 'Setting permissions for ' + roleCur.name + '. Tick a box to let this role do that. In a widget, the permission marked "Who has this widget" decides who sees it at all. ' + (f8 && f8.levels > 0 ? 'Changes need approval (' + (f8.levels === 1 ? 'direct' : f8.levels + ' levels') + '): tick the permissions to change, then press Send for approval. They go as one approval and show as pending until approved. ' : '') + (roleCur.locked ? roleCur.name + ' always keeps "View roles" and "Manage roles & permissions", so someone can always fix permissions.' : '');
   const meName = srv ? srv.me.name : '';
   const memberList = [meName].concat(this.dir.map((d) => d.name)).filter((n, i, a) => n && a.indexOf(n) === i);
   const roleOpts = [{ v: '', l: '— none —' }].concat(visibleRoles.map((r) => ({ v: r.id, l: r.name })));
@@ -149,7 +148,7 @@ export function buildAdminTables(ctx) {
   const leaveNote = roleCur.locked ? ' The organization always keeps an active ' + roleCur.name + ': give it to someone else first.' : '';
   const moveSelf = (e) => {
     const el = e.target, v = el.value, to = (visibleRoles.find((r) => r.id === v) || {}).name || 'no role';
-    const what = v ? ' and get ' + to + '. From then on you can only do what ' + to + ' allows.' : ' and have no role, so you lose the rights it gives.';
+    const what = v ? ' and get ' + to + '. From then on you can only do what ' + to + ' allows.' : ' and have no role, so you lose the permissions it gives.';
     askConfirm({ title: 'Change your own role?', body: 'You leave ' + roleCur.name + what + leaveNote, action: 'Change my role' })
       .then((ok) => { if (ok) assignRole(meName, v); else el.value = roleCur.id; });
   };
@@ -163,7 +162,7 @@ export function buildAdminTables(ctx) {
       return { cells: [C.p(n, { sub: d ? d.title : (s.meInfo || {}).title || '', fv: n }),
         C.t(d ? d.dept : (s.meInfo || {}).dept || '', {}),
         C.sel(roleCur.id, roleOpts, (e) => (mine ? moveSelf(e) : assignRole(n, e.target.value)), { fv: roleCur.name, label: 'Role for ' + n, minWidth: '170px' }),
-        C.a([{ label: 'Remove from role', kind: 'danger', run: confirmed({ title: mine ? 'Leave this role?' : 'Remove from this role?', body: (mine ? 'You lose ' : n + ' loses ') + roleCur.name + ' and the rights it gives.' + leaveNote, action: 'Remove' }, () => assignRole(n, '')) }])] };
+        C.a([{ label: 'Remove from role', kind: 'danger', run: confirmed({ title: mine ? 'Leave this role?' : 'Remove from this role?', body: (mine ? 'You lose ' : n + ' loses ') + roleCur.name + ' and the permissions it gives.' + leaveNote, action: 'Remove' }, () => assignRole(n, '')) }])] };
     }) };
   const nr = s.newRole || { name: '', desc: '', err: '' };
   const setNr = (patch) => this.setState((st) => ({ newRole: { ...st.newRole, ...patch, err: '' } }));
@@ -177,23 +176,11 @@ export function buildAdminTables(ctx) {
     onEditName: (e) => setNr({ editName: e.target.value }), onEditDesc: (e) => setNr({ editDesc: e.target.value }),
     cancelEdit: () => setNr({ editing: false }),
     saveEdit: () => rolesW.updateRole(this, srv, roleCur.id, { name: nr.editName, desc: nr.editDesc }).then(() => { setNr({ editing: false }); this.notify('Role saved.', '#B8F36B'); }).catch((e) => this.setState((st) => ({ newRole: { ...st.newRole, err: e.message } }))) };
-  const newRoleForm = { name: nr.name, desc: nr.desc, err: nr.err, hasErr: !!nr.err, copyFrom: nr.copy || '', copyOpts: [{ v: '', l: 'Start with no rights' }].concat(visibleRoles.filter((r) => !r.locked).map((r) => ({ v: r.id, l: 'Copy the rights of ' + r.name }))),
+  const newRoleForm = { name: nr.name, desc: nr.desc, err: nr.err, hasErr: !!nr.err, copyFrom: nr.copy || '', copyOpts: [{ v: '', l: 'Start with no permissions' }].concat(visibleRoles.filter((r) => !r.locked).map((r) => ({ v: r.id, l: 'Copy the permissions of ' + r.name }))),
     onName: (e) => setNr({ name: e.target.value }), onDesc: (e) => setNr({ desc: e.target.value }), onCopy: (e) => setNr({ copy: e.target.value }),
     create: () => rolesW.createRole(this, srv, { name: nr.name, desc: nr.desc, copy_from: nr.copy || '' })
-      .then((id) => { this.setState({ newRole: { name: '', desc: '', err: '', copy: '' }, roleSel: id, rolesTab: 'rights' }); this.notify('Role created. Tick the rights it should have.', '#B8F36B'); })
+      .then((id) => { this.setState({ newRole: { name: '', desc: '', err: '', copy: '' }, roleSel: id, rolesTab: 'rights' }); this.notify('Role created. Tick the permissions it should have.', '#B8F36B'); })
       .catch((e) => this.setState((st) => ({ newRole: { ...st.newRole, err: e.message || 'Could not create the role.' } }))) };
-  // Add your own right (a named permission) to a page, or your own page.
-  const nrt = s.newRight || { module: '', name: '', kind: '', err: '' };
-  const setNrt = (patch) => this.setState((st) => ({ newRight: { ...st.newRight, ...patch, err: '' } }));
-  const moduleOptions = ((s.catalog && s.catalog.modules) || []).map((m) => ({ v: m.key, l: m.label }));
-  const newRightForm = { module: nrt.module || (moduleOptions[0] || {}).v || '', name: nrt.name, kind: nrt.kind || '', err: nrt.err, hasErr: !!nrt.err, moduleOptions, kindOptions: [{ v: '', l: 'Kind: choose for me' }].concat(kindOptions),
-    onModule: (e) => setNrt({ module: e.target.value }), onName: (e) => setNrt({ name: e.target.value }), onKind: (e) => setNrt({ kind: e.target.value }),
-    add: () => rolesW.addRight(this, srv, { module: nrt.module || (moduleOptions[0] || {}).v, name: nrt.name, kind: nrt.kind })
-      .then(() => { this.setState({ newRight: { module: nrt.module, name: '', kind: '', err: '' } }); this.notify('Right added. Give it to roles in the table below.', '#B8F36B'); })
-      .catch((e) => this.setState((st) => ({ newRight: { ...st.newRight, err: e.message || 'Could not add the right.' } }))) };
-  const nm = s.newModule || { name: '', err: '' };
-  const newModuleForm = { name: nm.name, err: nm.err, hasErr: !!nm.err, onName: (e) => this.setState({ newModule: { name: e.target.value, err: '' } }),
-    add: () => rolesW.addModule(this, srv, nm.name).then(() => { this.setState({ newModule: { name: '', err: '' } }); this.notify('Page added. Add rights to it.', '#B8F36B'); }).catch((e) => this.setState({ newModule: { ...nm, err: e.message || 'Could not add it.' } })) };
   const setRoleSel = (e) => this.setState({ roleSel: e.target.value });
   const addToRole = (e) => { const n = e.target.value; if (n) assignRole(n, roleCur.id); };
   const levelOpts = [{ v: '0', l: 'No approval' }, { v: '1', l: 'Direct (1 level)' }, { v: '2', l: '2 levels' }, { v: '3', l: '3 levels' }];
@@ -218,7 +205,7 @@ export function buildAdminTables(ctx) {
         const save = (uids) => { if (this.srv) this.srv.request('PUT', `/approvals/flows/${f.id}/approvers/${i + 1}`, { people: uids }).then(() => this.srv.reload.approvals()).catch((e) => this.notify(e.message || 'Could not save the approvers.', '#FF9B8A')); };
         const sel = ds.map((x) => x.person);
         return { kind: 'picker', fv: names, label: f.action + ' level ' + (i + 1), roleId, roles: roleOpts, allPeople: everyone, selected: sel, scope: roleId ? everyone.filter((p) => p.role === roleId).map((p) => p.uid) : null,
-          hint: 'Anyone with the right "Approve level ' + (i + 1) + '"' + (f.approvers[i] ? ': ' + f.approvers[i] : ''),
+          hint: 'Anyone with the permission "Approve level ' + (i + 1) + '"' + (f.approvers[i] ? ': ' + f.approvers[i] : ''),
           onRole: (e) => { const v = e.target.value; this.setState((st) => ({ flowRole: { ...(st.flowRole || {}), [pk]: v } })); if (!v && sel.length) save([]); },
           onPick: (uid) => save(sel.includes(uid) ? sel : sel.concat([uid])),
           onRemove: (uid) => save(sel.filter((x) => x !== uid)) };
@@ -228,8 +215,8 @@ export function buildAdminTables(ctx) {
   const approvalsTable = { id: 'approvals-' + s.apTab, pageSize: 8, minWidth: '1080px', emptyText: s.apTab === 'waiting' ? 'Nothing is waiting for approval.' : 'No requests yet.',
     cols: [{ label: 'ID', filter: 'text' }, { label: 'Request', filter: 'text' }, { label: 'Widget', filter: 'select' }, { label: 'Requested by', filter: 'text' }, { label: 'Approval path' }, { label: 'Status', filter: 'select' }, { label: '', align: 'right' }],
     // requests made of several rights come first, one row each; "Review" opens the list to tick which rights to decide
-    rows: (apGroups || []).map((g) => ({ tint: '#FFB86B', detail: { open: g.open, items: g.items, count: g.count, selectedCount: g.selectedCount, allChecked: g.allChecked, toggleAll: g.toggleAll, note: g.note, onNote: g.onNote }, cells: [C.t(g.ref, { mono: true, nowrap: true }), C.t(g.title.replace(/^[A-Z0-9-]+ · /, ''), { strong: true, sub: g.count + ' rights waiting' }), C.t('Roles & rights', { fv: 'Roles & rights' }),
-      C.p(g.by, { sub: g.when, fv: g.by }), C.t('Needs your decision', { sub: 'Each right can be decided on its own' }), C.b('Waiting', '#FFB86B', { fv: 'Waiting' }),
+    rows: (apGroups || []).map((g) => ({ tint: '#FFB86B', detail: { open: g.open, items: g.items, count: g.count, selectedCount: g.selectedCount, allChecked: g.allChecked, toggleAll: g.toggleAll, note: g.note, onNote: g.onNote }, cells: [C.t(g.ref, { mono: true, nowrap: true }), C.t(g.title.replace(/^[A-Z0-9-]+ · /, ''), { strong: true, sub: g.count + ' permissions waiting' }), C.t('Roles & permissions', { fv: 'Roles & permissions' }),
+      C.p(g.by, { sub: g.when, fv: g.by }), C.t('Needs your decision', { sub: 'Each permission can be decided on its own' }), C.b('Waiting', '#FFB86B', { fv: 'Waiting' }),
       C.a([{ label: (g.open ? 'Hide ▴ ' : 'View ▾ ') + '(' + g.count + ')', run: g.open ? () => this.setState({ apReview: '' }) : g.toggle }, { label: g.approveLabel, kind: 'primary', run: g.approve }, { label: g.rejectLabel, kind: 'danger', run: g.reject }])] })).concat(requestsShown.map((rq) => {
       const path = rq.steps.map((st) => (st.n === '✓' ? '✓ ' : st.n + '. ') + st.who).join('  →  ');
       const cur = rq.steps.find((st) => st.state === 'Waiting now');
@@ -239,7 +226,7 @@ export function buildAdminTables(ctx) {
         C.b(rq.statusLabel, rq.status === 'Approved' ? '#B8F36B' : rq.status === 'Rejected' ? '#FF9B8A' : '#FFB86B', { fv: stFv }),
         C.a(rq.canAct ? [{ label: rq.approveLabel, kind: 'primary', run: rq.approve }, { label: 'Reject', kind: 'danger', run: rq.reject }] : [])] };
     })) };
-  const rolesTabs = [['roles', 'Roles'], ['rights', 'Rights'], ['members', 'Members'], ['reporting', 'Reporting lines'], ['flows', 'Approval rules']].map(([k, l]) => ({ label: l, go: () => this.setState({ rolesTab: k }),
+  const rolesTabs = [['roles', 'Roles'], ['rights', 'Permissions'], ['members', 'Members'], ['reporting', 'Reporting lines'], ['flows', 'Approval rules']].map(([k, l]) => ({ label: l, go: () => this.setState({ rolesTab: k }),
     style: 'min-height:44px;padding:0 16px;border:0;background:transparent;cursor:pointer;font-size:14px;font-family:inherit;border-bottom:2px solid ' + (s.rolesTab === k ? '#B8F36B' : 'transparent') + ';color:' + (s.rolesTab === k ? 'var(--k-E8EFEA,#E8EFEA)' : 'var(--k-9DB0A6,#9DB0A6)') + ';font-weight:' + (s.rolesTab === k ? '600' : '500') }));
   const rolesView = { isRoles: s.rolesTab === 'roles', isRights: s.rolesTab === 'rights', isMembers: s.rolesTab === 'members', isReporting: s.rolesTab === 'reporting', isFlows: s.rolesTab === 'flows' };
   const tLevels = levelsOf(has);
@@ -282,5 +269,5 @@ export function buildAdminTables(ctx) {
     recs: ntRecs.map((r) => ({ label: r.name, pick: () => this.setState((x) => ({ nt: { ...x.nt, toType: ntType, toName: r.name } })), style: chip(ntName === r.name) })),
     recsLabel: ntType === 'desk' ? '' : 'Send to ' + LEVEL_LABEL[ntType].toLowerCase(),
     summary: ntType === 'desk' ? 'This organization has no departments, units, branches or sectors, so tickets go to the ticket desk.' : 'It will show on the ' + LEVEL_LABEL[ntType].toLowerCase() + ' dashboard of ' + ntName + '.' };
-  return { rightsMarkBar, newRoleForm, newRightForm, newModuleForm, ntCats, ntCatSel, ntForm, deskCats, deskTable, addToRole, alertsTable, approvalsTable, flowsTable, logsTable, blocksTable, blockHistory, blocksTable, membersTable, ntTargets, peopleSummary, peopleTable, userActions, rightsHint, rightsTable, roleBar, rolesTable, rolesTabs, rolesView, rulesTable, setRoleSel, ticketsTable };
+  return { rightsMarkBar, newRoleForm, ntCats, ntCatSel, ntForm, deskCats, deskTable, addToRole, alertsTable, approvalsTable, flowsTable, logsTable, blocksTable, blockHistory, blocksTable, membersTable, ntTargets, peopleSummary, peopleTable, userActions, rightsHint, rightsTable, roleBar, rolesTable, rolesTabs, rolesView, rulesTable, setRoleSel, ticketsTable };
 }

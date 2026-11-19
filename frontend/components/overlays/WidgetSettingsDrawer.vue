@@ -20,7 +20,7 @@
 <label v-if="sw.items" style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--k-C9D6CF,#C9D6CF)">Items to show on Home<select :value="sw.items.value" @change="sw.items.set" style="height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font-size: 14px"><template v-for="o in sw.items.options" :key="o"><option :value="o">{{ o }}</option></template></select></label>
 <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px; border-radius: 12px; background: var(--k-121B17,#121B17); border: 1px solid var(--k-24322C,#24322C)">
 <span style="flex: 1 1 220px; font-size: 13px; line-height: 1.5; color: var(--k-C9D6CF,#C9D6CF)">{{ sw.seeHint }}</span>
-<button v-if="sw.canRights" type="button" @click="sw.openRights" style="height: 36px; padding: 0 14px; border-radius: 18px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; font-size: 13px">Open rights</button>
+<button v-if="sw.canRights" type="button" @click="sw.openRights" style="height: 36px; padding: 0 14px; border-radius: 18px; border: 1px solid var(--k-2A3832,#2A3832); background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; font-size: 13px">Open permissions</button>
 </div>
 </div>
 </div>

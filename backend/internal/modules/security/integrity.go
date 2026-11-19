@@ -127,7 +127,7 @@ func resealOne(ctx context.Context, a *app.App, tx pgx.Tx, p integrity.Problem) 
 
 var identRe = regexp.MustCompile(`^[a-z_][a-z0-9_]*$`)
 
-var tableNames = map[string]string{"comms": "communications", "messages": "messages", "people": "people", "roles": "roles", "role_rights": "role rights", "person_rights": "personal rights",
+var tableNames = map[string]string{"comms": "communications", "messages": "messages", "people": "people", "roles": "roles", "role_rights": "role permissions", "person_rights": "personal permissions",
 	"person_roles": "role assignments", "tickets": "tickets", "files": "files", "records": "notes, tasks and calendar entries", "conversations": "conversations", "alerts": "security alerts",
 	"approval_requests": "approval requests", "org_units": "organization units", "projects": "projects", "shares": "secure links", "orgs": "organizations", "accounts": "accounts"}
 

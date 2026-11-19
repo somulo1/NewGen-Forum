@@ -65,7 +65,7 @@ func (s *Service) Create(ctx context.Context, account uuid.UUID, displayName, na
 			return err
 		}
 		ownerRole := app.NewID()
-		if _, err := tx.Exec(ctx, `insert into hub.roles (id, org_id, key, name, description, scope, locked) values ($1,$2,'owner','Owner','Full control of Hub. Its rights can be changed; it always keeps managing roles and rights.','Whole organization',true)`, ownerRole, org); err != nil {
+		if _, err := tx.Exec(ctx, `insert into hub.roles (id, org_id, key, name, description, scope, locked) values ($1,$2,'owner','Owner','Full control of Hub. Its permissions can be changed; it always keeps managing roles and permissions.','Whole organization',true)`, ownerRole, org); err != nil {
 			return err
 		}
 		if err := s.A.Sign.Seal(ctx, tx, "roles", "org_id=$1", org); err != nil {

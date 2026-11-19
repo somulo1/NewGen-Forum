@@ -65,7 +65,7 @@ func (s *Service) AddMembers(ctx context.Context, p *tenant.Principal, id uuid.U
 					return err
 				}
 				if !ok {
-					return httpx.Err(400, "not_eligible", "That person has no role or right that allows projects, so cannot join this team.")
+					return httpx.Err(400, "not_eligible", "That person has no role or permission that allows projects, so cannot join this team.")
 				}
 			}
 		}

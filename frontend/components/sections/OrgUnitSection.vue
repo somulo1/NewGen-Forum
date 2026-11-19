@@ -1,6 +1,6 @@
 <!-- Department / sector / branch / unit dashboard -->
 <template><template v-if="show.orgunit && !ou.name">
-<div style="padding: 40px 20px; border-radius: 16px; border: 1px dashed var(--k-3F524A,#3F524A); text-align: center; color: var(--k-9DB0A6,#9DB0A6)">You do not have access to this dashboard. Ask an admin to give your role the "View dashboard" right.</div>
+<div style="padding: 40px 20px; border-radius: 16px; border: 1px dashed var(--k-3F524A,#3F524A); text-align: center; color: var(--k-9DB0A6,#9DB0A6)">You do not have access to this dashboard. Ask an admin to give your role the "View dashboard" permission.</div>
 </template>
 <template v-if="show.orgunit && ou.name && ou.loading"><PageSkeleton kind="cards" /></template>
 <template v-if="show.orgunit && ou.name && !ou.loading && ou.hasDetail">

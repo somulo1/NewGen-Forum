@@ -374,7 +374,7 @@ func (s *Service) AddModule(ctx context.Context, p *tenant.Principal, in RightIn
 func (s *Service) AddRight(ctx context.Context, p *tenant.Principal, in RightIn) error {
 	name, ok := clean(in.Name, 60)
 	if !ok {
-		return httpx.Bad("Give the right a name (up to 60 characters).")
+		return httpx.Bad("Give the permission a name (up to 60 characters).")
 	}
 	label := name
 	if l, ok := clean(in.Label, 80); ok {
@@ -389,7 +389,7 @@ func (s *Service) AddRight(ctx context.Context, p *tenant.Principal, in RightIn)
 		valid = valid || k == kind
 	}
 	if !valid {
-		return httpx.Bad("That kind of right does not exist.")
+		return httpx.Bad("That kind of permission does not exist.")
 	}
 	return s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
 		if err := authz.Require(ctx, tx, p.Person, "roles", "Manage roles & rights"); err != nil {
@@ -404,7 +404,7 @@ func (s *Service) AddRight(ctx context.Context, p *tenant.Principal, in RightIn)
 			return err
 		}
 		if tag.RowsAffected() == 0 {
-			return httpx.Err(409, "exists", "That module does not exist, or it already has that right.")
+			return httpx.Err(409, "exists", "That module does not exist, or it already has that permission.")
 		}
 		if err := s.A.Sign.Seal(ctx, tx, "rights", "org_id=$1 and module=$2 and name=$3", p.Org, in.Module, name); err != nil {
 			return err
@@ -426,7 +426,7 @@ func (s *Service) UpdateRight(ctx context.Context, p *tenant.Principal, in Right
 				valid = valid || k == kind
 			}
 			if !valid {
-				return httpx.Bad("That kind of right does not exist.")
+				return httpx.Bad("That kind of permission does not exist.")
 			}
 		}
 		tag, err := tx.Exec(ctx, `update hub.rights set label = case when $3 <> '' then $3 else label end, kind = case when $4 <> '' then $4 else kind end, `+integrity.Bump+` where module=$1 and name=$2`, in.Module, in.Name, label, kind)
@@ -453,7 +453,7 @@ func (s *Service) RemoveRight(ctx context.Context, p *tenant.Principal, module, 
 			return err
 		}
 		if builtin {
-			return httpx.Err(409, "builtin", "Hub itself uses that right, so it cannot be removed.")
+			return httpx.Err(409, "builtin", "Hub itself uses that permission, so it cannot be removed.")
 		}
 		for _, q := range []string{
 			`delete from hub.role_rights where module=$1 and right_name=$2`,

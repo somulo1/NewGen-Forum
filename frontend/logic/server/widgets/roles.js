@@ -95,16 +95,7 @@ export async function deleteRole(logic, srv, id) {
   await srv.request('DELETE', '/roles/' + id);
   await reload(logic, srv);
 }
-// r = { module, name, kind }
-export async function addRight(logic, srv, r) {
-  await srv.request('POST', '/access/rights', { module: r.module, name: r.name, kind: r.kind || '' });
-  await reload(logic, srv);
-}
 export async function removeRight(logic, srv, module, name) {
   await srv.request('DELETE', `/access/rights?module=${encodeURIComponent(module)}&name=${encodeURIComponent(name)}`);
-  await reload(logic, srv);
-}
-export async function addModule(logic, srv, label) {
-  await srv.request('POST', '/access/modules', { module: label, label });
   await reload(logic, srv);
 }

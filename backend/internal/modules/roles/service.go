@@ -147,7 +147,7 @@ func (s *Service) Role(ctx context.Context, p *tenant.Principal, key string) (*R
 }
 
 // errGroupsRetired answers an approval for a user group's right that was asked for before user groups were retired.
-var errGroupsRetired = httpx.Err(409, "gone", "User groups were retired. Give the right to the roles on Roles & rights.")
+var errGroupsRetired = httpx.Err(409, "gone", "User groups were retired. Give the permission to the roles on Roles & permissions.")
 
 type rightChange struct {
 	Role    string    `json:"role,omitempty"`
@@ -159,7 +159,7 @@ type rightChange struct {
 
 func (s *Service) validate(ctx context.Context, org uuid.UUID, c rightChange, person bool) error {
 	if !person && c.Allowed == nil {
-		return httpx.Bad("Say whether the right is allowed.")
+		return httpx.Bad("Say whether the permission is allowed.")
 	}
 	var ok bool
 	err := s.A.DB.WithOrg(ctx, org, func(tx pgx.Tx) error {
@@ -172,7 +172,7 @@ func (s *Service) validate(ctx context.Context, org uuid.UUID, c rightChange, pe
 		return err
 	}
 	if !ok {
-		return httpx.Bad("That right does not exist.")
+		return httpx.Bad("That permission does not exist.")
 	}
 	return nil
 }
@@ -180,7 +180,7 @@ func (s *Service) validate(ctx context.Context, org uuid.UUID, c rightChange, pe
 // keeps refuses to take from the owner role a right it always keeps (see access.OwnerKeeps).
 func keeps(locked bool, name string, c rightChange) error {
 	if locked && c.Allowed != nil && !*c.Allowed && access.OwnerKeeps(c.Module, c.Right) {
-		return httpx.Err(409, "kept_right", name+" always keeps \""+c.Right+"\", so someone can always manage roles and rights.")
+		return httpx.Err(409, "kept_right", name+" always keeps the permissions to view and manage roles, so someone can always fix permissions.")
 	}
 	return nil
 }
@@ -237,7 +237,7 @@ func (s *Service) applyRoleRight(ctx context.Context, tx pgx.Tx, a approvals.App
 		return err
 	}
 	if tag.RowsAffected() == 0 {
-		return httpx.Err(409, "gone", "That role or right no longer exists.")
+		return httpx.Err(409, "gone", "That role or permission no longer exists.")
 	}
 	if err := s.A.Sign.Seal(ctx, tx, "role_rights", "role_id=(select id from hub.roles where key=$1) and module=$2 and right_name=$3", c.Role, c.Module, c.Right); err != nil {
 		return err

@@ -49,7 +49,7 @@ const maxBatch = 300
 // at once when the rights flow needs no approval).
 func (s *Service) SetRightsBatch(ctx context.Context, p *tenant.Principal, scope, target string, in batchIn) (*approvals.Request, bool, error) {
 	if len(in.Changes) == 0 || len(in.Changes) > maxBatch {
-		return nil, false, httpx.Bad(fmt.Sprintf("Mark between 1 and %d rights.", maxBatch))
+		return nil, false, httpx.Bad(fmt.Sprintf("Mark between 1 and %d permissions.", maxBatch))
 	}
 	seen := map[string]bool{}
 	items := make([]batchItem, 0, len(in.Changes))
@@ -72,7 +72,7 @@ func (s *Service) SetRightsBatch(ctx context.Context, p *tenant.Principal, scope
 		}
 		k := c.Module + "\x00" + c.Right
 		if seen[k] {
-			return nil, false, httpx.Bad("A right is marked twice.")
+			return nil, false, httpx.Bad("A permission is marked twice.")
 		}
 		seen[k] = true
 		verb := "reset"

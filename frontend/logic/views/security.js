@@ -10,7 +10,7 @@ export function buildSecurity(ctx) {
     { id: 'r2', name: 'Sign-in from a new country', desc: 'Someone signs in from a country they have never used before.', sev: 'High' },
     { id: 'r3', name: 'Mass file download', desc: 'More than 50 files downloaded within 15 minutes.', sev: 'High' },
     { id: 'r4', name: 'After-hours admin action', desc: 'Admin changes made outside working hours.', sev: 'Medium' },
-    { id: 'r5', name: 'Role or rights change', desc: 'Any change to roles, rights or approval rules.', sev: 'Medium' },
+    { id: 'r5', name: 'Role or permissions change', desc: 'Any change to roles, permissions or approval rules.', sev: 'Medium' },
     { id: 'r6', name: 'Secure link opened from an unusual IP', desc: 'A one-time link is opened from outside the usual IP ranges.', sev: 'Medium' },
     { id: 'r7', name: 'Outside sharing spike', desc: 'More than 10 posts shared outside Hub within an hour.', sev: 'Low' }
   ];
