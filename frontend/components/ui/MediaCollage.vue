@@ -30,7 +30,7 @@
 <script>
 export default {
   name: 'MediaCollage',
-  props: { files: { type: Array, default: () => [] }, framed: Boolean, maxH: { type: Number, default: 520 }, autoplay: Boolean, row: { type: Number, default: 210 } },
+  props: { files: { type: Array, default: () => [] }, framed: Boolean, maxH: { type: Number, default: 520 }, autoplay: Boolean, like: { type: Function, default: null }, row: { type: Number, default: 210 } },
   setup() { return { viewer: useState('fileViewer', () => null) }; },
   computed: {
     visual() { return this.files.filter((m) => m.isImg || m.isVideo); },
@@ -46,7 +46,7 @@ export default {
     }
   },
   methods: {
-    open(m) { this.viewer = { files: this.files, index: this.files.indexOf(m) }; },
+    open(m) { this.viewer = { files: this.files, index: this.files.indexOf(m), like: this.like }; },
     bg(m) { return { backgroundImage: 'url("' + String(m.url).replace(/"/g, '%22') + '")' }; },
     cell(i) { return this.shown.length === 3 && i === 0 ? 'grid-row: span 2' : ''; }
   }

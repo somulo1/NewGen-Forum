@@ -6,9 +6,10 @@
 <a :href="file.url" :download="file.name" style="height: 36px; padding: 0 16px; border-radius: 18px; background: #B8F36B; color: #0F1714; font-weight: 600; font-size: 14px; display: flex; align-items: center; text-decoration: none">Download</a>
 <button type="button" aria-label="Close viewer" @click="close" class="fv-btn" style="width: 38px; height: 38px; font-size: 16px">✕</button>
 </div>
-<div @click.self="close" style="flex: 1; min-height: 0; position: relative; display: flex; align-items: center; justify-content: center; padding: 0 76px 8px; box-sizing: border-box">
+<div @click.self="close" class="fv-stage">
 <button v-if="many" type="button" class="fv-btn fv-arrow fv-prev" aria-label="Previous file" title="Previous (←)" @click="step(-1)"><svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"></path></svg></button>
-<img v-if="kind === 'image'" :src="file.url" :alt="file.name" style="max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px">
+<LikeBurst v-if="kind === 'image' && viewer.like" @like="viewer.like"><img class="fv-img" :src="file.url" :alt="file.name"></LikeBurst>
+<img v-else-if="kind === 'image'" class="fv-img" :src="file.url" :alt="file.name">
 <video v-else-if="kind === 'video'" :key="file.url" :src="file.url" controls autoplay style="max-width: 100%; max-height: 100%; border-radius: 8px; background: #000"></video>
 <iframe v-else-if="kind === 'pdf'" :src="file.url" :title="file.name" style="width: 100%; height: 100%; border: 0; border-radius: 8px; background: #fff"></iframe>
 <div v-else-if="kind === 'csv'" style="max-width: 100%; max-height: 100%; overflow: auto; border-radius: 8px; background: var(--fv-panel); border: 1px solid var(--fv-line)">
@@ -19,7 +20,7 @@
 <button v-if="many" type="button" class="fv-btn fv-arrow fv-next" aria-label="Next file" title="Next (→)" @click="step(1)"><svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"></path></svg></button>
 </div>
 <div v-if="many" style="flex: none; display: flex; gap: 6px; justify-content: center; padding: 8px 16px 14px; overflow-x: auto">
-<template v-for="(f, i) in viewer.files" :key="i"><button type="button" :aria-label="`Show ${f.name}`" @click="viewer = { files: viewer.files, index: i }" :style="`flex: none; width: 56px; height: 42px; padding: 0; border-radius: 8px; overflow: hidden; border: 2px solid ${i === viewer.index ? '#B8F36B' : 'var(--fv-line)'}; background: var(--fv-panel); color: var(--fv-fg); opacity: ${i === viewer.index ? 1 : 0.8}; font-size: 10px; cursor: pointer`"><img v-if="f.isImg" :src="f.url" alt="" style="width: 100%; height: 100%; object-fit: cover"><span v-else>{{ ext(f.name) }}</span></button></template>
+<template v-for="(f, i) in viewer.files" :key="i"><button type="button" :aria-label="`Show ${f.name}`" @click="viewer = { ...viewer, index: i }" :style="`flex: none; width: 56px; height: 42px; padding: 0; border-radius: 8px; overflow: hidden; border: 2px solid ${i === viewer.index ? '#B8F36B' : 'var(--fv-line)'}; background: var(--fv-panel); color: var(--fv-fg); opacity: ${i === viewer.index ? 1 : 0.8}; font-size: 10px; cursor: pointer`"><img v-if="f.isImg" :src="f.url" alt="" style="width: 100%; height: 100%; object-fit: cover"><span v-else>{{ ext(f.name) }}</span></button></template>
 </div>
 </div>
 </template>
@@ -53,7 +54,7 @@ export default {
   methods: {
     ext: EXT,
     close() { this.viewer = null; },
-    step(d) { const n = this.viewer.files.length; this.viewer = { files: this.viewer.files, index: (this.viewer.index + d + n) % n }; },
+    step(d) { const n = this.viewer.files.length; this.viewer = { ...this.viewer, index: (this.viewer.index + d + n) % n }; },
     onKey(e) { if (e.key === 'Escape') this.close(); else if (this.many && e.key === 'ArrowRight') this.step(1); else if (this.many && e.key === 'ArrowLeft') this.step(-1); },
     async load(f) {
       this.text = ''; this.rows = [];
@@ -80,4 +81,7 @@ export default {
 .fv-prev { left: 12px; }
 .fv-next { right: 12px; }
 @media (max-width: 600px) { .fv-arrow { width: 44px; height: 44px; margin-top: -22px; } .fv-prev { left: 6px; } .fv-next { right: 6px; } }
+.fv-stage { flex: 1; min-height: 0; position: relative; display: flex; align-items: center; justify-content: center; padding: 0 76px 8px; box-sizing: border-box; }
+.fv-img { width: 100%; height: 100%; max-width: 1600px; object-fit: contain; border-radius: 8px; }
+@media (max-width: 700px) { .fv-stage { padding: 0 6px 8px; } }
 </style>
