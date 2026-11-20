@@ -14,7 +14,8 @@ export default {
   name: 'NotifyPrompt',
   data() { return { visible: false }; },
   mounted() {
-    // shown a little after sign-in, only when the browser can notify and nobody has answered yet
+    // shown a little after sign-in, only when the browser can notify and nobody has answered yet (the phone app asks by itself)
+    if (window.HubNative && window.HubNative.app) return;
     setTimeout(() => {
       let later = 0; try { later = +localStorage.getItem(KEY) || 0; } catch (e) { /* private window */ }
       this.visible = supported() && permission() === 'default' && Date.now() > later && !!(window.location && !/^\/(auth|s\/|privacy|terms)/.test(window.location.pathname));
