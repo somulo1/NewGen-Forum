@@ -1,6 +1,6 @@
 <!-- Word-style rich text editor for notes. Pasted Word / web / Excel content keeps its bold, headings, lists, colours and tables. -->
 <template>
-<div :class="['nr-wrap', paper ? 'nr-themed nr-p-' + paper : '']" @click="onDocClick">
+<div :class="['nr-wrap', ribbon ? 'nr-ribbon' : '', paper ? 'nr-themed nr-p-' + paper : '']" @click="onDocClick">
 <div v-if="editor && editable" class="nr-bar" role="toolbar" aria-label="Formatting" @mousedown="keepFocus">
 <div class="nr-grp">
 <button type="button" class="nr-b" title="Undo (Ctrl+Z)" aria-label="Undo" :disabled="!can('undo')" @click="run(c => c.undo())">↶</button>
@@ -74,7 +74,10 @@
 <button type="button" class="nr-b nr-t nr-del" @click="run(c => c.deleteTable())">Delete table</button>
 </div>
 </div>
+<div :class="ribbon ? 'nr-sheet' : 'nr-plain'">
+<slot name="title" />
 <EditorContent :editor="editor" class="nr-doc" />
+</div>
 </div>
 </template>
 
@@ -96,7 +99,7 @@ import Subscript from '@tiptap/extension-subscript';
 import Superscript from '@tiptap/extension-superscript';
 import { TaskList, TaskItem } from '@tiptap/extension-list';
 
-const props = defineProps({ modelValue: { type: String, default: '' }, editable: { type: Boolean, default: true }, live: { type: Object, default: null }, liveSeed: { type: String, default: '' }, macros: { type: Boolean, default: false }, paper: { type: String, default: '' } });
+const props = defineProps({ modelValue: { type: String, default: '' }, editable: { type: Boolean, default: true }, live: { type: Object, default: null }, liveSeed: { type: String, default: '' }, macros: { type: Boolean, default: false }, paper: { type: String, default: '' }, ribbon: { type: Boolean, default: false } });
 const emit = defineEmits(['update:modelValue', 'ref', 'comment']);
 
 // A picture lives inside the note or page itself, as data: nothing is fetched from elsewhere unless it was pasted as a web address.
@@ -247,6 +250,17 @@ watch(() => props.modelValue, (v) => { const e = editor.value; if (!props.live &
 
 <style>
 .nr-wrap { display: flex; flex-direction: column; gap: 10px; flex: 1; min-width: 0; }
+.nr-plain { display: contents; }
+/* Notes: the formatting tools are a ribbon over the sheet, as in Word. It stays at the top of the page and the sheet scrolls under it. */
+.nr-ribbon { gap: 0; }
+.nr-ribbon .nr-bar { top: 0; border-radius: 0; box-shadow: 0 6px 14px -6px rgba(0,0,0,0.5); }
+.nr-sheet { width: 100%; max-width: 960px; margin: 18px auto 0; box-sizing: border-box; padding: clamp(20px, 4vw, 44px) clamp(18px, 5vw, 56px) 56px; border-radius: 6px; background: #FBF6E3; box-shadow: 0 10px 30px rgba(0,0,0,0.4); min-height: 440px; display: flex; flex-direction: column; gap: 10px; }
+@media (max-width: 700px) {
+  .nr-ribbon .nr-bar { flex-wrap: nowrap; overflow-x: auto; gap: 6px; }
+  .nr-ribbon .nr-grp { flex-wrap: nowrap; flex: none; }
+  .nr-ribbon .nr-tbl { flex-basis: auto; border-top: 0; padding-top: 0; }
+  .nr-ribbon .nr-grid-pop { position: fixed; top: 150px; left: 12px; }
+}
 .nr-bar { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; padding: 8px 10px; border-radius: 10px; background: #EFE7C6; border: 1px solid #DDD2A6; position: sticky; top: 8px; z-index: 5; box-shadow: 0 4px 12px rgba(0,0,0,0.25); }
 .nr-grp { display: flex; align-items: center; gap: 2px; padding-right: 10px; border-right: 1px solid #D3C78F; flex-wrap: wrap; }
 .nr-grp:last-child { border-right: 0; padding-right: 0; }

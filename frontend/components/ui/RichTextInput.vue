@@ -1,9 +1,10 @@
 <template>
 <div :style="toolbarInActions ? 'display: contents' : 'width: 100%; min-width: 0; box-sizing: border-box; display: flex; flex-direction: column; align-items: flex-start; gap: 5px'">
-<div :style="toolbarInActions ? 'position: relative; min-width: 0; grid-column: 2; grid-row: 1 / 3; display: flex; align-self: stretch' : 'position: relative; width: 100%; min-width: 0; display: block'"><div v-if="mq && matches.length" role="listbox" aria-label="People you can tag" style="position: absolute; left: 0; bottom: calc(100% + 6px); z-index: 90; min-width: 240px; max-width: 100%; max-height: 240px; overflow-y: auto; padding: 4px; border-radius: 12px; background: var(--k-1D2A25,#1D2A25); border: 1px solid var(--k-34453D,#34453D); box-shadow: 0 14px 30px rgba(0,0,0,0.45)">
+<div v-if="toolbarInActions" class="rti-actions" style="grid-column: 1; grid-row: 1; display: flex; align-items: center; gap: 4px"><slot name="actions"/><button type="button" class="rti-more" aria-label="Text formatting" title="Text formatting" :aria-expanded="fmtOpen" @mousedown.prevent @click="fmtOpen = !fmtOpen" :style="`width: 38px; height: 38px; flex: none; border: 0; border-radius: 50%; background: ${fmtOpen ? 'var(--k-2C3D34,#2C3D34)' : 'transparent'}; color: var(--k-C9D6CF,#C9D6CF); cursor: pointer; align-items: center; justify-content: center`"><svg aria-hidden="true" width="19" height="19" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="12" cy="19" r="1.8"></circle></svg></button></div>
+<div :class="{ 'rti-field': toolbarInActions }" :style="toolbarInActions ? 'position: relative; min-width: 0; grid-column: 2; grid-row: 1 / 3; display: flex; align-self: stretch' : 'position: relative; width: 100%; min-width: 0; display: block'"><div v-if="mq && matches.length" role="listbox" aria-label="People you can tag" style="position: absolute; left: 0; bottom: calc(100% + 6px); z-index: 90; min-width: 240px; max-width: 100%; max-height: 240px; overflow-y: auto; padding: 4px; border-radius: 12px; background: var(--k-1D2A25,#1D2A25); border: 1px solid var(--k-34453D,#34453D); box-shadow: 0 14px 30px rgba(0,0,0,0.45)">
 <button v-for="(m, i) in matches" :key="m.uid" type="button" role="option" :aria-selected="i === mActive" @mousedown.prevent="chooseMention(m)" @mouseenter="mActive = i" :style="`display: flex; align-items: center; gap: 10px; width: 100%; padding: 6px 8px; border: 0; border-radius: 8px; background: ${i === mActive ? 'var(--k-2C3D34,#2C3D34)' : 'transparent'}; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; text-align: left`"><span :style="`flex: none; width: 26px; height: 26px; border-radius: 50%; background: ${m.hash ? '#7CC4FF' : (m.color || '#7CC4FF')}; color: #0F1714; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center`">{{ m.hash ? '#' : m.initials }}</span><span style="flex: 1; min-width: 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ m.hash ? '#' : '' }}{{ m.name }}</span><span v-if="m.hint" style="flex: none; font-size: 11px; color: var(--k-9DB0A6,#9DB0A6)">{{ m.hint }}</span></button>
 </div><textarea ref="editor" :value="local" :rows="rows" :aria-label="ariaLabel" :placeholder="placeholder" :disabled="disabled" @input="onInput" @keydown="onKeydown" @keyup="onKeyup" @click="watchMention" @blur="flush" :style="`display: block; width: 100%; min-width: 0; box-sizing: border-box; padding: 10px 12px; border: 1px solid var(--k-2A3832,#2A3832); border-radius: 10px; outline: none; background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA); font: inherit; resize: ${toolbarInActions ? 'none' : 'vertical'}; ${inputStyle} ${toolbarInActions ? 'min-height: 84px; height: 100%;' : ''}`"></textarea></div>
-<div v-if="toolbar" role="toolbar" aria-label="Text formatting" @mousedown.prevent :style="`display: flex; align-items: center; gap: 3px; width: max-content; max-width: 100%; box-sizing: border-box; padding: 2px 5px; border: 1px solid var(--k-2A3832,#2A3832); border-radius: 8px; background: var(--k-121B17,#121B17); overflow-x: auto; ${toolbarInActions ? 'grid-column: 1; grid-row: 2; align-self: start;' : ''}`">
+<div v-if="toolbar" role="toolbar" aria-label="Text formatting" :class="['rti-bar', { 'rti-bar-open': fmtOpen }]" @mousedown.prevent :style="`display: flex; align-items: center; gap: 3px; width: max-content; max-width: 100%; box-sizing: border-box; padding: 2px 5px; border: 1px solid var(--k-2A3832,#2A3832); border-radius: 8px; background: var(--k-121B17,#121B17); overflow-x: auto; ${toolbarInActions ? 'grid-column: 1; grid-row: 2; align-self: start;' : ''}`">
 <button v-for="tool in tools" :key="tool.key" type="button" :aria-label="tool.label" :title="tool.label" :disabled="disabled" @mousedown.prevent @click="format(tool.key)" :style="`flex: none; min-width: 32px; height: 30px; padding: 0 7px; border: 0; border-radius: 6px; background: transparent; color: ${disabled ? 'var(--k-66736C,#66736C)' : 'var(--k-E8EFEA,#E8EFEA)'}; cursor: ${disabled ? 'not-allowed' : 'pointer'}; font-weight: 700`">
 <svg v-if="tool.key === 'link'" aria-hidden="true" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.07 0l3-3A5 5 0 0 0 13 2.93l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.07 0l-3 3A5 5 0 0 0 11 21.07l1.71-1.71"></path></svg>
 <span v-else>{{ tool.icon }}</span>
@@ -50,6 +51,7 @@ export default {
       local: this.modelValue || '',
       sent: this.modelValue || '',
       timer: null,
+      fmtOpen: false,   // phones: the formatting strip opens from the vertical ⋮ beside the emoji button
       mq: null,      // the @word being typed: { start, query }
       mActive: 0,
       tools: [
@@ -182,3 +184,16 @@ export default {
   }
 };
 </script>
+
+<style>
+.rti-more { display: none; }
+@media (max-width: 900px) {
+  .hub-chat-composer .rti-more { display: flex; }
+  .hub-chat-composer .rti-actions > button, .hub-chat-composer .rti-actions > label, .hub-chat-composer .rti-actions > div > button { width: 34px !important; height: 34px !important; }
+  .hub-chat-composer .rti-actions { gap: 0 !important; }
+  .hub-chat-composer .rti-field { grid-row: 1 !important; }
+  .hub-chat-composer .rti-field textarea { min-height: 44px !important; }
+  .hub-chat-composer .rti-bar { display: none !important; }
+  .hub-chat-composer .rti-bar.rti-bar-open { display: flex !important; grid-column: 1 / 3 !important; grid-row: 2 !important; }
+}
+</style>
