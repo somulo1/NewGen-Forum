@@ -23,6 +23,8 @@ export function valsShell(ctx) {
     }
     return { q: s[key] || '', active: !!nq, onInput: (e) => this.setState({ [key]: e.target.value }), clear: () => this.setState({ [key]: '' }), none: !!nq && results.length === 0, results: results.slice(0, 20) };
   };
+  // a chat, a meeting or a call fills the phone screen from the top bar down: the tab bar steps aside and gives its height back
+  const tabHidden = (['page', 'docked'].includes(s.mode) && ['dm', 'forum'].includes(s.panelKind)) || !!showMeetingFull || !!showMeetingDock;
   const navSearch = makeSearch('navq', 12);
   const headerSearch = makeSearch('hq', 8);
   return {
@@ -50,7 +52,7 @@ export function valsShell(ctx) {
     navOpen: s.navOpen, navClass: 'hub-nav' + (s.navOpen ? ' open' : ''),
     openNav: () => this.setState({ navOpen: true, notifOpen: false }), closeNav: () => this.setState({ navOpen: false }),
     navClick: (e) => { if (!this.state.navOpen) return; const b = e.target && e.target.closest ? e.target.closest('button') : null; if (b && !b.closest('[data-keep]')) this.setState({ navOpen: false }); },
-    showTabbar: true,
+    showTabbar: !tabHidden, tabHidden,
     tabbar: (() => {
       const unread = s.dms.reduce((a, d) => a + d.unread, 0);
       const st = (on) => 'flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border:0;background:transparent;cursor:pointer;font-family:inherit;color:' + (on ? 'var(--k-B8F36B,#B8F36B)' : 'var(--k-9DB0A6,#9DB0A6)') + ';font-weight:' + (on ? '600' : '500');

@@ -59,7 +59,7 @@ input:not([type=checkbox]):not([type=radio]):not([type=range]):focus,textarea:fo
 label:not([style*="height"]):not(:has(> svg)):has(> select,> input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=range])){flex-direction:column !important;align-items:stretch !important;width:100%;flex:1 1 100%;margin-left:0 !important;gap:6px !important}
 label:not([style*="height"]):not(:has(> svg)) > select,label:not([style*="height"]):not(:has(> svg)) > input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=range]){width:100% !important;max-width:none !important;box-sizing:border-box}
 }
-/* Phones: the messages get the height. Name and actions share one row; the formatting buttons show only while typing. */
+/* Phones: the messages get the height. Name and actions share one row; the formatting strip opens from the vertical dots (RichTextInput). */
 @media (max-width: 900px){
 .hub-chat-bar{flex-wrap:nowrap !important;gap:6px !important;padding:5px 12px !important}
 .hub-chat-bar > div:not(:last-child):not(.hub-seg-more):not(.hub-seg){flex:1 1 0 !important}
@@ -71,8 +71,6 @@ label:not([style*="height"]):not(:has(> svg)) > select,label:not([style*="height
 .hub-chat-close{top:5px !important;right:8px !important;width:32px !important;height:32px !important}
 .hub-chat-tabs > button{min-height:32px !important}
 .hub-chat-composer{padding:6px 10px !important;gap:4px !important}
-.hub-chat-composer [role=toolbar]{display:none !important}
-.hub-chat-composer:focus-within [role=toolbar]{display:flex !important}
 .hub-panel-actions > button,.hub-panel-actions > div > button{width:32px !important;height:32px !important}
 .hub-panel-close{width:32px !important;height:32px !important}
 }
@@ -85,7 +83,8 @@ label:not([style*="height"]):not(:has(> svg)) > select,label:not([style*="height
 @media (min-width: 901px){.hub-rightcol{padding-top:12px;box-sizing:border-box}}
 @media (max-width: 900px){
 /* the bottom tab bar: 64px plus the phone's home-bar area; everything fixed above it keeps clear of all of it */
-:root{--hub-tab:calc(64px + env(safe-area-inset-bottom, 0px))}
+:root{--hub-tab:calc(56px + env(safe-area-inset-bottom, 0px))}
+.hub-shell.hub-notab{--hub-tab:env(safe-area-inset-bottom, 0px)}
 .hub-main{scroll-padding-bottom:var(--hub-tab)}
 .hub-navfoot{padding-bottom:16px !important}
 .hub-m{display:flex !important}
@@ -95,7 +94,7 @@ label:not([style*="height"]):not(:has(> svg)) > select,label:not([style*="height
 .hub-nav{position:fixed !important;top:64px;left:0;bottom:var(--hub-tab);z-index:62;width:min(300px,86vw) !important;flex:none !important;transform:translateX(-102%);transition:transform .25s ease;box-shadow:0 0 40px rgba(0,0,0,.5);padding-bottom:0 !important}
 .hub-nav.open{transform:none}
 .hub-navback{position:fixed;inset:64px 0 var(--hub-tab) 0;z-index:61;background:rgba(5,10,8,.6);border:0;padding:0}
-.hub-main{padding:16px 14px 150px !important}
+.hub-main{padding:16px 14px calc(var(--hub-tab) + 16px) !important}
 .hub-dock{position:fixed !important;inset:64px 0 var(--hub-tab) 0 !important;width:auto !important;max-width:none !important;margin:0 !important;border-radius:0 !important;border:0 !important;z-index:58;flex:none !important}
 .hub-right-drawer{top:64px !important}
 .hub-grip{display:none !important}
@@ -106,7 +105,7 @@ label:not([style*="height"]):not(:has(> svg)) > select,label:not([style*="height
 .hub-searchres{position:fixed !important;left:12px !important;right:12px !important;top:68px !important;max-height:calc(100vh - 160px) !important}
 .hub-minicall{bottom:calc(var(--hub-tab) + 12px) !important;right:12px !important}
 .hub-fitpage{position:fixed !important;inset:64px 0 var(--hub-tab) 0 !important;z-index:40 !important;border-radius:0 !important;border:0 !important}
-.hub-tabbar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:57;height:64px;box-sizing:content-box;padding-bottom:env(safe-area-inset-bottom);background:var(--k-121B17,#121B17);border-top:1px solid var(--k-24322C,#24322C)}
+.hub-tabbar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:57;height:56px;box-sizing:content-box;padding-bottom:env(safe-area-inset-bottom);background:var(--k-121B17,#121B17);border-top:1px solid var(--k-24322C,#24322C)}
 .hub-bubble{bottom:calc(var(--hub-tab) + 20px) !important;right:14px !important}
 .hub-toast{top:72px !important;left:12px !important;right:12px !important;transform:none !important;width:auto !important;max-width:none !important}
 .hub-static{position:static !important;max-height:none !important;overflow:visible !important}

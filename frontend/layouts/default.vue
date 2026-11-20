@@ -1,7 +1,7 @@
 <!-- App shell: header, sidebar, page slot, docked panel and every overlay. -->
 <template>
 <div class="dc-root" style="display: contents">
-<div :class="[themeClass, 'hub-shell']" :style="`height: calc(100vh / var(--ui-z, 1)); overflow: hidden; background: var(--k-0F1714,#0F1714); color: var(--k-E8EFEA,#E8EFEA); font-family: 'DM Sans', system-ui, sans-serif; font-size: 14px; display: flex; flex-direction: column; user-select: ${selectMode}`">
+<div :class="[themeClass, 'hub-shell', { 'hub-notab': tabHidden }]" :style="`height: calc(100vh / var(--ui-z, 1)); overflow: hidden; background: var(--k-0F1714,#0F1714); color: var(--k-E8EFEA,#E8EFEA); font-family: 'DM Sans', system-ui, sans-serif; font-size: 14px; display: flex; flex-direction: column; user-select: ${selectMode}`">
 
 <AppHeader />
 <PreviewBanner />
@@ -84,7 +84,7 @@ import { hubBindings, useHubShell } from '~/composables/useHub';
 
 export default {
   name: 'DefaultLayout',
-  ...hubBindings(["isPage","denied","pageLoading","selectMode","themeClass","themeFilter"]),
+  ...hubBindings(["isPage","denied","pageLoading","selectMode","tabHidden","themeClass","themeFilter"]),
   setup() { useHubShell(); const fatal = useState('hubFatal', () => null); return { fatal, clearFatal: () => { fatal.value = null; } }; }
 };
 </script>

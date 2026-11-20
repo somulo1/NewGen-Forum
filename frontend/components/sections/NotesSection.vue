@@ -101,10 +101,11 @@
 </ul>
 </section>
 <span v-if="notesPage.editor.hasErr" role="alert" style="font-size: 13px; color: var(--k-FF9B8A,#FF9B8A)">{{ notesPage.editor.err }}</span>
-<div class="note-paper" style="width: 100%; max-width: 960px; margin: 0 auto; box-sizing: border-box; padding: clamp(20px, 4vw, 44px) clamp(18px, 5vw, 56px) 56px; border-radius: 6px; background: #FBF6E3; box-shadow: 0 10px 30px rgba(0,0,0,0.4); min-height: 440px; display: flex; flex-direction: column; gap: 10px">
+<NoteEditor ribbon :editable="!notesPage.editor.readOnly" :modelValue="notesPage.editor.body" @update:modelValue="notesPage.editor.onBody">
+<template #title>
 <input type="text" :readonly="notesPage.editor.readOnly" :value="notesPage.editor.title" @input="notesPage.editor.onTitle" placeholder="Title" aria-label="Note title" style="border: 0; border-bottom: 2px solid #E0B93A; padding: 4px 0 10px; background: transparent; color: #2A2716; font-family: 'Space Grotesk', sans-serif; font-size: clamp(22px, 3.4vw, 30px); font-weight: 600; outline: none; width: 100%; box-sizing: border-box">
-<NoteEditor :editable="!notesPage.editor.readOnly" :modelValue="notesPage.editor.body" @update:modelValue="notesPage.editor.onBody"/>
-</div>
+</template>
+</NoteEditor>
 </div>
 </div>
 </template></template>
