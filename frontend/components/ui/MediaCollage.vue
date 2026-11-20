@@ -3,7 +3,7 @@
      tidy. One file uses its natural proportions (up to a height limit); several tile in a fixed grid of at most four, the last
      showing how many more there are. Click opens the viewer. -->
 <template>
-<div :style="framed ? 'display: flex; flex-direction: column; gap: 4px; min-width: 0; max-width: 100%; padding: 3px; border-radius: 14px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-0F1714,#0F1714)' : 'display: flex; flex-direction: column; gap: 6px; min-width: 0'">
+<div :class="{ 'mc-fit': autoplay }" :style="framed ? 'display: flex; flex-direction: column; gap: 4px; min-width: 0; max-width: 100%; padding: 3px; border-radius: 14px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-0F1714,#0F1714)' : 'display: flex; flex-direction: column; gap: 6px; min-width: 0'">
 <component :is="autoplay && visual[0].isVideo ? 'div' : 'button'" v-if="visual.length === 1" type="button" class="mc-cell mc-single" @click="!(autoplay && visual[0].isVideo) && open(visual[0])" :aria-label="`Open ${visual[0].name}`" :style="`max-height: ${maxH}px`">
 <span v-if="visual[0].isImg && visual[0].url" class="mc-bg" :style="bg(visual[0])"></span>
 <img v-if="visual[0].isImg" class="mc-img" :src="visual[0].url" :alt="visual[0].name" :style="`max-height: ${maxH}px`" loading="lazy">
@@ -62,4 +62,9 @@ export default {
 .mc-fill .mc-img { width: 100%; height: 100%; }
 .mc-play { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 46px; height: 46px; border-radius: 50%; background: rgba(15, 23, 20, 0.72); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 18px; pointer-events: none; }
 .mc-more { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(8, 14, 11, 0.62); color: #fff; font-family: 'Space Grotesk', sans-serif; font-size: 30px; font-weight: 700; pointer-events: none; }
+/* wall posts: the picture fills its card edge to edge (a very tall or wide one is trimmed at the height limit), with no blurred bars */
+.mc-fit .mc-bg { display: none; }
+.mc-fit .mc-cell { border: 0; border-radius: 10px; }
+.mc-fit .mc-single .mc-img { width: 100%; object-fit: cover; }
+.mc-fit .mc-fill .mc-img { object-fit: cover; }
 </style>
