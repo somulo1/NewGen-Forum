@@ -130,6 +130,12 @@ export function buildWall(ctx) {
       } })),
       commentCount: p.extra + countAll(p.comments || []),
       heartFill: liked ? 'currentColor' : 'none',
+      // a double tap only ever adds the like: someone who already liked it stays liked, and only the Like button takes it back
+      doubleLike: () => {
+        if (this.state.liked[p.id]) return;
+        this.setState({ liked: { ...this.state.liked, [p.id]: true } });
+        wallW.likeOnly(this, this.srv, p.id).catch((e) => { this.setState({ liked: { ...this.state.liked, [p.id]: false } }); this.notify(e.message || 'That did not work.', '#FF9B8A'); });
+      },
       like: () => { this.setState({ liked: { ...this.state.liked, [p.id]: !liked } }); wallW.toggleReaction(this, this.srv, p.id, 'like').catch((e) => this.notify(e.message || 'That did not work.', '#FF9B8A')); },
       likeStyle: 'height:40px;border-radius:10px;border:0;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;gap:8px;background:transparent;font-weight:' + (liked ? '600' : '400') + ';color:' + (liked ? '#FF9B8A' : '#C9D6CF'),
       onComment: (e) => {

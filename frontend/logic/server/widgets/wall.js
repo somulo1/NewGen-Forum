@@ -301,6 +301,15 @@ export async function reactToComment(logic, srv, commentId, kind) {
   await load(logic, srv);
 }
 
+// Adds my like and never removes one. The server keeps one reaction per person per post (the person is the signed-in account, never
+// something the page sends), so repeating this changes nothing.
+export async function likeOnly(logic, srv, targetId) {
+  if ((srv.wallMy || {})[targetId] === 'like' || srv.wallMine['like:' + targetId]) return;
+  await react(srv, targetId, 'like');
+  srv.wallCounts = true;
+  await load(logic, srv);
+}
+
 export async function toggleReaction(logic, srv, targetId, kind) {
   const k = kind + ':' + targetId;
   if (srv.wallMine[k]) await del(srv, srv.wallMine[k]);
