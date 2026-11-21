@@ -68,7 +68,7 @@ export function buildCallState(ctx) {
       rec: s.rec, sharing: s.sharing && isVideo, notSharing: !(s.sharing && isVideo), tiles,
       panelOpen: !!s.callPanel, showChat: s.callPanel === 'chat', showPeople: s.callPanel === 'people',
       panelTitle: s.callPanel === 'people' ? 'People (' + (big ? s.call.total || all.length : all.length) + ')' : 'Meeting chat',
-      msgs: s.callMsgs, draft: s.callDraft,
+      msgs: s.callMsgs, draft: s.callDraft, chatUnread: s.callPanel !== 'chat' && (s.callUnread || 0) > 0 ? ((s.callUnread || 0) > 9 ? '9+' : String(s.callUnread)) : '',
       micLabel: s.mic ? 'Mute' : 'Unmute', micStyle: ctl(false, !s.mic),
       camLabel: s.cam ? 'Stop video' : 'Start video', camStyle: ctl(false, !s.cam),
       shareStyle: ctl(s.sharing, false), handStyle: ctl(s.hand, false), recStyle: ctl(false, s.rec),

@@ -22,7 +22,7 @@ export const callsActions = {
     this.setState(ns);
     this.showCallChat(context, ref);
     if (this.srv) {
-      this.setState({ callMsgs: [], callDraft: '', sharing: false, hand: false });
+      this.setState({ callMsgs: [], callUnread: 0, callDraft: '', sharing: false, hand: false });
       // a real call: the server opens the room (or this.joinCallId joins the one that rang)
       const job = this._joinCallId ? callsW.join(this, this.srv, this._joinCallId) : callsW.start(this, this.srv, { kind: mode, context, ref });
       this._joinCallId = null;

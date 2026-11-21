@@ -330,7 +330,7 @@ async function connectRoom(logic, srv, entry, opts = {}) {
       case 'chat': {
         const who = (peers().find((p) => p.id === m.from) || {}).name || 'Someone';
         let text = ''; try { text = (typeof m.data === 'string' ? JSON.parse(m.data) : m.data).text; } catch (x) { /* ignore */ }
-        if (text) logic.setState((st) => ({ callMsgs: st.callMsgs.concat([{ who, text }]) }));
+        if (text) logic.setState((st) => ({ callMsgs: st.callMsgs.concat([{ who, text }]), callUnread: st.callPanel === 'chat' ? 0 : (st.callUnread || 0) + 1 }));
         break;
       }
       case 'mod':

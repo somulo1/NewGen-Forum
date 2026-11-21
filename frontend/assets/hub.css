@@ -213,3 +213,7 @@ main h1{font-size:22px !important}
 .pg-k { flex: 0 0 120px; font-size: 12px; color: var(--k-9DB0A6,#9DB0A6); }
 .pg-code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; overflow-wrap: anywhere; }
 .pg-ev { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 8px 10px; border-radius: 10px; background: var(--k-16201C,#16201C); font-size: 13px; }
+
+/* the message a reply points to, lit for a moment when it is jumped to */
+.cw-flash{animation:cw-flash 1.6s ease-out}
+@keyframes cw-flash{0%,35%{background:rgba(184,243,107,.28)}100%{background:transparent}}

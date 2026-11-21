@@ -86,7 +86,7 @@ export function valsShell(ctx) {
     toggleShare: () => { this.setState((st) => ({ sharing: !st.sharing })); if (this.srv) callsW.applyLocal(this); },
     toggleHand: () => { this.setState((st) => ({ hand: !st.hand })); if (this.srv) callsW.applyLocal(this); },
     toggleRec: () => this.setState((st) => ({ rec: !st.rec })),
-    openCallChat: () => this.setState((st) => ({ callPanel: st.callPanel === 'chat' ? null : 'chat' })),
+    openCallChat: () => this.setState((st) => ({ callPanel: st.callPanel === 'chat' ? null : 'chat', callUnread: 0 })),
     openCallPeople: () => this.setState((st) => ({ callPanel: st.callPanel === 'people' ? null : 'people' })),
     closeCallPanel: set({ callPanel: null }),
     onCallDraft: (e) => this.setState({ callDraft: e.target.value }),

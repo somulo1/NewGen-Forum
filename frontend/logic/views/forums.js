@@ -39,7 +39,7 @@ export function buildForums(ctx) {
   const replyKey = dmNow ? dmNow.id : cur.id;
   this._replyKey = replyKey;
   const replyFn = (who, m) => () => this.setState({ replyTo: { key: replyKey, who, snippet: snip(m), mid: m.mid || '' } });
-  const quote = (m) => ({ hasReply: !!m.replyTo, replyWho: m.replyTo ? m.replyTo.who : '', replySnippet: m.replyTo ? m.replyTo.snippet : '' });
+  const quote = (m) => ({ hasReply: !!m.replyTo, replyWho: m.replyTo ? m.replyTo.who : '', replySnippet: m.replyTo ? m.replyTo.snippet : '', replyMid: m.replyTo && m.replyTo.mid ? m.replyTo.mid : '' });
   const fingerprint = (message) => encodeURIComponent([message.who || '', message.time || '', message.text || '', [].concat(message.file || []).map((file) => file.name || '').join(',')].join('|'));
   // a tagged person (@Name) is a link to their profile
   const linkMentions = mentionLinker(this.dir.map((d) => d.name).concat(this.srv ? [this.srv.me.name] : []));
@@ -152,7 +152,7 @@ export function buildForums(ctx) {
         }
       } : null, replyFn(who, m));
       return {
-        id: key, who, initials: pp.initials, color: pp.color, time: m.time, text: m.text || '', htmlText: richTextHtml(m.text),
+        id: key, mid: m.mid || '', who, initials: pp.initials, color: pp.color, time: m.time, text: m.text || '', htmlText: richTextHtml(m.text),
         hasText: !!m.text, ...splitFiles(m, s, (id) => this.openNote(id)), ...quote(m), reply: replyFn(who, m),
         replies: 0, mine, secureShare: sharesById[m.secureShareId] || null, hasSecureShare: !!sharesById[m.secureShareId],
         // like a phone chat: the bubble fits its text, the time sits in its bottom corner, nothing else takes room

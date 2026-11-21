@@ -157,7 +157,7 @@ function toItems(srv, opened) {
     return {
       id: m.id, mid: m.id, seenConv: COMM[m.type] && !mine ? (m.conversation || '') : '', seenMsg: COMM[m.type] ? m.id : '', noteShare: pl.note || null, who: nameOf(m), ...(mine ? { initials: ME.initials, color: ME.color } : lookOf(srv, m.sender_person, m.sender_name)),
       time: ago(m.created_at), at: m.created_at, queued: !!m.queued, text: pl.text || '', file: file.length ? file : undefined, shared: sharedOf(pl.shared, todo),
-      replyTo: parent && (parent.m.type === 'text' || COMM[parent.m.type]) ? { who: parent.m.sender_account === srv.me.account ? 'You' : parent.m.sender_name, snippet: snippet(parent.pl) } : null, replies: children.get(m.id) || 0
+      replyTo: parent && (parent.m.type === 'text' || COMM[parent.m.type]) ? { who: parent.m.sender_account === srv.me.account ? 'You' : parent.m.sender_name, snippet: snippet(parent.pl), mid: parent.m.id } : null, replies: children.get(m.id) || 0
     };
   });
   return { items, todo };

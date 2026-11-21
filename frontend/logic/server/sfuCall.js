@@ -199,7 +199,7 @@ export async function connectSfu(ctx, entry, opts = {}) {
   });
   room.on(E.DataReceived, async (payload, p, kind, topic) => {
     if (topic !== 'chat' || !p) return;
-    try { const text = await openChat(payload); if (text) logic.setState((st) => ({ callMsgs: st.callMsgs.concat([{ who: p.name || 'Someone', text }]) })); } catch (e) { /* not for this key */ }
+    try { const text = await openChat(payload); if (text) logic.setState((st) => ({ callMsgs: st.callMsgs.concat([{ who: p.name || 'Someone', text }]), callUnread: st.callPanel === 'chat' ? 0 : (st.callUnread || 0) + 1 })); } catch (e) { /* not for this key */ }
   });
   room.on(E.EncryptionError, () => logic.notify('A participant\'s media could not be decrypted.', '#FFB86B'));
   room.on(E.Disconnected, (reason) => {

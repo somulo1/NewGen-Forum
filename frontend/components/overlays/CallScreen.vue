@@ -84,7 +84,7 @@
 <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px">
 <template v-for="(cm, cm__i) in call.msgs" :key="cm__i"><div class="cw-b" style="position: relative; width: fit-content; max-width: 92%; min-width: 72px; box-sizing: border-box; border-radius: 3px 10px 10px 10px; background: var(--k-1A2520,#1A2520); box-shadow: 0 1px 1px rgba(0,0,0,.22)"><strong style="display: block; color: var(--k-7CC4FF,#7CC4FF)">{{ cm.who }}</strong><p class="cw-t">{{ cm.text }}</p></div></template>
 </div>
-<div style="flex: none; display: flex; gap: 8px; align-items: center; padding: 10px 12px; border-top: 1px solid var(--k-24322C,#24322C)"><EmojiButton :size="38" @pick="pickEmojiCall"/><label style="flex: 1; min-width: 0"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Message everyone</span><input type="text" :value="call.draft" @input="onCallDraft" @keydown="callKey" placeholder="Message everyone" style="width: 100%; box-sizing: border-box; height: 40px; padding: 0 12px; border-radius: 20px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA)"></label><button aria-label="Send" @click="sendCallMsg" style="width: 40px; height: 40px; border-radius: 50%; border: 0; background: #B8F36B; color: #0F1714; cursor: pointer; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 12l16-8-6 16-3-7z"></path></svg></button></div>
+<div class="cs-compose" style="flex: none; display: flex; gap: 8px; align-items: center; padding: 10px 12px; border-top: 1px solid var(--k-24322C,#24322C)"><EmojiButton :size="38" @pick="pickEmojiCall"/><label class="cs-compose-box" style="flex: 1; min-width: 0"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Message everyone</span><input type="text" :value="call.draft" @input="onCallDraft" @keydown="callKey" placeholder="Message everyone" style="width: 100%; box-sizing: border-box; height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--k-2A3832,#2A3832); background: var(--k-121B17,#121B17); color: var(--k-E8EFEA,#E8EFEA)"></label><button aria-label="Send" @click="sendCallMsg" style="width: 40px; height: 40px; border-radius: 50%; border: 0; background: #B8F36B; color: #0F1714; cursor: pointer; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 12l16-8-6 16-3-7z"></path></svg></button></div>
 </template>
 </aside>
 </template>
@@ -96,7 +96,7 @@
 <button class="cs-ctl" aria-label="Share screen" @click="toggleShare" :style="call.shareStyle"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"></rect><path d="M8 20h8M12 16v4"></path></svg><span style="font-size: 11px">Share</span></button>
 <button class="cs-ctl" aria-label="Raise hand" @click="toggleHand" :style="call.handStyle"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V12M11 11V4a1.5 1.5 0 0 1 3 0v7M14 11V5.5a1.5 1.5 0 0 1 3 0V14a7 7 0 0 1-7 7 6 6 0 0 1-5-3l-2.5-4a1.5 1.5 0 0 1 2.6-1.5L8 15"></path></svg><span style="font-size: 11px">Hand</span></button>
 <button class="cs-ctl" aria-label="Record" @click="toggleRec" :style="call.recStyle"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="3.5" fill="currentColor"></circle></svg><span style="font-size: 11px">Record</span></button>
-<button class="cs-ctl" aria-label="Chat" @click="openCallChat" :style="call.chatStyle"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M4 5h16v11H8l-4 4z"></path></svg><span style="font-size: 11px">Chat</span></button>
+<button class="cs-ctl" :aria-label="call.chatUnread ? `Chat, ${call.chatUnread} new` : 'Chat'" @click="openCallChat" :style="call.chatStyle + ';position:relative'"><span v-if="call.chatUnread" aria-hidden="true" class="cs-badge">{{ call.chatUnread }}</span><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M4 5h16v11H8l-4 4z"></path></svg><span style="font-size: 11px">Chat</span></button>
 <button class="cs-ctl" aria-label="People" @click="openCallPeople" :style="call.peopleStyle"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"></circle><path d="M2 20c0-3.5 3-6 7-6s7 2.5 7 6M16 4.5a3.5 3.5 0 0 1 0 7M18 14c2.5.6 4 2.8 4 6"></path></svg><span style="font-size: 11px">People</span></button>
 <button class="cs-leave" @click="endCall" style="height: 60px; padding: 0 26px; border-radius: 30px; border: 0; background: #E5484D; color: #fff; font-weight: 700; font-size: 15px; cursor: pointer; display: flex; align-items: center; gap: 8px"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 14.5c5-4.5 13-4.5 18 0l-2 2.5-3.5-1.5V13a12 12 0 0 0-7 0v2.5L5 17z"></path></svg>Leave</button>
 </div>
@@ -179,5 +179,17 @@ export default {
   .cs-ctl { width: 46px !important; height: 46px !important; }
   .cs-ctl span { display: none; }
   .cs-leave { height: 48px !important; }
+}
+.cs-badge { position: absolute; top: -5px; right: -5px; min-width: 20px; height: 20px; padding: 0 5px; box-sizing: border-box; border-radius: 10px; background: #FF5C7A; color: #fff; font: 700 11px/20px 'DM Sans', sans-serif; text-align: center; box-shadow: 0 0 0 2px var(--k-0A100D,#0A100D); animation: cs-pulse 1.4s ease-in-out infinite; }
+/* the controls hide their small text labels on phones; the badge is not one of them */
+.cs-ctl .cs-badge, .cs-panel .cs-ctl .cs-badge { display: block !important; }
+@keyframes cs-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.18); } }
+@media (prefers-reduced-motion: reduce) { .cs-badge { animation: none; } }
+/* phones: the message box takes the whole width of the chat, with the emoji and send buttons under it, so what is typed is plain to see */
+@media (max-width: 900px) {
+  .cs-compose { flex-wrap: wrap; }
+  .cs-compose-box { order: -1; flex: 1 1 100% !important; }
+  .cs-compose-box input { height: 46px !important; font-size: 16px; padding: 0 14px !important; }
+  .cs-compose > button { margin-left: auto; }
 }
 </style>
