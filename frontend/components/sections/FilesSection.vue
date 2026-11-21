@@ -37,7 +37,6 @@
 <label v-if="fv.isDocs" style="position: relative; height: 40px; padding: 0 18px; border-radius: 20px; background: #B8F36B; color: #0F1714; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px"><input type="file" multiple="" aria-label="Upload to this folder" @change="uploadToFolder" style="position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"></path></svg>Upload here</label>
 </div>
 <template v-if="fv.isNotes">
-<p v-if="fv.sn.disconnected" role="status" style="margin: 0; padding: 12px 14px; border-radius: 12px; background: var(--k-2A2418,#2A2418); border: 1px solid var(--k-5A4A1E,#5A4A1E); color: var(--k-FFD66B,#FFD66B); font-size: 13px">The Notes widget is not on your home page, so notes you shared are disconnected. Add the My notes widget again to reconnect them.</p>
 <section aria-label="Shared with you" style="display: flex; flex-direction: column; gap: 12px">
 <h2 style="margin: 0; font-size: 16px">Shared with you</h2>
 <span v-if="!fv.sn.hasIn" style="color: var(--k-9DB0A6,#9DB0A6); font-size: 14px">No one has shared a note with you yet.</span>

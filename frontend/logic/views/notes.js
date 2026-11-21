@@ -1,7 +1,7 @@
 // renderVals step: notes. Notebooks (like folders) hold notes; the widget on Home saves into "Quick notes".
 // A note can be shared with a person or a forum, read only or editable. Shares are live links: receivers find the note under Files,
 // and if the sender stops sharing (or removes the Notes widget from Home) they lose access until it is shared / added again.
-import { noteText as plain, notesConnected, isMine, permLabel } from '~/logic/noteText.js';
+import { noteText as plain, isMine, permLabel } from '~/logic/noteText.js';
 import * as notesW from '~/logic/server/widgets/notes.js';
 import { askConfirm, confirmed } from '~/logic/confirm.js';
 
@@ -14,7 +14,6 @@ export function buildNotes(ctx) {
   const set = (o) => this.setState(o);
   const flash = (msg) => { set({ noteFlash: msg }); clearTimeout(this._noteT); this._noteT = setTimeout(() => set({ noteFlash: '' }), 2500); };
   const q = (s.noteQ || '').trim().toLowerCase();
-  const connected = notesConnected(s);
   const mine = s.notes.filter(isMine);
   const editOf = (n) => ({ id: n.id, book: n.book, title: n.title, body: n.body, orig: { title: n.title, body: n.body, book: n.book }, err: '' });
   const card = (n) => { const b = bookOf(n.book); return { id: n.id, body: plain(n.body).slice(0, 400), kindTag: 'NOTE', meta: when(n.updated) + ' · ' + b.name, title: n.title || 'Untitled', preview: plain(n.body).split('\n').filter((l) => l.trim()).slice(0, 4).join('\n'), when: when(n.updated), pinned: n.pinned, color: b.color, bookName: b.name,
@@ -89,19 +88,19 @@ export function buildNotes(ctx) {
     canShare: !!cur0 && !incoming,
     share: { open: !!sp && !!cur0 && !incoming, toggle: () => set({ noteShare: sp ? null : { kind: 'person', to: '', perm: 'view', err: '' } }),
       isPerson: !!sp && sp.kind === 'person', isForum: !!sp && sp.kind === 'forum', to: sp ? sp.to : '', perm: sp ? sp.perm : 'view', err: sp ? sp.err || '' : '', hasErr: !!(sp && sp.err),
-      people, forums: forumsData.map((f) => ({ v: f.id, l: f.name })), connected, count: shares.length,
+      people, forums: forumsData.map((f) => ({ v: f.id, l: f.name })), count: shares.length,
       setKind: (k) => () => set({ noteShare: { ...sp, kind: k, to: '', err: '' } }), onTo: (e) => set({ noteShare: { ...sp, to: e.target.value, err: '' } }), onPerm: (e) => set({ noteShare: { ...sp, perm: e.target.value } }),
       send: () => cur0 && sendShare(cur0),
-      list: shares.map((sh) => ({ id: sh.id, label: shareLabel(sh), kindLabel: sh.kind === 'forum' ? 'Forum' : 'Person', perm: sh.perm, live: connected, when: when(sh.at),
+      list: shares.map((sh) => ({ id: sh.id, label: shareLabel(sh), kindLabel: sh.kind === 'forum' ? 'Forum' : 'Person', perm: sh.perm, live: true, when: when(sh.at),
         onPerm: (e) => setPerm(cur0, sh, e.target.value), stop: () => stopShare(cur0, sh) })) } } : { open: false };
 
   // ---- Files page: notes shared with me, and notes I share ----
   const noteCard = (n, extra) => ({ id: n.id, title: n.title || 'Untitled', preview: plain(n.body).split('\n').filter((l) => l.trim()).slice(0, 5).join('\n'), when: when(n.updated), color: '#FFD66B',
-    open: () => (connected ? set({ section: 'notes', noteBook: null, noteEdit: editOf(n) }) : this.notify('Notes is disconnected. Add the My notes widget to Home to open notes.', '#FFB86B')), ...extra });
+    open: () => set({ section: 'notes', noteBook: null, noteEdit: editOf(n) }), ...extra });
   const sharedIn = sorted(s.notes.filter((n) => !isMine(n))).map((n) => noteCard(n, { by: n.owner, access: n.access, accessLabel: permLabel(n.access), canEdit: n.access === 'edit',
     remove: async () => { if (!await askConfirm({ title: 'Remove from your files?', body: n.owner + ' has to share it again for you to get it back.', action: 'Remove' })) return; if (this.srv) { notesW.leave(this, this.srv, n).then(() => flash('Removed from your files. ' + n.owner + ' has to share it again.')).catch((e) => flash(e.message || 'Could not remove it.')); return; } this.setState((st) => ({ notes: st.notes.filter((x) => x.id !== n.id), noteEdit: st.noteEdit && st.noteEdit.id === n.id ? null : st.noteEdit })); flash('Removed from your files. ' + n.owner + ' has to share it again.'); } }));
-  const sharedOut = mine.flatMap((n) => (n.shares || []).map((sh) => noteCard(n, { shareId: sh.id, to: shareLabel(sh), accessLabel: permLabel(sh.perm), live: connected, stop: () => stopShare(n, sh) })));
-  const sharedNotes = { in: sharedIn, out: sharedOut, hasIn: sharedIn.length > 0, hasOut: sharedOut.length > 0, connected, disconnected: !connected };
+  const sharedOut = mine.flatMap((n) => (n.shares || []).map((sh) => noteCard(n, { shareId: sh.id, to: shareLabel(sh), accessLabel: permLabel(sh.perm), live: true, stop: () => stopShare(n, sh) })));
+  const sharedNotes = { in: sharedIn, out: sharedOut, hasIn: sharedIn.length > 0, hasOut: sharedOut.length > 0 };
 
   const notesPage = { books, inBook: !!cur, book: cur ? { id: cur.id, name: cur.name, color: cur.color, count: inBook.length } : null, notes: inBook, hasNotes: inBook.length > 0, q: s.noteQ, onQ: (e) => set({ noteQ: e.target.value }), searching: !cur && !!q, matches: allMatches,
     back: () => set({ noteBook: null, noteQ: '' }), newNote: () => set({ noteShare: null, noteEdit: { id: '', book: cur ? cur.id : (s.noteBooks[0] || {}).id || '', title: '', body: '', orig: { title: '', body: '', book: '' }, err: '' } }),

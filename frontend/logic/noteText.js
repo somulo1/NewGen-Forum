@@ -7,8 +7,6 @@ export function noteText(b) {
     .replace(/\t\n/g, '\n').replace(/\n{2,}/g, '\n').trim();
 }
 
-// Sharing is a live link, not a copy. Notes is a widget: while it is removed from Home, everything shared from it is disconnected
-// and receivers lose access, until the widget is added back.
-export const notesConnected = (s) => s.widgets.indexOf('notes') !== -1;
+// Sharing is a live link, not a copy: it works for as long as the share exists. What is on anyone's Home page does not change it.
 export const isMine = (n) => !n.owner || n.owner === 'Sam';
 export const permLabel = (p) => (p === 'edit' ? 'Can edit' : 'Read only');
