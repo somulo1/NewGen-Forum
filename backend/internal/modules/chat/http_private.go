@@ -17,6 +17,7 @@ func (s *Service) Private(r chi.Router) {
 	s.conversationRoutes(r)
 	s.keyRoutes(r)
 	s.wallAndRecordRoutes(r)
+	s.readsRoute(r)
 }
 
 // conversationRoutes: conversations: create, list, open, join and their people.
