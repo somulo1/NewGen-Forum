@@ -4,7 +4,8 @@ import { noteText, notesConnected, isMine, permLabel } from '~/logic/noteText.js
 export function noteFile(file, s, openNote) {
   const note = s.notes.find((x) => x.container === file.noteId) || s.notes.find((x) => x.id === file.noteId);
   const share = note && isMine(note) ? (note.shares || []).find((x) => x.id === file.shareId) : null;
-  const live = !!note && notesConnected(s) && (isMine(note) ? !!share : true);
+  // the sender's own Notes widget and share decide the link; for someone who received the note, having it in their list is the access
+  const live = !!note && (isMine(note) ? notesConnected(s) && !!share : true);
   const perm = note ? (isMine(note) ? (share && share.perm) : note.access) : 'view';
   return { ...file, kind: 'NOTE', previewKind: 'note', color: '#FFD66B', isNote: true, live, noteLive: live, notePreview: live ? noteText(note.body).split('\n').filter((l) => l.trim()).slice(0, 6).join('\n') : '',
     meta: live ? 'Note · ' + permLabel(perm) + ' · live link' : 'Note · access removed', noteOpen: () => openNote(note.id) };

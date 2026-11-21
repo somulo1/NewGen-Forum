@@ -151,7 +151,7 @@ export default {
 <style>
 .cs-spot { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
 .cs-spot-main { flex: 1; min-height: 220px; display: flex; }
-.cs-spot-main .cs-tile video { object-fit: contain !important; background: #000; }
+.cs-spot-main .cs-tile video { object-fit: cover !important; background: #000; }
 .cs-spot-strip { flex: none; display: flex; gap: 10px; overflow-x: auto; overflow-y: hidden; padding-bottom: 4px; scrollbar-width: thin; overscroll-behavior-x: contain; }
 .cs-spot-item { flex: 0 0 180px; }
 .cs-spot-item .cs-tile { min-height: 0 !important; }
@@ -160,7 +160,8 @@ export default {
 .cs-tile:hover .cs-expand, .cs-share:hover .cs-expand, .cs-expand:focus-visible { opacity: 1; }
 @media (hover: none) { .cs-expand { opacity: 1; } }
 .cs-tile:fullscreen, .cs-share:fullscreen { border-radius: 0 !important; border: 0 !important; background: #000 !important; }
-.cs-tile:fullscreen video, .cs-share:fullscreen video { object-fit: contain !important; }
+.cs-tile:fullscreen video { object-fit: cover !important; }
+.cs-share:fullscreen video { object-fit: contain !important; }
 .cs-main, .cs-full { --cs-tile: 260px; }
 .cs-panel { --cs-tile: 120px; }
 .cs-panel .cs-tile { min-height: 0 !important; border-radius: 12px !important; }
