@@ -9,7 +9,8 @@ export function buildNotes(ctx) {
   const { s, forumsData } = ctx;
   const when = (t) => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'Just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : new Date(t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }); };
   const firstLine = (b) => plain(b).split('\n').find((l) => l.trim()) || '';
-  const bookOf = (id) => s.noteBooks.find((b) => b.id === id) || s.noteBooks[0];
+  // before the notebooks have loaded (or if they could not) a note still shows, under a stand-in notebook, instead of breaking the page
+  const bookOf = (id) => s.noteBooks.find((b) => b.id === id) || s.noteBooks[0] || { id: '', name: 'Quick notes', color: '#FFD66B' };
   const set = (o) => this.setState(o);
   const flash = (msg) => { set({ noteFlash: msg }); clearTimeout(this._noteT); this._noteT = setTimeout(() => set({ noteFlash: '' }), 2500); };
   const q = (s.noteQ || '').trim().toLowerCase();
