@@ -96,6 +96,9 @@ function snapshot(notes, books) {
   return snap;
 }
 
+// the shared notes' conversations; it exists from the first use, even if the notes have not finished loading
+const sharedSet = (srv) => srv.sharedConvs || (srv.sharedConvs = new Set());
+
 export async function load(logic, srv) {
   const vault = await readVault(srv);
   let books = vault.books;
@@ -106,7 +109,7 @@ export async function load(logic, srv) {
   }
   const { conversations } = await ask(srv, 'GET', '/conversations?kind=sharednote&limit=200');
   const shared = (await Promise.all(conversations.map((c) => readShared(srv, c).catch(() => null)))).filter(Boolean);
-  srv.sharedConvs = new Set(shared.map((n) => n.container));
+  shared.forEach((n) => sharedSet(srv).add(n.container));
   const notes = vault.notes.concat(shared);
   srv.noteSnap = snapshot(notes, books);
   // the half-written text in the Home page's "My notes" box comes back where it was left, on any device
@@ -130,7 +133,7 @@ async function reloadShared(logic, srv, conv) {
     return { notes: n ? [n].concat(rest) : rest, noteEdit: st.noteEdit && !n && st.noteEdit.container === conv ? null : st.noteEdit };
   });
   srv.applyingNotes = false;
-  if (n) { srv.noteSnap.set('n:' + n.id, snapshot([n], []).get('n:' + n.id)); srv.sharedConvs.add(conv); (srv.rt || {}).sub && srv.rt.sub(conv); } else { srv.sharedConvs.delete(conv); }
+  if (n) { srv.noteSnap.set('n:' + n.id, snapshot([n], []).get('n:' + n.id)); sharedSet(srv).add(conv); (srv.rt || {}).sub && srv.rt.sub(conv); } else { sharedSet(srv).delete(conv); }
 }
 
 // ---- writing: what the page changed in state.notes / state.noteBooks ----
@@ -240,7 +243,7 @@ async function ensureShared(logic, srv, n) {
   const meta = { ...(n.book ? { book: n.book } : {}), ...(n.pinned ? { pinned: true } : {}) };
   await put(srv, conv, 'note', id, { title: n.title, body: n.body, shares: [] }, meta, true);
   await ask(srv, 'DELETE', `/containers/${srv.noteVault}/records/${n.id}`).catch(() => {});
-  srv.sharedConvs.add(conv);
+  sharedSet(srv).add(conv);
   (srv.rt || {}).sub && srv.rt.sub(conv);
   const next = { ...n, id, container: conv, sharesRaw: [], shares: [], meta };
   srv.applyingNotes = true;
@@ -314,7 +317,7 @@ export async function leave(logic, srv, note) {
   const n = logic.state.notes.find((x) => x.id === note.id);
   if (!n || !n.container) return;
   await removeMember(srv, n.container, srv.me.person);
-  srv.sharedConvs.delete(n.container);
+  sharedSet(srv).delete(n.container);
   srv.applyingNotes = true;
   logic.setState((st) => ({ notes: st.notes.filter((x) => x.id !== n.id), noteEdit: st.noteEdit && st.noteEdit.id === n.id ? null : st.noteEdit }));
   srv.applyingNotes = false;
