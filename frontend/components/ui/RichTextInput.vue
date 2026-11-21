@@ -186,14 +186,15 @@ export default {
 </script>
 
 <style>
+/* chats (side panel, page, full): the text formatting strip opens from the vertical dots beside the emoji button, so the box is not crowded */
 .rti-more { display: none; }
+.hub-chat-composer .rti-more { display: flex; }
+.hub-chat-composer .rti-field { grid-row: 1 !important; }
+.hub-chat-composer .rti-field textarea { min-height: 44px !important; }
+.hub-chat-composer .rti-bar { display: none !important; }
+.hub-chat-composer .rti-bar.rti-bar-open { display: flex !important; grid-column: 1 / 3 !important; grid-row: 2 !important; }
 @media (max-width: 900px) {
-  .hub-chat-composer .rti-more { display: flex; }
   .hub-chat-composer .rti-actions > button, .hub-chat-composer .rti-actions > label, .hub-chat-composer .rti-actions > div > button { width: 34px !important; height: 34px !important; }
   .hub-chat-composer .rti-actions { gap: 0 !important; }
-  .hub-chat-composer .rti-field { grid-row: 1 !important; }
-  .hub-chat-composer .rti-field textarea { min-height: 44px !important; }
-  .hub-chat-composer .rti-bar { display: none !important; }
-  .hub-chat-composer .rti-bar.rti-bar-open { display: flex !important; grid-column: 1 / 3 !important; grid-row: 2 !important; }
 }
 </style>
