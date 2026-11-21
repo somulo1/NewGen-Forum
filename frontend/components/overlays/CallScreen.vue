@@ -175,7 +175,7 @@ export default {
   .cs-root { overflow-y: auto !important; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
   .cs-root .cs-tile { min-height: 160px; }
   .cs-spot-main { min-height: 180px; }
-  .cs-bar { position: sticky; bottom: 0; z-index: 20; background: var(--k-0A100D,#0A100D); padding-bottom: calc(12px + env(safe-area-inset-bottom)) !important; box-shadow: 0 -8px 20px rgba(0,0,0,0.35); }
+  .cs-bar { position: sticky; bottom: 0; z-index: 20; background: var(--k-0A100D,#0A100D); padding-bottom: calc(12px + var(--hub-safe-bottom)) !important; box-shadow: 0 -8px 20px rgba(0,0,0,0.35); }
   .cs-ctl { width: 46px !important; height: 46px !important; }
   .cs-ctl span { display: none; }
   .cs-leave { height: 48px !important; }

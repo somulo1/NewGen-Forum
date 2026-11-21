@@ -1,3 +1,5 @@
+/* The home-bar area under the page. In the phone app the shell already keeps the page clear of the system buttons, so the page adds none (plugins/nativeShell.client.ts). */
+:root{--hub-safe-bottom:env(safe-area-inset-bottom, 0px)}
 /* Scrollbars stay out of sight; everything still scrolls with wheel, touch and keys. */
 *{scrollbar-width:none;-ms-overflow-style:none}
 *::-webkit-scrollbar{display:none;width:0;height:0}
@@ -83,8 +85,8 @@ label:not([style*="height"]):not(:has(> svg)) > select,label:not([style*="height
 @media (min-width: 901px){.hub-rightcol{padding-top:12px;box-sizing:border-box}}
 @media (max-width: 900px){
 /* the bottom tab bar: 64px plus the phone's home-bar area; everything fixed above it keeps clear of all of it */
-:root{--hub-tab:calc(56px + env(safe-area-inset-bottom, 0px))}
-.hub-shell.hub-notab{--hub-tab:env(safe-area-inset-bottom, 0px)}
+:root{--hub-tab:calc(56px + var(--hub-safe-bottom))}
+.hub-shell.hub-notab{--hub-tab:var(--hub-safe-bottom)}
 .hub-main{scroll-padding-bottom:var(--hub-tab)}
 .hub-navfoot{padding-bottom:16px !important}
 .hub-m{display:flex !important}
@@ -105,7 +107,7 @@ label:not([style*="height"]):not(:has(> svg)) > select,label:not([style*="height
 .hub-searchres{position:fixed !important;left:12px !important;right:12px !important;top:68px !important;max-height:calc(100vh - 160px) !important}
 .hub-minicall{bottom:calc(var(--hub-tab) + 12px) !important;right:12px !important}
 .hub-fitpage{position:fixed !important;inset:64px 0 var(--hub-tab) 0 !important;z-index:40 !important;border-radius:0 !important;border:0 !important}
-.hub-tabbar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:57;height:56px;box-sizing:content-box;padding-bottom:env(safe-area-inset-bottom);background:var(--k-121B17,#121B17);border-top:1px solid var(--k-24322C,#24322C)}
+.hub-tabbar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:57;height:56px;box-sizing:content-box;padding-bottom:var(--hub-safe-bottom);background:var(--k-121B17,#121B17);border-top:1px solid var(--k-24322C,#24322C)}
 .hub-bubble{bottom:calc(var(--hub-tab) + 20px) !important;right:14px !important}
 .hub-toast{top:72px !important;left:12px !important;right:12px !important;transform:none !important;width:auto !important;max-width:none !important}
 .hub-static{position:static !important;max-height:none !important;overflow:visible !important}
