@@ -64,7 +64,7 @@ function asStored(session, conv, body) {
     id: body.id, conversation: conv, type: body.type || 'text', reply_to: body.reply_to || null, epoch: body.epoch || 0,
     sender_account: session.account, sender_person: (session.org && session.org.person) || '', sender_device: body.device || '',
     sender_name: session.name || '', envelope: body.envelope || '', ...(body.body ? { body: body.body } : {}),
-    created_at: writtenAt(body.id), deleted: false
+    created_at: writtenAt(body.id), deleted: false, queued: true
   };
 }
 

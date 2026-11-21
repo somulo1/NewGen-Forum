@@ -47,7 +47,7 @@
 <template v-if="u.hasShared"><SharedPostCard :sid="u.sid"/></template>
 <template v-if="u.hasFile"><MediaCollage :files="u.fileList" framed :max-h="380" :row="170"/></template><template v-if="u.hasText && u.hasFile"><p :class="['cw-t', { 'cw-clamp': ((u.text || '').length > 700 || (u.text || '').split('\n').length > 14) }]"><span v-html="u.htmlText"></span><span class="cw-sp" aria-hidden="true"></span></p><button v-if="((u.text || '').length > 700 || (u.text || '').split('\n').length > 14)" type="button" class="cw-more" @click.stop="$event.currentTarget.previousElementSibling.classList.remove('cw-clamp'); $event.currentTarget.style.display = 'none'">Read more</button></template>
 <template v-if="u.hasSecureShare"><SecureInboxCard :share="u.secureShare"/></template>
-<span class="cw-time">{{ u.time }}</span><button v-if="u.reply" type="button" class="cw-rep" @click.stop="u.reply" aria-label="Reply to this message" title="Reply">↩</button>
+<span class="cw-time">{{ u.time }}<MsgTicks v-if="u.tick" :state="u.tick"/></span><button v-if="u.reply" type="button" class="cw-rep" @click.stop="u.reply" aria-label="Reply to this message" title="Reply">↩</button>
 
 <div v-if="u.menuOpen" role="group" aria-label="Message actions" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--k-405047,#405047)">
 <button type="button" @click.stop="u.deleteForMe" style="height: 30px; padding: 0 10px; border: 1px solid var(--k-526259,#526259); border-radius: 8px; background: transparent; color: var(--k-E8EFEA,#E8EFEA); cursor: pointer; font-size: 12px">Delete for me</button>

@@ -6,6 +6,7 @@ import { newConversationKey, wrap, newId, b64, unb64 } from '../e2ee.js';
 import * as notifyW from '~/logic/browserNotify.js';
 import * as files from '../files.js';
 import { connectRealtime } from '../realtime.js';
+import * as readsW from './reads.js';
 import { changedSince, markOf, pause } from '../catchup.js';
 import { messageTone, alertTone } from '~/logic/tones.js';
 
@@ -155,7 +156,7 @@ function toItems(srv, opened) {
     if (pl.note) file.push({ name: (pl.note.title || 'Untitled') + '.note', meta: 'Note · ' + (pl.note.perm === 'edit' ? 'Can edit' : 'Read only'), noteId: pl.note.conv, shareId: pl.note.id, url: '' });
     return {
       id: m.id, mid: m.id, seenConv: COMM[m.type] && !mine ? (m.conversation || '') : '', seenMsg: COMM[m.type] ? m.id : '', noteShare: pl.note || null, who: nameOf(m), ...(mine ? { initials: ME.initials, color: ME.color } : lookOf(srv, m.sender_person, m.sender_name)),
-      time: ago(m.created_at), at: m.created_at, text: pl.text || '', file: file.length ? file : undefined, shared: sharedOf(pl.shared, todo),
+      time: ago(m.created_at), at: m.created_at, queued: !!m.queued, text: pl.text || '', file: file.length ? file : undefined, shared: sharedOf(pl.shared, todo),
       replyTo: parent && (parent.m.type === 'text' || COMM[parent.m.type]) ? { who: parent.m.sender_account === srv.me.account ? 'You' : parent.m.sender_name, snippet: snippet(parent.pl) } : null, replies: children.get(m.id) || 0
     };
   });
@@ -443,6 +444,7 @@ async function reloadOnce(logic, srv, local, { meta, incoming = [], gone = new S
 export function markRead(logic, srv, local) {
   const sid = serverId(srv, local);
   if (!sid) return;
+  readsW.load(logic, srv, sid);
   const f = liveForum(logic, local);
   if (!f || !f.newest) return;
   if (f.unread) logic.setState((st) => ({ forumsLive: st.forumsLive.map((x) => (x.id === local ? { ...x, unread: 0 } : x)) }));
@@ -581,6 +583,7 @@ export async function invite(logic, srv, local, names, ids = []) {
 
 function watch(logic, srv) {
   const rt = srv.rt || (srv.rt = connectRealtime(srv));   // whichever widget loads first makes the socket
+  readsW.attach(logic, srv, rt);
   if (!srv.forumsWatching) {
     srv.forumsWatching = true;
     const timers = new Map();

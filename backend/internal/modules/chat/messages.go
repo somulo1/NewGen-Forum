@@ -176,7 +176,12 @@ func (s *Service) Send(ctx context.Context, p *tenant.Principal, conv uuid.UUID,
 			return err
 		}
 		pid := p.Person
-		out = &Message{ID: in.ID, Conversation: conv, SenderAccount: p.Account, SenderPerson: &pid, SenderName: p.Name, Epoch: epoch, Type: in.Type, ReplyTo: in.ReplyTo, CreatedAt: time.Now().UTC()}
+		// the time the database stored is the one everybody compares with (read ticks), so the echo carries that one
+		stored := time.Now().UTC()
+		if err := tx.QueryRow(ctx, `select created_at from hub.messages where org_id=$1 and id=$2`, p.Org, in.ID).Scan(&stored); err != nil {
+			return err
+		}
+		out = &Message{ID: in.ID, Conversation: conv, SenderAccount: p.Account, SenderPerson: &pid, SenderName: p.Name, Epoch: epoch, Type: in.Type, ReplyTo: in.ReplyTo, CreatedAt: stored.UTC()}
 		if plain {
 			out.Body = in.Body
 		} else {

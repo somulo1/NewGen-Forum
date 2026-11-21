@@ -346,17 +346,6 @@ func (s *Service) Keys(ctx context.Context, p *tenant.Principal, id uuid.UUID) (
 	return out, err
 }
 
-func (s *Service) MarkRead(ctx context.Context, p *tenant.Principal, id, upTo uuid.UUID) error {
-	return s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
-		if _, _, _, _, err := s.lockConvNoLock(ctx, tx, p, id); err != nil {
-			return err
-		}
-		_, err := tx.Exec(ctx, `insert into hub.read_cursors (org_id, conversation_id, account_id, last_read) values ($1,$2,$3,$4)
-			on conflict (org_id, conversation_id, account_id) do update set last_read = greatest(hub.read_cursors.last_read, excluded.last_read), updated_at=now()`, p.Org, id, p.Account, upTo)
-		return err
-	})
-}
-
 var _ = time.Now
 
 type ForumRules struct {

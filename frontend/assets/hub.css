@@ -175,7 +175,7 @@ main h1{font-size:22px !important}
 .cw-b p.cw-t p{margin:0}
 .cw-b p.cw-t strong,.cw-b p.cw-t b{font-weight:600;color:var(--k-E8EFEA,#E8EFEA)}
 .cw-b > strong{font-family:inherit;font-size:12.8px !important;line-height:17px;font-weight:600 !important;margin-bottom:1px}
-.cw-sp{display:inline-block;width:50px;height:1px;vertical-align:baseline}
+.cw-sp{display:inline-block;width:66px;height:1px;vertical-align:baseline}
 .cw-time{position:absolute;right:8px;bottom:4px;font-family:inherit;font-size:11px;line-height:1;color:var(--k-8A988F,#8A988F);white-space:nowrap;pointer-events:none}
 .cw-opt{position:absolute;top:2px;right:2px;opacity:0;transition:opacity .15s;border-radius:6px !important;background:var(--k-22302A,#22302A) !important;z-index:2}
 .cw-b:hover .cw-opt,.cw-opt:focus-visible{opacity:1}

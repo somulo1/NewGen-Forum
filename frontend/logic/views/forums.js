@@ -4,6 +4,7 @@ import { noteText, notesConnected, isMine, permLabel } from '~/logic/noteText.js
 import * as forumsW from '~/logic/server/widgets/forums.js';
 import * as presenceW from '~/logic/server/presence.js';
 import { askConfirm } from '~/logic/confirm.js';
+import { receipt, othersOf, dmOthers } from '~/logic/views/receipts.js';
 // "Amy is typing…", "Amy and Ben are typing…", "3 people are typing…"
 const typingLine = (names) => (!names || !names.length ? '' : names.length === 1 ? names[0] + ' is typing…' : names.length === 2 ? names[0] + ' and ' + names[1] + ' are typing…' : names.length + ' people are typing…');
 // renderVals step: forums. Receives the names built by earlier steps and returns the ones later steps need.
@@ -89,12 +90,15 @@ export function buildForums(ctx) {
   const fStyle = (m) => (m.who === 'Sam' || m.who === 'You'
     ? { ...m, who: 'You', mine: true, rowStyle: 'display:flex;gap:6px;flex-direction:row-reverse', bubbleStyle: 'position:relative;width:fit-content;max-width:min(80%,620px);min-width:84px;box-sizing:border-box;padding:6px 9px 7px;border-radius:10px 3px 10px 10px;background:var(--k-2C3D34,#2C3D34);box-shadow:0 1px 1px rgba(0,0,0,.22)' }
     : { ...m, mine: false, rowStyle: 'display:flex;gap:6px', bubbleStyle: 'position:relative;width:fit-content;max-width:min(80%,620px);min-width:84px;box-sizing:border-box;padding:6px 9px 7px;border-radius:3px 10px 10px 10px;background:var(--k-1A2520,#1A2520);box-shadow:0 1px 1px rgba(0,0,0,.22)' });
+  const me = this.srv ? this.srv.me.person : '';
+  const places = (conv) => (s.reads || {})[conv] || {};
   const forumMessages = ((s.orgBlocks || {}).blockForumChats ? [] : baseMsgs.slice().reverse().concat(addedHere)).map((message) => {
     const key = 'forum:' + cur.id + ':' + message.id;
     const source = message.source;
     const canDeleteForEveryone = (message.who === 'Sam' || message.who === 'You') && (addedSource.includes(source) || !!source.mid);
     const actions = messageActions(message, key, canDeleteForEveryone ? () => (source.mid ? forumsW.remove(this, this.srv, cur.id, source.mid).catch((e) => this.notify(e.message || 'Could not delete the message.', '#FF9B8A')) : this.setState((st) => ({ added: { ...st.added, [cur.id]: (st.added[cur.id] || []).filter((item) => item !== source) } }))) : null);
-    return { ...fStyle(message), ...actions };
+    const mine = message.who === 'Sam' || message.who === 'You';
+    return { ...fStyle(message), ...actions, ...(this.srv ? receipt(message, othersOf(cur.memberList, me), places(cur.sid || cur.id), mine) : {}) };
   }).filter((message) => !s.hiddenChatMessages[message.messageKey]);
   const forumView = { ...cur, chat: forumMessages, topics: forumMessages, subline: typingLine(s.typing && s.typing[cur.id]) || (cur.online + ' online · live updates'), typingText: typingLine(s.typing && s.typing[cur.id]), dotColor: '#B8F36B' };
   // Private messages (share the forum panel)
@@ -154,7 +158,8 @@ export function buildForums(ctx) {
         // like a phone chat: the bubble fits its text, the time sits in its bottom corner, nothing else takes room
         rowStyle: 'display:flex;gap:6px;' + (mine ? 'flex-direction:row-reverse' : ''),
         bubbleStyle: mine ? 'position:relative;width:fit-content;max-width:min(80%,620px);min-width:84px;box-sizing:border-box;padding:6px 9px 7px;border-radius:10px 3px 10px 10px;background:var(--k-2C3D34,#2C3D34);box-shadow:0 1px 1px rgba(0,0,0,.22)' : 'position:relative;width:fit-content;max-width:min(80%,620px);min-width:84px;box-sizing:border-box;padding:6px 9px 7px;border-radius:3px 10px 10px 10px;background:var(--k-1A2520,#1A2520);box-shadow:0 1px 1px rgba(0,0,0,.22)',
-        ...actions
+        ...actions,
+        ...(this.srv && !String(curDm.id).startsWith('dm-') && mine ? { tick: receipt(m, dmOthers(places(curDm.id), me), places(curDm.id), true).tick } : {})
       };
     }).filter((message) => !s.hiddenChatMessages[message.messageKey] && !s.removedChatMessages[message.messageKey]);
     dmView = { id: curDm.id, name: curDm.with, initials: pr.initials, color: pr.color, online: '', about: pr.title, subline: typingLine(s.typing && s.typing[curDm.id]) || (dmOnline ? 'Online · ' + (pr.status || 'Available') : this.srv ? 'Offline' : (pr.status || 'Available') + ' · private chat'), typingText: typingLine(s.typing && s.typing[curDm.id]), dotColor: dmOnline || !this.srv ? (dmStatusCol[pr.status] || '#B8F36B') : '#6B7A72', isOnline: dmOnline, title: pr.title,

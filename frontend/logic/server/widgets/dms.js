@@ -7,6 +7,7 @@ import { connectRealtime } from '../realtime.js';
 import { changedSince, markOf, pause } from '../catchup.js';
 import * as files from '../files.js';
 import * as presence from '../presence.js';
+import * as readsW from './reads.js';
 import { messageTone, alertTone } from '../../tones.js';
 
 export const name = 'dms';
@@ -48,7 +49,7 @@ async function toMsg(srv, m) {
   if (!pl) return null;
   const mine = m.sender_account === srv.me.account;
   const media = (pl.files || []).map((f) => ({ name: f.name, meta: f.meta || '', isImg: !!f.isImg, isVideo: !!f.isVideo, url: '', ref: f }));
-  return { id: m.id, mid: m.id, from: mine ? 'me' : m.sender_name, text: pl.text || '', file: media.length ? media : undefined, replyTo: pl.reply || null, time: hm(m.created_at), at: m.created_at };
+  return { id: m.id, mid: m.id, from: mine ? 'me' : m.sender_name, text: pl.text || '', file: media.length ? media : undefined, replyTo: pl.reply || null, time: hm(m.created_at), at: m.created_at, queued: !!m.queued };
 }
 
 // Fills in decrypted attachment URLs once they are ready.
@@ -104,6 +105,7 @@ function live(logic, srv) {
   const rt = srv.rt || (srv.rt = connectRealtime(srv));
   logic.state.dms.forEach((d) => rt.sub(d.id));
   (srv.clearedDms ? [...srv.clearedDms] : []).forEach((id) => rt.sub(id));
+  readsW.attach(logic, srv, rt);
   if (srv.dmLive) return;
   srv.dmLive = true;
   // someone opened a new chat with me
@@ -186,6 +188,7 @@ export async function remove(logic, srv, dmId, mid) {
 }
 
 export async function markRead(logic, srv, dmId) {
+  readsW.load(logic, srv, dmId);
   const dm = logic.state.dms.find((d) => d.id === dmId);
   if (!dm || String(dmId).startsWith('dm-') || !dm.msgs.length) return;
   const last = dm.msgs[dm.msgs.length - 1];
