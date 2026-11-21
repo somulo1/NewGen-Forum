@@ -34,3 +34,7 @@
 
 /* pale red text on the red-tinted panels: dark enough to read in light mode */
 .hub-light{--k-FFD3CA:#7A1A0C}
+/* pale text that sits on a tinted card (the overdue reminder, the preview banner, rating stars) turns dark so it reads on the light card */
+.hub-light [style*="color: rgb(255, 194, 184)"]:not([style*="background-color: rgb(255, 194, 184)"]){color:#7A1200 !important}
+.hub-light [style*="color: rgb(255, 231, 168)"]:not([style*="background-color: rgb(255, 231, 168)"]){color:#5A4200 !important}
+.hub-light [style*="color: rgb(245, 196, 81)"]:not([style*="background-color: rgb(245, 196, 81)"]){color:#9A6A00 !important}
