@@ -1,10 +1,10 @@
 import * as dmsW from '~/logic/server/widgets/dms.js';
 import { richTextHtml, mentionLinker } from '~/logic/richText.js';
-import { noteText, notesConnected, isMine, permLabel } from '~/logic/noteText.js';
 import * as forumsW from '~/logic/server/widgets/forums.js';
 import * as presenceW from '~/logic/server/presence.js';
 import { askConfirm } from '~/logic/confirm.js';
 import { receipt, othersOf, dmOthers } from '~/logic/views/receipts.js';
+import { splitFiles } from '~/logic/views/chatNotes.js';
 // "Amy is typing…", "Amy and Ben are typing…", "3 people are typing…"
 const typingLine = (names) => (!names || !names.length ? '' : names.length === 1 ? names[0] + ' is typing…' : names.length === 2 ? names[0] + ' and ' + names[1] + ' are typing…' : names.length + ' people are typing…');
 // renderVals step: forums. Receives the names built by earlier steps and returns the ones later steps need.
@@ -98,7 +98,7 @@ export function buildForums(ctx) {
     const canDeleteForEveryone = (message.who === 'Sam' || message.who === 'You') && (addedSource.includes(source) || !!source.mid);
     const actions = messageActions(message, key, canDeleteForEveryone ? () => (source.mid ? forumsW.remove(this, this.srv, cur.id, source.mid).catch((e) => this.notify(e.message || 'Could not delete the message.', '#FF9B8A')) : this.setState((st) => ({ added: { ...st.added, [cur.id]: (st.added[cur.id] || []).filter((item) => item !== source) } }))) : null);
     const mine = message.who === 'Sam' || message.who === 'You';
-    return { ...fStyle(message), ...actions, ...(this.srv ? receipt(message, othersOf(cur.memberList, me), places(cur.sid || cur.id), mine) : {}) };
+    return { ...fStyle(message), ...actions, ...splitFiles(message, s, (id) => this.openNote(id)), ...(this.srv ? receipt(message, othersOf(cur.memberList, me), places(cur.sid || cur.id), mine) : {}) };
   }).filter((message) => !s.hiddenChatMessages[message.messageKey]);
   const forumView = { ...cur, chat: forumMessages, topics: forumMessages, subline: typingLine(s.typing && s.typing[cur.id]) || (cur.online + ' online · live updates'), typingText: typingLine(s.typing && s.typing[cur.id]), dotColor: '#B8F36B' };
   // Private messages (share the forum panel)
@@ -153,7 +153,7 @@ export function buildForums(ctx) {
       } : null, replyFn(who, m));
       return {
         id: key, who, initials: pp.initials, color: pp.color, time: m.time, text: m.text || '', htmlText: richTextHtml(m.text),
-        hasText: !!m.text, hasFile: !!m.file, fileList: [].concat(m.file || []), ...quote(m), reply: replyFn(who, m),
+        hasText: !!m.text, ...splitFiles(m, s, (id) => this.openNote(id)), ...quote(m), reply: replyFn(who, m),
         replies: 0, mine, secureShare: sharesById[m.secureShareId] || null, hasSecureShare: !!sharesById[m.secureShareId],
         // like a phone chat: the bubble fits its text, the time sits in its bottom corner, nothing else takes room
         rowStyle: 'display:flex;gap:6px;' + (mine ? 'flex-direction:row-reverse' : ''),
@@ -168,17 +168,9 @@ export function buildForums(ctx) {
   const curView = isDM ? dmView : forumView;
   const fileKindColor = { PDF: '#FF9B8A', DOC: '#7CC4FF', DOCX: '#7CC4FF', XLS: '#B8F36B', XLSX: '#B8F36B', PPT: '#FFB86B', PPTX: '#FFB86B', ZIP: '#C9B6FF', RAR: '#C9B6FF', '7Z': '#C9B6FF', IMG: '#F49AC1', VIDEO: '#6EE7C8', NOTE: '#FFD66B' };
   const fileFolders = curView.chat.flatMap((message, messageIndex) => {
-    if (!message.fileList.length) return [];
-    const attachedFiles = message.fileList.map((file) => {
-      if (file.noteId) {
-        // A shared note: a live link. It stops opening if the share is stopped, the note is deleted or the Notes widget is removed.
-        const note = s.notes.find((x) => x.container === file.noteId) || s.notes.find((x) => x.id === file.noteId);
-        const share = note && isMine(note) ? (note.shares || []).find((x) => x.id === file.shareId) : null;
-        const live = !!note && notesConnected(s) && (isMine(note) ? !!share : true);
-        const perm = note ? (isMine(note) ? (share && share.perm) : note.access) : 'view';
-        return { ...file, kind: 'NOTE', previewKind: 'note', color: '#FFD66B', isNote: true, live, noteLive: live, notePreview: live ? noteText(note.body).split('\n').filter((l) => l.trim()).slice(0, 6).join('\n') : '',
-          meta: live ? 'Note · ' + permLabel(perm) + ' · live link' : 'Note · access removed', noteOpen: () => this.openNote(note.id) };
-      }
+    if (!message.allFiles.length) return [];
+    const attachedFiles = message.allFiles.map((file) => {
+      if (file.isNote) return file;
       const extension = (file.name || '').split('.').pop().toUpperCase();
       const kind = file.isImg ? 'IMG' : file.isVideo ? 'VIDEO' : ({ PNG: 'IMG', JPG: 'IMG', JPEG: 'IMG', GIF: 'IMG', SVG: 'IMG', WEBP: 'IMG', MP4: 'VIDEO', WEBM: 'VIDEO', MOV: 'VIDEO' })[extension] || extension || 'FILE';
       const previewKind = kind === 'IMG' ? 'image' : kind === 'VIDEO' ? 'video' : kind === 'PDF' ? 'pdf' : ['XLS', 'XLSX', 'CSV'].includes(kind) ? 'sheet' : ['PPT', 'PPTX'].includes(kind) ? 'slides' : ['ZIP', 'RAR', '7Z'].includes(kind) ? 'archive' : ['DOC', 'DOCX', 'TXT'].includes(kind) ? 'document' : 'file';
