@@ -25,7 +25,7 @@ export const messagingActions = {
     if (!this.srv) return;
     const drop = () => this.setState((st) => ({ dms: st.dms.map((d) => ({ ...d, msgs: d.msgs.filter((m) => m.id !== tmp) })) }));
     dmsW.send(this, this.srv, id, { text: text || '', files: [].concat(file || []).map((f) => f.file).filter(Boolean), replyTo: replyTo || null })
-      .then((conv) => dmsW.refresh(this, this.srv, conv).then(drop))
+      .then((conv) => { this.setState((st) => ({ dms: st.dms.map((d) => ({ ...d, msgs: d.msgs.map((m) => (m.id === tmp ? { ...m, sent: true } : m)) })) })); return dmsW.refresh(this, this.srv, conv).then(drop); })
       .catch((e) => { drop(); this.notify(e.message || 'Could not send the message.', '#FF9B8A'); });
   },
 
@@ -48,8 +48,9 @@ export const messagingActions = {
     const tmp = crypto.randomUUID();
     this.setState((st) => ({ added: { ...st.added, [fid]: [...(st.added[fid] || []), { id: tmp, who: 'Sam', initials: 'S', color: '#F49AC1', time: 'Just now', text: text, file: file, replyTo: replyTo || null, shared: shared || null, replies: 0 }] } }));
     if (!forumsW.isLive(this.srv, fid)) return;
+    const markSent = () => this.setState((st) => ({ added: { ...st.added, [fid]: (st.added[fid] || []).map((m) => (m.id === tmp ? { ...m, sent: true } : m)) } }));
     const dropTmp = () => this.setState((st) => ({ added: { ...st.added, [fid]: (st.added[fid] || []).filter((m) => m.id !== tmp) } }));
-    forumsW.send(this, this.srv, fid, { text, files: [].concat(file || []).map((f) => f.file).filter(Boolean), replyTo: replyTo && replyTo.mid, shared })
+    forumsW.send(this, this.srv, fid, { text, files: [].concat(file || []).map((f) => f.file).filter(Boolean), replyTo: replyTo && replyTo.mid, shared, onSent: markSent })
       .then(dropTmp)
       .catch((e) => { dropTmp(); this.notify(e.message || 'Could not send the message.', '#FF9B8A'); });
   }

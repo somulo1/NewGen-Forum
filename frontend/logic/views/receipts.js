@@ -2,7 +2,8 @@
 // has it, 'read' (two blue) once it has been read: in a private chat by the other person, in a forum by everyone in it.
 const stamp = (v) => Date.parse(v) || 0;
 
-const waiting = (m) => !m.mid || !!m.pending || !!m.queued;
+// sent: the server has already answered for this message, though its stored copy has not replaced the temporary one yet
+const waiting = (m) => !!m.queued || (!m.sent && (!m.mid || !!m.pending));
 
 // others: the people besides me who could read it ({ person, name }); places: person -> when they have read up to.
 export function receipt(m, others, places, mine) {

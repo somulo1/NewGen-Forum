@@ -82,6 +82,7 @@ function rowOf(srv, c, msgs) {
 export async function load(logic, srv) {
   const { conversations } = await ask(srv, 'GET', '/conversations?kind=dm&limit=200');
   srv.dmMark = markOf(conversations);
+  readsW.preload(logic, srv, conversations.map((c) => c.id));
   // chats I deleted from my list: still listened to, so one that gets a new message comes back
   try { const { ids } = await ask(srv, 'GET', '/conversations/cleared'); const shown = new Set(conversations.map((c) => c.id)); srv.clearedDms = new Set(ids.filter((id) => !shown.has(id) && !(srv.clearedForums && srv.clearedForums.has(id)))); } catch (e) { srv.clearedDms = srv.clearedDms || new Set(); }
   const prev = new Map((logic.state.dms || []).map((d) => [d.id, d]));

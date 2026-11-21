@@ -1,7 +1,7 @@
 // Who has read how far in each chat, for the delivery ticks. The server keeps each member's reading place (when the last message
 // they read was sent); a message is read by someone when it was sent at or before their place. Places only move forward.
 const stamp = (v) => Date.parse(v) || 0;
-const MIN_GAP_MS = 1500;
+const MIN_GAP_MS = 600;
 
 const merge = (logic, conv, next) => logic.setState((st) => {
   const have = (st.reads || {})[conv] || {};
@@ -19,6 +19,13 @@ export async function load(logic, srv, conv) {
     const r = await srv.request('GET', `/conversations/${conv}/reads`);
     merge(logic, conv, Object.fromEntries((r.readers || []).map((x) => [x.person, x.at])));
   } catch (e) { /* the ticks stay as they were */ }
+}
+
+// Every chat's reading places, a few at a time, as soon as the chat list is known: the ticks are then complete when a chat opens.
+export async function preload(logic, srv, ids) {
+  const todo = ids.filter((id) => !((logic.state.reads || {})[id]));
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(3, todo.length) }, async () => { while (next < todo.length) await load(logic, srv, todo[next++]); }));
 }
 
 // Someone read a chat I am in: their place moves, and my ticks follow at once.

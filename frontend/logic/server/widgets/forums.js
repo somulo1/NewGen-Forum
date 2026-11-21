@@ -317,6 +317,7 @@ function loadFiles(logic, srv, todo) {
 export async function load(logic, srv) {
   const { conversations } = await ask(srv, 'GET', '/conversations?kind=forum&limit=200');
   srv.forumMark = markOf(conversations);
+  readsW.preload(logic, srv, conversations.map((c) => c.id));   // who has read what is fetched alongside the messages, so ticks are right the moment they show
   const prev = new Map((logic.state.forumsLive || []).map((f) => [f.sid, f]));
   // a forum that fails to load keeps what was shown before (or is left out until the next reload) instead of failing them all
   const built = (await pool(conversations, 8, (c) => fetchForum(srv, c).catch((e) => {
@@ -486,6 +487,7 @@ export async function send(logic, srv, local, m) {
   if (shared) payload.shared = shared;
   if (m.note) payload.note = m.note;   // a note shared into the forum: members open it from the Files tab
   await post(srv, sid, 'text', payload, m.replyTo);
+  if (m.onSent) m.onSent();
   await reloadForum(logic, srv, local, { meta: false });
 }
 
