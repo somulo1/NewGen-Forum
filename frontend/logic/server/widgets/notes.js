@@ -51,8 +51,22 @@ const nameOf = (srv, person) => (person === srv.me.person ? srv.me.name : (srv.n
 
 // ---- reading ----
 
+// The vault this device can open: its key is wrapped for the devices the account had when it was made. One made on a device that is
+// gone (or not online yet to hand the key on) cannot be opened here; nothing is created over it, and the page says so.
+async function usableVault(srv, list) {
+  for (const v of list) {
+    try {
+      const c = await srv.vault.conversation(v.id, true);
+      if (await srv.vault.keyFor(v.id, c.epoch)) return v;
+    } catch (e) { /* not this one */ }
+  }
+  return null;
+}
+
 async function readVault(srv) {
-  let vault = (await ask(srv, 'GET', '/conversations?kind=note&limit=5')).conversations[0];
+  const list = (await ask(srv, 'GET', '/conversations?kind=note&limit=5')).conversations;
+  let vault = await usableVault(srv, list);
+  if (!vault && list.length) throw Object.assign(new Error('Your notes are locked on this device. They open by themselves once another device of yours that already has them is online (up to a minute).'), { locked: true });
   if (!vault) vault = await ask(srv, 'POST', '/conversations', { kind: 'note', keys: await myKeys(srv, []) });
   srv.noteVault = vault.id;
   const recs = await records(srv, vault.id);
@@ -99,8 +113,16 @@ function snapshot(notes, books) {
 // the shared notes' conversations; it exists from the first use, even if the notes have not finished loading
 const sharedSet = (srv) => srv.sharedConvs || (srv.sharedConvs = new Set());
 
+// The person chose to leave the locked notes alone and begin with a new, empty set on this device.
+export async function startFresh(logic, srv) {
+  await ask(srv, 'POST', '/conversations', { kind: 'note', keys: await myKeys(srv, []) });
+  return load(logic, srv);
+}
+
 export async function load(logic, srv) {
-  const vault = await readVault(srv);
+  let vault;
+  try { vault = await readVault(srv); } catch (e) { logic.setState({ noteLocked: !!(e && e.locked) }); throw e; }
+  if (logic.state.noteLocked) logic.setState({ noteLocked: false });
   let books = vault.books;
   if (!books.length) {
     const quick = { id: newId(), name: QUICK, color: COLORS[0] };

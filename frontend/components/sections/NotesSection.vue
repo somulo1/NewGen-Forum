@@ -1,6 +1,11 @@
 <!-- Notes: notebooks (like folders) holding notes. Opened from the sidebar or the My notes widget. -->
 <template><template v-if="show.notes">
 <div style="width: 100%; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+<div v-if="notesPage.locked" role="status" style="display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border-radius: 14px; background: var(--k-2A2418,#2A2418); border: 1px solid var(--k-5A4A1E,#5A4A1E); color: var(--k-FFD66B,#FFD66B); font-size: 14px">
+<strong>Your notes are locked on this device.</strong>
+<span>They are end-to-end encrypted. They open by themselves once another device of yours that already has them is online (up to a minute). Nothing here can be saved until then.</span>
+<div style="display: flex; flex-wrap: wrap; gap: 8px"><button type="button" @click="notesPage.retryLoad" style="height: 36px; padding: 0 16px; border-radius: 18px; border: 0; background: #FFD66B; color: #0F1714; font-weight: 600; cursor: pointer">Try again</button><button type="button" @click="notesPage.startFresh" style="height: 36px; padding: 0 16px; border-radius: 18px; border: 1px solid var(--k-5A4A1E,#5A4A1E); background: transparent; color: inherit; cursor: pointer">Start new notes here</button></div>
+</div>
 <template v-if="!notesPage.editor.open && !notesPage.inBook">
 <div style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px">
 <div style="flex: 1 1 260px"><h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; letter-spacing: -0.02em">Notes</h1><p style="margin: 4px 0 0; color: var(--k-9DB0A6,#9DB0A6)">Your private notes, kept in notebooks. {{ notesPage.total }} in all.</p></div>

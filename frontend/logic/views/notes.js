@@ -76,6 +76,13 @@ export function buildNotes(ctx) {
     close: () => set({ noteEdit: null, noteShare: null }), cancel: () => set({ noteEdit: null, noteShare: null }),
     save: () => {
       if (readOnly) return;
+      // Notes are written to the server by a watcher that starts once they have loaded. Before that nothing would be sent, so the
+      // note stays open and unsaved, and the load is tried again, instead of looking saved and then vanishing on reload.
+      if (this.srv && !this.srv.notesWatching) {
+        set({ noteEdit: { ...ed, err: 'Your notes have not finished loading, so this cannot be saved yet. Trying again now: press Save once more in a moment.' } });
+        notesW.load(this, this.srv).catch((e) => set({ noteEdit: { ...this.state.noteEdit, err: 'Could not reach your notes: ' + ((e && e.message) || 'try again shortly') + '. Nothing was lost; this note is still open.' } }));
+        return;
+      }
       if (!(ed.title || '').trim() && !plain(ed.body).trim()) { set({ noteEdit: { ...ed, err: 'Write something to save.' } }); return; }
       const title = (ed.title || '').trim() || firstLine(ed.body).slice(0, 40);
       const book = incoming ? cur0.book : ed.book;
@@ -102,7 +109,9 @@ export function buildNotes(ctx) {
   const sharedOut = mine.flatMap((n) => (n.shares || []).map((sh) => noteCard(n, { shareId: sh.id, to: shareLabel(sh), accessLabel: permLabel(sh.perm), live: true, stop: () => stopShare(n, sh) })));
   const sharedNotes = { in: sharedIn, out: sharedOut, hasIn: sharedIn.length > 0, hasOut: sharedOut.length > 0 };
 
-  const notesPage = { books, inBook: !!cur, book: cur ? { id: cur.id, name: cur.name, color: cur.color, count: inBook.length } : null, notes: inBook, hasNotes: inBook.length > 0, q: s.noteQ, onQ: (e) => set({ noteQ: e.target.value }), searching: !cur && !!q, matches: allMatches,
+  const notesPage = { locked: !!s.noteLocked, retryLoad: () => this.srv && notesW.load(this, this.srv).catch(() => this.notify('Still locked. Open Hub on your other device, then try again.', '#FFB86B')),
+    startFresh: async () => { if (!this.srv || !await askConfirm({ title: 'Start new notes on this device?', body: 'Your earlier notes stay locked until a device that has them is online. New notes are saved separately.' })) return; notesW.startFresh(this, this.srv).catch((e) => this.notify(e.message || 'Could not start new notes.', '#FF9B8A')); },
+    books, inBook: !!cur, book: cur ? { id: cur.id, name: cur.name, color: cur.color, count: inBook.length } : null, notes: inBook, hasNotes: inBook.length > 0, q: s.noteQ, onQ: (e) => set({ noteQ: e.target.value }), searching: !cur && !!q, matches: allMatches,
     back: () => set({ noteBook: null, noteQ: '' }), newNote: () => set({ noteShare: null, noteEdit: { id: '', book: cur ? cur.id : (s.noteBooks[0] || {}).id || '', title: '', body: '', orig: { title: '', body: '', book: '' }, err: '' } }),
     newBook: { open: s.noteNewBook !== null, name: s.noteNewBook || '', toggle: () => set({ noteNewBook: s.noteNewBook === null ? '' : null }), onName: (e) => set({ noteNewBook: e.target.value }),
       create: () => { const n = (s.noteNewBook || '').trim(); if (!n) return; const colors = ['#FFD66B', '#7CC4FF', '#C9B6FF', '#6EE7C8', '#F49AC1', '#FFB86B']; this.setState((st) => ({ noteBooks: st.noteBooks.concat([{ id: this.srv ? notesW.newId() : 'nb' + Date.now(), name: n, color: colors[st.noteBooks.length % colors.length] }]), noteNewBook: null })); flash('Notebook created.'); } },
