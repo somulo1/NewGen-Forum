@@ -315,8 +315,8 @@ func (s *Service) Create(ctx context.Context, p *tenant.Principal, in CreateIn) 
 		if err != nil {
 			return err
 		}
-		// tickets and the community wall are not end-to-end encrypted: their conversation needs no keys
-		if in.Kind != "ticket" && in.Kind != "wall" {
+		// tickets, the community wall and notes are not end-to-end encrypted: their conversation needs no keys
+		if in.Kind != "ticket" && in.Kind != "wall" && !serverHeld(in.Kind) {
 			if len(devs) == 0 {
 				return httpx.Err(409, "no_devices", "Set up secure messaging on this device first.")
 			}

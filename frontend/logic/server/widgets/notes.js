@@ -1,9 +1,10 @@
 // Notes: notebooks and notes (the Notes page and the My notes widget), and notes shared with people or forums.
 // Your own notes live in your private vault (a conversation only you are in); each note and notebook is a sealed record there.
 // Sharing a note moves it into its own small conversation (a "shared note") that holds the note and whoever it is shared with:
-// the owner decides who is in and whether they can only read or also edit. Everything is end-to-end encrypted.
+// the owner decides who is in and whether they can only read or also edit. Notes are not end-to-end encrypted: the server keeps them
+// (encrypted at rest with the organization's key), so they open on any device with nothing to hand over between devices.
 // The Notes page edits state.notes / state.noteBooks directly; this module watches those edits and writes the differences.
-import { newConversationKey, wrap, newId, b64, unb64 } from '../e2ee.js';
+import { newId } from '../e2ee.js';
 import { connectRealtime } from '../realtime.js';
 import * as forumsW from './forums.js';
 
@@ -21,12 +22,6 @@ async function ask(srv, method, path, body) {
   }
 }
 
-async function myKeys(srv, people) {
-  const { devices } = await ask(srv, 'POST', '/e2ee/people/devices', { people: [...new Set([srv.me.person, ...people])] });
-  const key = newConversationKey();
-  return Promise.all(devices.map(async (d) => ({ epoch: 1, device: d.id, wrapped_key: b64(await wrap(key, unb64(d.identity_key))) })));
-}
-
 async function records(srv, conv) {
   const out = [];
   let before = '';
@@ -39,43 +34,39 @@ async function records(srv, conv) {
   return out.filter((r) => !r.deleted);
 }
 
-const sealRecord = async (srv, conv, payload, id) => srv.vault.seal(conv, payload, id);
+// A record is sent as it is; the server seals it at rest. Records written before notes moved to the server are still sealed to the
+// devices that had them: one this device can open is read, then saved again in the new way.
 const put = async (srv, conv, collection, id, payload, meta, create) => {
-  const sealed = await sealRecord(srv, conv, payload, id);
-  const body = { collection, epoch: sealed.epoch, device: sealed.device, envelope: sealed.envelope, meta: meta || {} };
+  const body = { collection, body: payload, meta: meta || {} };
   if (create) await ask(srv, 'POST', `/containers/${conv}/records`, { id, ...body });
   else await ask(srv, 'PUT', `/containers/${conv}/records/${id}`, body);
+};
+
+const openRec = async (srv, r) => (r.body ? r.body : r.envelope ? srv.vault.openRecord(r).catch(() => null) : null);
+
+// Older sealed records this device could open are written again, readable by the server, so every device sees them from now on.
+const upgrade = (srv, conv, opened, mayWrite) => {
+  if (!mayWrite) return;
+  opened.filter((x) => x.pl && x.r.envelope).forEach(({ r, pl }) => { put(srv, conv, r.collection, r.id, pl, r.meta, false).catch(() => {}); });
 };
 
 const nameOf = (srv, person) => (person === srv.me.person ? srv.me.name : (srv.nameOf && srv.nameOf.get(person)) || '');
 
 // ---- reading ----
 
-// The vault this device can open: its key is wrapped for the devices the account had when it was made. One made on a device that is
-// gone (or not online yet to hand the key on) cannot be opened here; nothing is created over it, and the page says so.
-async function usableVault(srv, list) {
-  for (const v of list) {
-    try {
-      const c = await srv.vault.conversation(v.id, true);
-      if (await srv.vault.keyFor(v.id, c.epoch)) return v;
-    } catch (e) { /* not this one */ }
-  }
-  return null;
-}
-
 async function readVault(srv) {
-  const list = (await ask(srv, 'GET', '/conversations?kind=note&limit=5')).conversations;
-  let vault = await usableVault(srv, list);
-  if (!vault && list.length) throw Object.assign(new Error('Your notes are locked on this device. They open by themselves once another device of yours that already has them is online (up to a minute).'), { locked: true });
-  if (!vault) vault = await ask(srv, 'POST', '/conversations', { kind: 'note', keys: await myKeys(srv, []) });
+  let vault = (await ask(srv, 'GET', '/conversations?kind=note&limit=5')).conversations[0];
+  if (!vault) vault = await ask(srv, 'POST', '/conversations', { kind: 'note' });
   srv.noteVault = vault.id;
   const recs = await records(srv, vault.id);
-  const opened = await Promise.all(recs.map(async (r) => ({ r, pl: await srv.vault.openRecord(r) })));
+  const opened = await Promise.all(recs.map(async (r) => ({ r, pl: await openRec(srv, r) })));
+  upgrade(srv, vault.id, opened, true);
+  const stillSealed = opened.filter((x) => !x.pl && x.r.envelope).length;   // written on a device this one cannot ask for the key
   const books = opened.filter((x) => x.r.collection === 'notebook' && x.pl).map(({ r, pl }) => ({ id: r.id, name: pl.name || 'Notebook', color: pl.color || COLORS[0], _t: Date.parse(r.created_at) }))
     .sort((a, b) => a._t - b._t).map(({ _t, ...b }) => b);
   const notes = opened.filter((x) => x.r.collection === 'note' && x.pl).map(({ r, pl }) => ({ id: r.id, book: r.meta.book || '', title: pl.title || '', body: pl.body || '', updated: Date.parse(r.updated_at || r.created_at), pinned: !!r.meta.pinned }));
   const d = opened.find((x) => x.r.collection === 'draft' && x.pl);
-  return { books, notes, draft: d ? { id: d.r.id, text: d.pl.text || '' } : null };
+  return { books, notes, draft: d ? { id: d.r.id, text: d.pl.text || '' } : null, stillSealed };
 }
 
 // One shared note: its record, its members and what I may do.
@@ -84,12 +75,13 @@ async function readShared(srv, c) {
   const recs = await records(srv, c.id);
   const r = recs.find((x) => x.collection === 'note');
   if (!r) return null;
-  const pl = await srv.vault.openRecord(r);
+  const pl = await openRec(srv, r);
   if (!pl) return null;
   const members = detail.members || [];
   const owner = members.find((m) => m.role === 'owner');
   const mineRole = (members.find((m) => m.person === srv.me.person) || {}).role || '';
   const iOwn = !!owner && owner.person === srv.me.person;
+  upgrade(srv, c.id, [{ r, pl }], iOwn || mineRole === 'admin');
   const n = { id: r.id, container: c.id, book: r.meta.book || '', title: pl.title || '', body: pl.body || '', updated: Date.parse(r.updated_at || r.created_at), pinned: !!r.meta.pinned, meta: r.meta, sharesRaw: pl.shares || [] };
   if (iOwn) {
     n.shares = (pl.shares || []).map((s) => ({ ...s, perm: s.kind === 'person' ? roleToPerm((members.find((m) => m.person === s.to) || {}).role) || s.perm : s.perm }));
@@ -113,16 +105,9 @@ function snapshot(notes, books) {
 // the shared notes' conversations; it exists from the first use, even if the notes have not finished loading
 const sharedSet = (srv) => srv.sharedConvs || (srv.sharedConvs = new Set());
 
-// The person chose to leave the locked notes alone and begin with a new, empty set on this device.
-export async function startFresh(logic, srv) {
-  await ask(srv, 'POST', '/conversations', { kind: 'note', keys: await myKeys(srv, []) });
-  return load(logic, srv);
-}
-
 export async function load(logic, srv) {
-  let vault;
-  try { vault = await readVault(srv); } catch (e) { logic.setState({ noteLocked: !!(e && e.locked) }); throw e; }
-  if (logic.state.noteLocked) logic.setState({ noteLocked: false });
+  const vault = await readVault(srv);
+  logic.setState({ noteOld: vault.stillSealed || 0 });
   let books = vault.books;
   if (!books.length) {
     const quick = { id: newId(), name: QUICK, color: COLORS[0] };
@@ -233,33 +218,25 @@ function watch(logic, srv) {
 // ---- sharing ----
 
 async function addMembers(srv, conv, people) {
-  const c = await srv.vault.conversation(conv, true);
+  const c = await ask(srv, 'GET', `/conversations/${conv}`);
   const have = new Set((c.members || []).map((m) => m.person));
   const add = [...new Set(people)].filter((p) => p && !have.has(p));
   if (!add.length) return [];
-  const key = await srv.vault.keyFor(conv, c.epoch);
-  if (!key) throw new Error('This device does not have the key for this note yet.');
-  const { devices } = await ask(srv, 'POST', '/e2ee/people/devices', { people: add });
-  await ask(srv, 'POST', `/conversations/${conv}/members`, { people: add, device: srv.vault.deviceId, keys: await srv.vault.wrapFor(conv, c.epoch, key, devices) });
-  srv.vault.convs.delete(conv);
+  await ask(srv, 'POST', `/conversations/${conv}/members`, { people: add });
   return add;
 }
 
 async function removeMember(srv, conv, person) {
-  const c = await srv.vault.conversation(conv, true);
+  const c = await ask(srv, 'GET', `/conversations/${conv}`);
   if (!(c.members || []).some((m) => m.person === person)) return;
-  const stay = (c.members || []).filter((m) => m.person !== person).map((m) => m.person);
-  const { devices } = await ask(srv, 'POST', '/e2ee/people/devices', { people: stay });
-  const keys = await srv.vault.wrapFor(conv, c.epoch + 1, newConversationKey(), devices);
-  await ask(srv, 'DELETE', `/conversations/${conv}/members/${person}`, { device: srv.vault.deviceId, keys });
-  srv.vault.keys.delete(conv); srv.vault.convs.delete(conv);
+  await ask(srv, 'DELETE', `/conversations/${conv}/members/${person}`, {});
 }
 
 // Moves a note into a shared container the first time it is shared (a record id is unique, so it gets a new one); returns the
 // note as it is after.
 async function ensureShared(logic, srv, n) {
   if (n.container) return n;
-  const made = await ask(srv, 'POST', '/conversations', { kind: 'sharednote', members: [], keys: await myKeys(srv, []) });
+  const made = await ask(srv, 'POST', '/conversations', { kind: 'sharednote', members: [] });
   const conv = made.id;
   const id = newId();
   const meta = { ...(n.book ? { book: n.book } : {}), ...(n.pinned ? { pinned: true } : {}) };

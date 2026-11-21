@@ -1,10 +1,9 @@
 <!-- Notes: notebooks (like folders) holding notes. Opened from the sidebar or the My notes widget. -->
 <template><template v-if="show.notes">
 <div style="width: 100%; min-width: 0; display: flex; flex-direction: column; gap: 16px">
-<div v-if="notesPage.locked" role="status" style="display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border-radius: 14px; background: var(--k-2A2418,#2A2418); border: 1px solid var(--k-5A4A1E,#5A4A1E); color: var(--k-FFD66B,#FFD66B); font-size: 14px">
-<strong>Your notes are locked on this device.</strong>
-<span>They are end-to-end encrypted. They open by themselves once another device of yours that already has them is online (up to a minute). Nothing here can be saved until then.</span>
-<div style="display: flex; flex-wrap: wrap; gap: 8px"><button type="button" @click="notesPage.retryLoad" style="height: 36px; padding: 0 16px; border-radius: 18px; border: 0; background: #FFD66B; color: #0F1714; font-weight: 600; cursor: pointer">Try again</button><button type="button" @click="notesPage.startFresh" style="height: 36px; padding: 0 16px; border-radius: 18px; border: 1px solid var(--k-5A4A1E,#5A4A1E); background: transparent; color: inherit; cursor: pointer">Start new notes here</button></div>
+<div v-if="notesPage.oldSealed" role="status" style="display: flex; flex-direction: column; gap: 8px; padding: 12px 16px; border-radius: 14px; background: var(--k-2A2418,#2A2418); border: 1px solid var(--k-5A4A1E,#5A4A1E); color: var(--k-FFD66B,#FFD66B); font-size: 14px">
+<span>{{ notesPage.oldSealed }} earlier {{ notesPage.oldSealed === 1 ? 'note was' : 'notes were' }} saved in the old encrypted way on a device this one cannot read from. Open Hub once on that device and {{ notesPage.oldSealed === 1 ? 'it' : 'they' }} will appear everywhere.</span>
+<button type="button" @click="notesPage.retryLoad" style="align-self: flex-start; height: 34px; padding: 0 16px; border-radius: 17px; border: 0; background: #FFD66B; color: #0F1714; font-weight: 600; cursor: pointer">Check again</button>
 </div>
 <template v-if="!notesPage.editor.open && !notesPage.inBook">
 <div style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px">

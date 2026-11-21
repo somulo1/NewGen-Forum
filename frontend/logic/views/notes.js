@@ -79,7 +79,7 @@ export function buildNotes(ctx) {
       // Notes are written to the server by a watcher that starts once they have loaded. Before that nothing would be sent, so the
       // note stays open and unsaved, and the load is tried again, instead of looking saved and then vanishing on reload.
       if (this.srv && !this.srv.notesWatching) {
-        set({ noteEdit: { ...ed, err: 'Your notes have not finished loading, so this cannot be saved yet. Trying again now: press Save once more in a moment.' } });
+        set({ noteEdit: { ...ed, err: 'Your notes have not finished loading, so this cannot be saved yet. Loading them again now: press Save once more in a moment.' } });
         notesW.load(this, this.srv).catch((e) => set({ noteEdit: { ...this.state.noteEdit, err: 'Could not reach your notes: ' + ((e && e.message) || 'try again shortly') + '. Nothing was lost; this note is still open.' } }));
         return;
       }
@@ -109,8 +109,7 @@ export function buildNotes(ctx) {
   const sharedOut = mine.flatMap((n) => (n.shares || []).map((sh) => noteCard(n, { shareId: sh.id, to: shareLabel(sh), accessLabel: permLabel(sh.perm), live: true, stop: () => stopShare(n, sh) })));
   const sharedNotes = { in: sharedIn, out: sharedOut, hasIn: sharedIn.length > 0, hasOut: sharedOut.length > 0 };
 
-  const notesPage = { locked: !!s.noteLocked, retryLoad: () => this.srv && notesW.load(this, this.srv).catch(() => this.notify('Still locked. Open Hub on your other device, then try again.', '#FFB86B')),
-    startFresh: async () => { if (!this.srv || !await askConfirm({ title: 'Start new notes on this device?', body: 'Your earlier notes stay locked until a device that has them is online. New notes are saved separately.' })) return; notesW.startFresh(this, this.srv).catch((e) => this.notify(e.message || 'Could not start new notes.', '#FF9B8A')); },
+  const notesPage = { oldSealed: s.noteOld || 0, retryLoad: () => this.srv && notesW.load(this, this.srv).catch((e) => this.notify((e && e.message) || 'Could not load your notes.', '#FFB86B')),
     books, inBook: !!cur, book: cur ? { id: cur.id, name: cur.name, color: cur.color, count: inBook.length } : null, notes: inBook, hasNotes: inBook.length > 0, q: s.noteQ, onQ: (e) => set({ noteQ: e.target.value }), searching: !cur && !!q, matches: allMatches,
     back: () => set({ noteBook: null, noteQ: '' }), newNote: () => set({ noteShare: null, noteEdit: { id: '', book: cur ? cur.id : (s.noteBooks[0] || {}).id || '', title: '', body: '', orig: { title: '', body: '', book: '' }, err: '' } }),
     newBook: { open: s.noteNewBook !== null, name: s.noteNewBook || '', toggle: () => set({ noteNewBook: s.noteNewBook === null ? '' : null }), onName: (e) => set({ noteNewBook: e.target.value }),

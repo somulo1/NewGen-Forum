@@ -53,6 +53,42 @@ func OpenPlain(dek []byte, org, msg uuid.UUID, stored []byte) (json.RawMessage, 
 	return json.RawMessage(b), true
 }
 
+// serverHeld kinds are not end-to-end encrypted: notes (a person's own and the ones they share) are kept by the server, encrypted at
+// rest with the organization's key, so they open on any device and no key ever has to be handed from one device to another.
+func serverHeld(kind string) bool { return kind == "note" || kind == "sharednote" }
+
+func recordCtx(org, rec uuid.UUID) crypto.Context {
+	return crypto.Context{Org: org.String(), Table: "records", Column: "body", RowID: rec.String()}
+}
+
+// SealRecord turns a record's JSON body into what is stored for a server-held record.
+func SealRecord(ctx context.Context, tx pgx.Tx, a *app.App, org, rec uuid.UUID, body []byte) ([]byte, error) {
+	if !json.Valid(body) {
+		return nil, errBadBody
+	}
+	dek, _, err := a.OrgDEK(ctx, tx, org)
+	if err != nil {
+		return nil, err
+	}
+	ct, err := crypto.Field(dek, recordCtx(org, rec), body)
+	if err != nil {
+		return nil, err
+	}
+	return append(append([]byte{}, plainMark...), ct...), nil
+}
+
+// OpenRecord gives back the JSON body of a server-held record.
+func OpenRecord(dek []byte, org, rec uuid.UUID, stored []byte) (json.RawMessage, bool) {
+	if !IsPlain(stored) {
+		return nil, false
+	}
+	b, err := crypto.FieldOpen(dek, recordCtx(org, rec), stored[len(plainMark):])
+	if err != nil {
+		return nil, false
+	}
+	return json.RawMessage(b), true
+}
+
 type badBody struct{}
 
 func (badBody) Error() string { return "not a JSON body" }

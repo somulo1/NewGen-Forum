@@ -128,59 +128,70 @@ func validMeta(spec map[string]string, meta map[string]any) error {
 }
 
 type Record struct {
-	ID           uuid.UUID      `json:"id"`
-	Collection   string         `json:"collection"`
-	Container    uuid.UUID      `json:"container"`
-	Parent       *uuid.UUID     `json:"parent,omitempty"`
-	Author       uuid.UUID      `json:"author_account"`
-	AuthorName   string         `json:"author_name,omitempty"`
-	AuthorPerson *uuid.UUID     `json:"author_person,omitempty"`
-	Device       *uuid.UUID     `json:"author_device,omitempty"`
-	Epoch        int            `json:"epoch"`
-	Envelope     string         `json:"envelope,omitempty"`
-	Meta         map[string]any `json:"meta"`
-	CreatedAt    time.Time      `json:"created_at"`
-	UpdatedAt    time.Time      `json:"updated_at"`
-	Deleted      bool           `json:"deleted,omitempty"`
+	ID           uuid.UUID       `json:"id"`
+	Collection   string          `json:"collection"`
+	Container    uuid.UUID       `json:"container"`
+	Parent       *uuid.UUID      `json:"parent,omitempty"`
+	Author       uuid.UUID       `json:"author_account"`
+	AuthorName   string          `json:"author_name,omitempty"`
+	AuthorPerson *uuid.UUID      `json:"author_person,omitempty"`
+	Device       *uuid.UUID      `json:"author_device,omitempty"`
+	Epoch        int             `json:"epoch"`
+	Envelope     string          `json:"envelope,omitempty"`
+	Body         json.RawMessage `json:"body,omitempty"` // the content of a note, which the server holds (see serverHeld)
+	Meta         map[string]any  `json:"meta"`
+	CreatedAt    time.Time       `json:"created_at"`
+	UpdatedAt    time.Time       `json:"updated_at"`
+	Deleted      bool            `json:"deleted,omitempty"`
 }
 
 type RecordIn struct {
-	ID         uuid.UUID      `json:"id"`
-	Collection string         `json:"collection"`
-	Parent     *uuid.UUID     `json:"parent"`
-	Epoch      int            `json:"epoch"`
-	Device     uuid.UUID      `json:"device"`
-	Envelope   string         `json:"envelope"`
-	Meta       map[string]any `json:"meta"`
+	ID         uuid.UUID       `json:"id"`
+	Collection string          `json:"collection"`
+	Parent     *uuid.UUID      `json:"parent"`
+	Epoch      int             `json:"epoch"`
+	Device     uuid.UUID       `json:"device"`
+	Envelope   string          `json:"envelope"`
+	Body       json.RawMessage `json:"body"`
+	Meta       map[string]any  `json:"meta"`
 }
 
-func (s *Service) checkRecord(ctx context.Context, tx pgx.Tx, p *tenant.Principal, container uuid.UUID, in RecordIn) (collection, int, error) {
+// maxBody bounds one server-held record (a note with pictures in it).
+const maxBody = 1 << 20
+
+func (s *Service) checkRecord(ctx context.Context, tx pgx.Tx, p *tenant.Principal, container uuid.UUID, in RecordIn) (collection, int, bool, error) {
 	col, ok := collections[in.Collection]
 	if !ok {
-		return col, 0, httpx.Bad("Unknown kind of record.")
+		return col, 0, false, httpx.Bad("Unknown kind of record.")
 	}
 	kind, _, _, epoch, err := s.lockConvNoLock(ctx, tx, p, container)
 	if err != nil {
-		return col, 0, err
+		return col, 0, false, err
 	}
 	okKind := false
 	for _, k := range col.kinds {
 		okKind = okKind || k == kind
 	}
 	if !okKind {
-		return col, 0, httpx.Bad("That cannot be stored here.")
+		return col, 0, false, httpx.Bad("That cannot be stored here.")
+	}
+	if serverHeld(kind) && len(in.Body) > 0 {
+		if len(in.Body) > maxBody || !json.Valid(in.Body) {
+			return col, 0, false, httpx.Bad("That is not a valid note.")
+		}
+		return col, epoch, true, validMeta(col.meta, in.Meta)
 	}
 	env, err := base64.StdEncoding.DecodeString(in.Envelope)
 	if err != nil || e2ee.ValidateEnvelope(env) != nil {
-		return col, 0, httpx.Bad("That is not a valid encrypted record.")
+		return col, 0, false, httpx.Bad("That is not a valid encrypted record.")
 	}
 	if in.Epoch != epoch {
-		return col, 0, httpx.Err(409, "epoch_changed", "The key changed. Fetch the new key and save again.")
+		return col, 0, false, httpx.Err(409, "epoch_changed", "The key changed. Fetch the new key and save again.")
 	}
 	if err := s.myDevice(ctx, tx, p.Account, in.Device); err != nil {
-		return col, 0, err
+		return col, 0, false, err
 	}
-	return col, epoch, validMeta(col.meta, in.Meta)
+	return col, epoch, false, validMeta(col.meta, in.Meta)
 }
 
 // SaveRecord creates (POST) or replaces (PUT) one record. Replacing keeps its id and bumps its version.
@@ -193,11 +204,20 @@ func (s *Service) SaveRecord(ctx context.Context, p *tenant.Principal, container
 	}
 	var out *Record
 	err := s.A.DB.WithOrg(ctx, p.Org, func(tx pgx.Tx) error {
-		col, epoch, err := s.checkRecord(ctx, tx, p, container, in)
+		col, epoch, held, err := s.checkRecord(ctx, tx, p, container, in)
 		if err != nil {
 			return err
 		}
-		env, _ := base64.StdEncoding.DecodeString(in.Envelope)
+		var env []byte
+		var dev *uuid.UUID
+		if held {
+			if env, err = SealRecord(ctx, tx, s.A, p.Org, in.ID, in.Body); err != nil {
+				return httpx.Bad("That is not a valid note.")
+			}
+		} else {
+			env, _ = base64.StdEncoding.DecodeString(in.Envelope)
+			dev = &in.Device
+		}
 		meta, _ := json.Marshal(in.Meta)
 		if !update {
 			if ok, err := sharedNoteEditor(ctx, tx, p, container); err != nil {
@@ -220,7 +240,7 @@ func (s *Service) SaveRecord(ctx context.Context, p *tenant.Principal, container
 				}
 			}
 			if _, err := tx.Exec(ctx, `insert into hub.records (org_id, id, collection, container_id, parent_id, author_account, author_person, author_device, epoch, ciphertext, meta)
-				values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`, p.Org, in.ID, in.Collection, container, in.Parent, p.Account, p.Person, in.Device, epoch, env, meta); err != nil {
+				values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`, p.Org, in.ID, in.Collection, container, in.Parent, p.Account, p.Person, dev, epoch, env, meta); err != nil {
 				return err
 			}
 		} else {
@@ -242,15 +262,15 @@ func (s *Service) SaveRecord(ctx context.Context, p *tenant.Principal, container
 					return err
 				}
 			}
-			if _, err := tx.Exec(ctx, `update hub.records set ciphertext=$3, meta=$4, epoch=$5, author_device=$6, updated_at=now(), `+integrity.Bump+` where org_id=$1 and id=$2`, p.Org, in.ID, env, meta, epoch, in.Device); err != nil {
+			if _, err := tx.Exec(ctx, `update hub.records set ciphertext=$3, meta=$4, epoch=$5, author_device=$6, updated_at=now(), `+integrity.Bump+` where org_id=$1 and id=$2`, p.Org, in.ID, env, meta, epoch, dev); err != nil {
 				return err
 			}
 		}
 		if err := s.A.Sign.Seal(ctx, tx, "records", "id=$1 and org_id=$2", in.ID, p.Org); err != nil {
 			return err
 		}
-		pid, dev := p.Person, in.Device
-		out = &Record{ID: in.ID, Collection: in.Collection, Container: container, Parent: in.Parent, Author: p.Account, AuthorName: p.Name, Device: &dev, Epoch: epoch, Envelope: in.Envelope, Meta: in.Meta, CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
+		pid := p.Person
+		out = &Record{ID: in.ID, Collection: in.Collection, Container: container, Parent: in.Parent, Author: p.Account, AuthorName: p.Name, Device: dev, Epoch: epoch, Envelope: in.Envelope, Body: in.Body, Meta: in.Meta, CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
 		_ = pid
 		return nil
 	})
@@ -309,6 +329,7 @@ func (s *Service) Records(ctx context.Context, p *tenant.Principal, container uu
 		if err := tx.QueryRow(ctx, `select first_epoch from hub.conversation_members where conversation_id=$1 and account_id=$2`, container, p.Account).Scan(&first); err != nil {
 			return err
 		}
+		dek, _, _ := s.A.OrgDEK(ctx, tx, p.Org) // opens the records the server holds; fetched before the rows are read
 		q := `select r.id, r.collection, r.parent_id, r.author_account, coalesce(pe.first_name || ' ' || pe.last_name,''), r.author_person, r.author_device, r.epoch, r.ciphertext, r.meta, r.created_at, r.updated_at, r.deleted_at is not null
 			from hub.records r left join hub.people pe on pe.id = r.author_person
 			where r.org_id=$1 and r.container_id=$2 and r.epoch >= $3`
@@ -334,7 +355,11 @@ func (s *Service) Records(ctx context.Context, p *tenant.Principal, container uu
 			}
 			_ = json.Unmarshal(meta, &r.Meta)
 			if !r.Deleted {
-				r.Envelope = base64.StdEncoding.EncodeToString(ct)
+				if IsPlain(ct) {
+					r.Body, _ = OpenRecord(dek, p.Org, r.ID, ct)
+				} else {
+					r.Envelope = base64.StdEncoding.EncodeToString(ct)
+				}
 			}
 			out = append(out, r)
 		}

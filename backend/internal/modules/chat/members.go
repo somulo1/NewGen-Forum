@@ -52,7 +52,7 @@ func (s *Service) AddMembers(ctx context.Context, p *tenant.Principal, id uuid.U
 				return err
 			}
 		}
-		if kind != "ticket" {
+		if kind != "ticket" && !serverHeld(kind) {
 			if err := s.myDevice(ctx, tx, p.Account, by); err != nil {
 				return err
 			}
@@ -84,7 +84,7 @@ func (s *Service) AddMembers(ctx context.Context, p *tenant.Principal, id uuid.U
 		if err != nil {
 			return err
 		}
-		if kind != "ticket" { // a ticket's people need no key (tickets are not end-to-end encrypted)
+		if kind != "ticket" && !serverHeld(kind) { // a ticket's or a note's people need no key (they are not end-to-end encrypted)
 			if err := checkCovers(keys, epoch, devs); err != nil {
 				return err
 			}
@@ -156,8 +156,10 @@ func (s *Service) RemoveMember(ctx context.Context, p *tenant.Principal, id, per
 				return err
 			}
 		}
-		if err := s.myDevice(ctx, tx, p.Account, by); err != nil {
-			return err
+		if !serverHeld(kind) {
+			if err := s.myDevice(ctx, tx, p.Account, by); err != nil {
+				return err
+			}
 		}
 		tag, err := tx.Exec(ctx, `update hub.conversation_members set left_at=now(), `+integrity.Bump+` where conversation_id=$1 and account_id=$2 and left_at is null`, id, target)
 		if err != nil {
@@ -183,7 +185,7 @@ func (s *Service) RemoveMember(ctx context.Context, p *tenant.Principal, id, per
 			accts = append(accts, a)
 		}
 		rest.Close()
-		if len(accts) > 0 {
+		if len(accts) > 0 && !serverHeld(kind) {
 			devs, err := deviceSet(ctx, tx, accts)
 			if err != nil {
 				return err

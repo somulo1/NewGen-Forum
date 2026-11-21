@@ -270,3 +270,15 @@ func (e *Env) pool(owner *User) map[string]string {
 	}
 	return out
 }
+
+// RootScan reads one value from the database behind the app's back (tests only), with the superuser connection.
+func (e *Env) RootScan(q string, args []any, dest ...any) {
+	root, err := pgx.Connect(context.Background(), rootURL())
+	if err != nil {
+		e.T.Skip("superuser not reachable: ", err)
+	}
+	defer root.Close(context.Background())
+	if err := root.QueryRow(context.Background(), q, args...).Scan(dest...); err != nil {
+		e.T.Fatal(err)
+	}
+}
